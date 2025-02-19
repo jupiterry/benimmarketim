@@ -70,7 +70,7 @@ const OrderSummary = () => {
             }
         } catch (error) {
             console.error("Sipariş işleminde hata oluştu:", error);
-            toast.error("Sipariş işleminde hata oluştu!", { id: "orderError" });
+            toast.error("Sipariş işleminde hata oluştu tutarı kontrol ediniz.", { id: "orderError" });
         }
     };
     
@@ -120,7 +120,7 @@ const OrderSummary = () => {
                             setSelectedCity(e.target.value);
                         }}
                     >
-                        <option value="">Şehri Seçiniz!</option>
+                        <option value="">Gönderim Yerini Seçiniz</option>
                         {Object.keys(cities).map((city) => (
                             <option key={city} value={city}>
                                 {city}
