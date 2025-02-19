@@ -1,12 +1,6 @@
 <h1 align="center">E-Commerce Store 🛒</h1>
 
-![Demo App](/frontend/public/screenshot-for-readme.png)
 
-[Video Tutorial on Youtube](https://youtu.be/sX57TLIPNx8)
-
-About This Course:
-
--   🚀 Project Setup
 -   🗄️ MongoDB & Redis Integration
 -   💳 Stripe Payment Setup
 -   🔐 Robust Authentication System
@@ -24,8 +18,7 @@ About This Course:
 -   🔒 Security
 -   🛡️ Data Protection
 -   🚀Caching with Redis
--   ⌛ And a lot more...
-
+  
 ### Setup .env file
 
 ```bash
