@@ -185,3 +185,25 @@ export const getProducts = async (req, res) => {
         res.status(500).json({ message: "Server error", error: error.message });
     }
 };
+
+export const updateProductPrice = async (req, res) => {
+    try {
+        const { price } = req.body;
+        if (!price) {
+            return res.status(400).json({ message: "Fiyat alanı zorunludur" });
+        }
+
+        const product = await Product.findById(req.params.id);
+        if (!product) {
+            return res.status(404).json({ message: "Ürün bulunamadı" });
+        }
+
+        product.price = price; // Yeni fiyatı kaydet
+        await product.save();
+
+        res.status(200).json({ message: "Ürün fiyatı güncellendi", product });
+    } catch (error) {
+        console.error("Ürün fiyatı güncellenirken hata:", error.message);
+        res.status(500).json({ message: "Sunucu hatası", error: error.message });
+    }
+};
