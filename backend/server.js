@@ -20,7 +20,7 @@ dotenv.config();
 
 // ✅ CORS AYARLARI
 const corsOptions = {
-  origin: "http://localhost:5173", // 🎯 Frontend'in adresini buraya ekledik
+  origin: "http://devrekbenimmarketim:5173", // 🎯 Frontend'in adresini buraya ekledik
   credentials: true, // 🍪 Çerezleri paylaşmak için
   optionsSuccessStatus: 200,
 };

@@ -21,7 +21,7 @@ const PurchaseSuccessPage = () => {
         localStorage.removeItem('cart');
 
         // Yönlendirme işlemi
-        window.location.href = `http://localhost:5173/purchase-success?session_id=${sessionId}`;
+        window.location.href = `http://devrekbenimmarketim.com:5173/purchase-success?session_id=${sessionId}`;
       } catch (error) {
         console.log(error);
         setError("Sipariş işleme alınırken bir hata oluştu.");
