@@ -59,8 +59,10 @@ function App() {
           />
           <Route path="/siparisolusturuldu" element={user ? <OrderCreated /> : <Navigate to="/login" />} />
           <Route path="/siparislerim" element={user ? <UserOrders /> : <Navigate to="/login" />} />
-          {/* 🔥 Yeni eklenen rota */}
           <Route path="/search" element={<SearchResultsPage />} />
+          {/* Yeni eklenen dosya yükleme sayfası */}
+          <Route
+          />
         </Routes>
       </div>
 

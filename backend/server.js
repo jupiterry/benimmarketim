@@ -5,8 +5,6 @@ import path from "path";
 import cors from "cors";
 
 import ordersAnalyticsRoutes from "./routes/ordersAnalytics.route.js";
-
-
 import authRoutes from "./routes/auth.route.js";
 import productRoutes from "./routes/product.route.js";
 import cartRoutes from "./routes/cart.route.js";

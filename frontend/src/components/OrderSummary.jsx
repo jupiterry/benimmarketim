@@ -1,12 +1,12 @@
 import { motion } from "framer-motion";
 import { useCartStore } from "../stores/useCartStore";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import axios from "../lib/axios";
 import { useState } from "react";
 import cities from "../data/cities";
 import toast from "react-hot-toast";
 
-const OrderSummary = ({ note, setNote }) => { // Not prop'unu alın
+const OrderSummary = ({ note, setNote }) => {
   const { total, subtotal, coupon, isCouponApplied, cart, clearCart } = useCartStore();
   const [selectedCity, setSelectedCity] = useState("");
   const [phone, setPhone] = useState("");
@@ -19,51 +19,44 @@ const OrderSummary = ({ note, setNote }) => { // Not prop'unu alın
 
   const handlePayment = async () => {
     try {
-      console.log("Proceed to Checkout tıklandı");
-      console.log("Sepet Verisi:", cart);
-
       if (cart.length === 0) {
         toast.error("Sepetiniz boş!", { id: "emptyCart" });
         return;
       }
-
+  
       if (!selectedCity.trim()) {
         toast.error("Lütfen il seçin!", { id: "cityDistrict" });
         return;
       }
-
+  
       if (!phone.trim() || phone.length < 10) {
         toast.error("Geçerli bir telefon numarası girin!", { id: "phoneError" });
         return;
       }
-
-      // Sepetteki ürünleri topluyoruz
+  
       const orderItems = cart.map((item) => ({
         product: item._id,
         name: item.name,
         quantity: item.quantity,
         price: item.price,
       }));
-
+  
       const res = await axios.post("/cart/place-order", {
         products: orderItems,
         city: selectedCity,
         phone: phone,
-        note: note, // Not alanını backend'e gönderin
+        note: note,
       });
-
+  
       if (res.data.success) {
-        console.log("Sipariş oluşturuldu:", res.data);
         localStorage.removeItem("cart");
-        clearCart(); // Sepeti temizliyoruz
+        clearCart();
         toast.success("Sipariş başarıyla oluşturuldu!", { id: "orderSuccess" });
-
-        // Yönlendirme işlemi, state ile sipariş detaylarını ileterek yapılır
         navigate("/siparisolusturuldu", {
           state: {
             orderId: res.data.orderId,
             totalAmount: formattedTotal,
-            status: "Hazırlanıyor", // Durum varsayılan olarak "Hazırlanıyor"
+            status: "Hazırlanıyor",
           },
         });
       } else {
@@ -71,7 +64,7 @@ const OrderSummary = ({ note, setNote }) => { // Not prop'unu alın
       }
     } catch (error) {
       console.error("Sipariş işleminde hata oluştu:", error);
-      toast.error("Sipariş işleminde hata oluştu tutarı kontrol ediniz.", { id: "orderError" });
+      toast.error(error.response?.data?.error || "Sipariş işleminde hata oluştu.", { id: "orderError" });
     }
   };
 

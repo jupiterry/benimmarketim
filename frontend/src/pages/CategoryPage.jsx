@@ -24,13 +24,11 @@ const CategoryPage = () => {
 
 	useEffect(() => {
 		if (category) {
-			console.log("📤 API'ye gönderilen kategori:", category); // ✅ API'ye hangi kategori gidiyor?
 			fetchProductsByCategory(category.toLowerCase());
 		}
 	}, [fetchProductsByCategory, category]);
 
 	useEffect(() => {
-		console.log("📥 Güncellenen ürünler:", products); // ✅ API'den dönen ürünleri kontrol et
 	}, [products]);
 
 	return (

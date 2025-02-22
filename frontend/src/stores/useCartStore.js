@@ -63,7 +63,7 @@ export const useCartStore = create((set, get) => ({
 			});
 			get().calculateTotals();
 		} catch (error) {
-			toast.error(error.response.data.message || "Bir hata oluştu");
+			toast.error(error.response.data.message || "Lütfen saati kontrol ediniz.");
 		}
 	},
 	removeFromCart: async (productId) => {
