@@ -20,7 +20,11 @@ dotenv.config();
 
 // ✅ CORS AYARLARI
 const corsOptions = {
-  origin: "http://localhost:5173", // 🎯 Frontend'in adresini buraya ekledik
+  origin: [
+    "http://localhost:5173", // Vite development
+    "https://devrekbenimmarketim.com", // Production domain
+    "https://www.devrekbenimmarketim.com" // WWW subdomain
+  ],
   credentials: true, // 🍪 Çerezleri paylaşmak için
   optionsSuccessStatus: 200,
 };
@@ -57,3 +61,5 @@ app.listen(PORT, () => {
   console.log("Server is running on http://localhost:" + PORT);
   connectDB();
 });
+
+
