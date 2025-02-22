@@ -34,26 +34,26 @@ const orderSchema = new mongoose.Schema(
     },
     city: {
       type: String,
-      required: true, // ✅ Adresin şehir kısmı zorunlu hale getirildi
+      required: true,
     },
     phone: {
       type: String,
       required: true,
       validate: {
         validator: function (v) {
-          return /^(\+90|0)?5\d{9}$/.test(v); // 📌 Türkiye telefon formatına uygun olmalı.
+          return /^(\+90|0)?5\d{9}$/.test(v);
         },
-        message: "Geçerli bir telefon numarası girin!"
+        message: "Geçerli bir telefon numarası girin!",
       },
     },
-    couponCode: {
-      type: String,
-      default: null,
+    note: {
+      type: String, // Not alanını ekleyin
+      default: "",
     },
     status: {
       type: String,
       enum: ["Hazırlanıyor", "Yolda", "Teslim Edildi"],
-      default: "Hazırlanıyor", // ✅ Sipariş durumunu ekledik
+      default: "Hazırlanıyor",
     },
   },
   { timestamps: true }

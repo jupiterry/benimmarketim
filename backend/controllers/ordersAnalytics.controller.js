@@ -9,9 +9,7 @@ export const getOrderAnalyticsData = async () => {
             .populate("user", "name email")
             .populate("products.product", "name price");
 
-        // Siparişleri gruplarken null kontrolü ekleyelim
         const groupedOrders = orders.reduce((acc, order) => {
-            // Eğer user veya products eksikse, bu siparişi atla
             if (!order.user || !order.products) {
                 console.log("Eksik veriler: ", order);
                 return acc;
@@ -22,7 +20,7 @@ export const getOrderAnalyticsData = async () => {
                 acc[userId] = {
                     user: {
                         id: order.user._id,
-                        name: order.user.name || "Bilinmeyen Kullanıcı",  // Varsayılan değer
+                        name: order.user.name || "Bilinmeyen Kullanıcı",
                         email: order.user.email,
                         phone: order.phone,
                         address: `${order.city}`,
@@ -34,12 +32,13 @@ export const getOrderAnalyticsData = async () => {
             acc[userId].orders.push({
                 orderId: order._id,
                 products: order.products.map(p => ({
-                    name: p.product?.name || "Bilinmeyen Ürün",  // Varsayılan değer
+                    name: p.product?.name || "Bilinmeyen Ürün",
                     quantity: p.quantity,
-                    price: p.product?.price || 0,  // Varsayılan değer
+                    price: p.product?.price || 0,
                 })),
                 totalAmount: order.totalAmount,
                 status: order.status,
+                note: order.note, // Include the note field
                 createdAt: order.createdAt,
             });
 

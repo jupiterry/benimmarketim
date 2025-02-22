@@ -14,59 +14,60 @@ import CartPage from "./pages/CartPage";
 import { useCartStore } from "./stores/useCartStore";
 import PurchaseSuccessPage from "./pages/PurchaseSuccessPage";
 import OrderCreated from "./pages/OrderCreated";
-import Footer from "./components/Footer"; // 🔥 Footer'ı import edin
+import Footer from "./components/Footer";
+import SearchResultsPage from "./pages/SearchResultsPage"; // 🔥 Yeni eklenen sayfa
 
 function App() {
-    const { user, checkAuth, checkingAuth } = useUserStore();
-    const { getCartItems } = useCartStore();
+  const { user, checkAuth, checkingAuth } = useUserStore();
+  const { getCartItems } = useCartStore();
 
-    useEffect(() => {
-        checkAuth();
-    }, [checkAuth]);
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
 
-    useEffect(() => {
-        if (!user) return;
-        getCartItems();
-    }, [getCartItems, user]);
+  useEffect(() => {
+    if (!user) return;
+    getCartItems();
+  }, [getCartItems, user]);
 
-    if (checkingAuth) return <LoadingSpinner />;
+  if (checkingAuth) return <LoadingSpinner />;
 
-    return (
-        <div className="min-h-screen bg-gray-900 text-white relative overflow-hidden flex flex-col">
-            {/* Background gradient */}
-            <div className="absolute inset-0 overflow-hidden">
-                <div className="absolute inset-0">
-                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full bg-[radial-gradient(ellipse_at_top,rgba(16,185,129,0.3)_0%,rgba(10,80,60,0.2)_45%,rgba(0,0,0,0.1)_100%)]" />
-                </div>
-            </div>
-
-            <div className="relative z-50 pt-20 flex-grow">
-                <Navbar />
-                <Routes>
-                    <Route path="/" element={<HomePage />} />
-                    <Route path="/signup" element={!user ? <SignUpPage /> : <Navigate to="/" />} />
-                    <Route path="/login" element={!user ? <LoginPage /> : <Navigate to="/" />} />
-                    <Route
-                        path="/secret-dashboard"
-                        element={user?.role === "admin" ? <AdminPage /> : <Navigate to="/login" />}
-                    />
-                    <Route path="/category/:category" element={<CategoryPage />} />
-                    <Route path="/cart" element={user ? <CartPage /> : <Navigate to="/login" />} />
-                    <Route
-                        path="/order-summary/"
-                        element={user ? <PurchaseSuccessPage /> : <Navigate to="/login" />}
-                    />
-                    <Route path="/siparisolusturuldu" element={user ? <OrderCreated /> : <Navigate to="/login" />} />
-                    <Route path="/siparislerim" element={user ? <UserOrders /> : <Navigate to="/login" />} />
-                </Routes>
-            </div>
-
-            {/* 🔥 Footer'ı ekleyin */}
-            <Footer />
-
-            <Toaster />
+  return (
+    <div className="min-h-screen bg-gray-900 text-white relative overflow-hidden flex flex-col">
+      {/* Background gradient */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute inset-0">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full bg-[radial-gradient(ellipse_at_top,rgba(16,185,129,0.3)_0%,rgba(10,80,60,0.2)_45%,rgba(0,0,0,0.1)_100%)]" />
         </div>
-    );
+      </div>
+
+      <div className="relative z-50 pt-20 flex-grow">
+        <Navbar />
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/signup" element={!user ? <SignUpPage /> : <Navigate to="/" />} />
+          <Route path="/login" element={!user ? <LoginPage /> : <Navigate to="/" />} />
+          <Route
+            path="/secret-dashboard"
+            element={user?.role === "admin" ? <AdminPage /> : <Navigate to="/login" />}
+          />
+          <Route path="/category/:category" element={<CategoryPage />} />
+          <Route path="/cart" element={user ? <CartPage /> : <Navigate to="/login" />} />
+          <Route
+            path="/order-summary/"
+            element={user ? <PurchaseSuccessPage /> : <Navigate to="/login" />}
+          />
+          <Route path="/siparisolusturuldu" element={user ? <OrderCreated /> : <Navigate to="/login" />} />
+          <Route path="/siparislerim" element={user ? <UserOrders /> : <Navigate to="/login" />} />
+          {/* 🔥 Yeni eklenen rota */}
+          <Route path="/search" element={<SearchResultsPage />} />
+        </Routes>
+      </div>
+
+      <Footer />
+      <Toaster />
+    </div>
+  );
 }
 
 export default App;

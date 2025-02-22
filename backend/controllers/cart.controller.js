@@ -107,14 +107,14 @@ export const updateQuantity = async (req, res) => {
 export const placeOrder = async (req, res) => {
 	try {
 	  console.log("🛒 Sipariş Verisi:", req.body); // Gelen veriyi kontrol et
-	  const { products, city, phone } = req.body; // Gelen verileri al
+	  const { products, city, phone, note } = req.body; // Not alanını ekleyin
   
 	  if (!products || products.length === 0) {
 		return res.status(400).json({ error: "Sepet boş!" });
 	  }
   
 	  if (!city || !phone) {
-		return res.status(400).json({ error: "Şehir, ve telefon numarası zorunludur!" });
+		return res.status(400).json({ error: "Şehir ve telefon numarası zorunludur!" });
 	  }
   
 	  let totalAmount = 0;
@@ -148,6 +148,7 @@ export const placeOrder = async (req, res) => {
 		totalAmount,
 		city,
 		phone,
+		note, // Not alanını siparişe ekleyin
 	  });
   
 	  await newOrder.save();
@@ -163,8 +164,6 @@ export const placeOrder = async (req, res) => {
 	  res.status(500).json({ message: "Sipariş oluşturulurken hata oluştu", error: error.message });
 	}
   };
-  
-
 
 // ✅ **Tüm fonksiyonları düzgün şekilde export ettiğimizden emin olalım**
 

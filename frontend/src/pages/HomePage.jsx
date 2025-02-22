@@ -27,9 +27,8 @@ const HomePage = () => {
 					Alışverişin En Kolay Yolu, Benim Marketim!
 				</h1>
 				<p className='text-center text-xl text-gray-300 mb-12'>En yeni ürünleri keşfedin</p>
-
 				{/* Kategoriler */}
-				<div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'>
+				<div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-8'>
 					{categories.map((category) => (
 						<CategoryItem category={category} key={category.href} />
 					))}

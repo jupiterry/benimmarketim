@@ -11,7 +11,6 @@ export const getAllProducts = async (req, res) => {
         res.status(500).json({ message: "Server error", error: error.message });
     }
 };
-
 export const getFeaturedProducts = async (req, res) => {
     try {
         let featuredProducts = await redis.get("featured_products");
@@ -206,3 +205,17 @@ export const updateProductPrice = async (req, res) => {
         res.status(500).json({ message: "Sunucu hatası", error: error.message });
     }
 };
+export const searchProducts = async (req, res) => {
+    const { q } = req.query;
+    try {
+      const products = await Product.find({
+        $or: [
+          { name: { $regex: q, $options: "i" } },
+          { description: { $regex: q, $options: "i" } },
+        ],
+      });
+      res.status(200).json({ success: true, products });
+    } catch (error) {
+      res.status(500).json({ success: false, message: "Arama işlemi sırasında hata oluştu" });
+    }
+  };
