@@ -168,7 +168,6 @@ async function updateFeaturedProductsCache() {
     }
 }
 
-// ✅ KATEGORİYE GÖRE ÜRÜN GETİRME FONKSİYONU (DÜZELTİLDİ)
 export const getProducts = async (req, res) => {
     try {
         const { category } = req.query;

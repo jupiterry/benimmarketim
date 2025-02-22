@@ -39,7 +39,7 @@ export const signup = async (req, res) => {
 		const userExists = await User.findOne({ email });
 
 		if (userExists) {
-			return res.status(400).json({ message: "User already exists" });
+			return res.status(400).json({ message: "Kullanıcı zaten mevcut" });
 		}
 		const user = await User.create({ name, email, password });
 
@@ -78,7 +78,7 @@ export const login = async (req, res) => {
 				role: user.role,
 			});
 		} else {
-			res.status(400).json({ message: "Invalid email or password" });
+			res.status(400).json({ message: "Geçersiz E-posta veya Şifre" });
 		}
 	} catch (error) {
 		console.log("Error in login controller", error.message);
@@ -96,7 +96,7 @@ export const logout = async (req, res) => {
 
 		res.clearCookie("accessToken");
 		res.clearCookie("refreshToken");
-		res.json({ message: "Logged out successfully" });
+		res.json({ message: "Başarıyla çıkış yapıldı." });
 	} catch (error) {
 		console.log("Error in logout controller", error.message);
 		res.status(500).json({ message: "Server error", error: error.message });

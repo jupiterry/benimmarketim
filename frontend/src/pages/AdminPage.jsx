@@ -5,14 +5,14 @@ import { motion } from "framer-motion";
 import AnalyticsTab from "../components/AnalyticsTab";
 import CreateProductForm from "../components/CreateProductForm";
 import ProductsList from "../components/ProductsList";
-import OrdersList from "../components/OrdersList";  // Sipariş Listesi bileşenini ekliyoruz
+import OrdersList from "../components/OrdersList";
 import { useProductStore } from "../stores/useProductStore";
 
 const tabs = [
   { id: "create", label: "Ürün Oluştur", icon: PlusCircle },
   { id: "products", label: "Ürünler", icon: ShoppingBasket },
   { id: "analytics", label: "Analiz", icon: BarChart },
-  { id: "orders", label: "Siparişler", icon: ShoppingBasket },  // Siparişler sekmesi
+  { id: "orders", label: "Siparişler", icon: ShoppingBasket },
 ];
 
 const AdminPage = () => {
@@ -56,7 +56,7 @@ const AdminPage = () => {
         {activeTab === "create" && <CreateProductForm />}
         {activeTab === "products" && <ProductsList />}
         {activeTab === "analytics" && <AnalyticsTab />}
-        {activeTab === "orders" && <OrdersList />}  {/* Siparişler listesi */}
+        {activeTab === "orders" && <OrdersList />}
       </div>
     </div>
   );
