@@ -45,7 +45,7 @@ const OrderSummary = () => {
                 price: item.price,
             }));
     
-            const res = await axios.post("api/cart/place-order", {
+            const res = await axios.post("/cart/place-order", {
                 products: orderItems,
                 city: selectedCity,
                 phone: phone,
