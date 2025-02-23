@@ -5,7 +5,7 @@ import Order from "../models/order.model.js";
 const isWithinOrderHours = () => {
 	const now = new Date();
 	const currentHour = now.getHours();
-	return currentHour >= 0 || currentHour < 0; // 10:00 - 01:00 arası
+	return currentHour >= 10 || currentHour < 23; // 10:00 - 01:00 arası
   };
 
 export const addToCart = async (req, res) => {
