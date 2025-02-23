@@ -7,7 +7,8 @@ export const getOrderAnalyticsData = async () => {
         const totalOrders = await Order.countDocuments();
         const orders = await Order.find()
             .populate("user", "name email")
-            .populate("products.product", "name price");
+            .populate("products.product", "name price")
+            .sort({ createdAt: -1 });
 
         const groupedOrders = orders.reduce((acc, order) => {
             if (!order.user || !order.products) {
