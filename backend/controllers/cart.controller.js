@@ -3,15 +3,27 @@ import Order from "../models/order.model.js";
 
 // Saat kontrolü için yardımcı fonksiyon
 const isWithinOrderHours = () => {
-	const now = new Date();
-	const currentHour = now.getHours();
-	return currentHour >= 10 || currentHour < 23; // 10:00 - 01:00 arası
-  };
+  const now = new Date();
+  const currentHour = now.getHours();
+  const currentMinute = now.getMinutes();
+
+  // Sabah 11:30'dan gece 23:30'a kadar olan aralığı kontrol et
+  const startHour = 11;
+  const startMinute = 30;
+  const endHour = 23;
+  const endMinute = 30;
+
+  const currentTimeInMinutes = currentHour * 60 + currentMinute;
+  const startTimeInMinutes = startHour * 60 + startMinute; // 11:30 = 690 dakika
+  const endTimeInMinutes = endHour * 60 + endMinute;       // 23:30 = 1410 dakika
+
+  return currentTimeInMinutes >= startTimeInMinutes && currentTimeInMinutes <= endTimeInMinutes;
+};
 
 export const addToCart = async (req, res) => {
   try {
 	if (!isWithinOrderHours()) {
-		return res.status(400).json({ error: "Siparişler sadece sabah 10:00 ile gece 01:00 arasında verilebilir." });
+		return res.status(400).json({ error: "Siparişler sadece sabah 11:30 ile gece 23:30 arasında verilebilir." });
 	  }
     const { productId, quantity = 1 } = req.body; // 🚀 `quantity` eksikse 1 olarak ayarla
     const user = req.user;

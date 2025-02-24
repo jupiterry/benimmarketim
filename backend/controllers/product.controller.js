@@ -219,3 +219,33 @@ export const searchProducts = async (req, res) => {
       res.status(500).json({ success: false, message: "Arama işlemi sırasında hata oluştu" });
     }
   };
+  
+  export const updateProduct = async (req, res) => {
+    try {
+      const { name, category } = req.body; // Frontend’den gelen yeni isim ve kategori
+      const productId = req.params.id;
+  
+      if (!name || !category) {
+        return res.status(400).json({ message: "Ürün adı ve kategori zorunludur" });
+      }
+  
+      const product = await Product.findById(productId);
+      if (!product) {
+        return res.status(404).json({ message: "Ürün bulunamadı" });
+      }
+  
+      product.name = name;
+      product.category = category;
+      const updatedProduct = await product.save();
+  
+      // Cache’i güncelle (featured_products varsa)
+      if (product.isFeatured) {
+        await updateFeaturedProductsCache();
+      }
+  
+      res.status(200).json({ message: "Ürün başarıyla güncellendi", product: updatedProduct });
+    } catch (error) {
+      console.error("Ürün güncellenirken hata:", error.message);
+      res.status(500).json({ message: "Sunucu hatası", error: error.message });
+    }
+  };

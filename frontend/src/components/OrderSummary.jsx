@@ -105,7 +105,7 @@ const OrderSummary = ({ note, setNote }) => {
 
         {/* Şehir Seçimi */}
         <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-300">Şehir</label>
+          <label className="text-sm font-medium text-gray-300">Yurt</label>
           <select
             className="w-full rounded-lg border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
             value={selectedCity}
@@ -113,7 +113,7 @@ const OrderSummary = ({ note, setNote }) => {
               setSelectedCity(e.target.value);
             }}
           >
-            <option value="">Gönderim Yerini Seçiniz</option>
+            <option value="">Adres Seçiniz</option>
             {Object.keys(cities).map((city) => (
               <option key={city} value={city}>
                 {city}
