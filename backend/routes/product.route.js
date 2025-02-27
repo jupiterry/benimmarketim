@@ -102,4 +102,5 @@ router.put("/:id", protectRoute, adminRoute, updateProduct); // Ürün güncelle
 // Arama endpoint'i (çakışmayı kaldırdım)
 router.get("/search", searchProducts);
 
+
 export default router;

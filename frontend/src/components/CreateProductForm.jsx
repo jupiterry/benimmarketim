@@ -7,7 +7,7 @@ const categories = [
 	"yiyecekler",
     "gida",
     "meyve-sebze",
-    "sut-urunleri",
+    "sut",
     "atistirma",
     "temizlik-hijyen",
     "şarküteri-et-ürünleri",

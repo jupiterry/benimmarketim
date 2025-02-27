@@ -39,3 +39,11 @@ export const adminRoute = (req, res, next) => {
 		return res.status(403).json({ message: "Access denied - Admin only" });
 	}
 };
+export const checkAuth = async (req, res) => {
+	try {
+	  const user = req.user; // protectRoute middleware’den al
+	  res.json(user); // Kullanıcının tüm bilgilerini (role dahil) döndür
+	} catch (error) {
+	  res.status(500).json({ message: "Sunucu hatası", error: error.message });
+	}
+  };

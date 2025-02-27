@@ -21,7 +21,7 @@ const corsOptions = {
   origin: [
     "http://localhost:5173", // Vite development
     "https://devrekbenimmarketim.com", // Production domain
-    "https://www.devrekbenimmarketim.com" // WWW subdomain
+    "https://www.devrekbenimmarketim.com", // WWW subdomain
   ],
   credentials: true, // 🍪 Çerezleri paylaşmak için
   optionsSuccessStatus: 200,
@@ -37,7 +37,6 @@ app.use(cookieParser());
 app.use(cors(corsOptions)); // 🔥 CORS'u aktif hale getiriyoruz
 app.use(express.json());
 
-
 app.use("/api/orders-analytics", ordersAnalyticsRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
@@ -45,7 +44,6 @@ app.use("/api/orders", paymentRoutes); // Burada siparişler için route'u bağl
 app.use("/api/cart", cartRoutes);
 app.use("/api/coupons", couponRoutes);
 app.use("/api/analytics", analyticsRoutes);
-
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "/frontend/dist")));
@@ -56,8 +54,6 @@ if (process.env.NODE_ENV === "production") {
 }
 
 app.listen(PORT, () => {
-  console.log("Server is running on http://localhost:" + PORT);
+  console.log(`Sunucu ${PORT} portunda çalışıyor`);
   connectDB();
 });
-
-

@@ -8,7 +8,7 @@ const isWithinOrderHours = () => {
   const currentMinute = now.getMinutes();
 
   // Sabah 11:30'dan gece 23:30'a kadar olan aralığı kontrol et
-  const startHour = 11;
+  const startHour = 1;
   const startMinute = 30;
   const endHour = 23;
   const endMinute = 30;

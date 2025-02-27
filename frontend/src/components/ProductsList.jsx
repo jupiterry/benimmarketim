@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Trash, Star, Edit } from "lucide-react";
 import { useProductStore } from "../stores/useProductStore";
 
-const ProductsList = ({ onEdit, editingProduct, onSave }) => {
+const ProductsList = ({ onEdit, editingProduct, onSave, category, subcategory }) => {
   const { deleteProduct, toggleFeaturedProduct, products, updateProductPrice } = useProductStore();
   const [editingPrice, setEditingPrice] = useState({});
   const [newPrices, setNewPrices] = useState({});
@@ -25,6 +25,23 @@ const ProductsList = ({ onEdit, editingProduct, onSave }) => {
     }
   };
 
+  // Kategoriye ve alt kategoriye göre ürünleri filtrele
+  const filteredProducts = products.filter((product) => {
+    const matchesCategory = category
+      ? product.category.toLowerCase() === category.toLowerCase()
+      : true;
+    const matchesSubcategory = subcategory
+      ? product.subcategory.toLowerCase() === subcategory.toLowerCase()
+      : true;
+    return matchesCategory && matchesSubcategory;
+  });
+
+  // Ürün ismini 20 karakterle sınırlayan yardımcı fonksiyon
+  const truncateText = (text, maxLength = 20) => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + "...";
+  };
+
   return (
     <motion.div
       className="bg-gray-800 shadow-lg rounded-lg overflow-hidden max-w-4xl mx-auto border border-gray-700"
@@ -38,13 +55,14 @@ const ProductsList = ({ onEdit, editingProduct, onSave }) => {
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">ÜRÜN</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">FİYAT</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">KATEGORİ</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">ALT KATEGORİ</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">ÖNE ÇIKANLAR</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">İŞLEMLER</th>
           </tr>
         </thead>
 
         <tbody className="bg-gray-800 divide-y divide-gray-700">
-          {products?.map((product) => (
+          {filteredProducts?.map((product) => (
             <tr key={product._id} className="hover:bg-gray-700">
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="flex items-center">
@@ -55,7 +73,7 @@ const ProductsList = ({ onEdit, editingProduct, onSave }) => {
                       alt={product.name}
                     />
                   </div>
-                  <div className="ml-4">
+                  <div className="ml-4 relative">
                     {editingProduct && editingProduct._id === product._id ? (
                       <input
                         type="text"
@@ -65,7 +83,12 @@ const ProductsList = ({ onEdit, editingProduct, onSave }) => {
                         className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 w-40 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       />
                     ) : (
-                      <div className="text-sm font-medium text-white">{product.name}</div>
+                      <div
+                        className="text-sm font-medium text-white max-w-[150px] truncate"
+                        title={product.name} // Tooltip için tam ismi göster
+                      >
+                        {truncateText(product.name)}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -110,7 +133,25 @@ const ProductsList = ({ onEdit, editingProduct, onSave }) => {
                     className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 w-24 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 ) : (
-                  <div className="text-sm text-gray-300">{product.category}</div>
+                  <div className="text-sm text-gray-300 max-w-[100px] truncate" title={product.category}>
+                    {truncateText(product.category)}
+                  </div>
+                )}
+              </td>
+
+              <td className="px-6 py-4 whitespace-nowrap">
+                {editingProduct && editingProduct._id === product._id ? (
+                  <input
+                    type="text"
+                    name="subcategory"
+                    value={editingProduct.subcategory || ""}
+                    onChange={(e) => handleProductChange("subcategory", e.target.value)}
+                    className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 w-24 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                ) : (
+                  <div className="text-sm text-gray-300 max-w-[100px] truncate" title={product.subcategory || "Yok"}>
+                    {truncateText(product.subcategory || "Yok")}
+                  </div>
                 )}
               </td>
 
@@ -134,6 +175,7 @@ const ProductsList = ({ onEdit, editingProduct, onSave }) => {
                       onClick={() => onSave(product._id, {
                         name: editingProduct.name,
                         category: editingProduct.category,
+                        subcategory: editingProduct.subcategory || "",
                       })}
                       className="text-green-400 hover:text-green-300 px-2 py-1 rounded"
                     >

@@ -31,6 +31,7 @@ const CategoryPage = () => {
 
 	useEffect(() => {
 	}, [products]);
+	
 
 	return (
 		<div className='min-h-screen'>
