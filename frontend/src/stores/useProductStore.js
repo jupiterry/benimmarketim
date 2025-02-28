@@ -129,4 +129,27 @@ export const useProductStore = create((set) => ({
             toast.error(error.response?.data?.error || "Fiyat güncellenemedi");
         }
     },
+    // useProductStore.js
+toggleOutOfStock: async (productId) => {
+    set({ loading: true });
+    try {
+      const response = await axios.patch(`/products/toggle-out-of-stock/${productId}`, {}, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      });
+  
+      set((prevProducts) => ({
+        products: prevProducts.products.map((product) =>
+          product._id === productId ? { ...product, isOutOfStock: response.data.product.isOutOfStock } : product
+        ),
+        loading: false,
+      }));
+  
+      toast.success(response.data.message);
+    } catch (error) {
+      set({ loading: false });
+      toast.error(error.response?.data?.message || "Tükendi durumu değiştirilirken hata oluştu.");
+    }
+  },
 }));

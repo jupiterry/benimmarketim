@@ -34,7 +34,7 @@ const AdminPage = () => {
   // Değişiklikleri kaydet
   const handleSave = async (productId, updatedData) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/products/${productId}`, {
+      const response = await fetch(`/api/products/${productId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -71,7 +71,7 @@ const AdminPage = () => {
     formData.append("file", file);
 
     try {
-      const response = await fetch("http://localhost:5000/api/products/bulk-upload", {
+      const response = await fetch("/api/products/bulk-upload", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`, // Admin doğrulama

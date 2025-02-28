@@ -4,6 +4,7 @@ import { useProductStore } from "../stores/useProductStore";
 import FeaturedProducts from "../components/FeaturedProducts";
 
 const categories = [
+	{ href: "/kahve", name: "Kahveler", displayName: "Sımsıcak Kahveler", imageUrl: "/kahve.png" },
 	{ href: "/yiyecekler", name: "Yiyecekler", displayName: "Lezzetli Yiyecekler", imageUrl: "/foods.png" },
 	{ href: "/gida", name: "Gıda", displayName: "Sağlıklı Gıdalar", imageUrl: "/food.png" },
 	{ href: "/meyve-sebze", name: "Meyve & Sebze", displayName: "Taze Meyve & Sebzeler", imageUrl: "/fruit.png" },

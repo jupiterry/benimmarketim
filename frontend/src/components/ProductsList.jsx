@@ -2,11 +2,31 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Trash, Star, Edit } from "lucide-react";
 import { useProductStore } from "../stores/useProductStore";
+import axios from "../lib/axios"; // API istekleri için
+import toast from "react-hot-toast"; // Bildirimler için
 
 const ProductsList = ({ onEdit, editingProduct, onSave, category, subcategory }) => {
-  const { deleteProduct, toggleFeaturedProduct, products, updateProductPrice } = useProductStore();
+  const { deleteProduct, toggleFeaturedProduct, products, updateProductPrice, fetchAllProducts, updateProductName } = useProductStore(); // updateProductName’i ekledik
   const [editingPrice, setEditingPrice] = useState({});
   const [newPrices, setNewPrices] = useState({});
+  const [newName, setNewName] = useState({}); // Yeni isim için state
+  const toggleOutOfStock = async (productId) => {
+    try {
+      const response = await axios.patch(`/products/toggle-out-of-stock/${productId}`, {}, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`, // Token'ı headers'a ekle
+        },
+      });
+  
+      if (response.data.message) {
+        toast.success(response.data.message);
+        fetchAllProducts(); // Ürün listesini yenile
+      }
+    } catch (error) {
+      console.error("Tükendi durumu değiştirme hatası:", error);
+      toast.error(error.response?.data?.message || "Tükendi durumu değiştirilirken hata oluştu.");
+    }
+  };
 
   const handlePriceChange = (id, value) => {
     setNewPrices({ ...newPrices, [id]: value });
@@ -18,6 +38,12 @@ const ProductsList = ({ onEdit, editingProduct, onSave, category, subcategory })
       setEditingPrice({ ...editingPrice, [id]: false });
     }
   };
+  const saveName = (id) => {
+    if (newName[id] !== undefined) {
+      updateProductName(id, newName[id]);
+      setNewName({ ...newName, [id]: "" }); // İsim güncellendikten sonra state’i temizle
+    }
+  };
 
   const handleProductChange = (field, value) => {
     if (editingProduct) {
@@ -25,7 +51,7 @@ const ProductsList = ({ onEdit, editingProduct, onSave, category, subcategory })
     }
   };
 
-  // Kategoriye ve alt kategoriye göre ürünleri filtrele
+  // Kategoriye ve alt kategoriye göre ürünleri filtrele (admin için tüm ürünleri göster)
   const filteredProducts = products.filter((product) => {
     const matchesCategory = category
       ? product.category.toLowerCase() === category.toLowerCase()
@@ -36,15 +62,25 @@ const ProductsList = ({ onEdit, editingProduct, onSave, category, subcategory })
     return matchesCategory && matchesSubcategory;
   });
 
-  // Ürün ismini 20 karakterle sınırlayan yardımcı fonksiyon
-  const truncateText = (text, maxLength = 20) => {
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + "...";
+  // Ürün gizleme/gösterme fonksiyonu
+  const toggleProductHidden = async (productId) => {
+    try {
+      const response = await axios.patch(`/products/toggle-hidden/${productId}`, {}, {
+      });
+
+      if (response.data.message) {
+        toast.success(response.data.message);
+        fetchAllProducts(); // Ürün listesini yenile
+      }
+    } catch (error) {
+      console.error("Ürün gizleme/gösterme hatası:", error);
+      toast.error(error.response?.data?.message || "Ürün gizleme/gösterme sırasında hata oluştu.");
+    }
   };
 
   return (
     <motion.div
-      className="bg-gray-800 shadow-lg rounded-lg overflow-hidden max-w-4xl mx-auto border border-gray-700"
+      className="bg-gray-800 shadow-lg rounded-lg overflow-hidden max-w-full mx-auto border border-gray-700"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8 }}
@@ -52,19 +88,21 @@ const ProductsList = ({ onEdit, editingProduct, onSave, category, subcategory })
       <table className="min-w-full divide-y divide-gray-700">
         <thead className="bg-gray-900">
           <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">ÜRÜN</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">FİYAT</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">KATEGORİ</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">ALT KATEGORİ</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">ÖNE ÇIKANLAR</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">İŞLEMLER</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider w-1/4">ÜRÜN</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider w-1/6">FİYAT</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider w-1/6">KATEGORİ</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider w-1/6">ALT KATEGORİ</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider w-1/12">ÖNE ÇIKANLAR</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider w-1/12">GİZLİ</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider w-1/12">TÜKENDİ</th> {/* Yeni sütun */}
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider w-1/6">İŞLEMLER</th>
           </tr>
         </thead>
 
         <tbody className="bg-gray-800 divide-y divide-gray-700">
           {filteredProducts?.map((product) => (
             <tr key={product._id} className="hover:bg-gray-700">
-              <td className="px-6 py-4 whitespace-nowrap">
+              <td className="px-4 py-4 whitespace-nowrap w-1/4">
                 <div className="flex items-center">
                   <div className="flex-shrink-0 h-10 w-10">
                     <img
@@ -85,23 +123,31 @@ const ProductsList = ({ onEdit, editingProduct, onSave, category, subcategory })
                     ) : (
                       <div
                         className="text-sm font-medium text-white max-w-[150px] truncate"
-                        title={product.name} // Tooltip için tam ismi göster
+                        title={product.name}
                       >
-                        {truncateText(product.name)}
+                        {product.name}
                       </div>
+                    )}
+                    {editingProduct && editingProduct._id === product._id && (
+                      <button
+                        onClick={() => saveName(product._id)}
+                        className="ml-2 text-green-400 hover:text-green-300"
+                      >
+                        ✔
+                      </button>
                     )}
                   </div>
                 </div>
               </td>
 
-              <td className="px-6 py-4 whitespace-nowrap">
+              <td className="px-4 py-4 whitespace-nowrap w-1/6">
                 {editingPrice[product._id] ? (
                   <div className="flex items-center">
                     <input
                       type="number"
                       value={newPrices[product._id] ?? product.price}
                       onChange={(e) => handlePriceChange(product._id, e.target.value)}
-                      className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 w-20 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 w-16 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                     <button
                       onClick={() => savePrice(product._id)}
@@ -123,39 +169,39 @@ const ProductsList = ({ onEdit, editingProduct, onSave, category, subcategory })
                 )}
               </td>
 
-              <td className="px-6 py-4 whitespace-nowrap">
+              <td className="px-4 py-4 whitespace-nowrap w-1/6">
                 {editingProduct && editingProduct._id === product._id ? (
                   <input
                     type="text"
                     name="category"
                     value={editingProduct.category}
                     onChange={(e) => handleProductChange("category", e.target.value)}
-                    className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 w-24 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 w-20 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 ) : (
                   <div className="text-sm text-gray-300 max-w-[100px] truncate" title={product.category}>
-                    {truncateText(product.category)}
+                    {product.category}
                   </div>
                 )}
               </td>
 
-              <td className="px-6 py-4 whitespace-nowrap">
+              <td className="px-4 py-4 whitespace-nowrap w-1/6">
                 {editingProduct && editingProduct._id === product._id ? (
                   <input
                     type="text"
                     name="subcategory"
                     value={editingProduct.subcategory || ""}
                     onChange={(e) => handleProductChange("subcategory", e.target.value)}
-                    className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 w-24 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 w-20 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 ) : (
                   <div className="text-sm text-gray-300 max-w-[100px] truncate" title={product.subcategory || "Yok"}>
-                    {truncateText(product.subcategory || "Yok")}
+                    {product.subcategory || "Yok"}
                   </div>
                 )}
               </td>
 
-              <td className="px-6 py-4 whitespace-nowrap">
+              <td className="px-4 py-4 whitespace-nowrap w-1/12">
                 <button
                   onClick={() => toggleFeaturedProduct(product._id)}
                   className={`p-1 rounded-full ${
@@ -167,10 +213,35 @@ const ProductsList = ({ onEdit, editingProduct, onSave, category, subcategory })
                   <Star className="h-5 w-5" />
                 </button>
               </td>
+              <td className="px-4 py-4 whitespace-nowrap w-1/12">
+                <button
+                  onClick={() => toggleOutOfStock(product._id)}
+                  className={`p-1 rounded-full ${
+                    product.isOutOfStock
+                       ? "bg-red-600 text-white"
+                       : "bg-green-600 text-white"
+                    } hover:bg-${product.isOutOfStock ? "red-700" : "green-700"} transition-colors duration-200`}
+                  >
+                  {product.isOutOfStock ? "Tükendi" : "Stokta"}
+                 </button>
+              </td>
 
-              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+              <td className="px-4 py-4 whitespace-nowrap w-1/12">
+                <button
+                  onClick={() => toggleProductHidden(product._id, product.isHidden)}
+                  className={`p-1 rounded-full ${
+                    product.isHidden
+                      ? "bg-red-600 text-white"
+                      : "bg-emerald-600 text-white"
+                  } hover:bg-${product.isHidden ? "red-700" : "emerald-700"} transition-colors duration-200`}
+                >
+                  {product.isHidden ? "Gizli" : "Görünür"}
+                </button>
+              </td>
+
+              <td className="px-4 py-4 whitespace-nowrap w-1/6 text-sm font-medium">
                 {editingProduct && editingProduct._id === product._id ? (
-                  <div className="flex space-x-2">
+                  <div className="flex justify-center space-x-2">
                     <button
                       onClick={() => onSave(product._id, {
                         name: editingProduct.name,
@@ -189,7 +260,7 @@ const ProductsList = ({ onEdit, editingProduct, onSave, category, subcategory })
                     </button>
                   </div>
                 ) : (
-                  <div className="flex space-x-2">
+                  <div className="flex justify-center space-x-2">
                     <button
                       onClick={() => onEdit(product)}
                       className="text-blue-400 hover:text-blue-300"

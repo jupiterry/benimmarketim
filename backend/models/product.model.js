@@ -4,7 +4,7 @@ const productSchema = new mongoose.Schema(
   {
     name: {
       type: String,
-      required: true,
+      required: true, text: true,
     },
     description: {
       type: String,
@@ -24,16 +24,27 @@ const productSchema = new mongoose.Schema(
       required: true,
     },
     subcategory: {
-      type: String, // Alt kategori için yeni alan
-      default: "", // Varsayılan olarak boş olabilir
+      type: String,
+      default: "", // Alt kategori için yeni alan
     },
     isFeatured: {
       type: Boolean,
       default: false,
     },
+    isHidden: { // Gizleme alanı
+      type: Boolean,
+      default: false, // Varsayılan olarak görünür
+    },
+    isOutOfStock: { // Gizleme alanı
+      type: Boolean,
+      default: false, // Varsayılan olarak false
+    },
   },
   { timestamps: true }
 );
+
+// Text indeksini oluştur
+productSchema.index({ name: "text", description: "text" });
 
 const Product = mongoose.model("Product", productSchema);
 

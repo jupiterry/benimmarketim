@@ -12,6 +12,10 @@ const ProductCard = ({ product }) => {
       toast.error("Sepete ürün eklemek için lütfen sisteme giriş yapın.", { id: "login" });
       return;
     }
+    if (product.isOutOfStock) {
+      toast.error("Bu ürün tükenmiştir.", { id: "out-of-stock" });
+      return;
+    }
     addToCart(product);
   };
 
@@ -21,14 +25,17 @@ const ProductCard = ({ product }) => {
     return text.substring(0, maxLength) + "...";
   };
 
+  // Yalnızca görünür ürünleri göster
+  if (product.isHidden) return null; // Gizli ürünler görünmez
+
   return (
     <div className="flex w-full relative flex-col overflow-hidden rounded-lg border border-gray-700 shadow-lg max-w-xs mx-auto">
       <div className="relative mx-3 mt-3 flex h-[200px] overflow-hidden rounded-xl">
         <img
-          className="object-contain w-full h-full" // object-cover yerine object-contain kullanıyoruz, böylece tüm resim görünür
+          className="object-contain w-full h-full"
           src={product.image}
           alt={product.name}
-          loading="lazy" // Performans için lazy loading
+          loading="lazy"
         />
         <div className="absolute inset-0 bg-black bg-opacity-20" />
       </div>
@@ -36,7 +43,7 @@ const ProductCard = ({ product }) => {
       <div className="mt-4 px-5 pb-5">
         <h5
           className="text-xl font-semibold tracking-tight text-white whitespace-nowrap overflow-hidden text-ellipsis"
-          title={product.name} // Tam ismi tooltip olarak göster
+          title={product.name}
         >
           {truncateText(product.name)}
         </h5>
@@ -46,11 +53,16 @@ const ProductCard = ({ product }) => {
           </p>
         </div>
         <button
-          className="flex items-center justify-center rounded-lg bg-emerald-600 px-5 py-2.5 text-center text-sm font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-300 w-full"
+          className={`flex items-center justify-center rounded-lg px-5 py-2.5 text-center text-sm font-medium text-white w-full ${
+            product.isOutOfStock
+              ? "bg-red-600 cursor-not-allowed"
+              : "bg-emerald-600 hover:bg-emerald-700 focus:ring-4 focus:ring-emerald-300"
+          }`}
           onClick={handleAddToCart}
+          disabled={product.isOutOfStock} // Tükendi ise buton devre dışı
         >
           <ShoppingCart size={22} className="mr-2" />
-          Sepete Ekle
+          {product.isOutOfStock ? "Tükendi" : "Sepete Ekle"}
         </button>
       </div>
     </div>

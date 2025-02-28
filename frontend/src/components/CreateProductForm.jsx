@@ -4,6 +4,7 @@ import { PlusCircle, Upload, Loader } from "lucide-react";
 import { useProductStore } from "../stores/useProductStore";
 
 const categories = [
+	"kahve",
 	"yiyecekler",
     "gida",
     "meyve-sebze",
