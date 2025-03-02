@@ -7,6 +7,8 @@ export const useProductStore = create((set) => ({
     loading: false,
 
     setProducts: (products) => set({ products }),
+    reorderProducts: (newProducts) => set({ products: newProducts }),
+  // diğer mevcut fonksiyonlar (deleteProduct, toggleFeaturedProduct, vb.)
 
     // Ürün oluşturma
     createProduct: async (productData) => {
@@ -130,7 +132,7 @@ export const useProductStore = create((set) => ({
         }
     },
     // useProductStore.js
-toggleOutOfStock: async (productId) => {
+    toggleOutOfStock: async (productId) => {
     set({ loading: true });
     try {
       const response = await axios.patch(`/products/toggle-out-of-stock/${productId}`, {}, {

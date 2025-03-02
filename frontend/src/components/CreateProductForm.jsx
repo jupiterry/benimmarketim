@@ -10,8 +10,8 @@ const categories = [
     "meyve-sebze",
     "sut",
     "atistirma",
-    "temizlik-hijyen",
-    "şarküteri-et-ürünleri",
+    "temizlik",
+    "et",
     "icecekler",
 ];
 

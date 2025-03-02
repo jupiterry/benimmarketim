@@ -39,6 +39,10 @@ const productSchema = new mongoose.Schema(
       type: Boolean,
       default: false, // Varsayılan olarak false
     },
+    order: { 
+    type: Number,
+    default: 0 
+    },
   },
   { timestamps: true }
 );

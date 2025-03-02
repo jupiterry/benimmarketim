@@ -61,7 +61,31 @@ router.post(
   }
 );
 
+// Ürün sıralamasını güncelleyen yeni rota
+router.post("/reorder", protectRoute, adminRoute, async (req, res) => {
+  const { productIds } = req.body;
 
+  try {
+    // Tüm ürünleri tek bir bulk operation ile güncelle
+    const bulkOps = productIds.map((id, index) => ({
+      updateOne: {
+        filter: { _id: id },
+        update: { $set: { order: index } },
+      },
+    }));
+
+    // Tüm order değerlerini toplu şekilde güncelle
+    await Product.bulkWrite(bulkOps);
+
+    console.log("Sıralama güncellendi, productIds:", productIds);
+    res.json({ message: "Sıralama başarıyla güncellendi" });
+  } catch (error) {
+    console.error("Sıralama güncelleme hatası:", error);
+    res.status(500).json({ message: "Sıralama güncellenirken hata oluştu" });
+  }
+});
+
+// Mevcut rotalar
 router.get("/", getProducts); // Admin için tüm ürünleri getir
 router.get("/featured", getFeaturedProducts);
 router.get("/recommendations", getRecommendedProducts);
@@ -74,4 +98,5 @@ router.get("/search", searchProducts);
 router.get("/category/:category/:subcategory?", getProductsByCategory); // Kategoriye göre ürünler
 router.patch("/toggle-hidden/:id", protectRoute, adminRoute, toggleHiddenProduct); // Ürün gizleme/gösterme
 router.patch("/toggle-out-of-stock/:id", protectRoute, adminRoute, toggleOutOfStock);
+
 export default router;

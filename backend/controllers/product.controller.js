@@ -192,22 +192,24 @@ async function updateFeaturedProductsCache() {
     console.error("Error in update cache function:", error.message);
   }
 }
-
+// controllers/product.controller.js
 export const getProducts = async (req, res) => {
   try {
     console.log("Get products request received with query:", req.query); // Debug log
+    
     const { category } = req.query;
     let query = {}; // Admin için tüm ürünleri getir (isHidden dahil)
 
     if (category) {
-      query.category = { $regex: new RegExp(`^${category}$`, "i") };
+      query.category = { $regex: new RegExp(`^${category}$`, "i") }; // Büyük/küçük harf duyarsız tam eşleşme
     }
 
-    const products = await Product.find(query);
+    const products = await Product.find(query).sort({ order: 1 }); // order alanına göre sırala
     console.log("Products fetched:", products.length);
-    res.json({ products });
+    
+    res.status(200).json({ products }); // Frontend'in beklediği obje formatında döndür
   } catch (error) {
-    console.log("Error in getProducts controller", error.message);
+    console.error("Error in getProducts controller:", error.message); // Hata loglaması için console.error
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };

@@ -4,7 +4,7 @@ const Footer = () => {
             <div className="container mx-auto px-4 text-center">
                 {/* Telif hakkı */}
                 <p className="text-gray-400 text-sm">
-                    © 2025 Benim Marketim. Tüm hakları saklıdır.
+                    Ürün fiyatlarına KDV bedeli dahildir. © 2025 Benim Marketim. Tüm hakları saklıdır.
                 </p>
                 {/* Slogan */}
                 <p className="text-xs text-gray-500 mt-1">
