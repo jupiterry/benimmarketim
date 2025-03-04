@@ -23,134 +23,46 @@ import {
 const router = express.Router();
 const upload = multer({ dest: "uploads/" }); // Dosyaları "uploads" klasörüne kaydet
 
-
-// Marka eşleştirme sözlüğü
-const brandMapping = {
-  "Albeni̇": "Ülker",
-  "Carami̇o": "Ülker",
-  "Coco": "Ülker",
-  "Çokomi̇lk": "Ülker",
-  "Çokonat": "Ülker",
-  "Cocostar": "Ülker",
-  "Alpella": "Ülker",
-  "Di̇do": "Ülker",
-  "Halley": "Ülker",
-  "Hobby": "Ülker",
-  "Lavi̇va": "Ülker",
-  "Metro": "Ülker",
-  "Pi̇ko": "Ülker",
-  "Findik": "Ülker",
-  "Çokokrem": "Ülker",
-  "Kri̇spi̇": "Ülker", // Krispi Ülker markasına ait
-  "Bi̇skrem": "Ülker",  
-  "Canpare": "Ülker", 
-  "Çokomel": "Ülker",
-  "Çokoprens": "Ülker",
-  "Hanimeller": "Ülker",
-  "Haylayf": "Ülker",
-  "Cicibebe": "Ülker",
-  "Caramio": "Ülker",
-  "İkram": "Ülker",
-  "Kat": "Ülker",
-  "Probi̇s": "Ülker",
-  "Rondo": "Ülker",
-  "Finger": "Ülker",
-  "Sakliköy": "Ülker",
-  "Dore": "Ülker",
-  "Kakaolu": "Ülker",
-  "Pöti̇bör": "Ülker",
-  "Çi̇zi̇": "Ülker",
-  "Çi̇zi̇vi̇ç": "Ülker",
-  "Çi̇zi̇vi̇ç Peyni̇rli̇": "Ülker",
-  "Çubuk": "Ülker",
-  "Susamli": "Ülker",
-  "Kri̇spi̇": "Ülker",
-  "Taç": "Ülker",
-  "Bebe": "Ülker",
-  "9": "Ülker",
-  "Altinbaşak": "Ülker",
-  "Dankek": "Ülker",
-  "Baton": "Ülker",
-  "Kekstra": "Ülker",
-  "O'Lala": "Ülker",
-  "O’Lala": "Ülker",
-  "8Kek": "Ülker",
-  "Oneo": "Ülker",
-  "Yıldız": "Ülker",
-  "Bonbon": "Ülker",
-  "Kremi̇ni̇": "Ülker",
-  "Kremini": "Ülker",
-  "Yupo": "Ülker",
-  "Çi̇kolati̇n": "Ülker",
-  "Buklet": "Ülker",
-  "Toffe": "Ülker",
-  "Dolgulu": "Ülker",
-  "Lokumcuk": "Ülker",
-  "Beylerbeyi̇": "Ülker",
-  "Lalezar": "Ülker",
-  "Select": "Ülker",
-  "Kanky": "Ülker",
-  "Okali̇ptus": "Ülker",
-  "Ihlamur": "Ülker",
-  "Zencefi̇l": "Ülker",
-  "Kara": "Ülker",
-  "Bi̇zi̇m": "Ülker",
-  "Teremyağ": "Ülker",
-  "Ankara": "Nuhun",
-  "Nuhun": "Ankara",
-  "Köri": "Indomie",
-  "Dana": "Indomie",
-  "Tavuk": "Indomie",
-  "Sebzeli": "Indomie",
-  "Soya": "Indomie",
-  "Kavrulmuş": "Tadım",
-  "Bol": "Tadım",
-  "Johnsons": "Johnson",
-  "Alpella": "Ülker",
-  "Di̇do": "Ülker",
-  "Halley": "Ülker",
-  "Hobby": "Ülker",
-  "Lavi̇va": "Ülker",
-  "Çi̇zi̇vi̇ç Peyni̇rli̇": "Ülker",
-  "Ece": "Ülker",
+// Özel marka isimleri için düzeltmeler
+const brandCorrections = {
+  "Fuse": "Fuse Tea",
+  // Diğer özel düzeltmeleri buraya ekleyebilirsiniz
 };
 
+// Marka düzeltmeleri için helper object
+const brandNormalizations = {
+  "Sutas": "Sütaş",
+  "Sütas": "Sütaş",
+  "Masterini": "Mesterini",
+  // Diğer benzer düzeltmeleri buraya ekleyebilirsiniz
+};
 
-// Tüm ürünlere brand ekleyen endpoint
+// Filtrelenecek markalar
+const excludedBrands = ["DENEMEEE"];
+
+// Sadece "Bilinmeyen" markalı ürünlere brand ekleyen endpoint
 router.get("/update-brands", async (req, res) => {
   try {
-    const products = await Product.find(); // Tüm ürünleri MongoDB'den çek
+    // Sadece markası "Bilinmeyen" olan ürünleri bul
+    const products = await Product.find({ brand: "Bilinmeyen" });
 
     const updatedProducts = await Promise.all(
       products.map(async (product) => {
-        let brand = ""; // Varsayılan boş
-        const nameParts = product.name.split(" ");
+        // Ürün isminin ilk kelimesini al
+        let firstWord = product.name.split(" ")[0];
+        
+        // Özel düzeltme gerektiren bir marka mı kontrol et
+        let brand = brandCorrections[firstWord] || firstWord;
 
-        // Ürün isminde brandMapping'deki bir kelimeyi ara
-        for (const part of nameParts) {
-          const normalizedPart = part.toLowerCase(); // Büyük/küçük harf duyarlılığını kaldır
-          if (brandMapping[part] || Object.keys(brandMapping).includes(part)) {
-            brand = brandMapping[part] || part;
-            break;
-          }
-        }
-
-        // Eğer marka bulunamazsa, mevcut brand değerini koru veya boş bırak
-        if (!brand && product.brand) {
-          brand = product.brand; // Mevcut brand varsa koru
-        } else if (!brand) {
-          brand = "Bilinmeyen"; // Hiçbir eşleşme yoksa "Bilinmeyen" ata (isteğe bağlı)
-        }
-
-        // Ürünü güncelle
+        // Markayı güncelle
         product.brand = brand;
-        await product.save(); // Veritabanında güncelle
+        await product.save();
         return product;
       })
     );
 
     res.status(200).json({
-      message: "Ürünler başarıyla güncellendi!",
+      message: `${updatedProducts.length} adet "Bilinmeyen" markalı ürün güncellendi!`,
       updatedProducts,
     });
   } catch (error) {
@@ -159,12 +71,27 @@ router.get("/update-brands", async (req, res) => {
   }
 });
 
+// Kategoriye göre markaları getiren endpoint
 router.get("/brands/:category", async (req, res) => {
   try {
     const { category } = req.params;
-    const products = await Product.find({ category }, { brand: 1, _id: 0 }); // Kategoriye göre ürünleri çek
-    const brands = products.map(product => product.brand);
-    const uniqueBrands = [...new Set(brands)].filter(brand => brand && brand !== "Bilinmeyen"); // Benzersiz markaları al, boş veya "Bilinmeyen" olanları filtrele
+    const products = await Product.find({ category }, { brand: 1, _id: 0 });
+    
+    // Markaları normalize et ve filtrele
+    const brands = products
+      .map(product => {
+        // Önce marka ismini normalize et (varsa düzeltmeyi kullan)
+        const normalizedBrand = brandNormalizations[product.brand] || product.brand;
+        return normalizedBrand;
+      })
+      .filter(brand => 
+        brand && // boş değerleri filtrele
+        !excludedBrands.includes(brand) // istenmeyen markaları filtrele
+      );
+
+    // Benzersiz markaları al
+    const uniqueBrands = [...new Set(brands)].sort();
+    
     res.status(200).json({
       message: `${category} kategorisindeki markalar getirildi`,
       brands: uniqueBrands,
@@ -234,6 +161,61 @@ router.post("/reorder", protectRoute, adminRoute, async (req, res) => {
   } catch (error) {
     console.error("Sıralama güncelleme hatası:", error);
     res.status(500).json({ message: "Sıralama güncellenirken hata oluştu" });
+  }
+});
+
+// Marka isimlerini düzeltmek için endpoint
+router.get("/normalize-brands", protectRoute, adminRoute, async (req, res) => {
+  try {
+    const products = await Product.find();
+    
+    const updatedProducts = await Promise.all(
+      products.map(async (product) => {
+        // Marka ismini normalize et
+        const normalizedBrand = brandNormalizations[product.brand];
+        
+        if (normalizedBrand) {
+          product.brand = normalizedBrand;
+          await product.save();
+        }
+        
+        return product;
+      })
+    );
+
+    res.status(200).json({
+      message: "Marka isimleri normalize edildi",
+      updatedProducts,
+    });
+  } catch (error) {
+    console.error("Hata:", error);
+    res.status(500).json({ message: "Bir hata oluştu", error });
+  }
+});
+
+// İndirim fiyatı güncelleme endpoint'i
+router.put("/update-discount/:id", protectRoute, adminRoute, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { discountedPrice } = req.body;
+
+    const product = await Product.findById(id);
+    if (!product) {
+      return res.status(404).json({ message: "Ürün bulunamadı" });
+    }
+
+    // İndirim fiyatı normal fiyattan yüksek olamaz
+    if (discountedPrice && discountedPrice >= product.price) {
+      return res.status(400).json({ message: "İndirim fiyatı normal fiyattan yüksek olamaz" });
+    }
+
+    product.discountedPrice = discountedPrice;
+    await product.save();
+
+    res.json({ message: "İndirim fiyatı güncellendi", product });
+  } catch (error) {
+    console.error("İndirim fiyatı güncelleme hatası:", error);
+    res.status(500).json({ message: "İndirim fiyatı güncellenirken hata oluştu" });
   }
 });
 

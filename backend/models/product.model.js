@@ -16,6 +16,16 @@ const productSchema = new mongoose.Schema(
       min: 0,
       required: true,
     },
+    discountedPrice: {
+      type: Number,
+      default: null,
+      validate: {
+        validator: function(value) {
+          return value === null || (value >= 0 && value <= this.price);
+        },
+        message: "İndirimli fiyat normal fiyattan yüksek olamaz ve 0'dan küçük olamaz"
+      }
+    },
     image: {
       type: String,
       required: [true, "Image is required"],
@@ -26,7 +36,7 @@ const productSchema = new mongoose.Schema(
     },
     subcategory: {
       type: String,
-      default: "", // Alt kategori için yeni alan
+      default: "",
     },
     isFeatured: {
       type: Boolean,
@@ -34,20 +44,20 @@ const productSchema = new mongoose.Schema(
     },
     isHidden: {
       type: Boolean,
-      default: false, // Varsayılan olarak görünür
+      default: false,
     },
     isOutOfStock: {
       type: Boolean,
-      default: false, // Varsayılan olarak false
+      default: false,
     },
     order: {
       type: Number,
       default: 0,
     },
-    brand: { // Yeni eklenen brand alanı
+    brand: {
       type: String,
-      required: false, // Zorunlu değil, isteğe bağlı
-      default: "", // Varsayılan olarak boş string
+      required: false,
+      default: "",
     },
   },
   { timestamps: true }

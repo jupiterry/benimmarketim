@@ -130,20 +130,32 @@ export const getRecommendedProducts = async (req, res) => {
 
 export const getProductsByCategory = async (req, res) => {
   try {
-      const { category } = req.params;
+    const { category, subcategory } = req.params;
+    const { brands } = req.query; // URL'den seçili markaları al
 
-      const products = await Product.find({
-          category: { $regex: new RegExp(category, "i") }, // Büyük/küçük harf duyarsız filtreleme
-      });
+    let query = { category };
 
-      if (!products.length) {
-          return res.status(404).json({ message: "Bu kategoriye ait ürün bulunamadı." });
-      }
+    // Alt kategori varsa ekle
+    if (subcategory) {
+      query.subcategory = subcategory;
+    }
 
-      res.json({ products });
+    // Seçili markalar varsa filtrele
+    if (brands) {
+      const selectedBrands = brands.split(','); // Virgülle ayrılmış markaları diziye çevir
+      query.brand = { $in: selectedBrands };
+    }
+
+    // Gizli olmayan ve sıralamaya göre ürünleri getir
+    const products = await Product.find({
+      ...query,
+      isHidden: false
+    }).sort({ order: 1 });
+
+    res.json(products);
   } catch (error) {
-      console.error("Error in getProductsByCategory controller:", error.message);
-      res.status(500).json({ message: "Server error", error: error.message });
+    console.error("Ürünler getirilirken hata:", error);
+    res.status(500).json({ message: "Ürünler getirilirken hata oluştu" });
   }
 };
 
@@ -195,21 +207,41 @@ async function updateFeaturedProductsCache() {
 // controllers/product.controller.js
 export const getProducts = async (req, res) => {
   try {
-    console.log("Get products request received with query:", req.query); // Debug log
+    console.log("Get products request received with query:", req.query);
     
-    const { category } = req.query;
-    let query = {}; // Admin için tüm ürünleri getir (isHidden dahil)
+    const { category, page = 1, limit = 50, search = "" } = req.query;
+    let query = {};
 
     if (category) {
-      query.category = { $regex: new RegExp(`^${category}$`, "i") }; // Büyük/küçük harf duyarsız tam eşleşme
+      query.category = { $regex: new RegExp(`^${category}$`, "i") };
     }
 
-    const products = await Product.find(query).sort({ order: 1 }); // order alanına göre sırala
-    console.log("Products fetched:", products.length);
+    if (search) {
+      query.name = { $regex: new RegExp(search, "i") }; // Case-insensitive arama
+    }
+
+    // Toplam ürün sayısını al
+    const total = await Product.countDocuments(query);
+
+    // Sayfalama ile ürünleri getir
+    const products = await Product.find(query)
+      .sort({ order: 1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit));
+
+    console.log(`Products fetched: ${products.length}, Page: ${page}, Total: ${total}`);
     
-    res.status(200).json({ products }); // Frontend'in beklediği obje formatında döndür
+    res.status(200).json({ 
+      products,
+      pagination: {
+        total,
+        page: Number(page),
+        totalPages: Math.ceil(total / limit),
+        hasMore: page * limit < total
+      }
+    });
   } catch (error) {
-    console.error("Error in getProducts controller:", error.message); // Hata loglaması için console.error
+    console.error("Error in getProducts controller:", error.message);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
@@ -253,7 +285,7 @@ export const searchProducts = async (req, res) => {
 
 export const updateProduct = async (req, res) => {
   try {
-    const { name, category, subcategory, isHidden } = req.body;
+    const { name, category, subcategory, isHidden, discountedPrice } = req.body;
     const productId = req.params.id;
 
     if (!name || !category) {
@@ -269,10 +301,11 @@ export const updateProduct = async (req, res) => {
     product.category = category;
     product.subcategory = subcategory || "";
     if (isHidden !== undefined) product.isHidden = isHidden;
+    if (discountedPrice !== undefined) product.discountedPrice = discountedPrice;
 
     const updatedProduct = await product.save();
 
-    // Cache’i güncelle (featured_products varsa)
+    // Cache'i güncelle (featured_products varsa)
     if (product.isFeatured) {
       await updateFeaturedProductsCache();
     }

@@ -1,4 +1,4 @@
-import { BarChart, PlusCircle, ShoppingBasket, Upload } from "lucide-react";
+import { BarChart, PlusCircle, ShoppingBasket, Upload, Users } from "lucide-react"; // Users ikonunu ekledik
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 
@@ -7,6 +7,8 @@ import CreateProductForm from "../components/CreateProductForm";
 import ProductsList from "../components/ProductsList";
 import OrdersList from "../components/OrdersList";
 import { useProductStore } from "../stores/useProductStore";
+import axios from "../lib/axios"; // Axios için import
+import toast from "react-hot-toast"; // Hata ve başarı mesajları için
 
 const tabs = [
   { id: "create", label: "Ürün Oluştur", icon: PlusCircle },
@@ -14,41 +16,101 @@ const tabs = [
   { id: "analytics", label: "Analiz", icon: BarChart },
   { id: "orders", label: "Siparişler", icon: ShoppingBasket },
   { id: "bulk-upload", label: "Toplu Yükleme", icon: Upload },
+  { id: "users", label: "Kullanıcılar", icon: Users }, // Yeni sekme
 ];
 
 const AdminPage = () => {
-  const [activeTab, setActiveTab] = useState("create");
+  const [activeTab, setActiveTab] = useState("products");
   const { fetchAllProducts, products } = useProductStore();
   const [editingProduct, setEditingProduct] = useState(null);
-  const [uploadMessage, setUploadMessage] = useState(""); // Yükleme mesajı için state
+  const [uploadMessage, setUploadMessage] = useState("");
+  const [users, setUsers] = useState([]); // Kullanıcılar için state
+  const [editingUser, setEditingUser] = useState(null); // Düzenlenen kullanıcı için state
+  const [loadingUsers, setLoadingUsers] = useState(false); // Kullanıcılar yükleniyor durumu
+  const [errorUsers, setErrorUsers] = useState(null); // Kullanıcılar için hata durumu
 
   useEffect(() => {
     fetchAllProducts();
+    fetchUsers(); // Kullanıcıları getir
   }, [fetchAllProducts]);
 
-  // Düzenleme başlat
-  const handleEdit = (product) => {
-    setEditingProduct({ ...product });
+  // Kullanıcıları backend’den getirme
+  const fetchUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      const response = await axios.get("/users", {
+        headers: {
+          
+        },
+      });
+      setUsers(response.data.users || []);
+      setErrorUsers(null);
+    } catch (error) {
+      console.error("Kullanıcılar getirilirken hata:", error);
+      setErrorUsers("Kullanıcılar yüklenemedi.");
+      toast.error(error.response?.data?.message || "Kullanıcılar yüklenirken hata oluştu.");
+    } finally {
+      setLoadingUsers(false);
+    }
   };
 
-  // Değişiklikleri kaydet
+  // Kullanıcıyı güncelle
+  const handleUpdateUser = async (userId, updatedData) => {
+    try {
+      const response = await axios.put(`/users/${userId}`, updatedData, {
+        headers: {
+          
+        },
+      });
+      if (response.data.success) {
+        setUsers(users.map((user) => (user._id === userId ? response.data.user : user)));
+        setEditingUser(null);
+        toast.success("Kullanıcı başarıyla güncellendi!");
+      } else {
+        setUploadMessage(`Hata: ${response.data.message}`);
+      }
+    } catch (error) {
+      console.error("Kullanıcı güncellenirken hata:", error);
+      setUploadMessage(`Yükleme sırasında hata oluştu: ${error.message}`);
+      toast.error(error.response?.data?.message || "Kullanıcı güncellenirken hata oluştu.");
+    }
+  };
+
+  // Düzenleme başlat
+  const handleEditUser = (user) => {
+    setEditingUser(user);
+  };
+
+  // Düzenleme iptal
+  const handleCancelEditUser = () => {
+    setEditingUser(null);
+  };
+
+  // Ürünlerle ilgili mevcut fonksiyonlar
+  const handleEdit = (product) => {
+    setEditingProduct(product);
+  };
+
   const handleSave = async (productId, updatedData) => {
     try {
       const response = await fetch(`/api/products/${productId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`, // Eğer token varsa
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
         body: JSON.stringify({
           name: updatedData.name || "",
           category: updatedData.category || "",
+          subcategory: updatedData.subcategory || "",
+          discountedPrice: updatedData.discountedPrice || null,
         }),
       });
       const data = await response.json();
       if (response.ok) {
-        fetchAllProducts(); // Ürünleri yenile
+        fetchAllProducts();
         setEditingProduct(null);
+        setUploadMessage("Ürün başarıyla güncellendi!");
       } else {
         console.error("Güncelleme başarısız:", data.message);
         setUploadMessage(`Hata: ${data.message}`);
@@ -74,7 +136,7 @@ const AdminPage = () => {
       const response = await fetch("/api/products/bulk-upload", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`, // Admin doğrulama
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
         body: formData,
       });
@@ -82,7 +144,7 @@ const AdminPage = () => {
       const data = await response.json();
       if (response.ok) {
         setUploadMessage("Ürünler başarıyla yüklendi!");
-        fetchAllProducts(); // Ürün listesini yenile
+        fetchAllProducts();
       } else {
         setUploadMessage(`Hata: ${data.message}`);
       }
@@ -127,6 +189,7 @@ const AdminPage = () => {
             products={products}
             onEdit={handleEdit}
             editingProduct={editingProduct}
+            setEditingProduct={setEditingProduct}
             onSave={handleSave}
           />
         )}
@@ -151,7 +214,127 @@ const AdminPage = () => {
             )}
           </div>
         )}
+        {activeTab === "users" && (
+          <UsersTab
+            users={users}
+            loading={loadingUsers}
+            error={errorUsers}
+            onEdit={handleEditUser}
+            onUpdate={handleUpdateUser}
+            onCancel={handleCancelEditUser}
+            editingUser={editingUser}
+          />
+        )}
       </div>
+    </div>
+  );
+};
+
+// Yeni UsersTab Bileşeni
+const UsersTab = ({ users, loading, error, onEdit, onUpdate, onCancel, editingUser }) => {
+  const [editedUser, setEditedUser] = useState({});
+
+  useEffect(() => {
+    if (editingUser) {
+      setEditedUser(editingUser);
+    }
+  }, [editingUser]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setEditedUser((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSave = (userId) => {
+    onUpdate(userId, editedUser);
+  };
+
+  if (loading) return <p className="text-center text-gray-300">Yükleniyor...</p>;
+  if (error) return <p className="text-center text-red-400">{error}</p>;
+
+  return (
+    <div className="bg-gray-800 p-6 rounded-lg shadow-lg max-w-4xl mx-auto">
+      <h2 className="text-2xl font-bold mb-4 text-emerald-400">Kullanıcı Listesi</h2>
+      <table className="min-w-full divide-y divide-gray-700">
+        <thead className="bg-gray-900">
+          <tr>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider w-1/4">Adı</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider w-1/4">E-posta</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider w-1/4">Telefon</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider w-1/4">İşlemler</th>
+          </tr>
+        </thead>
+        <tbody className="bg-gray-800 divide-y divide-gray-700">
+          {users.map((user) => (
+            <tr key={user._id} className="hover:bg-gray-700">
+              <td className="px-4 py-4 whitespace-nowrap w-1/4">
+                {editingUser && editingUser._id === user._id ? (
+                  <input
+                    type="text"
+                    name="name"
+                    value={editedUser.name || ""}
+                    onChange={handleChange}
+                    className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 w-full focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                ) : (
+                  <div className="text-sm text-gray-300">{user.name}</div>
+                )}
+              </td>
+              <td className="px-4 py-4 whitespace-nowrap w-1/4">
+                {editingUser && editingUser._id === user._id ? (
+                  <input
+                    type="email"
+                    name="email"
+                    value={editedUser.email || ""}
+                    onChange={handleChange}
+                    className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 w-full focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                ) : (
+                  <div className="text-sm text-gray-300">{user.email}</div>
+                )}
+              </td>
+              <td className="px-4 py-4 whitespace-nowrap w-1/4">
+                {editingUser && editingUser._id === user._id ? (
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={editedUser.phone || ""}
+                    onChange={handleChange}
+                    className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 w-full focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                ) : (
+                  <div className="text-sm text-gray-300">{user.phone || "Belirtilmemiş"}</div>
+                )}
+              </td>
+              <td className="px-4 py-4 whitespace-nowrap w-1/4 text-sm font-medium">
+                {editingUser && editingUser._id === user._id ? (
+                  <div className="flex justify-center space-x-2">
+                    <button
+                      onClick={() => handleSave(user._id)}
+                      className="text-green-400 hover:text-green-300 px-2 py-1 rounded"
+                    >
+                      Kaydet
+                    </button>
+                    <button
+                      onClick={onCancel}
+                      className="text-red-400 hover:text-red-300 px-2 py-1 rounded"
+                    >
+                      İptal
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => onEdit(user)}
+                    className="text-blue-400 hover:text-blue-300"
+                  >
+                    Düzenle
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 };

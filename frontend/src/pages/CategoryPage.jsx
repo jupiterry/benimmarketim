@@ -3,16 +3,23 @@ import { useProductStore } from "../stores/useProductStore";
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import ProductCard from "../components/ProductCard";
-import axios from "axios";
+import axios from "../lib/axios";
 
 const categories = [
-  { href: "/kahve", name: "Kahveler", displayName: "Sımsıcak Kahveler", imageUrl: "/kahve.png" },
+  { href: "/kahve", name: "Benim Kahvem", displayName: "Benim Kahvem", imageUrl: "/kahve.png" },
   { href: "/yiyecekler", name: "Yiyecekler", displayName: "Lezzetli Yiyecekler", imageUrl: "/foods.png" },
+  { href: "/kahvalti", name: "Kahvaltılık Ürünler", displayName: "Kahvaltılık Ürünler", imageUrl: "/foods.png" },
   { href: "/gida", name: "Gıda", displayName: "Sağlıklı Gıdalar", imageUrl: "/food.png" },
   { href: "/meyve-sebze", name: "Meyve & Sebze", displayName: "Taze Meyve & Sebzeler", imageUrl: "/fruit.png" },
   { href: "/sut", name: "Süt & Süt Ürünleri", displayName: "Doğal Süt Ürünleri", imageUrl: "/milk.png" },
+  { href: "/bespara", name: "Beş Para Etmeyen Ürünler", displayName: "Beş Para Etmeyen Ürünler", imageUrl: "/milk.png" },
+  { href: "/tozicecekler", name: "Toz İçecekler", displayName: "Toz İçecekler", imageUrl: "/kahve.png" },
+  { href: "/cips", name: "Cips & Çerez", displayName: "Cips & Çerez", imageUrl: "/kahve.png" },
+  { href: "/cayseker", name: "Çay ve Şekerler", displayName: "Çay ve Şekerler", imageUrl: "/kahve.png" },
   { href: "/atistirma", name: "Atıştırmalıklar", displayName: "Lezzetli Atıştırmalıklar", imageUrl: "/atistirma.png" },
   { href: "/temizlik", name: "Temizlik & Hijyen", displayName: "Temizlik & Kişisel Bakım", imageUrl: "/clean.png" },
+  { href: "/kisisel", name: "Kişisel Bakım", displayName: "Kişisel Bakım", imageUrl: "/clean.png" },
+  { href: "/makarna", name: "Makarna ve Kuru Bakliyat", displayName: "Makarna ve Kuru Bakliyat", imageUrl: "/kahve.png" },
   { href: "/et", name: "Şarküteri & Et Ürünleri", displayName: "Taze Et & Şarküteri", imageUrl: "/chicken.png" },
   { href: "/icecekler", name: "İçecek", displayName: "Serinletici İçecekler", imageUrl: "/juice.png" },
 ];
@@ -20,14 +27,14 @@ const categories = [
 // Statik filtreler (artık tüm kategoriler için API'den çekeceğimizden gerek kalmayabilir)
 const categoryFilters = {
   gida: { indirimler: ["Benim Marketim İndirimli Ürünler"] },
-  temizlik: { indirimler: ["Money İndirimli Ürünler"] },
-  atistirma: { indirimler: ["Money İndirimli Ürünler"] },
-  sut: { indirimler: ["Money İndirimli Ürünler"] },
-  kahve: { indirimler: ["Money İndirimli Ürünler"] },
-  meyve: { indirimler: ["Money İndirimli Ürünler"] },
-  et: { indirimler: ["Money İndirimli Ürünler"] },
-  icecekler: { indirimler: ["Money İndirimli Ürünler"] },
-  yiyecekler: { indirimler: ["Money İndirimli Ürünler"] },
+  temizlik: { indirimler: ["Benim Marketim İndirimli Ürünler"] },
+  atistirma: { indirimler: ["Benim Marketim İndirimli Ürünler"] },
+  sut: { indirimler: ["Benim Marketim İndirimli Ürünler"] },
+  kahve: { indirimler: ["Benim Marketim İndirimli Ürünler"] },
+  meyve: { indirimler: ["Benim Marketim İndirimli Ürünler"] },
+  et: { indirimler: ["Benim Marketim İndirimli Ürünler"] },
+  icecekler: { indirimler: ["Benim Marketim İndirimli Ürünler"] },
+  yiyecekler: { indirimler: ["Benim Marketim İndirimli Ürünler"] },
 };
 
 const FilterComponent = ({ onFilter, category }) => {
@@ -45,8 +52,8 @@ const FilterComponent = ({ onFilter, category }) => {
     const fetchBrands = async () => {
       setLoading(true);
       try {
-        const response = await axios.get(`http://localhost:5000/api/products/brands/${category}`);
-        console.log(`${category} için API yanıtı:`, response.data); // API yanıtını kontrol et
+        const response = await axios.get(`/products/brands/${category}`);
+        console.log(`${category} için API yanıtı:`, response.data);
         setDynamicBrands(response.data.brands || []);
       } catch (error) {
         console.error("Markalar çekilirken hata oluştu:", error);
@@ -65,7 +72,7 @@ const FilterComponent = ({ onFilter, category }) => {
 
   const filtersForCategory = {
     markalar: filteredBrands, // API'den gelen ve filtrelenmiş markalar
-    indirimler: categoryFilters[category]?.indirimler || ["Money İndirimli Ürünler"], // Varsayılan indirim
+    indirimler: categoryFilters[category]?.indirimler || ["Benim Marketim İndirimli Ürünler"], // Varsayılan indirim
   };
 
   const handleFilterChange = (filterType, value) => {
@@ -136,6 +143,7 @@ const CategoryPage = () => {
   const { fetchProductsByCategory, products } = useProductStore();
   const { category } = useParams();
   const [filteredProducts, setFilteredProducts] = useState(products);
+  const { user } = useProductStore();
 
   const handleFilter = (filters) => {
     let filtered = products;
@@ -197,7 +205,11 @@ const CategoryPage = () => {
               )}
 
               {filteredProducts?.map((product) => (
-                <ProductCard key={product._id} product={product} />
+                <ProductCard 
+                  key={product._id} 
+                  product={product} 
+                  isAdmin={user?.role === 'admin'} 
+                />
               ))}
             </motion.div>
           </div>

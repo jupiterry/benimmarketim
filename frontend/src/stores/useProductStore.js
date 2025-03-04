@@ -8,7 +8,6 @@ export const useProductStore = create((set) => ({
 
     setProducts: (products) => set({ products }),
     reorderProducts: (newProducts) => set({ products: newProducts }),
-  // diğer mevcut fonksiyonlar (deleteProduct, toggleFeaturedProduct, vb.)
 
     // Ürün oluşturma
     createProduct: async (productData) => {
@@ -58,7 +57,6 @@ export const useProductStore = create((set) => ({
     fetchProductsByCategory: async (category) => {
         try {
             const response = await axios.get(`/products?category=${encodeURIComponent(category)}`);
-
             set({ products: response.data.products || [] });
         } catch (error) {
             console.error("Ürünleri çekerken hata:", error.response?.data?.message || error.message);
@@ -117,41 +115,59 @@ export const useProductStore = create((set) => ({
         set({ loading: true });
         try {
             const response = await axios.put(`/products/update-price/${productId}`, { price: newPrice });
-
             set((prevProducts) => ({
                 products: prevProducts.products.map((product) =>
                     product._id === productId ? { ...product, price: response.data.product.price } : product
                 ),
                 loading: false,
             }));
-
             toast.success("Ürün fiyatı başarıyla güncellendi");
         } catch (error) {
             set({ loading: false });
             toast.error(error.response?.data?.error || "Fiyat güncellenemedi");
         }
     },
-    // useProductStore.js
+
+    // Ürün stok durumunu güncelle
     toggleOutOfStock: async (productId) => {
-    set({ loading: true });
-    try {
-      const response = await axios.patch(`/products/toggle-out-of-stock/${productId}`, {}, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
-  
-      set((prevProducts) => ({
-        products: prevProducts.products.map((product) =>
-          product._id === productId ? { ...product, isOutOfStock: response.data.product.isOutOfStock } : product
-        ),
-        loading: false,
-      }));
-  
-      toast.success(response.data.message);
-    } catch (error) {
-      set({ loading: false });
-      toast.error(error.response?.data?.message || "Tükendi durumu değiştirilirken hata oluştu.");
-    }
-  },
+        set({ loading: true });
+        try {
+            const response = await axios.patch(`/products/toggle-out-of-stock/${productId}`, {}, {
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem("token")}`,
+                },
+            });
+
+            set((prevProducts) => ({
+                products: prevProducts.products.map((product) =>
+                    product._id === productId ? { ...product, isOutOfStock: response.data.product.isOutOfStock } : product
+                ),
+                loading: false,
+            }));
+
+            toast.success(response.data.message);
+        } catch (error) {
+            set({ loading: false });
+            toast.error(error.response?.data?.message || "Tükendi durumu değiştirilirken hata oluştu.");
+        }
+    },
+
+    // Ürün adını güncelle
+    updateProductName: async (productId, newName) => {
+        set({ loading: true });
+        try {
+            const response = await axios.put(`/products/update-name/${productId}`, { name: newName });
+            set((prevProducts) => ({
+                products: prevProducts.products.map((product) =>
+                    product._id === productId ? { ...product, name: response.data.product.name } : product
+                ),
+                loading: false,
+            }));
+            toast.success("Ürün adı başarıyla güncellendi");
+        } catch (error) {
+            set({ loading: false });
+            toast.error(error.response?.data?.error || "İsim güncellenemedi");
+        }
+    },
+
 }));
