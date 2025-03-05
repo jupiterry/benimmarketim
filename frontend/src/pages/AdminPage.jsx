@@ -1,4 +1,4 @@
-import { BarChart, PlusCircle, ShoppingBasket, Upload, Users } from "lucide-react"; // Users ikonunu ekledik
+import { BarChart, PlusCircle, ShoppingBasket, Upload, Users, RefreshCw } from "lucide-react"; // Users ikonunu ekledik
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 
@@ -17,6 +17,7 @@ const tabs = [
   { id: "orders", label: "Siparişler", icon: ShoppingBasket },
   { id: "bulk-upload", label: "Toplu Yükleme", icon: Upload },
   { id: "users", label: "Kullanıcılar", icon: Users }, // Yeni sekme
+  { id: "recategorize", label: "KULLANMA!", icon: RefreshCw },
 ];
 
 const AdminPage = () => {
@@ -34,7 +35,7 @@ const AdminPage = () => {
     fetchUsers(); // Kullanıcıları getir
   }, [fetchAllProducts]);
 
-  // Kullanıcıları backend’den getirme
+  // Kullanıcıları backend'den getirme
   const fetchUsers = async () => {
     setLoadingUsers(true);
     try {
@@ -153,6 +154,32 @@ const AdminPage = () => {
     }
   };
 
+  const handleRecategorize = async () => {
+    try {
+      const response = await axios.post('/products/recategorize', {}, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`
+        }
+      });
+
+      if (response.data.success) {
+        toast.success(response.data.message);
+        
+        // Kategori dağılımını göster
+        const distribution = response.data.results.categoryDistribution;
+        console.log('Kategori Dağılımı:', distribution);
+        
+        // Ürünleri yeniden yükle
+        fetchAllProducts();
+      } else {
+        toast.error('Kategoriler güncellenirken bir hata oluştu');
+      }
+    } catch (error) {
+      console.error('Kategori güncelleme hatası:', error);
+      toast.error(error.response?.data?.message || 'Kategoriler güncellenirken bir hata oluştu');
+    }
+  };
+
   return (
     <div className="min-h-screen relative overflow-hidden">
       <div className="relative z-10 container mx-auto px-4 py-16">
@@ -224,6 +251,20 @@ const AdminPage = () => {
             onCancel={handleCancelEditUser}
             editingUser={editingUser}
           />
+        )}
+        {activeTab === "recategorize" && (
+          <div className="p-6 bg-gray-800 rounded-lg shadow-lg">
+            <h2 className="text-2xl font-bold text-emerald-400 mb-4">KULLANMA!</h2>
+            <p className="text-gray-300 mb-4">
+              Bu işlem tüm ürünlerin kategorilerini ürün adı ve marka bilgilerine göre otomatik olarak güncelleyecektir.
+            </p>
+            <button
+              onClick={handleRecategorize}
+              className="bg-emerald-600 text-white px-4 py-2 rounded-md hover:bg-emerald-700 transition-colors duration-200"
+            >
+              KULLANMA!
+            </button>
+          </div>
         )}
       </div>
     </div>

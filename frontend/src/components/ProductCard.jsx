@@ -53,7 +53,7 @@ const ProductCard = ({ product, isAdmin }) => {
 
         <div className="mt-4 px-5">
           <h5
-            className="text-xl font-semibold tracking-tight text-white min-h-[3rem] line-clamp-2"
+            className="text-xl font-semibold tracking-tight text-white"
             title={product.name}
           >
             {product.name}

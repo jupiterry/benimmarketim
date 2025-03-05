@@ -18,6 +18,9 @@ import {
   searchProducts,
   getProductsByCategory,
   toggleHiddenProduct,
+  exportProductsToCSV,
+  detectProductBrands,
+  recategorizeProducts,
 } from "../controllers/product.controller.js"; // Tüm kontrolörleri import et
 
 const router = express.Router();
@@ -219,6 +222,9 @@ router.put("/update-discount/:id", protectRoute, adminRoute, async (req, res) =>
   }
 });
 
+// Kategori güncelleme endpoint'i
+router.post("/recategorize", protectRoute, adminRoute, recategorizeProducts);
+
 // Mevcut rotalar
 router.get("/", getProducts); // Admin için tüm ürünleri getir
 router.get("/featured", getFeaturedProducts);
@@ -232,5 +238,7 @@ router.get("/search", searchProducts);
 router.get("/category/:category/:subcategory?", getProductsByCategory); // Kategoriye göre ürünler
 router.patch("/toggle-hidden/:id", protectRoute, adminRoute, toggleHiddenProduct); // Ürün gizleme/gösterme
 router.patch("/toggle-out-of-stock/:id", protectRoute, adminRoute, toggleOutOfStock);
+router.get('/export-csv', protectRoute, adminRoute, exportProductsToCSV);
+router.get('/detect-brands', protectRoute, adminRoute, detectProductBrands);
 
 export default router;

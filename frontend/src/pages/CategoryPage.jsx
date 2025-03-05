@@ -9,7 +9,7 @@ const categories = [
   { href: "/kahve", name: "Benim Kahvem", displayName: "Benim Kahvem", imageUrl: "/kahve.png" },
   { href: "/yiyecekler", name: "Yiyecekler", displayName: "Lezzetli Yiyecekler", imageUrl: "/foods.png" },
   { href: "/kahvalti", name: "Kahvaltılık Ürünler", displayName: "Kahvaltılık Ürünler", imageUrl: "/foods.png" },
-  { href: "/gida", name: "Gıda", displayName: "Sağlıklı Gıdalar", imageUrl: "/food.png" },
+  { href: "/gida", name: "Temel Gıda", displayName: "Temel Gıda", imageUrl: "/food.png" },
   { href: "/meyve-sebze", name: "Meyve & Sebze", displayName: "Taze Meyve & Sebzeler", imageUrl: "/fruit.png" },
   { href: "/sut", name: "Süt & Süt Ürünleri", displayName: "Doğal Süt Ürünleri", imageUrl: "/milk.png" },
   { href: "/bespara", name: "Beş Para Etmeyen Ürünler", displayName: "Beş Para Etmeyen Ürünler", imageUrl: "/milk.png" },
@@ -22,6 +22,8 @@ const categories = [
   { href: "/makarna", name: "Makarna ve Kuru Bakliyat", displayName: "Makarna ve Kuru Bakliyat", imageUrl: "/kahve.png" },
   { href: "/et", name: "Şarküteri & Et Ürünleri", displayName: "Taze Et & Şarküteri", imageUrl: "/chicken.png" },
   { href: "/icecekler", name: "İçecek", displayName: "Serinletici İçecekler", imageUrl: "/juice.png" },
+  { href: "/dondulurmus", name: "Dondurulmuş Gıdalar", displayName: "Dondurulmuş Gıdalar", imageUrl: "/juice.png" },
+  { href: "/baharat", name: "Baharatlar", displayName: "Baharatlar", imageUrl: "/juice.png" },
 ];
 
 // Statik filtreler (artık tüm kategoriler için API'den çekeceğimizden gerek kalmayabilir)

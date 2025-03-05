@@ -1,11 +1,32 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Trash, Star, Edit } from "lucide-react";
+import { Trash, Star, Edit, Save, X } from "lucide-react";
 import { useProductStore } from "../stores/useProductStore";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import InfiniteScroll from "react-infinite-scroll-component";
+
+const categories = [
+  { href: "/kahve", name: "Benim Kahvem", displayName: "Benim Kahvem", imageUrl: "/kahve.png" },
+  { href: "/yiyecekler", name: "Yiyecekler", displayName: "Lezzetli Yiyecekler", imageUrl: "/foods.png" },
+  { href: "/kahvalti", name: "Kahvaltılık Ürünler", displayName: "Kahvaltılık Ürünler", imageUrl: "/kahvalti.png" },
+  { href: "/gida", name: "Temel Gıda", displayName: "Temel Gıda", imageUrl: "/food2.png" },
+  { href: "/meyve-sebze", name: "Meyve & Sebze", displayName: "Taze Meyve & Sebzeler", imageUrl: "/fruit.png" },
+  { href: "/sut", name: "Süt & Süt Ürünleri", displayName: "Doğal Süt Ürünleri", imageUrl: "/milk.png" },
+  { href: "/bespara", name: "Beş Para Etmeyen Ürünler", displayName: "Beş Para Etmeyen Ürünler", imageUrl: "/bespara.png" },
+  { href: "/tozicecekler", name: "Toz İçecekler", displayName: "Toz İçecekler", imageUrl: "/instant.png" },
+  { href: "/cips", name: "Cips & Çerez", displayName: "Cips & Çerez", imageUrl: "/dd.png" },
+  { href: "/cayseker", name: "Çay ve Şekerler", displayName: "Çay ve Şekerler", imageUrl: "/cay.png" },
+  { href: "/atistirma", name: "Atıştırmalıklar", displayName: "Lezzetli Atıştırmalıklar", imageUrl: "/atistirmaa.png" },
+  { href: "/temizlik", name: "Temizlik Ürünleri", displayName: "Temizlik Ürünleri", imageUrl: "/clean.png" },
+  { href: "/kisisel", name: "Kişisel Bakım Ürünleri", displayName: "Kişisel Bakım Ürünleri", imageUrl: "/care.png" },
+  { href: "/makarna", name: "Makarna ve Kuru Bakliyat", displayName: "Makarna ve Kuru Bakliyat", imageUrl: "/makarna.png" },
+  { href: "/et", name: "Şarküteri & Et Ürünleri", displayName: "Taze Et & Şarküteri", imageUrl: "/chicken.png" },
+  { href: "/icecekler", name: "İçecek", displayName: "Serinletici İçecekler", imageUrl: "/juice.png" },
+  { href: "/dondulurmus", name: "Dondurulmuş Gıdalar", displayName: "Dondurulmuş Gıdalar", imageUrl: "/juice.png" },
+  { href: "/baharat", name: "Baharatlar", displayName: "Baharatlar", imageUrl: "/juice.png" },
+];
 
 const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => {
   const {
@@ -28,18 +49,6 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
   const [localProducts, setLocalProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
-
-  const categories = [
-    "kahve",
-    "yiyecekler",
-    "gida",
-    "meyve-sebze",
-    "sut",
-    "atistirma",
-    "temizlik-hijyen",
-    "şarküteri-et-ürünleri",
-    "icecekler",
-  ];
 
   const saveOrderToBackend = async (newProducts) => {
     try {
@@ -112,10 +121,35 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
   };
 
   const handleProductChange = (field, value) => {
-    setEditingProduct(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setEditingProduct({
+      ...editingProduct,
+      [field]: value,
+    });
+  };
+
+  const handleCategoryChange = (categoryPath) => {
+    const category = categories.find(cat => cat.href === categoryPath);
+    if (category) {
+      setEditingProduct({
+        ...editingProduct,
+        category: category.name
+      });
+    }
+  };
+
+  const handleSubcategoryChange = (subcategoryId) => {
+    const category = categories.find(cat => cat.id === editingProduct.category.id);
+    const subcategory = category?.subcategories.find(sub => sub.id === subcategoryId);
+    if (subcategory) {
+      setEditingProduct({
+        ...editingProduct,
+        subcategory: {
+          id: subcategory.id,
+          name: subcategory.name
+        },
+        brand: ""
+      });
+    }
   };
 
   const toggleProductHidden = async (productId) => {
@@ -205,8 +239,8 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
             >
               <option value="">Tüm Kategoriler</option>
               {categories.map((category) => (
-                <option key={category} value={category}>
-                  {category}
+                <option key={category.href} value={category.href}>
+                  {category.name}
                 </option>
               ))}
             </select>
@@ -268,17 +302,20 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
                   {localProducts.map((product, index) => (
                     <Draggable key={product._id} draggableId={product._id} index={index}>
                       {(provided) => (
-                        <tr
+                        <motion.tr
                           ref={provided.innerRef}
                           {...provided.draggableProps}
                           {...provided.dragHandleProps}
                           className="hover:bg-gray-700"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ duration: 0.3 }}
                         >
                           <td className="px-4 py-4 whitespace-nowrap w-1/4">
                             <div className="flex items-center">
-                              <div className="flex-shrink-0 h-10 w-10">
+                              <div className="flex-shrink-0 h-12 w-12 bg-gray-700 rounded flex items-center justify-center overflow-hidden">
                                 <img
-                                  className="h-10 w-10 rounded object-cover"
+                                  className="h-full w-full object-contain"
                                   src={product.image}
                                   alt={product.name}
                                 />
@@ -294,7 +331,7 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
                                   />
                                 ) : (
                                   <div
-                                    className="text-sm font-medium text-white max-w-[150px] truncate"
+                                    className="text-sm font-medium text-white"
                                     title={product.name}
                                   >
                                     {product.name}
@@ -340,14 +377,46 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
                             )}
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap w-1/6">
-                            <div className="text-sm text-gray-300 max-w-[100px] truncate" title={product.category}>
-                              {product.category}
-                            </div>
+                            {editingProduct && editingProduct._id === product._id ? (
+                              <select
+                                value={editingProduct.category || ""}
+                                onChange={(e) => handleCategoryChange(e.target.value)}
+                                className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 w-full focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                              >
+                                <option value="">Kategori Seçin</option>
+                                {categories.map((category) => (
+                                  <option key={category.href} value={category.href}>
+                                    {category.name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div className="text-sm text-gray-300" title={product.category || "Kategori Yok"}>
+                                {product.category || "Kategori Yok"}
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap w-1/6">
-                            <div className="text-sm text-gray-300 max-w-[100px] truncate" title={product.subcategory || "Yok"}>
-                              {product.subcategory || "Yok"}
-                            </div>
+                            {editingProduct && editingProduct._id === product._id ? (
+                              <select
+                                value={editingProduct.subcategory?.id || ""}
+                                onChange={(e) => handleSubcategoryChange(e.target.value)}
+                                className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 w-full focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                              >
+                                <option value="">Alt Kategori Seçin</option>
+                                {categories
+                                  .find(cat => cat.id === editingProduct.category?.id)
+                                  ?.subcategories?.map((subcategory) => (
+                                    <option key={subcategory.id} value={subcategory.id}>
+                                      {subcategory.name}
+                                    </option>
+                                  ))}
+                              </select>
+                            ) : (
+                              <div className="text-sm text-gray-300" title={product.subcategory?.name || "Alt Kategori Yok"}>
+                                {product.subcategory?.name || "Alt Kategori Yok"}
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap w-1/12">
                             <button
@@ -389,20 +458,16 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
                             {editingProduct && editingProduct._id === product._id ? (
                               <div className="flex justify-center space-x-2">
                                 <button
-                                  onClick={() => onSave(product._id, {
-                                    name: editingProduct.name,
-                                    category: editingProduct.category,
-                                    subcategory: editingProduct.subcategory || ""
-                                  })}
+                                  onClick={() => onSave(product._id, editingProduct)}
                                   className="text-green-400 hover:text-green-300 px-2 py-1 rounded"
                                 >
-                                  Kaydet
+                                  <Save className="h-5 w-5" />
                                 </button>
                                 <button
-                                  onClick={() => onEdit(null)}
+                                  onClick={() => setEditingProduct(null)}
                                   className="text-red-400 hover:text-red-300 px-2 py-1 rounded"
                                 >
-                                  İptal
+                                  <X className="h-5 w-5" />
                                 </button>
                               </div>
                             ) : (
@@ -422,7 +487,7 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
                               </div>
                             )}
                           </td>
-                        </tr>
+                        </motion.tr>
                       )}
                     </Draggable>
                   ))}
