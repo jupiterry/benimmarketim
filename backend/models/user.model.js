@@ -19,6 +19,10 @@ const userSchema = new mongoose.Schema(
 			required: [true, "Password is required"],
 			minlength: [6, "Password must be at least 6 characters long"],
 		},
+		phone: {
+			type: String,
+			trim: true,
+		},
 		cartItems: [
 			{
 				quantity: {
@@ -35,7 +39,7 @@ const userSchema = new mongoose.Schema(
 			type: String,
 			enum: ["customer", "admin"],
 			default: "customer",
-		},
+		}
 	},
 	{
 		timestamps: true,

@@ -180,6 +180,10 @@ export const placeOrder = async (req, res) => {
 	  // Siparişi kaydet
 	  await newOrder.save();
   
+	  // Kullanıcının sepetini temizle
+	  req.user.cartItems = [];
+	  await req.user.save();
+  
 	  // Başarılı yanıt döndür
 	  res.status(201).json({
 		success: true,

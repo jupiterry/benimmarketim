@@ -1,86 +1,177 @@
 import Order from "../models/order.model.js";
-import Product from "../models/product.model.js";
 import User from "../models/user.model.js";
+import Product from "../models/product.model.js";
 
-export const getAnalyticsData = async () => {
-	const totalUsers = await User.countDocuments();
-	const totalProducts = await Product.countDocuments();
-
-	const salesData = await Order.aggregate([
-		{
-			$group: {
-				_id: null, // it groups all documents together,
-				totalSales: { $sum: 1 },
-				totalRevenue: { $sum: "$totalAmount" },
-			},
-		},
-	]);
-
-	const { totalSales, totalRevenue } = salesData[0] || { totalSales: 0, totalRevenue: 0 };
-
-	return {
-		users: totalUsers,
-		products: totalProducts,
-		totalSales,
-		totalRevenue,
-	};
-};
-
-export const getDailySalesData = async (startDate, endDate) => {
+export const getAnalytics = async (req, res) => {
 	try {
-		const dailySalesData = await Order.aggregate([
+		const { timeRange } = req.query;
+		let startDate = new Date();
+
+		// Zaman aralığına göre başlangıç tarihini ayarla
+		switch (timeRange) {
+			case "week":
+				startDate.setDate(startDate.getDate() - 7);
+				break;
+			case "month":
+				startDate.setMonth(startDate.getMonth() - 1);
+				break;
+			case "year":
+				startDate.setFullYear(startDate.getFullYear() - 1);
+				break;
+			default:
+				startDate.setDate(startDate.getDate() - 7);
+		}
+
+		// Toplam istatistikler - Tüm zamanlar için
+		const totalOrders = await Order.countDocuments();
+		const totalUsers = await User.countDocuments();
+		const totalProducts = await Product.countDocuments();
+
+		// Seçili dönem için sipariş verileri
+		const currentPeriodOrders = await Order.find({
+			createdAt: { $gte: startDate }
+		});
+
+		// Önceki dönem için sipariş verileri
+		const previousPeriodStart = new Date(startDate);
+		switch (timeRange) {
+			case "week":
+				previousPeriodStart.setDate(previousPeriodStart.getDate() - 7);
+				break;
+			case "month":
+				previousPeriodStart.setMonth(previousPeriodStart.getMonth() - 1);
+				break;
+			case "year":
+				previousPeriodStart.setFullYear(previousPeriodStart.getFullYear() - 1);
+				break;
+		}
+
+		const previousPeriodOrders = await Order.find({
+			createdAt: { $gte: previousPeriodStart, $lt: startDate }
+		});
+
+		// Toplam gelir hesaplama - Tüm zamanlar için
+		const allOrders = await Order.find();
+		const totalRevenue = allOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+
+		// Değişim oranları hesaplama
+		const currentPeriodRevenue = currentPeriodOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+		const previousPeriodRevenue = previousPeriodOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+
+		const revenueChange = previousPeriodRevenue === 0 ? 100 : 
+			((currentPeriodRevenue - previousPeriodRevenue) / previousPeriodRevenue) * 100;
+
+		const ordersChange = previousPeriodOrders.length === 0 ? 100 :
+			((currentPeriodOrders.length - previousPeriodOrders.length) / previousPeriodOrders.length) * 100;
+
+		// Günlük satış verileri
+		const salesByDay = await Order.aggregate([
 			{
 				$match: {
-					createdAt: {
-						$gte: startDate,
-						$lte: endDate,
-					},
-				},
+					createdAt: { $gte: startDate }
+				}
 			},
 			{
 				$group: {
 					_id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-					sales: { $sum: 1 },
-					revenue: { $sum: "$totalAmount" },
-				},
+					amount: { $sum: "$totalAmount" }
+				}
 			},
-			{ $sort: { _id: 1 } },
+			{
+				$project: {
+					date: "$_id",
+					amount: 1,
+					_id: 0
+				}
+			},
+			{
+				$sort: { date: 1 }
+			}
 		]);
 
-		// example of dailySalesData
-		// [
-		// 	{
-		// 		_id: "2024-08-18",
-		// 		sales: 12,
-		// 		revenue: 1450.75
-		// 	},
-		// ]
+		// En çok satan ürünler
+		const popularProducts = await Order.aggregate([
+			{
+				$unwind: "$products"
+			},
+			{
+				$group: {
+					_id: "$products.product",
+					totalSales: { $sum: "$products.quantity" },
+					revenue: { $sum: { $multiply: ["$products.price", "$products.quantity"] } }
+				}
+			},
+			{
+				$lookup: {
+					from: "products",
+					localField: "_id",
+					foreignField: "_id",
+					as: "productInfo"
+				}
+			},
+			{
+				$project: {
+					name: { $arrayElemAt: ["$productInfo.name", 0] },
+					totalSales: 1,
+					revenue: 1
+				}
+			},
+			{
+				$sort: { totalSales: -1 }
+			},
+			{
+				$limit: 5
+			}
+		]);
 
-		const dateArray = getDatesInRange(startDate, endDate);
-		// console.log(dateArray) // ['2024-08-18', '2024-08-19', ... ]
+		// Kullanıcı büyüme verileri
+		const userGrowth = await User.aggregate([
+			{
+				$match: {
+					createdAt: { $gte: startDate }
+				}
+			},
+			{
+				$group: {
+					_id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+					count: { $sum: 1 }
+				}
+			},
+			{
+				$sort: { _id: 1 }
+			}
+		]);
 
-		return dateArray.map((date) => {
-			const foundData = dailySalesData.find((item) => item._id === date);
+		// Son siparişler
+		const recentOrders = await Order.find()
+			.sort({ createdAt: -1 })
+			.limit(10)
+			.populate("user", "name email")
+			.lean();
 
-			return {
-				date,
-				sales: foundData?.sales || 0,
-				revenue: foundData?.revenue || 0,
-			};
+		const formattedRecentOrders = recentOrders.map(order => ({
+			id: order._id,
+			customer: order.user?.name || "Bilinmeyen Kullanıcı",
+			items: order.products?.length || 0,
+			total: order.totalAmount || 0,
+			status: order.status || "Beklemede"
+		}));
+
+		res.json({
+			totalRevenue,
+			totalOrders,
+			totalUsers,
+			totalProducts,
+			revenueChange: parseFloat(revenueChange.toFixed(2)),
+			ordersChange: parseFloat(ordersChange.toFixed(2)),
+			salesByDay,
+			popularProducts,
+			userGrowth,
+			recentOrders: formattedRecentOrders
 		});
+
 	} catch (error) {
-		throw error;
+		console.error("Analytics error:", error);
+		res.status(500).json({ message: "Analiz verileri alınırken bir hata oluştu" });
 	}
 };
-
-function getDatesInRange(startDate, endDate) {
-	const dates = [];
-	let currentDate = new Date(startDate);
-
-	while (currentDate <= endDate) {
-		dates.push(currentDate.toISOString().split("T")[0]);
-		currentDate.setDate(currentDate.getDate() + 1);
-	}
-
-	return dates;
-}

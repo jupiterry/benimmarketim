@@ -1,53 +1,136 @@
-import { ShoppingCart, UserPlus, LogIn, LogOut, Lock, Package } from "lucide-react";
+import { ShoppingCart, UserPlus, LogIn, LogOut, Lock, Package, Menu, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useUserStore } from "../stores/useUserStore";
 import { useCartStore } from "../stores/useCartStore";
-import SearchBar from "./SearchBar"; // Arama çubuğunu içe aktarın
+import SearchBar from "./SearchBar";
+import { useState } from "react";
 
 const Navbar = () => {
   const { user, logout } = useUserStore();
   const isAdmin = user?.role === "admin";
   const { cart } = useCartStore();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen);
+    // Menü açıkken scroll'u engelle
+    document.body.style.overflow = !isMenuOpen ? 'hidden' : 'unset';
+  };
 
   return (
-    <header className="fixed top-0 left-0 w-full bg-gray-900 bg-opacity-90 backdrop-blur-md shadow-lg z-40 transition-all duration-300 border-b border-emerald-800">
-      <div className="container mx-auto px-4 py-3">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-          {/* Logo / Marka Adı - PNG olarak */}
-          <Link to="/" className="flex items-center space-x-2">
+    <header className="fixed top-0 left-0 w-full bg-gray-900/90 backdrop-blur-lg shadow-[0_2px_15px_-3px_rgba(0,0,0,0.3)] z-40 transition-all duration-300">
+      <div className="container mx-auto px-4 py-2">
+        <div className="flex items-center justify-between gap-4">
+          {/* Logo */}
+          <Link to="/" className="flex-shrink-0">
             <img
-              src="/logo.png" // Logo dosyasının yolunu buraya yazın (public klasöründeyse bu, /logo.png olmalı)
+              src="/logo.png"
               alt="Benim Marketim Logo"
-              className="w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 object-contain transition-transform duration-300 hover:scale-105" // Responsive boyutlar ve hover efekti
+              className="w-12 h-12 object-contain transition-transform duration-300 hover:scale-105"
             />
           </Link>
 
-          {/* Arama Çubuğu - Mobilde daha küçük ve hizalı */}
-          <div className="flex-grow mx-4 max-w-lg md:max-w-md sm:max-w-full">
+          {/* Arama Çubuğu - Mobilde gizli, tablet ve üstünde görünür */}
+          <div className="hidden md:block flex-grow max-w-xl">
             <SearchBar />
           </div>
 
-          {/* Navigasyon Menüsü - Mobilde hamburger menü */}
-          <nav className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
-            {/* Ana Sayfa Linki - Mobilde her zaman görünür */}
-            <Link
-              to="/"
-              className="text-gray-300 hover:text-emerald-400 transition duration-300 ease-in-out text-center md:text-left"
-            >
-              Ana Sayfa
-            </Link>
+          {/* Mobil Menü Butonu */}
+          <button
+            onClick={toggleMenu}
+            className="md:hidden p-2 text-gray-400 hover:text-white transition-colors"
+          >
+            {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
 
-            {/* Kullanıcıya Özel Linkler - Mobilde gizlenebilir */}
-            <div className="flex flex-col md:flex-row items-center gap-2 w-full md:w-auto">
+          {/* Desktop Navigation */}
+          <nav className="hidden md:flex items-center gap-4">
+            {user && (
+              <Link
+                to="/cart"
+                className="relative group text-gray-300 hover:text-emerald-400 transition-all duration-300 flex items-center gap-2"
+              >
+                <ShoppingCart size={20} />
+                <span>Sepetim</span>
+                {cart.length > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-emerald-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
+                    {cart.length}
+                  </span>
+                )}
+              </Link>
+            )}
+            {user && !isAdmin && (
+              <Link
+                to="/siparislerim"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-all duration-300 flex items-center gap-2"
+              >
+                <Package size={18} />
+                <span>Siparişlerim</span>
+              </Link>
+            )}
+            {isAdmin && (
+              <Link
+                to="/secret-dashboard"
+                className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-lg font-medium transition-all duration-300 flex items-center gap-2"
+              >
+                <Lock size={18} />
+                <span>İstatistikler</span>
+              </Link>
+            )}
+            {user ? (
+              <button
+                onClick={logout}
+                className="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded-lg font-medium transition-all duration-300 flex items-center gap-2"
+              >
+                <LogOut size={18} />
+                <span>Çıkış</span>
+              </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Link
+                  to="/signup"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium transition-all duration-300 flex items-center gap-2"
+                >
+                  <UserPlus size={18} />
+                  <span>Kayıt Ol</span>
+                </Link>
+                <Link
+                  to="/login"
+                  className="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded-lg font-medium transition-all duration-300 flex items-center gap-2"
+                >
+                  <LogIn size={18} />
+                  <span>Giriş</span>
+                </Link>
+              </div>
+            )}
+          </nav>
+        </div>
+
+        {/* Mobil Arama Çubuğu - Her zaman görünür */}
+        <div className="mt-2 md:hidden">
+          <SearchBar />
+        </div>
+
+        {/* Mobil Menü */}
+        <div
+          className={`fixed inset-0 bg-gray-900/95 backdrop-blur-md z-50 transition-transform duration-300 md:hidden ${
+            isMenuOpen ? "translate-x-0" : "translate-x-full"
+          }`}
+        >
+          <div className="flex flex-col h-full pt-20 px-6">
+            <div className="flex flex-col gap-4">
               {user && (
                 <Link
                   to="/cart"
-                  className="relative group text-gray-300 hover:text-emerald-400 transition duration-300 ease-in-out flex items-center justify-center md:justify-start"
+                  onClick={toggleMenu}
+                  className="relative flex items-center justify-between bg-gray-800/50 hover:bg-gray-800 p-4 rounded-xl transition-all duration-300"
                 >
-                  <ShoppingCart className="inline-block mr-1 group-hover:text-emerald-400" size={20} />
-                  <span className="hidden sm:inline">Sepetim</span>
+                  <div className="flex items-center gap-3">
+                    <ShoppingCart size={20} className="text-emerald-400" />
+                    <span className="text-white font-medium">Sepetim</span>
+                  </div>
                   {cart.length > 0 && (
-                    <span className="absolute -top-2 -left-2 bg-emerald-500 text-white rounded-full px-2 py-0.5 text-xs group-hover:bg-emerald-400 transition duration-300 ease-in-out">
+                    <span className="bg-emerald-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm">
                       {cart.length}
                     </span>
                   )}
@@ -56,49 +139,56 @@ const Navbar = () => {
               {user && !isAdmin && (
                 <Link
                   to="/siparislerim"
-                  className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded-md font-medium transition duration-300 ease-in-out flex items-center justify-center md:justify-start"
+                  onClick={toggleMenu}
+                  className="flex items-center gap-3 bg-blue-600/80 hover:bg-blue-600 p-4 rounded-xl transition-all duration-300"
                 >
-                  <Package className="inline-block mr-1" size={18} />
-                  <span className="hidden sm:inline">Siparişlerim</span>
+                  <Package size={20} className="text-white" />
+                  <span className="text-white font-medium">Siparişlerim</span>
                 </Link>
               )}
               {isAdmin && (
                 <Link
-                  className="bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1 rounded-md font-medium transition duration-300 ease-in-out flex items-center justify-center md:justify-start"
                   to="/secret-dashboard"
+                  onClick={toggleMenu}
+                  className="flex items-center gap-3 bg-emerald-700/80 hover:bg-emerald-700 p-4 rounded-xl transition-all duration-300"
                 >
-                  <Lock className="inline-block mr-1" size={18} />
-                  <span className="hidden sm:inline">İstatistikler</span>
+                  <Lock size={20} className="text-white" />
+                  <span className="text-white font-medium">İstatistikler</span>
                 </Link>
               )}
               {user ? (
                 <button
-                  className="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded-md flex items-center justify-center md:justify-start transition duration-300 ease-in-out w-full md:w-auto"
-                  onClick={logout}
+                  onClick={() => {
+                    logout();
+                    toggleMenu();
+                  }}
+                  className="flex items-center gap-3 bg-gray-800/50 hover:bg-gray-800 p-4 rounded-xl transition-all duration-300"
                 >
-                  <LogOut size={18} />
-                  <span className="hidden sm:inline ml-2">Çıkış</span>
+                  <LogOut size={20} className="text-red-400" />
+                  <span className="text-white font-medium">Çıkış</span>
                 </button>
               ) : (
                 <>
                   <Link
                     to="/signup"
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-4 rounded-md flex items-center justify-center md:justify-start transition duration-300 ease-in-out w-full md:w-auto"
+                    onClick={toggleMenu}
+                    className="flex items-center gap-3 bg-emerald-600/80 hover:bg-emerald-600 p-4 rounded-xl transition-all duration-300"
                   >
-                    <UserPlus className="mr-2" size={18} />
-                    Kayıt Ol
+                    <UserPlus size={20} className="text-white" />
+                    <span className="text-white font-medium">Kayıt Ol</span>
                   </Link>
                   <Link
                     to="/login"
-                    className="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded-md flex items-center justify-center md:justify-start transition duration-300 ease-in-out w-full md:w-auto"
+                    onClick={toggleMenu}
+                    className="flex items-center gap-3 bg-gray-800/50 hover:bg-gray-800 p-4 rounded-xl transition-all duration-300"
                   >
-                    <LogIn className="mr-2" size={18} />
-                    Giriş
+                    <LogIn size={20} className="text-white" />
+                    <span className="text-white font-medium">Giriş</span>
                   </Link>
                 </>
               )}
             </div>
-          </nav>
+          </div>
         </div>
       </div>
     </header>

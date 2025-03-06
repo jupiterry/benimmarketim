@@ -4,6 +4,7 @@ import { useUserStore } from "../stores/useUserStore";
 import { useCartStore } from "../stores/useCartStore";
 import { useState } from "react";
 import axios from "axios";
+import { motion } from "framer-motion";
 
 const ProductCard = ({ product, isAdmin }) => {
   const { user } = useUserStore();
@@ -21,6 +22,15 @@ const ProductCard = ({ product, isAdmin }) => {
       return;
     }
     addToCart(product);
+    toast.success("Ürün sepete eklendi!", {
+      icon: "🛍️",
+      position: "top-center",
+      style: {
+        borderRadius: "10px",
+        background: "#333",
+        color: "#fff",
+      },
+    });
   };
 
   const handleDiscountUpdate = async () => {
@@ -39,27 +49,38 @@ const ProductCard = ({ product, isAdmin }) => {
   if (product.isHidden) return null;
 
   return (
-    <div className="flex w-full relative flex-col justify-between overflow-hidden rounded-lg border border-gray-700 shadow-lg max-w-xs mx-auto min-h-[500px]">
+    <motion.div 
+      className="group flex w-full relative flex-col justify-between overflow-hidden rounded-lg border border-gray-700 bg-gray-800/50 backdrop-blur-sm shadow-lg hover:shadow-emerald-500/10 transition-all duration-300 max-w-xs mx-auto min-h-[500px]"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      whileHover={{ scale: 1.02 }}
+    >
       <div>
-        <div className="relative mx-3 mt-3 flex h-[200px] overflow-hidden rounded-xl">
-          <img
-            className="object-contain w-full h-full"
+        <div className="relative mx-3 mt-3 flex h-[200px] overflow-hidden rounded-xl bg-transparent">
+          <motion.img
+            loading="lazy"
+            className="h-full w-full object-contain mix-blend-normal group-hover:scale-110 transition-transform duration-300"
             src={product.image}
             alt={product.name}
-            loading="lazy"
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.src = '/placeholder.png';
+            }}
           />
-          <div className="absolute inset-0 bg-black bg-opacity-20" />
         </div>
 
         <div className="mt-4 px-5">
-          <h5
-            className="text-xl font-semibold tracking-tight text-white"
+          <motion.h5
+            className="text-xl font-semibold tracking-tight text-white line-clamp-2 min-h-[3.5rem]"
             title={product.name}
           >
             {product.name}
-          </h5>
+          </motion.h5>
           
-          <div className="mt-2 flex flex-col items-start gap-2">
+          <motion.div 
+            className="mt-2 flex flex-col items-start gap-2"
+          >
             <div className="flex items-center gap-2">
               {product.discountedPrice ? (
                 <>
@@ -117,12 +138,12 @@ const ProductCard = ({ product, isAdmin }) => {
                 )}
               </div>
             )}
-          </div>
+          </motion.div>
         </div>
       </div>
 
       <div className="px-5 pb-5 mt-auto">
-        <button
+        <motion.button
           className={`flex items-center justify-center rounded-lg px-5 py-2.5 text-center text-sm font-medium text-white w-full ${
             product.isOutOfStock
               ? "bg-red-600 cursor-not-allowed"
@@ -130,12 +151,14 @@ const ProductCard = ({ product, isAdmin }) => {
           }`}
           onClick={handleAddToCart}
           disabled={product.isOutOfStock}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
         >
           <ShoppingCart size={22} className="mr-2" />
           {product.isOutOfStock ? "Tükendi" : "Sepete Ekle"}
-        </button>
+        </motion.button>
       </div>
-    </div>
+    </motion.div>
   );
 };
 

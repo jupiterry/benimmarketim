@@ -20,7 +20,6 @@ import {
   toggleHiddenProduct,
   exportProductsToCSV,
   detectProductBrands,
-  recategorizeProducts,
 } from "../controllers/product.controller.js"; // Tüm kontrolörleri import et
 
 const router = express.Router();
@@ -222,8 +221,6 @@ router.put("/update-discount/:id", protectRoute, adminRoute, async (req, res) =>
   }
 });
 
-// Kategori güncelleme endpoint'i
-router.post("/recategorize", protectRoute, adminRoute, recategorizeProducts);
 
 // Mevcut rotalar
 router.get("/", getProducts); // Admin için tüm ürünleri getir

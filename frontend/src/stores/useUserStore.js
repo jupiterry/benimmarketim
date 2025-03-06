@@ -7,32 +7,39 @@ export const useUserStore = create((set, get) => ({
   loading: false,
   checkingAuth: true,
 
-  signup: async ({ name, email, password, confirmPassword }) => {
+  signup: async ({ name, email, password, confirmPassword, phone }) => {
     set({ loading: true });
 
     if (password !== confirmPassword) {
       set({ loading: false });
-      return toast.error("Passwords do not match");
+      return toast.error("Şifreler eşleşmiyor");
     }
 
     try {
-      const res = await axios.post("/auth/signup", { name, email, password });
-      set({ user: res.data, loading: false });
+      console.log("Gönderilen kayıt verileri:", { name, email, password, phone });
+      const res = await axios.post("/auth/signup", { name, email, password, phone });
+      console.log("Backend'den dönen yanıt:", res.data);
+      
+      const userData = { ...res.data, phone };
+      set({ user: userData, loading: false });
+      toast.success("Kayıt başarılı!");
     } catch (error) {
+      console.error("Kayıt hatası:", error.response?.data || error);
       set({ loading: false });
-      toast.error(error.response.data.message || "An error occurred");
+      toast.error(error.response?.data?.message || "Bir hata oluştu");
     }
   },
+
   login: async (email, password) => {
     set({ loading: true });
 
     try {
       const res = await axios.post("/auth/login", { email, password });
-
       set({ user: res.data, loading: false });
+      toast.success("Giriş başarılı!");
     } catch (error) {
       set({ loading: false });
-      toast.error(error.response.data.message || "An error occurred");
+      toast.error(error.response.data.message || "Bir hata oluştu");
     }
   },
 
@@ -40,8 +47,9 @@ export const useUserStore = create((set, get) => ({
     try {
       await axios.post("/auth/logout");
       set({ user: null });
+      toast.success("Çıkış yapıldı");
     } catch (error) {
-      toast.error(error.response?.data?.message || "An error occurred during logout");
+      toast.error(error.response?.data?.message || "Çıkış yapılırken bir hata oluştu");
     }
   },
 
@@ -57,7 +65,6 @@ export const useUserStore = create((set, get) => ({
   },
 
   refreshToken: async () => {
-    // Prevent multiple simultaneous refresh attempts
     if (get().checkingAuth) return;
 
     set({ checkingAuth: true });
@@ -70,9 +77,19 @@ export const useUserStore = create((set, get) => ({
       throw error;
     }
   },
-}));
 
-// TODO: Implement the axios interceptors for refreshing access token
+  updatePhone: async (phone) => {
+    try {
+      const response = await axios.put("/auth/update-phone", { phone });
+      set((state) => ({
+        user: { ...state.user, phone: response.data.phone }
+      }));
+      toast.success("Telefon numarası güncellendi");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Telefon numarası güncellenemedi");
+    }
+  }
+}));
 
 // Axios interceptor for token refresh
 let refreshPromise = null;
@@ -85,20 +102,17 @@ axios.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        // If a refresh is already in progress, wait for it to complete
         if (refreshPromise) {
           await refreshPromise;
           return axios(originalRequest);
         }
 
-        // Start a new refresh process
         refreshPromise = useUserStore.getState().refreshToken();
         await refreshPromise;
         refreshPromise = null;
 
         return axios(originalRequest);
       } catch (refreshError) {
-        // If refresh fails, redirect to login or handle as needed
         useUserStore.getState().logout();
         return Promise.reject(refreshError);
       }

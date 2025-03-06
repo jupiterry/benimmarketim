@@ -1,95 +1,103 @@
-import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useCartStore } from "../stores/useCartStore";
+import { Gift, X, Check, Ticket } from "lucide-react";
 
 const GiftCouponCard = () => {
-	const [userInputCode, setUserInputCode] = useState("");
-	const { coupon, isCouponApplied, applyCoupon, getMyCoupon, removeCoupon } = useCartStore();
+	const { applyCoupon, removeCoupon, coupon, isCouponApplied } = useCartStore();
+	const [code, setCode] = useState("");
+	const [isLoading, setIsLoading] = useState(false);
 
-	useEffect(() => {
-		getMyCoupon();
-	}, [getMyCoupon]);
-
-	useEffect(() => {
-		if (coupon) setUserInputCode(coupon.code);
-	}, [coupon]);
-
-	const handleApplyCoupon = () => {
-		if (!userInputCode) return;
-		applyCoupon(userInputCode);
-	};
-
-	const handleRemoveCoupon = async () => {
-		await removeCoupon();
-		setUserInputCode("");
+	const handleApplyCoupon = async () => {
+		if (!code.trim()) return;
+		setIsLoading(true);
+		try {
+			await applyCoupon(code);
+			setCode("");
+		} finally {
+			setIsLoading(false);
+		}
 	};
 
 	return (
 		<motion.div
-			className='space-y-4 rounded-lg border border-gray-700 bg-gray-800 p-4 shadow-sm sm:p-6'
+			className="rounded-lg border border-gray-700 bg-gray-800/50 backdrop-blur-sm p-4 shadow-sm sm:p-6"
 			initial={{ opacity: 0, y: 20 }}
 			animate={{ opacity: 1, y: 0 }}
-			transition={{ duration: 0.5, delay: 0.2 }}
+			transition={{ duration: 0.5 }}
 		>
-			<div className='space-y-4'>
-				<div>
-					<label htmlFor='voucher' className='mb-2 block text-sm font-medium text-gray-300'>
-						Kuponunuz veya hediye kodunuz var mı?
-					</label>
-					<input
-						type='text'
-						id='voucher'
-						className='block w-full rounded-lg border border-gray-600 bg-gray-700 
-            p-2.5 text-sm text-white placeholder-gray-400 focus:border-emerald-500 
-            focus:ring-emerald-500'
-						placeholder='Kodu Buraya Giriniz'
-						value={userInputCode}
-						onChange={(e) => setUserInputCode(e.target.value)}
-						required
-					/>
-				</div>
-
-				<motion.button
-					type='button'
-					className='flex w-full items-center justify-center rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-300'
-					whileHover={{ scale: 1.05 }}
-					whileTap={{ scale: 0.95 }}
-					onClick={handleApplyCoupon}
-				>
-					İndirim Kodunu Uygula!
-				</motion.button>
+			<div className="flex items-center gap-2 mb-4">
+				<Gift className="w-5 h-5 text-emerald-400" />
+				<h3 className="text-lg font-semibold text-white">Kupon Kodu</h3>
 			</div>
-			{isCouponApplied && coupon && (
-				<div className='mt-4'>
-					<h3 className='text-lg font-medium text-gray-300'>Applied Coupon</h3>
 
-					<p className='mt-2 text-sm text-gray-400'>
-						{coupon.code} - {coupon.discountPercentage}% off
-					</p>
-
-					<motion.button
-						type='button'
-						className='mt-2 flex w-full items-center justify-center rounded-lg bg-red-600 
-            px-5 py-2.5 text-sm font-medium text-white hover:bg-red-700 focus:outline-none
-             focus:ring-4 focus:ring-red-300'
-						whileHover={{ scale: 1.05 }}
-						whileTap={{ scale: 0.95 }}
-						onClick={handleRemoveCoupon}
+			<AnimatePresence mode="wait">
+				{isCouponApplied ? (
+					<motion.div
+						key="applied"
+						initial={{ opacity: 0, y: -10 }}
+						animate={{ opacity: 1, y: 0 }}
+						exit={{ opacity: 0, y: 10 }}
+						className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-4"
 					>
-						Remove Coupon
-					</motion.button>
-				</div>
-			)}
-
-			{coupon && (
-				<div className='mt-4'>
-					<h3 className='text-lg font-medium text-gray-300'>Your Available Coupon:</h3>
-					<p className='mt-2 text-sm text-gray-400'>
-						{coupon.code} - {coupon.discountPercentage}% off
-					</p>
-				</div>
-			)}
+						<div className="flex items-center justify-between">
+							<div className="flex items-center gap-3">
+								<div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center">
+									<Check className="w-5 h-5 text-emerald-500" />
+								</div>
+								<div>
+									<p className="text-emerald-400 font-medium">{coupon.code}</p>
+									<p className="text-sm text-gray-400">%{coupon.discountPercentage} İndirim</p>
+								</div>
+							</div>
+							<motion.button
+								whileHover={{ scale: 1.1 }}
+								whileTap={{ scale: 0.9 }}
+								onClick={removeCoupon}
+								className="text-gray-400 hover:text-red-400 transition-colors"
+							>
+								<X className="w-5 h-5" />
+							</motion.button>
+						</div>
+					</motion.div>
+				) : (
+					<motion.div
+						key="input"
+						initial={{ opacity: 0, y: 10 }}
+						animate={{ opacity: 1, y: 0 }}
+						exit={{ opacity: 0, y: -10 }}
+						className="space-y-4"
+					>
+						<div className="flex gap-2">
+							<div className="relative flex-1">
+								<Ticket className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+								<input
+									type="text"
+									value={code}
+									onChange={(e) => setCode(e.target.value.toUpperCase())}
+									placeholder="Kupon kodunuzu girin"
+									className="w-full pl-10 pr-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+								/>
+							</div>
+							<motion.button
+								whileHover={{ scale: 1.02 }}
+								whileTap={{ scale: 0.98 }}
+								onClick={handleApplyCoupon}
+								disabled={isLoading || !code.trim()}
+								className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+							>
+								{isLoading ? "Uygulanıyor..." : "Uygula"}
+							</motion.button>
+						</div>
+						<div className="flex items-center gap-2 text-sm text-gray-400">
+							<Gift className="w-4 h-4" />
+							<p>Kupon kodunuz varsa buraya girebilirsiniz</p>
+						</div>
+					</motion.div>
+				)}
+			</AnimatePresence>
 		</motion.div>
 	);
 };
+
 export default GiftCouponCard;

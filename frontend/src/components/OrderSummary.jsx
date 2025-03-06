@@ -5,6 +5,7 @@ import axios from "../lib/axios";
 import { useState } from "react";
 import cities from "../data/cities";
 import toast from "react-hot-toast";
+import { Clock, Truck, Info } from "lucide-react";
 
 const OrderSummary = ({ note, setNote }) => {
   const { total, subtotal, coupon, isCouponApplied, cart, clearCart } = useCartStore();
@@ -16,6 +17,18 @@ const OrderSummary = ({ note, setNote }) => {
   const formattedSubtotal = subtotal.toFixed(2);
   const formattedTotal = total.toFixed(2);
   const formattedSavings = savings.toFixed(2);
+
+  // Minimum sipariş tutarı için ilerleme hesaplama
+  const MIN_ORDER_AMOUNT = 250;
+  const progress = (total / MIN_ORDER_AMOUNT) * 100;
+  const remainingAmount = MIN_ORDER_AMOUNT - total;
+
+  // Tahmini teslimat süresi hesaplama
+  const getEstimatedDeliveryTime = () => {
+    const now = new Date();
+    const deliveryTime = new Date(now.getTime() + 45 * 60000); // 45 dakika sonra
+    return deliveryTime.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+  };
 
   const handlePayment = async () => {
     try {
@@ -51,31 +64,62 @@ const OrderSummary = ({ note, setNote }) => {
       if (res.data.success) {
         localStorage.removeItem("cart");
         clearCart();
-        toast.success("Sipariş başarıyla oluşturuldu!", { id: "orderSuccess" });
-        navigate("/siparisolusturuldu", {
-          state: {
-            orderId: res.data.orderId,
-            totalAmount: formattedTotal,
-            status: "Hazırlanıyor",
-          },
-        });
+        toast.success("Sipariş başarıyla oluşturuldu!", { id: "orderSuccess", position: "top-center" });
+        navigate("/siparisolusturuldu");
       } else {
         toast.error("Sipariş oluşturulurken hata oluştu!", { id: "orderError" });
       }
     } catch (error) {
       console.error("Sipariş işleminde hata oluştu:", error);
-      toast.error(error.response?.data?.error || "Sipariş işleminde hata oluştu.", { id: "orderError" });
+      toast.error(error.response?.data?.message || "Sipariş işleminde hata oluştu.", { id: "orderError" });
     }
   };
 
   return (
     <motion.div
-      className="space-y-4 rounded-lg border border-gray-700 bg-gray-800 p-4 shadow-sm sm:p-6"
+      className="space-y-4 rounded-lg border border-gray-700 bg-gray-800/50 backdrop-blur-sm p-4 shadow-sm sm:p-6"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
       <p className="text-xl font-semibold text-emerald-400">Sipariş Özeti</p>
+
+      {/* Minimum Sipariş Tutarı İlerleme Çubuğu */}
+      <div className="space-y-2">
+        <div className="h-2 w-full bg-gray-700 rounded-full overflow-hidden">
+          <motion.div
+            className="h-full bg-emerald-500"
+            initial={{ width: 0 }}
+            animate={{ width: `${Math.min(progress, 100)}%` }}
+            transition={{ duration: 0.5 }}
+          />
+        </div>
+        {remainingAmount > 0 ? (
+          <p className="text-sm text-gray-400 text-center">
+            Minimum sipariş tutarına ulaşmak için <span className="text-emerald-400 font-semibold">₺{remainingAmount.toFixed(2)}</span> daha eklemelisiniz
+          </p>
+        ) : (
+          <p className="text-sm text-emerald-400 text-center font-medium">
+            Minimum sipariş tutarına ulaştınız! ✨
+          </p>
+        )}
+      </div>
+
+      {/* Teslimat Bilgileri */}
+      <div className="bg-gray-700/50 rounded-lg p-4 space-y-3">
+        <div className="flex items-center gap-2 text-emerald-400">
+          <Truck className="w-5 h-5" />
+          <span className="font-medium">Teslimat Bilgileri</span>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-gray-300">
+          <Clock className="w-4 h-4" />
+          <span>Tahmini Teslimat: {getEstimatedDeliveryTime()}</span>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-gray-300">
+          <Info className="w-4 h-4" />
+          <span>₺250 üzeri siparişlerde ücretsiz teslimat</span>
+        </div>
+      </div>
 
       <div className="space-y-4">
         <div className="space-y-2">
@@ -127,7 +171,7 @@ const OrderSummary = ({ note, setNote }) => {
           <label className="text-sm font-medium text-gray-300">Telefon Numaranız</label>
           <input
             type="tel"
-            placeholder="Telefon Numaranızı Giriniz"
+            placeholder="05XX XXX XX XX"
             className="w-full rounded-lg border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
@@ -148,16 +192,14 @@ const OrderSummary = ({ note, setNote }) => {
 
         {/* Sepeti Onayla Butonu */}
         <motion.button
-          className="flex w-full items-center justify-center rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-300"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+          className="flex w-full items-center justify-center rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-300 disabled:opacity-50 disabled:cursor-not-allowed"
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
           onClick={handlePayment}
+          disabled={total < MIN_ORDER_AMOUNT}
         >
-          Sepeti Onayla
+          {total < MIN_ORDER_AMOUNT ? 'Minimum Tutar 250₺' : 'Sepeti Onayla'}
         </motion.button>
-        <p className="text-sm text-gray-400 text-center mt-2">
-          Sepetinizin en az <span className="font-semibold text-emerald-400">250₺</span> olması gerekmektedir.
-        </p>
       </div>
     </motion.div>
   );

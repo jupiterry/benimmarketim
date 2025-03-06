@@ -8,25 +8,26 @@ import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import InfiniteScroll from "react-infinite-scroll-component";
 
 const categories = [
-  { href: "/kahve", name: "Benim Kahvem", displayName: "Benim Kahvem", imageUrl: "/kahve.png" },
-  { href: "/yiyecekler", name: "Yiyecekler", displayName: "Lezzetli Yiyecekler", imageUrl: "/foods.png" },
-  { href: "/kahvalti", name: "Kahvaltılık Ürünler", displayName: "Kahvaltılık Ürünler", imageUrl: "/kahvalti.png" },
-  { href: "/gida", name: "Temel Gıda", displayName: "Temel Gıda", imageUrl: "/food2.png" },
-  { href: "/meyve-sebze", name: "Meyve & Sebze", displayName: "Taze Meyve & Sebzeler", imageUrl: "/fruit.png" },
-  { href: "/sut", name: "Süt & Süt Ürünleri", displayName: "Doğal Süt Ürünleri", imageUrl: "/milk.png" },
-  { href: "/bespara", name: "Beş Para Etmeyen Ürünler", displayName: "Beş Para Etmeyen Ürünler", imageUrl: "/bespara.png" },
-  { href: "/tozicecekler", name: "Toz İçecekler", displayName: "Toz İçecekler", imageUrl: "/instant.png" },
-  { href: "/cips", name: "Cips & Çerez", displayName: "Cips & Çerez", imageUrl: "/dd.png" },
-  { href: "/cayseker", name: "Çay ve Şekerler", displayName: "Çay ve Şekerler", imageUrl: "/cay.png" },
-  { href: "/atistirma", name: "Atıştırmalıklar", displayName: "Lezzetli Atıştırmalıklar", imageUrl: "/atistirmaa.png" },
-  { href: "/temizlik", name: "Temizlik Ürünleri", displayName: "Temizlik Ürünleri", imageUrl: "/clean.png" },
-  { href: "/kisisel", name: "Kişisel Bakım Ürünleri", displayName: "Kişisel Bakım Ürünleri", imageUrl: "/care.png" },
-  { href: "/makarna", name: "Makarna ve Kuru Bakliyat", displayName: "Makarna ve Kuru Bakliyat", imageUrl: "/makarna.png" },
-  { href: "/et", name: "Şarküteri & Et Ürünleri", displayName: "Taze Et & Şarküteri", imageUrl: "/chicken.png" },
-  { href: "/icecekler", name: "İçecek", displayName: "Serinletici İçecekler", imageUrl: "/juice.png" },
-  { href: "/dondulurmus", name: "Dondurulmuş Gıdalar", displayName: "Dondurulmuş Gıdalar", imageUrl: "/juice.png" },
-  { href: "/baharat", name: "Baharatlar", displayName: "Baharatlar", imageUrl: "/juice.png" },
+	{ href: "/kahve", name: "Benim Kahvem", imageUrl: "/kahve.png" },
+	{ href: "/yiyecekler", name: "Yiyecekler", imageUrl: "/foods.png" },
+	{ href: "/category/kahvalti", name: "Kahvaltılık Ürünler", imageUrl: "/kahvalti.png" },
+	{ href: "/category/gida", name: "Temel Gıda", imageUrl: "/basic.png" },
+	{ href: "/category/meyve-sebze", name: "Meyve & Sebze", imageUrl: "/fruit.png" },
+	{ href: "/category/sut", name: "Süt & Süt Ürünleri", imageUrl: "/milk.png" },
+	{ href: "/category/bespara", name: "Beş Para Etmeyen Ürünler", imageUrl: "/bespara.png" },
+	{ href: "/category/tozicecekler", name: "Toz İçecekler", imageUrl: "/instant.png" },
+	{ href: "/category/cips", name: "Cips & Çerez", imageUrl: "/dd.png" },
+	{ href: "/category/cayseker", name: "Çay ve Şekerler", imageUrl: "/cay.png" },
+	{ href: "/category/atistirma", name: "Atıştırmalıklar", imageUrl: "/atistirmaa.png" },
+	{ href: "/category/temizlik", name: "Temizlik & Hijyen", imageUrl: "/clean.png" },
+	{ href: "/category/kisisel", name: "Kişisel Bakım", imageUrl: "/care.png" },
+	{ href: "/category/makarna", name: "Makarna ve Kuru Bakliyat", imageUrl: "/makarna.png" },
+	{ href: "/category/et", name: "Şarküteri & Et Ürünleri", imageUrl: "/chicken.png" },
+	{ href: "/category/icecekler", name: "Buz Gibi İçecekler", imageUrl: "/juice.png" },
+	{ href: "/category/dondulurmus", name: "Dondurulmuş Gıdalar", imageUrl: "/frozen.png" },
+	{ href: "/category/baharat", name: "Baharatlar", imageUrl: "/spices.png" },
 ];
+
 
 const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => {
   const {
@@ -35,13 +36,11 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
     products,
     updateProductPrice,
     fetchAllProducts,
-    updateProductName,
     reorderProducts,
   } = useProductStore();
 
   const [editingPrice, setEditingPrice] = useState({});
   const [newPrices, setNewPrices] = useState({});
-  const [newName, setNewName] = useState({});
   const [selectedCategory, setSelectedCategory] = useState("");
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -94,7 +93,7 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
       });
       if (response.data.message) {
         toast.success(response.data.message);
-        fetchAllProducts();
+        loadProducts();
       }
     } catch (error) {
       console.error("Tükendi durumu değiştirme hatası:", error);
@@ -106,17 +105,25 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
     setNewPrices({ ...newPrices, [id]: value });
   };
 
-  const savePrice = (id) => {
+  const savePrice = async (id) => {
     if (newPrices[id] !== undefined) {
-      updateProductPrice(id, parseFloat(newPrices[id]));
-      setEditingPrice({ ...editingPrice, [id]: false });
-    }
-  };
-
-  const saveName = (id) => {
-    if (newName[id] !== undefined) {
-      updateProductName(id, newName[id]);
-      setNewName({ ...newName, [id]: "" });
+      try {
+        await updateProductPrice(id, parseFloat(newPrices[id]));
+        setEditingPrice({ ...editingPrice, [id]: false });
+        
+        setLocalProducts(prevProducts =>
+          prevProducts.map(product =>
+            product._id === id ? { ...product, price: parseFloat(newPrices[id]) } : product
+          )
+        );
+        
+        await fetchAllProducts();
+        
+        toast.success("Fiyat başarıyla güncellendi");
+      } catch (error) {
+        console.error("Fiyat güncelleme hatası:", error);
+        toast.error("Fiyat güncellenirken hata oluştu");
+      }
     }
   };
 
@@ -125,31 +132,26 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
       ...editingProduct,
       [field]: value,
     });
+    
+    setLocalProducts(prevProducts =>
+      prevProducts.map(product =>
+        product._id === editingProduct?._id ? { ...product, [field]: value } : product
+      )
+    );
   };
 
   const handleCategoryChange = (categoryPath) => {
-    const category = categories.find(cat => cat.href === categoryPath);
-    if (category) {
-      setEditingProduct({
-        ...editingProduct,
-        category: category.name
-      });
-    }
-  };
-
-  const handleSubcategoryChange = (subcategoryId) => {
-    const category = categories.find(cat => cat.id === editingProduct.category.id);
-    const subcategory = category?.subcategories.find(sub => sub.id === subcategoryId);
-    if (subcategory) {
-      setEditingProduct({
-        ...editingProduct,
-        subcategory: {
-          id: subcategory.id,
-          name: subcategory.name
-        },
-        brand: ""
-      });
-    }
+    const categoryName = categoryPath.replace("/", "");
+    setEditingProduct(prev => ({
+      ...prev,
+      category: categoryName
+    }));
+    
+    setLocalProducts(prevProducts =>
+      prevProducts.map(product =>
+        product._id === editingProduct?._id ? { ...product, category: categoryName } : product
+      )
+    );
   };
 
   const toggleProductHidden = async (productId) => {
@@ -194,6 +196,12 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
 
       setLocalProducts(prev => page === 1 ? newProducts : [...prev, ...newProducts]);
       setHasMore(pagination.hasMore);
+      
+      if (page === 1) {
+        setEditingPrice({});
+        setNewPrices({});
+      }
+      
       setLoading(false);
     } catch (error) {
       console.error("Ürünler yüklenirken hata:", error);
@@ -220,22 +228,24 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
 
   return (
     <motion.div
-      className="bg-gray-800 shadow-lg rounded-lg overflow-hidden max-w-full mx-auto border border-gray-700"
+      className="bg-gray-800/30 shadow-2xl rounded-2xl overflow-hidden max-w-full mx-auto border border-gray-700/50"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8 }}
     >
-      <div className="p-4 bg-gray-900 space-y-4">
-        <div className="flex gap-4">
+      <div className="p-6 bg-gray-900/50 space-y-4 backdrop-blur-xl border-b border-gray-700/50">
+        <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1">
-            <label htmlFor="category" className="block text-sm font-medium text-gray-300">
+            <label htmlFor="category" className="block text-sm font-medium text-gray-300 mb-2">
               Kategori Seçin
             </label>
             <select
               id="category"
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              className="mt-1 block w-full bg-gray-800/50 border border-gray-600/50 rounded-xl shadow-sm py-3 px-4 text-white 
+                focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50
+                transition-all duration-200"
             >
               <option value="">Tüm Kategoriler</option>
               {categories.map((category) => (
@@ -246,7 +256,7 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
             </select>
           </div>
           <div className="flex-1">
-            <label htmlFor="search" className="block text-sm font-medium text-gray-300">
+            <label htmlFor="search" className="block text-sm font-medium text-gray-300 mb-2">
               Ürün Ara
             </label>
             <input
@@ -255,7 +265,9 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Ürün adı ile ara..."
-              className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              className="mt-1 block w-full bg-gray-800/50 border border-gray-600/50 rounded-xl shadow-sm py-3 px-4 text-white 
+                focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50
+                transition-all duration-200"
             />
           </div>
         </div>
@@ -266,12 +278,12 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
         next={loadMore}
         hasMore={hasMore}
         loader={
-          <div className="text-center py-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500 mx-auto"></div>
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mx-auto"></div>
           </div>
         }
         endMessage={
-          <div className="text-center py-4 text-gray-400">
+          <div className="text-center py-8 text-gray-400">
             Tüm ürünler yüklendi
           </div>
         }
@@ -280,220 +292,225 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
         <DragDropContext onDragEnd={onDragEnd}>
           <Droppable droppableId="products">
             {(provided) => (
-              <table
-                className="min-w-full divide-y divide-gray-700"
+              <div
+                className="min-w-full divide-y divide-gray-700/50"
                 {...provided.droppableProps}
                 ref={provided.innerRef}
               >
-                <thead className="bg-gray-900 sticky top-0 z-10">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider w-1/4">ÜRÜN</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider w-1/6">FİYAT</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider w-1/6">KATEGORİ</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider w-1/6">ALT KATEGORİ</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider w-1/12">ÖNE ÇIKANLAR</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider w-1/12">GİZLİ</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider w-1/12">TÜKENDİ</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider w-1/6">İŞLEMLER</th>
-                  </tr>
-                </thead>
+                <div className="bg-gray-900/50 sticky top-0 z-10 backdrop-blur-xl">
+                  <div className="grid grid-cols-[2fr,1fr,1fr,0.5fr,0.5fr,0.5fr,1fr] gap-4 px-6 py-4">
+                    <div className="text-xs font-medium text-gray-300 uppercase tracking-wider">ÜRÜN</div>
+                    <div className="text-xs font-medium text-gray-300 uppercase tracking-wider">FİYAT</div>
+                    <div className="text-xs font-medium text-gray-300 uppercase tracking-wider">KATEGORİ</div>
+                    <div className="text-xs font-medium text-gray-300 uppercase tracking-wider text-center">ÖNE ÇIKANLAR</div>
+                    <div className="text-xs font-medium text-gray-300 uppercase tracking-wider text-center">GİZLİ</div>
+                    <div className="text-xs font-medium text-gray-300 uppercase tracking-wider text-center">TÜKENDİ</div>
+                    <div className="text-xs font-medium text-gray-300 uppercase tracking-wider text-center">İŞLEMLER</div>
+                  </div>
+                </div>
 
-                <tbody className="bg-gray-800 divide-y divide-gray-700">
+                <div className="divide-y divide-gray-700/50">
                   {localProducts.map((product, index) => (
                     <Draggable key={product._id} draggableId={product._id} index={index}>
                       {(provided) => (
-                        <motion.tr
+                        <motion.div
                           ref={provided.innerRef}
                           {...provided.draggableProps}
                           {...provided.dragHandleProps}
-                          className="hover:bg-gray-700"
+                          className="hover:bg-gray-800/30 transition-all duration-200 group"
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           transition={{ duration: 0.3 }}
                         >
-                          <td className="px-4 py-4 whitespace-nowrap w-1/4">
-                            <div className="flex items-center">
-                              <div className="flex-shrink-0 h-12 w-12 bg-gray-700 rounded flex items-center justify-center overflow-hidden">
+                          <div className="grid grid-cols-[2fr,1fr,1fr,0.5fr,0.5fr,0.5fr,1fr] gap-4 px-6 py-4 items-center">
+                            <div className="flex items-center gap-4">
+                              <div className="flex-shrink-0 h-16 w-16 bg-gray-800/50 rounded-xl flex items-center justify-center overflow-hidden border border-gray-700/50">
                                 <img
-                                  className="h-full w-full object-contain"
+                                  className="h-full w-full object-contain p-2"
                                   src={product.image}
                                   alt={product.name}
                                 />
                               </div>
-                              <div className="ml-4 relative">
+                              <div className="min-w-0 flex-1">
                                 {editingProduct && editingProduct._id === product._id ? (
                                   <input
                                     type="text"
                                     name="name"
                                     value={editingProduct.name}
                                     onChange={(e) => handleProductChange("name", e.target.value)}
-                                    className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 w-40 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                    className="bg-gray-800/50 text-white border border-gray-600/50 rounded-lg px-3 py-2 w-full
+                                      focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50
+                                      transition-all duration-200"
                                   />
                                 ) : (
                                   <div
-                                    className="text-sm font-medium text-white"
+                                    className="text-sm font-medium text-white truncate"
                                     title={product.name}
                                   >
                                     {product.name}
                                   </div>
                                 )}
-                                {editingProduct && editingProduct._id === product._id && (
-                                  <button
-                                    onClick={() => saveName(product._id)}
-                                    className="ml-2 text-green-400 hover:text-green-300"
-                                  >
-                                    ✔
-                                  </button>
-                                )}
                               </div>
                             </div>
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap w-1/6">
-                            {editingPrice[product._id] ? (
-                              <div className="flex items-center">
-                                <input
-                                  type="number"
-                                  value={newPrices[product._id] ?? product.price}
-                                  onChange={(e) => handlePriceChange(product._id, e.target.value)}
-                                  className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 w-16 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                                />
-                                <button
-                                  onClick={() => savePrice(product._id)}
-                                  className="ml-2 text-green-400 hover:text-green-300"
+
+                            <div>
+                              {editingPrice[product._id] ? (
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="number"
+                                    value={newPrices[product._id] ?? product.price}
+                                    onChange={(e) => handlePriceChange(product._id, e.target.value)}
+                                    className="bg-gray-800/50 text-white border border-gray-600/50 rounded-lg px-3 py-2 w-24
+                                      focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50
+                                      transition-all duration-200"
+                                  />
+                                  <motion.button
+                                    whileHover={{ scale: 1.1 }}
+                                    whileTap={{ scale: 0.9 }}
+                                    onClick={() => savePrice(product._id)}
+                                    className="text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 p-2 rounded-lg
+                                      hover:bg-emerald-500/20 transition-all duration-200"
+                                  >
+                                    <Save className="h-4 w-4" />
+                                  </motion.button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-gray-300 font-medium">₺{product.price.toFixed(2)}</span>
+                                  <motion.button
+                                    whileHover={{ scale: 1.1 }}
+                                    whileTap={{ scale: 0.9 }}
+                                    onClick={() => setEditingPrice({ ...editingPrice, [product._id]: true })}
+                                    className="text-yellow-400 hover:text-yellow-300 bg-yellow-500/10 p-2 rounded-lg
+                                      hover:bg-yellow-500/20 transition-all duration-200 opacity-0 group-hover:opacity-100"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </motion.button>
+                                </div>
+                              )}
+                            </div>
+
+                            <div>
+                              {editingProduct && editingProduct._id === product._id ? (
+                                <select
+                                  value={editingProduct.category ? `/${editingProduct.category}` : ""}
+                                  onChange={(e) => handleCategoryChange(e.target.value)}
+                                  className="bg-gray-800/50 text-white border border-gray-600/50 rounded-lg px-3 py-2 w-full
+                                    focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50
+                                    transition-all duration-200"
                                 >
-                                  ✔
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center">
-                                <span className="text-sm text-gray-300">₺{product.price.toFixed(2)}</span>
-                                <button
-                                  onClick={() => setEditingPrice({ ...editingPrice, [product._id]: true })}
-                                  className="ml-2 text-yellow-400 hover:text-yellow-300"
-                                >
-                                  ✏
-                                </button>
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap w-1/6">
-                            {editingProduct && editingProduct._id === product._id ? (
-                              <select
-                                value={editingProduct.category || ""}
-                                onChange={(e) => handleCategoryChange(e.target.value)}
-                                className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 w-full focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                              >
-                                <option value="">Kategori Seçin</option>
-                                {categories.map((category) => (
-                                  <option key={category.href} value={category.href}>
-                                    {category.name}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <div className="text-sm text-gray-300" title={product.category || "Kategori Yok"}>
-                                {product.category || "Kategori Yok"}
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap w-1/6">
-                            {editingProduct && editingProduct._id === product._id ? (
-                              <select
-                                value={editingProduct.subcategory?.id || ""}
-                                onChange={(e) => handleSubcategoryChange(e.target.value)}
-                                className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 w-full focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                              >
-                                <option value="">Alt Kategori Seçin</option>
-                                {categories
-                                  .find(cat => cat.id === editingProduct.category?.id)
-                                  ?.subcategories?.map((subcategory) => (
-                                    <option key={subcategory.id} value={subcategory.id}>
-                                      {subcategory.name}
+                                  <option value="">Kategori Seçin</option>
+                                  {categories.map((category) => (
+                                    <option key={category.href} value={category.href}>
+                                      {category.name}
                                     </option>
                                   ))}
-                              </select>
-                            ) : (
-                              <div className="text-sm text-gray-300" title={product.subcategory?.name || "Alt Kategori Yok"}>
-                                {product.subcategory?.name || "Alt Kategori Yok"}
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap w-1/12">
-                            <button
-                              onClick={() => toggleFeaturedProduct(product._id)}
-                              className={`p-1 rounded-full ${
-                                product.isFeatured
-                                  ? "bg-yellow-400 text-gray-900"
-                                  : "bg-gray-600 text-gray-300"
-                              } hover:bg-yellow-500 transition-colors duration-200`}
-                            >
-                              <Star className="h-5 w-5" />
-                            </button>
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap w-1/12">
-                            <button
-                              onClick={() => toggleProductHidden(product._id)}
-                              className={`p-1 rounded-full ${
-                                product.isHidden
-                                  ? "bg-red-600 text-white"
-                                  : "bg-emerald-600 text-white"
-                              } hover:bg-${product.isHidden ? "red-700" : "emerald-700"} transition-colors duration-200`}
-                            >
-                              {product.isHidden ? "Gizli" : "Görünür"}
-                            </button>
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap w-1/12">
-                            <button
-                              onClick={() => toggleOutOfStock(product._id)}
-                              className={`p-1 rounded-full ${
-                                product.isOutOfStock
-                                  ? "bg-red-600 text-white"
-                                  : "bg-green-600 text-white"
-                              } hover:bg-${product.isOutOfStock ? "red-700" : "green-700"} transition-colors duration-200`}
-                            >
-                              {product.isOutOfStock ? "Tükendi" : "Stokta"}
-                            </button>
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap w-1/6 text-sm font-medium">
-                            {editingProduct && editingProduct._id === product._id ? (
-                              <div className="flex justify-center space-x-2">
-                                <button
-                                  onClick={() => onSave(product._id, editingProduct)}
-                                  className="text-green-400 hover:text-green-300 px-2 py-1 rounded"
-                                >
-                                  <Save className="h-5 w-5" />
-                                </button>
-                                <button
-                                  onClick={() => setEditingProduct(null)}
-                                  className="text-red-400 hover:text-red-300 px-2 py-1 rounded"
-                                >
-                                  <X className="h-5 w-5" />
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="flex justify-center space-x-2">
-                                <button
-                                  onClick={() => onEdit(product)}
-                                  className="text-blue-400 hover:text-blue-300"
-                                >
-                                  <Edit className="h-5 w-5" />
-                                </button>
-                                <button
-                                  onClick={() => deleteProduct(product._id)}
-                                  className="text-red-400 hover:text-red-300"
-                                >
-                                  <Trash className="h-5 w-5" />
-                                </button>
-                              </div>
-                            )}
-                          </td>
-                        </motion.tr>
+                                </select>
+                              ) : (
+                                <div className="text-sm text-gray-300" title={product.category || "Kategori Yok"}>
+                                  {product.category || "Kategori Yok"}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex justify-center">
+                              <motion.button
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                onClick={() => toggleFeaturedProduct(product._id)}
+                                className={`p-2 rounded-xl transition-all duration-200 ${
+                                  product.isFeatured
+                                    ? "bg-yellow-500/20 text-yellow-400"
+                                    : "bg-gray-800/50 text-gray-400 opacity-50 group-hover:opacity-100"
+                                } hover:bg-yellow-500/30`}
+                              >
+                                <Star className="h-5 w-5" />
+                              </motion.button>
+                            </div>
+
+                            <div className="flex justify-center">
+                              <motion.button
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                onClick={() => toggleProductHidden(product._id)}
+                                className={`px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                                  product.isHidden
+                                    ? "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                                    : "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
+                                }`}
+                              >
+                                {product.isHidden ? "Gizli" : "Görünür"}
+                              </motion.button>
+                            </div>
+
+                            <div className="flex justify-center">
+                              <motion.button
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                onClick={() => toggleOutOfStock(product._id)}
+                                className={`px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                                  product.isOutOfStock
+                                    ? "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                                    : "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
+                                }`}
+                              >
+                                {product.isOutOfStock ? "Tükendi" : "Stokta"}
+                              </motion.button>
+                            </div>
+
+                            <div className="flex justify-center gap-2">
+                              {editingProduct && editingProduct._id === product._id ? (
+                                <>
+                                  <motion.button
+                                    whileHover={{ scale: 1.1 }}
+                                    whileTap={{ scale: 0.9 }}
+                                    onClick={() => onSave(product._id, editingProduct)}
+                                    className="text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 p-2 rounded-lg
+                                      hover:bg-emerald-500/20 transition-all duration-200"
+                                  >
+                                    <Save className="h-5 w-5" />
+                                  </motion.button>
+                                  <motion.button
+                                    whileHover={{ scale: 1.1 }}
+                                    whileTap={{ scale: 0.9 }}
+                                    onClick={() => setEditingProduct(null)}
+                                    className="text-red-400 hover:text-red-300 bg-red-500/10 p-2 rounded-lg
+                                      hover:bg-red-500/20 transition-all duration-200"
+                                  >
+                                    <X className="h-5 w-5" />
+                                  </motion.button>
+                                </>
+                              ) : (
+                                <>
+                                  <motion.button
+                                    whileHover={{ scale: 1.1 }}
+                                    whileTap={{ scale: 0.9 }}
+                                    onClick={() => onEdit(product)}
+                                    className="text-blue-400 hover:text-blue-300 bg-blue-500/10 p-2 rounded-lg
+                                      hover:bg-blue-500/20 transition-all duration-200 opacity-0 group-hover:opacity-100"
+                                  >
+                                    <Edit className="h-5 w-5" />
+                                  </motion.button>
+                                  <motion.button
+                                    whileHover={{ scale: 1.1 }}
+                                    whileTap={{ scale: 0.9 }}
+                                    onClick={() => deleteProduct(product._id)}
+                                    className="text-red-400 hover:text-red-300 bg-red-500/10 p-2 rounded-lg
+                                      hover:bg-red-500/20 transition-all duration-200 opacity-0 group-hover:opacity-100"
+                                  >
+                                    <Trash className="h-5 w-5" />
+                                  </motion.button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </motion.div>
                       )}
                     </Draggable>
                   ))}
                   {provided.placeholder}
-                </tbody>
-              </table>
+                </div>
+              </div>
             )}
           </Droppable>
         </DragDropContext>

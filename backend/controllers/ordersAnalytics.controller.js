@@ -7,7 +7,7 @@ export const getOrderAnalyticsData = async () => {
     const totalOrders = await Order.countDocuments();
     const orders = await Order.find()
       .populate("user", "name email")
-      .populate("products.product", "name price")
+      .populate("products.product", "name price image")
       .sort({ createdAt: -1 });
 
     const groupedOrders = orders.reduce((acc, order) => {
@@ -36,10 +36,11 @@ export const getOrderAnalyticsData = async () => {
           name: p.product?.name || "Bilinmeyen Ürün",
           quantity: p.quantity,
           price: p.product?.price || 0,
+          image: p.product?.image || null,
         })),
         totalAmount: order.totalAmount,
         status: order.status,
-        note: order.note, // Include the note field
+        note: order.note,
         createdAt: order.createdAt,
       });
 
@@ -133,19 +134,33 @@ function getDatesInRange(startDate, endDate) {
 // Kullanıcının kendi siparişlerini getiren fonksiyon
 export const getUserOrders = async (req, res) => {
   try {
-    const userId = req.user._id; // Kullanıcının ID'sini al
+    const userId = req.user._id;
     const orders = await Order.find({ user: userId })
-      .populate("products.product", "name price")
+      .populate("products.product", "name price image")
       .sort({ createdAt: -1 });
 
-    res.json(orders);
+    const formattedOrders = orders.map(order => ({
+      _id: order._id,
+      products: order.products.map(p => ({
+        name: p.product?.name || "Bilinmeyen Ürün",
+        quantity: p.quantity,
+        price: p.product?.price || 0,
+        image: p.product?.image || null,
+      })),
+      totalAmount: order.totalAmount,
+      status: order.status,
+      note: order.note,
+      createdAt: order.createdAt,
+    }));
+
+    res.json(formattedOrders);
   } catch (error) {
     console.error("Kullanıcı siparişleri alınırken hata:", error.message);
     res.status(500).json({ message: "Server hatası", error: error.message });
   }
 };
 
-// Sipariş oluşturma (bildirim ve log’lar kaldırıldı)
+// Sipariş oluşturma (bildirim ve log'lar kaldırıldı)
 export const createOrder = async (req, res) => {
   try {
     const { userId, products, total, city, phone, note } = req.body;

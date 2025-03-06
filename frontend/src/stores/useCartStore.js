@@ -40,7 +40,10 @@ export const useCartStore = create((set, get) => ({
 			get().calculateTotals();
 		} catch (error) {
 			set({ cart: [] });
-			toast.error(error.response.data.message || "Bir hata oluştu");
+			if (error.response?.status === 401) {
+				return;
+			}
+			toast.error(error.response?.data?.message || "Bir hata oluştu");
 		}
 	},
 	clearCart: async () => {
@@ -50,7 +53,6 @@ export const useCartStore = create((set, get) => ({
 	addToCart: async (product) => {
 		try {
 			await axios.post("/cart", { productId: product._id });
-			toast.success("Ürün Başarıyla Sepete Eklendi");
 
 			set((prevState) => {
 				const existingItem = prevState.cart.find((item) => item._id === product._id);

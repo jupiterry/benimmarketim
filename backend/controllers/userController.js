@@ -28,3 +28,12 @@ export const updateUser = async (req, res) => {
     res.status(500).json({ success: false, message: "Kullanıcı güncellenirken hata oluştu" });
   }
 };
+
+export const addPhoneFieldToAllUsers = async (req, res) => {
+  try {
+    await User.updateMany({}, { $set: { phone: "" } });
+    res.status(200).json({ success: true, message: "Tüm kullanıcılara telefon alanı eklendi" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Telefon alanı eklenirken hata oluştu" });
+  }
+};
