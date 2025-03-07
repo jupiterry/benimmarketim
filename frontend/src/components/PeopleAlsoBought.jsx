@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import ProductCard from "./ProductCard";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
 import LoadingSpinner from "./LoadingSpinner";
 import { motion } from "framer-motion";
-import { Sparkles, TrendingUp, Star } from "lucide-react";
+import { TrendingUp, Star } from "lucide-react";
 import { useProductStore } from "../stores/useProductStore";
 
 const PeopleAlsoBought = () => {
@@ -12,14 +12,11 @@ const PeopleAlsoBought = () => {
 	const [isLoading, setIsLoading] = useState(true);
 	const { products } = useProductStore();
 
-	const fetchRecommendations = async () => {
+	const fetchRecommendations = useCallback(async () => {
 		try {
 			const res = await axios.get("/products/recommendations", {
-				params: {
-					limit: 10
-				}
+				params: { limit: 10 }
 			});
-			// Ürünleri global store'dan güncelle
 			const updatedRecommendations = res.data.map(rec => {
 				const updatedProduct = products.find(p => p._id === rec._id);
 				return updatedProduct || rec;
@@ -31,11 +28,11 @@ const PeopleAlsoBought = () => {
 		} finally {
 			setIsLoading(false);
 		}
-	};
+	}, [products]);
 
 	useEffect(() => {
 		fetchRecommendations();
-	}, [products]); // products değiştiğinde yeniden yükle
+	}, [fetchRecommendations]);
 
 	if (isLoading) return (
 		<div className="flex justify-center items-center min-h-[200px]">

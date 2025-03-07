@@ -1,8 +1,36 @@
-import { CheckCircle, ArrowLeft, Package2, Clock, MapPin } from "lucide-react";
+import { CheckCircle, Package2, Clock, MapPin } from "lucide-react";
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useUserStore } from "../stores/useUserStore";
+import FeedbackForm from "../components/FeedbackForm";
+import axios from "../lib/axios";
 
 const OrderCreated = () => {
+	const navigate = useNavigate();
+	const { user } = useUserStore();
+	const [showFeedback, setShowFeedback] = useState(false);
+
+	useEffect(() => {
+		const checkFeedbackStatus = async () => {
+			try {
+				const response = await axios.get(`/users/${user._id}`);
+				setShowFeedback(!response.data.hasFeedback);
+			} catch (error) {
+				console.error("Kullanıcı durumu kontrol edilirken hata:", error);
+			}
+		};
+
+		checkFeedbackStatus();
+	}, [user._id]);
+
+	const handleContinue = () => {
+		if (showFeedback) {
+			return; // Geri bildirim gerekiyorsa devam etmeyi engelle
+		}
+		navigate("/");
+	};
+
 	const container = {
 		hidden: { opacity: 0 },
 		show: {
@@ -67,7 +95,9 @@ const OrderCreated = () => {
 							variants={item}
 							className="mt-4 text-gray-400 text-center"
 						>
-							Siparişiniz için teşekkür ederiz. Siparişiniz başarıyla oluşturuldu ve işleme alındı.
+							{showFeedback 
+								? "Devam etmeden önce lütfen deneyiminizi değerlendirin"
+								: "Siparişiniz başarıyla oluşturuldu. Teşekkür ederiz!"}
 						</motion.p>
 					</div>
 
@@ -116,13 +146,16 @@ const OrderCreated = () => {
 					>
 						Siparişlerimi Görüntüle
 					</Link>
-					<Link
-						to="/"
-						className="w-full bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-bold py-3 px-4 rounded-xl transition duration-300 flex items-center justify-center backdrop-blur-xl"
-					>
-						<ArrowLeft className="mr-2" size={18} />
-						Alışverişe Devam Et
-					</Link>
+					{showFeedback ? (
+						<FeedbackForm onComplete={() => setShowFeedback(false)} />
+					) : (
+						<button
+							onClick={handleContinue}
+							className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-4 rounded-xl transition duration-300 flex items-center justify-center shadow-lg shadow-emerald-500/20"
+						>
+							Alışverişe Devam Et
+						</button>
+					)}
 				</motion.div>
 			</motion.div>
 		</div>

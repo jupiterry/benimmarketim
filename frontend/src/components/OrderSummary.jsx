@@ -6,12 +6,17 @@ import { useState } from "react";
 import cities from "../data/cities";
 import toast from "react-hot-toast";
 import { Clock, Truck, Info } from "lucide-react";
+import { useUserStore } from "../stores/useUserStore";
+import FeedbackForm from "./FeedbackForm";
 
-const OrderSummary = ({ note, setNote }) => {
+const OrderSummary = () => {
   const { total, subtotal, coupon, isCouponApplied, cart, clearCart } = useCartStore();
   const [selectedCity, setSelectedCity] = useState("");
   const [phone, setPhone] = useState("");
+  const [note, setNote] = useState("");
+  const [showFeedback, setShowFeedback] = useState(false);
   const navigate = useNavigate();
+  const { user } = useUserStore();
 
   const savings = subtotal - total;
   const formattedSubtotal = subtotal.toFixed(2);
@@ -26,8 +31,8 @@ const OrderSummary = ({ note, setNote }) => {
   // Tahmini teslimat süresi hesaplama
   const getEstimatedDeliveryTime = () => {
     const now = new Date();
-    const deliveryTime = new Date(now.getTime() + 45 * 60000); // 45 dakika sonra
-    return deliveryTime.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    now.setMinutes(now.getMinutes() + 30);
+    return now.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
   };
 
   const handlePayment = async () => {
@@ -47,33 +52,61 @@ const OrderSummary = ({ note, setNote }) => {
         return;
       }
   
-      const orderItems = cart.map((item) => ({
-        product: item._id,
-        name: item.name,
-        quantity: item.quantity,
-        price: item.price,
-      }));
-  
-      const res = await axios.post("/cart/place-order", {
-        products: orderItems,
-        city: selectedCity,
-        phone: phone,
-        note: note,
-      });
-  
-      if (res.data.success) {
-        localStorage.removeItem("cart");
-        clearCart();
-        toast.success("Sipariş başarıyla oluşturuldu!", { id: "orderSuccess", position: "top-center" });
-        navigate("/siparisolusturuldu");
-      } else {
-        toast.error("Sipariş oluşturulurken hata oluştu!", { id: "orderError" });
+      // Kullanıcının geri bildirim durumunu kontrol et
+      const userResponse = await axios.get(`/users/${user._id}`);
+      if (!userResponse.data.hasFeedback) {
+        setShowFeedback(true);
+        return;
       }
+  
+      await createOrder();
     } catch (error) {
       console.error("Sipariş işleminde hata oluştu:", error);
       toast.error(error.response?.data?.message || "Sipariş işleminde hata oluştu.", { id: "orderError" });
     }
   };
+
+  const createOrder = async () => {
+    const orderItems = cart.map((item) => ({
+      product: item._id,
+      name: item.name,
+      quantity: item.quantity,
+      price: item.price,
+    }));
+  
+    const res = await axios.post("/cart/place-order", {
+      products: orderItems,
+      city: selectedCity,
+      phone: phone,
+      note: note,
+    });
+  
+    if (res.data.success) {
+      localStorage.removeItem("cart");
+      clearCart();
+      toast.success("Sipariş başarıyla oluşturuldu!", { id: "orderSuccess", position: "top-center" });
+      navigate("/siparisolusturuldu");
+    } else {
+      toast.error("Sipariş oluşturulurken hata oluştu!", { id: "orderError" });
+    }
+  };
+
+  const handleFeedbackComplete = async () => {
+    setShowFeedback(false);
+    await createOrder();
+  };
+
+  if (showFeedback) {
+    return (
+      <div className="space-y-4 rounded-lg border border-gray-700 bg-gray-800/50 backdrop-blur-sm p-4 shadow-sm sm:p-6">
+        <h2 className="text-xl font-semibold text-emerald-400 mb-4">Geri Bildirim</h2>
+        <p className="text-gray-300 mb-4">
+          Siparişinizi tamamlamadan önce lütfen deneyiminizi değerlendirin.
+        </p>
+        <FeedbackForm onComplete={handleFeedbackComplete} />
+      </div>
+    );
+  }
 
   return (
     <motion.div

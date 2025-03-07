@@ -1,4 +1,4 @@
-import useState from "react";
+import { useState } from "react";
 import axios from "../lib/axios";
 import { Toaster, toast } from "react-hot-toast";
 

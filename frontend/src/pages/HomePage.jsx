@@ -35,7 +35,7 @@ const announcements = [
 	},
 	{
 		title: "Yeni Üyelere Özel",
-		description: "İlk siparişinizde 100₺ indirim",
+		description: "250₺ Üzerine İlk Siparişinizde Altıncezve Oralet Hediye",
 		icon: <Sparkles className="w-6 h-6 text-yellow-400" />,
 		color: "from-orange-600 to-red-600"
 	},

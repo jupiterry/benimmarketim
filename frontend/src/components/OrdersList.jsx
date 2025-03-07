@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "../lib/axios";
-import { Search, ChevronLeft, ChevronRight, Package2 } from "lucide-react";
+import { Search, Package2, ChevronLeft, ChevronRight } from "lucide-react";
 import toast from "react-hot-toast";
 
 const OrdersList = () => {
@@ -10,7 +10,7 @@ const OrdersList = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const ordersPerPage = 5;
+  const ordersPerPage = 6;
 
   useEffect(() => {
     const fetchOrderAnalyticsData = async () => {
@@ -113,7 +113,7 @@ const OrdersList = () => {
       ...order,
       user: userOrder.user
     }))
-  );
+  ).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   const totalPages = Math.ceil(filteredOrders.length / ordersPerPage);
   const currentOrders = filteredOrders.slice(
@@ -191,9 +191,9 @@ const OrdersList = () => {
       </div>
 
       {/* Siparişler Listesi */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 auto-rows-auto">
         {currentOrders.map((order) => (
-          <div key={order.orderId} className="bg-gray-800 p-4 rounded-lg shadow-lg transform transition-all duration-200 hover:scale-[1.01] flex flex-col h-full">
+          <div key={order.orderId} className="bg-gray-800 p-4 rounded-lg shadow-lg transform transition-all duration-200 hover:scale-[1.01]">
             {/* Başlık ve Durum */}
             <div className="flex justify-between items-start mb-3">
               <div>
@@ -245,8 +245,8 @@ const OrdersList = () => {
             {/* Ürünler */}
             <div className="flex-grow">
               <div className="text-sm font-semibold text-white mb-2">Ürünler</div>
-              <div className="space-y-2 max-h-[150px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
-                {order.products?.map((product, index) => (
+              <div className="space-y-2">
+                {order.products.map((product, index) => (
                   <div key={index} className="bg-gray-700/50 p-2 rounded-lg flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="bg-gray-700 h-14 w-14 rounded-lg flex items-center justify-center overflow-hidden">
@@ -288,7 +288,7 @@ const OrdersList = () => {
           <button
             onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
             disabled={currentPage === 1}
-            className="p-2 bg-gray-700 rounded-lg text-white disabled:opacity-50"
+            className="p-2 bg-gray-700 rounded-lg text-white disabled:opacity-50 hover:bg-gray-600 transition-colors"
           >
             <ChevronLeft size={20} />
           </button>
@@ -298,7 +298,7 @@ const OrdersList = () => {
           <button
             onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
             disabled={currentPage === totalPages}
-            className="p-2 bg-gray-700 rounded-lg text-white disabled:opacity-50"
+            className="p-2 bg-gray-700 rounded-lg text-white disabled:opacity-50 hover:bg-gray-600 transition-colors"
           >
             <ChevronRight size={20} />
           </button>

@@ -1,14 +1,15 @@
-import { BarChart, PlusCircle, ShoppingBasket, Upload, Users, Package2 } from "lucide-react";
+import { BarChart, PlusCircle, ShoppingBasket, Upload, Users, Package2, MessageSquare } from "lucide-react";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import axios from "../lib/axios";
+import toast from "react-hot-toast";
 
 import AnalyticsTab from "../components/AnalyticsTab";
 import CreateProductForm from "../components/CreateProductForm";
 import ProductsList from "../components/ProductsList";
 import OrdersList from "../components/OrdersList";
 import { useProductStore } from "../stores/useProductStore";
-import axios from "../lib/axios";
-import toast from "react-hot-toast";
+import FeedbackList from "../components/FeedbackList";
 
 const AdminPage = () => {
   const [activeTab, setActiveTab] = useState("products");
@@ -92,6 +93,93 @@ const AdminPage = () => {
     }
   };
 
+  const tabs = [
+    {
+      id: "products",
+      label: "Ürünler",
+      icon: <ShoppingBasket className="w-5 h-5" />,
+      component: <ProductsList
+        products={products}
+        onEdit={handleEdit}
+        editingProduct={editingProduct}
+        setEditingProduct={setEditingProduct}
+        onSave={handleSave}
+      />
+    },
+    {
+      id: "create",
+      label: "Ürün Ekle",
+      icon: <PlusCircle className="w-5 h-5" />,
+      component: <CreateProductForm />
+    },
+    {
+      id: "analytics",
+      label: "Analiz",
+      icon: <BarChart className="w-5 h-5" />,
+      component: <AnalyticsTab />
+    },
+    {
+      id: "orders",
+      label: "Siparişler",
+      icon: <Package2 className="w-5 h-5" />,
+      component: <OrdersList />
+    },
+    {
+      id: "users",
+      label: "Kullanıcılar",
+      icon: <Users className="w-5 h-5" />,
+      component: <UsersTab
+        users={users}
+        loading={loadingUsers}
+        error={errorUsers}
+        onEdit={setEditingUser}
+        onUpdate={handleUpdateUser}
+        onCancel={() => setEditingUser(null)}
+        editingUser={editingUser}
+      />
+    },
+    {
+      id: "bulk-upload",
+      label: "Toplu Yükleme",
+      icon: <Upload className="w-5 h-5" />,
+      component: <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="max-w-xl mx-auto bg-gray-700/30 rounded-xl p-8 border border-gray-600/30"
+      >
+        <h2 className="text-2xl font-bold bg-gradient-to-r from-emerald-400 to-teal-500 bg-clip-text text-transparent mb-4">
+          Toplu Ürün Yükleme
+        </h2>
+        <p className="text-gray-300 mb-6">
+          CSV formatında bir dosya yükleyerek ürünleri toplu olarak ekleyebilirsiniz.
+        </p>
+        <label className="block">
+          <span className="sr-only">CSV Dosyası Seç</span>
+          <input
+            type="file"
+            accept=".csv"
+            onChange={handleBulkUpload}
+            className="block w-full text-sm text-gray-300
+              file:mr-4 file:py-3 file:px-6
+              file:rounded-xl file:border-0
+              file:text-sm file:font-semibold
+              file:bg-gradient-to-r file:from-emerald-500 file:to-teal-600
+              file:text-white
+              hover:file:from-emerald-600 hover:file:to-teal-700
+              file:cursor-pointer file:transition-all
+              file:duration-300"
+          />
+        </label>
+      </motion.div>
+    },
+    {
+      id: "feedback",
+      label: "Geri Bildirimler",
+      icon: <MessageSquare className="w-5 h-5" />,
+      component: <FeedbackList />
+    }
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 py-20 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
@@ -109,33 +197,19 @@ const AdminPage = () => {
 
         <div className="flex flex-wrap justify-center gap-4 mb-8">
           <AnimatePresence mode="wait">
-            {["products", "create", "analytics", "orders", "users", "bulk-upload"].map((tab) => (
+            {tabs.map((tab) => (
               <motion.div
-                key={tab}
+                key={tab.id}
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
                 transition={{ duration: 0.2 }}
               >
                 <TabButton
-                  active={activeTab === tab}
-                  onClick={() => setActiveTab(tab)}
-                  icon={
-                    tab === "products" ? <ShoppingBasket /> :
-                    tab === "create" ? <PlusCircle /> :
-                    tab === "analytics" ? <BarChart /> :
-                    tab === "orders" ? <Package2 /> :
-                    tab === "users" ? <Users /> :
-                    <Upload />
-                  }
-                  text={
-                    tab === "products" ? "Ürünler" :
-                    tab === "create" ? "Ürün Ekle" :
-                    tab === "analytics" ? "Analiz" :
-                    tab === "orders" ? "Siparişler" :
-                    tab === "users" ? "Kullanıcılar" :
-                    "Toplu Yükleme"
-                  }
+                  active={activeTab === tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  icon={tab.icon}
+                  text={tab.label}
                 />
               </motion.div>
             ))}
@@ -153,60 +227,7 @@ const AdminPage = () => {
           >
             <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-teal-500/5 pointer-events-none" />
             
-            {activeTab === "create" && <CreateProductForm />}
-            {activeTab === "products" && (
-              <ProductsList
-                products={products}
-                onEdit={handleEdit}
-                editingProduct={editingProduct}
-                setEditingProduct={setEditingProduct}
-                onSave={handleSave}
-              />
-            )}
-            {activeTab === "analytics" && <AnalyticsTab />}
-            {activeTab === "orders" && <OrdersList />}
-            {activeTab === "users" && (
-              <UsersTab
-                users={users}
-                loading={loadingUsers}
-                error={errorUsers}
-                onEdit={setEditingUser}
-                onUpdate={handleUpdateUser}
-                onCancel={() => setEditingUser(null)}
-                editingUser={editingUser}
-              />
-            )}
-            {activeTab === "bulk-upload" && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="max-w-xl mx-auto bg-gray-700/30 rounded-xl p-8 border border-gray-600/30"
-              >
-                <h2 className="text-2xl font-bold bg-gradient-to-r from-emerald-400 to-teal-500 bg-clip-text text-transparent mb-4">
-                  Toplu Ürün Yükleme
-                </h2>
-                <p className="text-gray-300 mb-6">
-                  CSV formatında bir dosya yükleyerek ürünleri toplu olarak ekleyebilirsiniz.
-                </p>
-                <label className="block">
-                  <span className="sr-only">CSV Dosyası Seç</span>
-                  <input
-                    type="file"
-                    accept=".csv"
-                    onChange={handleBulkUpload}
-                    className="block w-full text-sm text-gray-300
-                      file:mr-4 file:py-3 file:px-6
-                      file:rounded-xl file:border-0
-                      file:text-sm file:font-semibold
-                      file:bg-gradient-to-r file:from-emerald-500 file:to-teal-600
-                      file:text-white
-                      hover:file:from-emerald-600 hover:file:to-teal-700
-                      file:cursor-pointer file:transition-all
-                      file:duration-300"
-                  />
-                </label>
-              </motion.div>
-            )}
+            {tabs.find(tab => tab.id === activeTab)?.component}
           </motion.div>
         </AnimatePresence>
       </div>
@@ -242,6 +263,21 @@ const UsersTab = ({ users, loading, error, onEdit, onUpdate, onCancel, editingUs
   const handleChange = (e) => {
     const { name, value } = e.target;
     setEditedUser((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleDeleteUser = async (userId) => {
+    if (!window.confirm("Bu kullanıcıyı silmek istediğinizden emin misiniz?")) {
+      return;
+    }
+
+    try {
+      await axios.delete(`/users/${userId}`);
+      toast.success("Kullanıcı başarıyla silindi");
+      window.location.reload(); // Sayfayı yenile
+    } catch (error) {
+      console.error("Kullanıcı silinirken hata:", error);
+      toast.error(error.response?.data?.message || "Kullanıcı silinirken hata oluştu");
+    }
   };
 
   if (loading) {
@@ -354,15 +390,26 @@ const UsersTab = ({ users, loading, error, onEdit, onUpdate, onCancel, editingUs
                     </motion.button>
                   </div>
                 ) : (
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => onEdit(user)}
-                    className="text-blue-400 hover:text-blue-300 transition-colors px-4 py-2 rounded-lg
-                      bg-blue-500/10 hover:bg-blue-500/20 opacity-0 group-hover:opacity-100"
-                  >
-                    Düzenle
-                  </motion.button>
+                  <div className="flex space-x-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => onEdit(user)}
+                      className="text-blue-400 hover:text-blue-300 transition-colors px-4 py-2 rounded-lg
+                        bg-blue-500/10 hover:bg-blue-500/20"
+                    >
+                      Düzenle
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => handleDeleteUser(user._id)}
+                      className="text-red-400 hover:text-red-300 transition-colors px-4 py-2 rounded-lg
+                        bg-red-500/10 hover:bg-red-500/20"
+                    >
+                      Sil
+                    </motion.button>
+                  </div>
                 )}
               </td>
             </motion.tr>

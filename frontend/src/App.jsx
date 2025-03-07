@@ -17,6 +17,15 @@ import OrderCreated from "./pages/OrderCreated";
 import Footer from "./components/Footer";
 import SearchResultsPage from "./pages/SearchResultsPage"; // 🔥 Yeni eklenen sayfa
 import BulkUpload from "./components/BulkUpload"; // Yeni eklenen bileşen
+import FeedbackPage from "./pages/FeedbackPage";
+
+const ProtectedRoute = ({ children }) => {
+  const { user } = useUserStore();
+  if (!user) {
+    return <Navigate to="/login" />;
+  }
+  return children;
+};
 
 function App() {
   const { user, checkAuth, checkingAuth } = useUserStore();
@@ -69,6 +78,14 @@ function App() {
           <Route
             path="/bulk-upload"
             element={user?.role === "admin" ? <BulkUpload /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/feedback"
+            element={
+              <ProtectedRoute>
+                <FeedbackPage />
+              </ProtectedRoute>
+            }
           />
         </Routes>
       </div>
