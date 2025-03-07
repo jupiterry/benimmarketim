@@ -354,17 +354,28 @@ const FeedbackList = () => {
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
                     <span className="text-emerald-400 text-lg font-medium">
-                      {feedback.user?.name?.charAt(0) || "K"}
+                      {feedback.user?.name?.charAt(0).toUpperCase() || "K"}
                     </span>
                   </div>
                   <div>
-                    <h3 className="text-lg font-medium text-white">
-                      {feedback.title || "Genel Değerlendirme"}
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-medium text-white">
+                        {feedback.user?.name || "Kullanıcı"}
+                      </h3>
+                      <span className="px-2 py-1 text-xs rounded-full bg-emerald-500/10 text-emerald-400">
+                        {feedback.user?.email}
+                      </span>
+                    </div>
                     <div className="flex items-center gap-2 text-sm text-gray-400">
-                      <span>{feedback.user?.name || "Kullanıcı"}</span>
+                      <span>{new Date(feedback.createdAt).toLocaleDateString("tr-TR", {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit"
+                      })}</span>
                       <span>•</span>
-                      <span>{new Date(feedback.createdAt).toLocaleDateString("tr-TR")}</span>
+                      <span className="text-emerald-400">Genel Puan: {Object.values(feedback.ratings).reduce((a, b) => a + b, 0) / Object.values(feedback.ratings).filter(r => r > 0).length}/5</span>
                     </div>
                   </div>
                 </div>
@@ -373,9 +384,12 @@ const FeedbackList = () => {
                   <span className={`px-3 py-1 text-xs rounded-full ${getStatusColor(feedback.status)}`}>
                     {feedback.status}
                   </span>
-                  <span className="px-3 py-1 text-xs rounded-full bg-gray-700 text-gray-300">
-                    {feedback.category}
+                  <span className="px-3 py-1 text-xs rounded-full bg-gray-700/30 text-gray-300">
+                    Kategori: {feedback.category}
                   </span>
+                  <h4 className="w-full mt-2 text-lg font-medium text-white">
+                    {feedback.title || "Genel Değerlendirme"}
+                  </h4>
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3">

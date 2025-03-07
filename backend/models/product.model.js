@@ -10,6 +10,14 @@ const productSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    isDiscounted: {
+      type: Boolean,
+      default: false,
+    },
+    discountedPrice: {
+      type: Number,
+      default: null,
+    },
     category: {
       type: String,
       required: true,

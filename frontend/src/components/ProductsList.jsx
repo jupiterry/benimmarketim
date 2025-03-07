@@ -41,6 +41,8 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
 
   const [editingPrice, setEditingPrice] = useState({});
   const [newPrices, setNewPrices] = useState({});
+  const [discountPrices, setDiscountPrices] = useState({});
+  const [editingDiscount, setEditingDiscount] = useState({});
   const [selectedCategory, setSelectedCategory] = useState("");
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -93,7 +95,13 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
       });
       if (response.data.message) {
         toast.success(response.data.message);
-        loadProducts();
+        setLocalProducts(prevProducts =>
+          prevProducts.map(product =>
+            product._id === productId
+              ? { ...product, isOutOfStock: !product.isOutOfStock }
+              : product
+          )
+        );
       }
     } catch (error) {
       console.error("Tükendi durumu değiştirme hatası:", error);
@@ -127,6 +135,72 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
     }
   };
 
+  const handleDiscountChange = (id, value) => {
+    setDiscountPrices({ ...discountPrices, [id]: value });
+  };
+
+  const saveDiscount = async (id, originalPrice) => {
+    if (discountPrices[id] !== undefined) {
+      try {
+        const discountedPrice = parseFloat(discountPrices[id]);
+        if (discountedPrice >= originalPrice) {
+          toast.error("İndirimli fiyat normal fiyattan yüksek olamaz!");
+          return;
+        }
+        
+        await axios.patch(`/products/${id}/discount`, 
+          { discountedPrice },
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+          }
+        );
+
+        setLocalProducts(prevProducts =>
+          prevProducts.map(product =>
+            product._id === id ? { 
+              ...product, 
+              isDiscounted: true,
+              discountedPrice: discountedPrice 
+            } : product
+          )
+        );
+        
+        setEditingDiscount({ ...editingDiscount, [id]: false });
+        toast.success("İndirim başarıyla uygulandı");
+      } catch (error) {
+        console.error("İndirim uygulama hatası:", error);
+        toast.error("İndirim uygulanırken hata oluştu");
+      }
+    }
+  };
+
+  const removeDiscount = async (id) => {
+    try {
+      await axios.delete(`/products/${id}/discount`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      });
+
+      setLocalProducts(prevProducts =>
+        prevProducts.map(product =>
+          product._id === id ? { 
+            ...product, 
+            isDiscounted: false,
+            discountedPrice: null 
+          } : product
+        )
+      );
+      
+      toast.success("İndirim kaldırıldı");
+    } catch (error) {
+      console.error("İndirim kaldırma hatası:", error);
+      toast.error("İndirim kaldırılırken hata oluştu");
+    }
+  };
+
   const handleProductChange = (field, value) => {
     setEditingProduct({
       ...editingProduct,
@@ -140,18 +214,13 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
     );
   };
 
-  const handleCategoryChange = (categoryPath) => {
-    const categoryName = categoryPath.replace("/", "");
-    setEditingProduct(prev => ({
-      ...prev,
-      category: categoryName
-    }));
+  const handleCategoryChange = (e) => {
+    const newCategory = e.target.value;
+    setSelectedCategory(newCategory);
     
-    setLocalProducts(prevProducts =>
-      prevProducts.map(product =>
-        product._id === editingProduct?._id ? { ...product, category: categoryName } : product
-      )
-    );
+    if (editingProduct) {
+      handleProductChange("category", newCategory.replace("/", ""));
+    }
   };
 
   const toggleProductHidden = async (productId) => {
@@ -163,7 +232,13 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
       });
       if (response.data.message) {
         toast.success(response.data.message);
-        loadProducts();
+        setLocalProducts(prevProducts =>
+          prevProducts.map(product =>
+            product._id === productId
+              ? { ...product, isHidden: !product.isHidden }
+              : product
+          )
+        );
       }
     } catch (error) {
       console.error("Ürün gizleme/gösterme hatası:", error);
@@ -181,50 +256,63 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
 
   const loadProducts = useCallback(async () => {
     if (loading) return;
-    setLoading(true);
+    
     try {
+      setLoading(true);
       const response = await axios.get("/products", {
         params: {
           page,
           limit: 50,
-          category: selectedCategory || undefined,
-          search: debouncedSearchTerm
+          category: selectedCategory ? selectedCategory.replace("/", "") : undefined,
+          search: debouncedSearchTerm || undefined
         }
       });
 
       const { products: newProducts, pagination } = response.data;
 
-      setLocalProducts(prev => page === 1 ? newProducts : [...prev, ...newProducts]);
+      setLocalProducts(prev => {
+        if (page === 1) return newProducts;
+        return [...prev, ...newProducts];
+      });
+      
       setHasMore(pagination.hasMore);
       
       if (page === 1) {
         setEditingPrice({});
         setNewPrices({});
+        setEditingDiscount({});
+        setDiscountPrices({});
       }
-      
-      setLoading(false);
     } catch (error) {
       console.error("Ürünler yüklenirken hata:", error);
       toast.error("Ürünler yüklenirken hata oluştu");
+    } finally {
       setLoading(false);
     }
   }, [page, selectedCategory, debouncedSearchTerm]);
 
   useEffect(() => {
-    setPage(1);
-    setLocalProducts([]);
-    loadProducts();
+    const timer = setTimeout(() => {
+      setPage(1);
+      setLocalProducts([]);
+    }, 300);
+    
+    return () => clearTimeout(timer);
   }, [selectedCategory, debouncedSearchTerm]);
 
   useEffect(() => {
-    loadProducts();
-  }, [page]);
+    const timer = setTimeout(() => {
+      loadProducts();
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [loadProducts, page]);
 
-  const loadMore = () => {
+  const loadMore = useCallback(() => {
     if (!loading && hasMore) {
       setPage(prev => prev + 1);
     }
-  };
+  }, [loading, hasMore]);
 
   return (
     <motion.div
@@ -242,7 +330,7 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
             <select
               id="category"
               value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
+              onChange={handleCategoryChange}
               className="mt-1 block w-full bg-gray-800/50 border border-gray-600/50 rounded-xl shadow-sm py-3 px-4 text-white 
                 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50
                 transition-all duration-200"
@@ -374,18 +462,74 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
                                     <Save className="h-4 w-4" />
                                   </motion.button>
                                 </div>
-                              ) : (
+                              ) : editingDiscount[product._id] ? (
                                 <div className="flex items-center gap-2">
-                                  <span className="text-sm text-gray-300 font-medium">₺{product.price.toFixed(2)}</span>
+                                  <input
+                                    type="number"
+                                    value={discountPrices[product._id] ?? product.price}
+                                    onChange={(e) => handleDiscountChange(product._id, e.target.value)}
+                                    className="bg-gray-800/50 text-white border border-gray-600/50 rounded-lg px-3 py-2 w-24
+                                      focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50
+                                      transition-all duration-200"
+                                  />
                                   <motion.button
                                     whileHover={{ scale: 1.1 }}
                                     whileTap={{ scale: 0.9 }}
-                                    onClick={() => setEditingPrice({ ...editingPrice, [product._id]: true })}
-                                    className="text-yellow-400 hover:text-yellow-300 bg-yellow-500/10 p-2 rounded-lg
-                                      hover:bg-yellow-500/20 transition-all duration-200 opacity-0 group-hover:opacity-100"
+                                    onClick={() => saveDiscount(product._id, product.price)}
+                                    className="text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 p-2 rounded-lg
+                                      hover:bg-emerald-500/20 transition-all duration-200"
                                   >
-                                    <Edit className="h-4 w-4" />
+                                    <Save className="h-4 w-4" />
                                   </motion.button>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col">
+                                  {product.isDiscounted && (
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="text-xs text-gray-400 line-through">₺{product.price.toFixed(2)}</span>
+                                      <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full">
+                                        %{((1 - product.discountedPrice / product.price) * 100).toFixed(0)} İndirim
+                                      </span>
+                                    </div>
+                                  )}
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm text-gray-300 font-medium">
+                                      ₺{(product.isDiscounted ? product.discountedPrice : product.price).toFixed(2)}
+                                    </span>
+                                    <div className="flex gap-1">
+                                      <motion.button
+                                        whileHover={{ scale: 1.1 }}
+                                        whileTap={{ scale: 0.9 }}
+                                        onClick={() => setEditingPrice({ ...editingPrice, [product._id]: true })}
+                                        className="text-yellow-400 hover:text-yellow-300 bg-yellow-500/10 p-2 rounded-lg
+                                          hover:bg-yellow-500/20 transition-all duration-200 opacity-0 group-hover:opacity-100"
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </motion.button>
+                                      {product.isDiscounted ? (
+                                        <motion.button
+                                          whileHover={{ scale: 1.1 }}
+                                          whileTap={{ scale: 0.9 }}
+                                          onClick={() => removeDiscount(product._id)}
+                                          className="text-red-400 hover:text-red-300 bg-red-500/10 p-2 rounded-lg
+                                            hover:bg-red-500/20 transition-all duration-200 opacity-0 group-hover:opacity-100"
+                                        >
+                                          <X className="h-4 w-4" />
+                                        </motion.button>
+                                      ) : (
+                                        <motion.button
+                                          whileHover={{ scale: 1.1 }}
+                                          whileTap={{ scale: 0.9 }}
+                                          onClick={() => setEditingDiscount({ ...editingDiscount, [product._id]: true })}
+                                          className="text-purple-400 hover:text-purple-300 bg-purple-500/10 p-2 rounded-lg
+                                            hover:bg-purple-500/20 transition-all duration-200 opacity-0 group-hover:opacity-100"
+                                          title="İndirim Ekle"
+                                        >
+                                          %
+                                        </motion.button>
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -394,7 +538,7 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
                               {editingProduct && editingProduct._id === product._id ? (
                                 <select
                                   value={editingProduct.category ? `/${editingProduct.category}` : ""}
-                                  onChange={(e) => handleCategoryChange(e.target.value)}
+                                  onChange={(e) => handleCategoryChange(e)}
                                   className="bg-gray-800/50 text-white border border-gray-600/50 rounded-lg px-3 py-2 w-full
                                     focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50
                                     transition-all duration-200"

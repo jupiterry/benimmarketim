@@ -18,24 +18,26 @@ export const getAllProducts = async (req, res) => {
 
 export const getFeaturedProducts = async (req, res) => {
   try {
-    let featuredProducts = await redis.get("featured_products");
+    // Önce indirimli ürünleri getir
+    const discountedProducts = await Product.find({
+      isDiscounted: true,
+      isHidden: false,
+    }).sort({ discountedPrice: 1 }); // İndirimli fiyata göre sırala
 
-    if (featuredProducts) {
-      return res.json(JSON.parse(featuredProducts));
-    }
+    // Sonra öne çıkan ve indirimde olmayan ürünleri getir
+    const featuredProducts = await Product.find({
+      isFeatured: true,
+      isHidden: false,
+      isDiscounted: false, // İndirimde olmayan öne çıkan ürünler
+    }).sort({ order: 1 });
 
-    featuredProducts = await Product.find({ isFeatured: true, isHidden: false }).lean(); // Yalnızca görünür öne çıkan ürünleri getir
+    // Tüm ürünleri birleştir (önce indirimli sonra öne çıkan)
+    const allFeaturedProducts = [...discountedProducts, ...featuredProducts];
 
-    if (!featuredProducts.length) {
-      return res.status(404).json({ message: "No featured products found" });
-    }
-
-    await redis.set("featured_products", JSON.stringify(featuredProducts));
-
-    res.json(featuredProducts);
+    res.json(allFeaturedProducts);
   } catch (error) {
-    console.error("Error in getFeaturedProducts controller:", error.message);
-    res.status(500).json({ message: "Server error", error: error.message });
+    console.error("Öne çıkan ürünler getirilirken hata:", error);
+    res.status(500).json({ message: "Sunucu hatası" });
   }
 };
 

@@ -221,6 +221,49 @@ router.put("/update-discount/:id", protectRoute, adminRoute, async (req, res) =>
   }
 });
 
+// İndirim işlemleri için yeni route'lar
+router.patch("/:id/discount", protectRoute, adminRoute, async (req, res) => {
+  try {
+    const { discountedPrice } = req.body;
+    const product = await Product.findById(req.params.id);
+    
+    if (!product) {
+      return res.status(404).json({ message: "Ürün bulunamadı" });
+    }
+
+    if (discountedPrice >= product.price) {
+      return res.status(400).json({ message: "İndirimli fiyat normal fiyattan yüksek olamaz" });
+    }
+
+    product.isDiscounted = true;
+    product.discountedPrice = discountedPrice;
+    await product.save();
+
+    res.json({ message: "İndirim başarıyla uygulandı", product });
+  } catch (error) {
+    console.error("İndirim uygulama hatası:", error);
+    res.status(500).json({ message: "İndirim uygulanırken hata oluştu" });
+  }
+});
+
+router.delete("/:id/discount", protectRoute, adminRoute, async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    
+    if (!product) {
+      return res.status(404).json({ message: "Ürün bulunamadı" });
+    }
+
+    product.isDiscounted = false;
+    product.discountedPrice = null;
+    await product.save();
+
+    res.json({ message: "İndirim başarıyla kaldırıldı", product });
+  } catch (error) {
+    console.error("İndirim kaldırma hatası:", error);
+    res.status(500).json({ message: "İndirim kaldırılırken hata oluştu" });
+  }
+});
 
 // Mevcut rotalar
 router.get("/", getProducts); // Admin için tüm ürünleri getir
@@ -233,7 +276,7 @@ router.put("/update-price/:id", protectRoute, adminRoute, updateProductPrice);
 router.put("/:id", protectRoute, adminRoute, updateProduct); // Ürün güncelleme endpoint'i
 router.get("/search", searchProducts);
 router.get("/category/:category/:subcategory?", getProductsByCategory); // Kategoriye göre ürünler
-router.patch("/toggle-hidden/:id", protectRoute, adminRoute, toggleHiddenProduct); // Ürün gizleme/gösterme
+router.patch("/toggle-hidden/:id", protectRoute, adminRoute, toggleHiddenProduct);
 router.patch("/toggle-out-of-stock/:id", protectRoute, adminRoute, toggleOutOfStock);
 router.get('/export-csv', protectRoute, adminRoute, exportProductsToCSV);
 router.get('/detect-brands', protectRoute, adminRoute, detectProductBrands);
