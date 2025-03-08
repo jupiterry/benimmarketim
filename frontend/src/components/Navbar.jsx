@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useUserStore } from "../stores/useUserStore";
 import { useCartStore } from "../stores/useCartStore";
 import SearchBar from "./SearchBar";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const Navbar = () => {
   const { user, logout } = useUserStore();
@@ -13,22 +13,39 @@ const Navbar = () => {
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
-    // Menü açıkken scroll'u engelle
     document.body.style.overflow = !isMenuOpen ? 'hidden' : 'unset';
   };
 
+  // Menü dışına tıklandığında menüyü kapat
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      const mobileMenu = document.getElementById('mobile-menu');
+      const menuButton = document.getElementById('menu-button');
+      
+      if (isMenuOpen && mobileMenu && !mobileMenu.contains(event.target) && !menuButton.contains(event.target)) {
+        setIsMenuOpen(false);
+        document.body.style.overflow = 'unset';
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isMenuOpen]);
+
   return (
     <header className="fixed top-0 left-0 w-full bg-gray-900/90 backdrop-blur-lg shadow-[0_2px_15px_-3px_rgba(0,0,0,0.3)] z-40 transition-all duration-300">
-      <div className="container mx-auto px-4 py-2">
+      <div className="container mx-auto py-4 px-4">
         <div className="flex items-center justify-between gap-4">
           {/* Logo */}
-          <Link to="/" className="flex-shrink-0">
-            <img
-              src="/logo.png"
-              alt="Benim Marketim Logo"
-              className="w-12 h-12 object-contain transition-transform duration-300 hover:scale-105"
-            />
-          </Link>
+          <div className="flex-shrink-0">
+            <Link to="/">
+              <img
+                src="/logo.png"
+                alt="Benim Marketim Logo"
+                className="w-12 h-12 object-contain transition-transform duration-300 hover:scale-105"
+              />
+            </Link>
+          </div>
 
           {/* Arama Çubuğu - Mobilde gizli, tablet ve üstünde görünür */}
           <div className="hidden md:block flex-grow max-w-xl">
@@ -37,6 +54,7 @@ const Navbar = () => {
 
           {/* Mobil Menü Butonu */}
           <button
+            id="menu-button"
             onClick={toggleMenu}
             className="md:hidden p-2 text-gray-400 hover:text-white transition-colors"
           >
@@ -112,84 +130,93 @@ const Navbar = () => {
         </div>
 
         {/* Mobil Menü */}
-        <div
-          className={`fixed inset-0 bg-gray-900/95 backdrop-blur-md z-50 transition-transform duration-300 md:hidden ${
-            isMenuOpen ? "translate-x-0" : "translate-x-full"
-          }`}
-        >
-          <div className="flex flex-col h-full pt-20 px-6">
-            <div className="flex flex-col gap-4">
-              {user && (
-                <Link
-                  to="/cart"
-                  onClick={toggleMenu}
-                  className="relative flex items-center justify-between bg-gray-800/50 hover:bg-gray-800 p-4 rounded-xl transition-all duration-300"
-                >
-                  <div className="flex items-center gap-3">
-                    <ShoppingCart size={20} className="text-emerald-400" />
-                    <span className="text-white font-medium">Sepetim</span>
-                  </div>
-                  {cart.length > 0 && (
-                    <span className="bg-emerald-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm">
-                      {cart.length}
-                    </span>
-                  )}
-                </Link>
-              )}
-              {user && !isAdmin && (
-                <Link
-                  to="/siparislerim"
-                  onClick={toggleMenu}
-                  className="flex items-center gap-3 bg-blue-600/80 hover:bg-blue-600 p-4 rounded-xl transition-all duration-300"
-                >
-                  <Package size={20} className="text-white" />
-                  <span className="text-white font-medium">Siparişlerim</span>
-                </Link>
-              )}
-              {isAdmin && (
-                <Link
-                  to="/secret-dashboard"
-                  onClick={toggleMenu}
-                  className="flex items-center gap-3 bg-emerald-700/80 hover:bg-emerald-700 p-4 rounded-xl transition-all duration-300"
-                >
-                  <Lock size={20} className="text-white" />
-                  <span className="text-white font-medium">İstatistikler</span>
-                </Link>
-              )}
-              {user ? (
-                <button
-                  onClick={() => {
-                    logout();
-                    toggleMenu();
-                  }}
-                  className="flex items-center gap-3 bg-gray-800/50 hover:bg-gray-800 p-4 rounded-xl transition-all duration-300"
-                >
-                  <LogOut size={20} className="text-red-400" />
-                  <span className="text-white font-medium">Çıkış</span>
-                </button>
-              ) : (
-                <>
+        {isMenuOpen && (
+          <div 
+            id="mobile-menu"
+            className="fixed inset-0 bg-gray-900/95 backdrop-blur-md z-50 transition-transform duration-300 md:hidden"
+          >
+            <div className="flex flex-col h-full pt-20 px-6">
+              {/* Kapatma Butonu */}
+              <button
+                onClick={toggleMenu}
+                className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white transition-colors"
+              >
+                <X size={24} />
+              </button>
+              
+              <div className="flex flex-col gap-4">
+                {user && (
                   <Link
-                    to="/signup"
+                    to="/cart"
                     onClick={toggleMenu}
-                    className="flex items-center gap-3 bg-emerald-600/80 hover:bg-emerald-600 p-4 rounded-xl transition-all duration-300"
+                    className="relative flex items-center justify-between bg-gray-800/50 hover:bg-gray-800 p-4 rounded-xl transition-all duration-300"
                   >
-                    <UserPlus size={20} className="text-white" />
-                    <span className="text-white font-medium">Kayıt Ol</span>
+                    <div className="flex items-center gap-3">
+                      <ShoppingCart size={20} className="text-emerald-400" />
+                      <span className="text-white font-medium">Sepetim</span>
+                    </div>
+                    {cart.length > 0 && (
+                      <span className="bg-emerald-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm">
+                        {cart.length}
+                      </span>
+                    )}
                   </Link>
+                )}
+                {user && !isAdmin && (
                   <Link
-                    to="/login"
+                    to="/siparislerim"
                     onClick={toggleMenu}
+                    className="flex items-center gap-3 bg-blue-600/80 hover:bg-blue-600 p-4 rounded-xl transition-all duration-300"
+                  >
+                    <Package size={20} className="text-white" />
+                    <span className="text-white font-medium">Siparişlerim</span>
+                  </Link>
+                )}
+                {isAdmin && (
+                  <Link
+                    to="/secret-dashboard"
+                    onClick={toggleMenu}
+                    className="flex items-center gap-3 bg-emerald-700/80 hover:bg-emerald-700 p-4 rounded-xl transition-all duration-300"
+                  >
+                    <Lock size={20} className="text-white" />
+                    <span className="text-white font-medium">İstatistikler</span>
+                  </Link>
+                )}
+                {user ? (
+                  <button
+                    onClick={() => {
+                      logout();
+                      toggleMenu();
+                    }}
                     className="flex items-center gap-3 bg-gray-800/50 hover:bg-gray-800 p-4 rounded-xl transition-all duration-300"
                   >
-                    <LogIn size={20} className="text-white" />
-                    <span className="text-white font-medium">Giriş</span>
-                  </Link>
-                </>
-              )}
+                    <LogOut size={20} className="text-red-400" />
+                    <span className="text-white font-medium">Çıkış</span>
+                  </button>
+                ) : (
+                  <>
+                    <Link
+                      to="/signup"
+                      onClick={toggleMenu}
+                      className="flex items-center gap-3 bg-emerald-600/80 hover:bg-emerald-600 p-4 rounded-xl transition-all duration-300"
+                    >
+                      <UserPlus size={20} className="text-white" />
+                      <span className="text-white font-medium">Kayıt Ol</span>
+                    </Link>
+                    <Link
+                      to="/login"
+                      onClick={toggleMenu}
+                      className="flex items-center gap-3 bg-gray-800/50 hover:bg-gray-800 p-4 rounded-xl transition-all duration-300"
+                    >
+                      <LogIn size={20} className="text-white" />
+                      <span className="text-white font-medium">Giriş</span>
+                    </Link>
+                  </>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </header>
   );

@@ -22,7 +22,7 @@ const categories = [
 	{ href: "/makarna", name: "Makarna ve Kuru Bakliyat", imageUrl: "/makarna.png" },
 	{ href: "/et", name: "Şarküteri & Et Ürünleri", imageUrl: "/chicken.png" },
 	{ href: "/icecekler", name: "Buz Gibi İçecekler", imageUrl: "/juice.png" },
-	{ href: "/dondulurmus", name: "Dondurulmuş Gıdalar", imageUrl: "/frozen.png" },
+	{ href: "/dondurulmus", name: "Dondurulmuş Gıdalar", imageUrl: "/frozen.png" },
 	{ href: "/baharat", name: "Baharatlar", imageUrl: "/spices.png" },
 ];
 
@@ -82,25 +82,25 @@ const HomePage = () => {
 	return (
 		<div className='relative min-h-screen text-white'>
 			{/* Hero Section */}
-			<div className="relative h-[500px] overflow-hidden">
+			<div className="relative h-[500px] sm:h-[600px] overflow-hidden">
 				<div className="absolute inset-0 bg-gradient-to-r from-emerald-900 to-emerald-600 opacity-90" />
 				<motion.div 
-					className="relative z-10 h-full flex flex-col items-center justify-center text-center px-4"
+					className="relative z-10 h-5/6 flex flex-col items-center justify-center text-center px-4 sm:px-6 lg:px-8 mt-16 sm:mt-12"
 					initial={{ opacity: 0, y: 20 }}
 					animate={{ opacity: 1, y: 0 }}
 					transition={{ duration: 0.5 }}
 				>
 					<motion.h1 
-						className="text-5xl md:text-7xl font-bold text-white mb-6"
+						className="text-4xl sm:text-5xl md:text-7xl font-bold text-white mb-4 sm:mb-6 mt-4 sm:mt-8"
 						initial={{ opacity: 0, y: 20 }}
 						animate={{ opacity: 1, y: 0 }}
 						transition={{ delay: 0.2 }}
 					>
-						Alışverişin En Kolay Yolu,{" "}
-						<span className="text-emerald-400">Benim Marketim!</span>
+						<div>Alışverişin En Kolay</div>
+						<div>Yolu, <span className="text-emerald-400">Benim Marketim!</span></div>
 					</motion.h1>
 					<motion.p 
-						className="text-xl md:text-2xl text-gray-200 mb-8"
+						className="text-lg sm:text-xl md:text-2xl text-gray-200 mb-8 sm:mb-10"
 						initial={{ opacity: 0 }}
 						animate={{ opacity: 1 }}
 						transition={{ delay: 0.4 }}
@@ -108,23 +108,23 @@ const HomePage = () => {
 						En yeni ürünleri keşfedin
 					</motion.p>
 					<motion.div 
-						className="flex gap-4"
+						className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto px-4 sm:px-0"
 						initial={{ opacity: 0 }}
 						animate={{ opacity: 1 }}
 						transition={{ delay: 0.6 }}
 					>
 						<button 
 							onClick={scrollToCategories}
-							className="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3 rounded-full font-medium flex items-center gap-2 transition-all duration-300"
+							className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 text-white px-4 sm:px-8 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-all duration-300 text-base sm:text-lg"
 						>
-							<ShoppingCart size={20} />
+							<ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6" />
 							Alışverişe Başla
 						</button>
 						<button 
 							onClick={scrollToFeatured}
-							className="bg-white/10 hover:bg-white/20 text-white px-8 py-3 rounded-full font-medium flex items-center gap-2 backdrop-blur-sm transition-all duration-300"
+							className="w-full sm:w-auto bg-white/10 hover:bg-white/20 text-white px-4 sm:px-8 py-3 rounded-lg font-medium flex items-center justify-center gap-2 backdrop-blur-sm transition-all duration-300 text-base sm:text-lg"
 						>
-							<Sparkles size={20} />
+							<Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
 							Haftanın Yıldızları
 						</button>
 					</motion.div>
@@ -132,9 +132,9 @@ const HomePage = () => {
 			</div>
 
 			{/* Announcements Section */}
-			<div className="relative -mt-12 z-20 max-w-7xl mx-auto px-4">
+			<div className="relative -mt-12 z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 				<motion.div 
-					className="grid grid-cols-1 md:grid-cols-3 gap-4"
+					className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
 					variants={container}
 					initial="hidden"
 					whileInView="show"
@@ -279,7 +279,7 @@ const HomePage = () => {
 			{/* Featured Section */}
 			<div ref={featuredRef} className="py-16 bg-gray-900/50 backdrop-blur-sm">
 				<div className="max-w-7xl mx-auto px-4">
-					{!isLoading && products.length > 0 && (
+					{!isLoading && products && products.length > 0 && (
 						<FeaturedProducts featuredProducts={products} />
 					)}
 				</div>

@@ -7,7 +7,7 @@ import AdminPage from "./pages/AdminPage";
 import CategoryPage from "./pages/CategoryPage";
 import UserOrders from "./pages/UserOrders";
 import Navbar from "./components/Navbar";
-import { Toaster } from "react-hot-toast"; // React-hot-toast için
+import { Toaster } from "react-hot-toast";
 import { useUserStore } from "./stores/useUserStore";
 import LoadingSpinner from "./components/LoadingSpinner";
 import CartPage from "./pages/CartPage";
@@ -15,9 +15,10 @@ import { useCartStore } from "./stores/useCartStore";
 import PurchaseSuccessPage from "./pages/PurchaseSuccessPage";
 import OrderCreated from "./pages/OrderCreated";
 import Footer from "./components/Footer";
-import SearchResultsPage from "./pages/SearchResultsPage"; // 🔥 Yeni eklenen sayfa
-import BulkUpload from "./components/BulkUpload"; // Yeni eklenen bileşen
+import SearchResultsPage from "./pages/SearchResultsPage";
+import BulkUpload from "./components/BulkUpload";
 import FeedbackPage from "./pages/FeedbackPage";
+import ScrollToTop from "./components/ScrollToTop";
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useUserStore();
@@ -44,6 +45,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white relative overflow-hidden flex flex-col">
+      <ScrollToTop />
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute inset-0">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.1)_0%,rgba(0,0,0,0)_50%)]" />
@@ -91,7 +93,7 @@ function App() {
       </div>
 
       <Footer />
-      <Toaster /> {/* React-hot-toast için gerekli */}
+      <Toaster />
     </div>
   );
 }

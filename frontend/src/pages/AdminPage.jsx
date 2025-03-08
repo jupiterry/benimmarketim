@@ -3,12 +3,12 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
+import { useProductStore } from "../stores/useProductStore";
 
 import AnalyticsTab from "../components/AnalyticsTab";
 import CreateProductForm from "../components/CreateProductForm";
 import ProductsList from "../components/ProductsList";
 import OrdersList from "../components/OrdersList";
-import { useProductStore } from "../stores/useProductStore";
 import FeedbackList from "../components/FeedbackList";
 
 const AdminPage = () => {
@@ -183,15 +183,15 @@ const AdminPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 py-20 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold text-white">Yönetici Paneli</h1>
+        </div>
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
           className="text-center mb-12"
         >
-          <h1 className="text-5xl font-bold bg-gradient-to-r from-emerald-400 to-teal-500 bg-clip-text text-transparent mb-4">
-            Yönetici Paneli
-          </h1>
           <p className="text-gray-400 text-lg">Ürünleri, siparişleri ve kullanıcıları yönetin</p>
         </motion.div>
 

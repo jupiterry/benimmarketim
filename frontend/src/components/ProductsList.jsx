@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Trash, Star, Edit, Save, X } from "lucide-react";
+import { Trash, Star, Edit, Save, X, Upload } from "lucide-react";
 import { useProductStore } from "../stores/useProductStore";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
-import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import InfiniteScroll from "react-infinite-scroll-component";
 
 const categories = [
@@ -24,7 +24,7 @@ const categories = [
 	{ href: "/makarna", name: "Makarna ve Kuru Bakliyat", imageUrl: "/makarna.png" },
 	{ href: "/et", name: "Şarküteri & Et Ürünleri", imageUrl: "/chicken.png" },
 	{ href: "/icecekler", name: "Buz Gibi İçecekler", imageUrl: "/juice.png" },
-	{ href: "/dondulurmus", name: "Dondurulmuş Gıdalar", imageUrl: "/frozen.png" },
+	{ href: "/dondurulmus", name: "Dondurulmuş Gıdalar", imageUrl: "/frozen.png" },
 	{ href: "/baharat", name: "Baharatlar", imageUrl: "/spices.png" },
 ];
 
@@ -50,6 +50,7 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
   const [localProducts, setLocalProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const [imageUploading, setImageUploading] = useState({});
 
   const saveOrderToBackend = async (newProducts) => {
     try {
@@ -214,13 +215,13 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
     );
   };
 
-  const handleCategoryChange = (e) => {
-    const newCategory = e.target.value;
-    setSelectedCategory(newCategory);
-    
-    if (editingProduct) {
-      handleProductChange("category", newCategory.replace("/", ""));
-    }
+  const handleFilterCategoryChange = (e) => {
+    setSelectedCategory(e.target.value);
+  };
+
+  const handleProductCategoryChange = (e) => {
+    const newCategory = e.target.value.replace("/", "");
+    handleProductChange("category", newCategory);
   };
 
   const toggleProductHidden = async (productId) => {
@@ -243,6 +244,45 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
     } catch (error) {
       console.error("Ürün gizleme/gösterme hatası:", error);
       toast.error(error.response?.data?.message || "Ürün gizleme/gösterme sırasında hata oluştu.");
+    }
+  };
+
+  const handleImageUpload = async (productId, file) => {
+    try {
+      setImageUploading(prev => ({ ...prev, [productId]: true }));
+      
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = async () => {
+        try {
+          const response = await axios.patch(
+            `/products/${productId}/image`,
+            { image: reader.result },
+            {
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem("token")}`,
+              },
+            }
+          );
+
+          setLocalProducts(prevProducts =>
+            prevProducts.map(product =>
+              product._id === productId ? { ...product, image: response.data.image } : product
+            )
+          );
+
+          toast.success("Ürün görseli güncellendi");
+        } catch (error) {
+          console.error("Görsel yükleme hatası:", error);
+          toast.error("Görsel yüklenirken hata oluştu");
+        } finally {
+          setImageUploading(prev => ({ ...prev, [productId]: false }));
+        }
+      };
+    } catch (error) {
+      console.error("Dosya okuma hatası:", error);
+      toast.error("Dosya okunurken hata oluştu");
+      setImageUploading(prev => ({ ...prev, [productId]: false }));
     }
   };
 
@@ -330,7 +370,7 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
             <select
               id="category"
               value={selectedCategory}
-              onChange={handleCategoryChange}
+              onChange={handleFilterCategoryChange}
               className="mt-1 block w-full bg-gray-800/50 border border-gray-600/50 rounded-xl shadow-sm py-3 px-4 text-white 
                 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50
                 transition-all duration-200"
@@ -412,12 +452,35 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
                         >
                           <div className="grid grid-cols-[2fr,1fr,1fr,0.5fr,0.5fr,0.5fr,1fr] gap-4 px-6 py-4 items-center">
                             <div className="flex items-center gap-4">
-                              <div className="flex-shrink-0 h-16 w-16 bg-gray-800/50 rounded-xl flex items-center justify-center overflow-hidden border border-gray-700/50">
-                                <img
-                                  className="h-full w-full object-contain p-2"
-                                  src={product.image}
-                                  alt={product.name}
+                              <div className="relative flex-shrink-0 h-16 w-16 bg-gray-800/50 rounded-xl overflow-hidden border border-gray-700/50 group">
+                                <input
+                                  type="file"
+                                  id={`image-upload-${product._id}`}
+                                  className="hidden"
+                                  accept="image/*"
+                                  onChange={(e) => handleImageUpload(product._id, e.target.files[0])}
                                 />
+                                <label
+                                  htmlFor={`image-upload-${product._id}`}
+                                  className="cursor-pointer w-full h-full flex items-center justify-center"
+                                >
+                                  {imageUploading[product._id] ? (
+                                    <div className="absolute inset-0 bg-gray-900/80 flex items-center justify-center">
+                                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-500"></div>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <img
+                                        className="h-full w-full object-contain p-2"
+                                        src={product.image}
+                                        alt={product.name}
+                                      />
+                                      <div className="absolute inset-0 bg-gray-900/80 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-200">
+                                        <Upload className="h-5 w-5 text-white" />
+                                      </div>
+                                    </>
+                                  )}
+                                </label>
                               </div>
                               <div className="min-w-0 flex-1">
                                 {editingProduct && editingProduct._id === product._id ? (
@@ -538,7 +601,7 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
                               {editingProduct && editingProduct._id === product._id ? (
                                 <select
                                   value={editingProduct.category ? `/${editingProduct.category}` : ""}
-                                  onChange={(e) => handleCategoryChange(e)}
+                                  onChange={handleProductCategoryChange}
                                   className="bg-gray-800/50 text-white border border-gray-600/50 rounded-lg px-3 py-2 w-full
                                     focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50
                                     transition-all duration-200"

@@ -7,7 +7,6 @@ import { adminRoute, protectRoute } from "../middleware/auth.middleware.js";
 import {
   createProduct,
   deleteProduct,
-  getAllProducts,
   toggleOutOfStock,
   getFeaturedProducts,
   getProducts,
@@ -16,31 +15,18 @@ import {
   updateProductPrice,
   updateProduct,
   searchProducts,
-  getProductsByCategory,
   toggleHiddenProduct,
   exportProductsToCSV,
   detectProductBrands,
+  updateProductDiscount,
+  updateProductImage,
+  removeProductDiscount,
 } from "../controllers/product.controller.js"; // Tüm kontrolörleri import et
 
 const router = express.Router();
 const upload = multer({ dest: "uploads/" }); // Dosyaları "uploads" klasörüne kaydet
 
-// Özel marka isimleri için düzeltmeler
-const brandCorrections = {
-  "Fuse": "Fuse Tea",
-  // Diğer özel düzeltmeleri buraya ekleyebilirsiniz
-};
 
-// Marka düzeltmeleri için helper object
-const brandNormalizations = {
-  "Sutas": "Sütaş",
-  "Sütas": "Sütaş",
-  "Masterini": "Mesterini",
-  // Diğer benzer düzeltmeleri buraya ekleyebilirsiniz
-};
-
-// Filtrelenecek markalar
-const excludedBrands = ["DENEMEEE"];
 
 // Sadece "Bilinmeyen" markalı ürünlere brand ekleyen endpoint
 router.get("/update-brands", async (req, res) => {
@@ -222,48 +208,9 @@ router.put("/update-discount/:id", protectRoute, adminRoute, async (req, res) =>
 });
 
 // İndirim işlemleri için yeni route'lar
-router.patch("/:id/discount", protectRoute, adminRoute, async (req, res) => {
-  try {
-    const { discountedPrice } = req.body;
-    const product = await Product.findById(req.params.id);
-    
-    if (!product) {
-      return res.status(404).json({ message: "Ürün bulunamadı" });
-    }
-
-    if (discountedPrice >= product.price) {
-      return res.status(400).json({ message: "İndirimli fiyat normal fiyattan yüksek olamaz" });
-    }
-
-    product.isDiscounted = true;
-    product.discountedPrice = discountedPrice;
-    await product.save();
-
-    res.json({ message: "İndirim başarıyla uygulandı", product });
-  } catch (error) {
-    console.error("İndirim uygulama hatası:", error);
-    res.status(500).json({ message: "İndirim uygulanırken hata oluştu" });
-  }
-});
-
-router.delete("/:id/discount", protectRoute, adminRoute, async (req, res) => {
-  try {
-    const product = await Product.findById(req.params.id);
-    
-    if (!product) {
-      return res.status(404).json({ message: "Ürün bulunamadı" });
-    }
-
-    product.isDiscounted = false;
-    product.discountedPrice = null;
-    await product.save();
-
-    res.json({ message: "İndirim başarıyla kaldırıldı", product });
-  } catch (error) {
-    console.error("İndirim kaldırma hatası:", error);
-    res.status(500).json({ message: "İndirim kaldırılırken hata oluştu" });
-  }
-});
+router.patch("/:id/discount", protectRoute, adminRoute, updateProductDiscount);
+router.patch("/:id/image", protectRoute, adminRoute, updateProductImage);
+router.delete("/:id/discount", protectRoute, adminRoute, removeProductDiscount);
 
 // Mevcut rotalar
 router.get("/", getProducts); // Admin için tüm ürünleri getir
@@ -275,7 +222,6 @@ router.delete("/:id", protectRoute, adminRoute, deleteProduct);
 router.put("/update-price/:id", protectRoute, adminRoute, updateProductPrice);
 router.put("/:id", protectRoute, adminRoute, updateProduct); // Ürün güncelleme endpoint'i
 router.get("/search", searchProducts);
-router.get("/category/:category/:subcategory?", getProductsByCategory); // Kategoriye göre ürünler
 router.patch("/toggle-hidden/:id", protectRoute, adminRoute, toggleHiddenProduct);
 router.patch("/toggle-out-of-stock/:id", protectRoute, adminRoute, toggleOutOfStock);
 router.get('/export-csv', protectRoute, adminRoute, exportProductsToCSV);

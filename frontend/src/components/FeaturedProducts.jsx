@@ -1,44 +1,66 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import axios from "../lib/axios";
+import { useCartStore } from "../stores/useCartStore";
+import { useUserStore } from "../stores/useUserStore";
+import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 
-const FeaturedProducts = () => {
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
+const FeaturedProducts = ({ featuredProducts }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const { addToCart } = useCartStore();
+  const { user } = useUserStore();
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchFeaturedProducts = async () => {
-      try {
-        const response = await axios.get("/products/featured");
-        setProducts(response.data);
-      } catch (error) {
-        console.error("Haftanın yıldızları yüklenirken hata:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchFeaturedProducts();
-  }, []);
+  const handleAddToCart = (product) => {
+    if (!user) {
+      toast.error("Sepete ürün eklemek için lütfen giriş yapın");
+      navigate("/login");
+      return;
+    }
+    addToCart(product);
+    toast.success("Ürün sepete eklendi!");
+  };
 
   const nextSlide = () => {
     setCurrentIndex((prevIndex) =>
-      prevIndex + 4 >= products.length ? 0 : prevIndex + 4
+      prevIndex + getVisibleProducts() >= featuredProducts.length ? 0 : prevIndex + getVisibleProducts()
     );
   };
 
   const prevSlide = () => {
     setCurrentIndex((prevIndex) =>
-      prevIndex - 4 < 0 ? Math.max(0, products.length - 4) : prevIndex - 4
+      prevIndex - getVisibleProducts() < 0 
+        ? Math.max(0, featuredProducts.length - getVisibleProducts()) 
+        : prevIndex - getVisibleProducts()
     );
   };
 
-  if (loading) {
+  // Ekran boyutuna göre görünecek ürün sayısını belirle
+  const getVisibleProducts = () => {
+    if (typeof window === 'undefined') return 4;
+    if (window.innerWidth < 640) return 1; // sm
+    if (window.innerWidth < 1024) return 2; // lg
+    if (window.innerWidth < 1280) return 3; // xl
+    return 4; // 2xl ve üzeri
+  };
+
+  useEffect(() => {
+    const handleResize = () => {
+      const visibleProducts = getVisibleProducts();
+      if (currentIndex + visibleProducts > featuredProducts.length) {
+        setCurrentIndex(Math.max(0, featuredProducts.length - visibleProducts));
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [currentIndex, featuredProducts.length]);
+
+  if (!featuredProducts || featuredProducts.length === 0) {
     return (
-      <div className="flex justify-center items-center h-48">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+      <div className="text-center py-8 text-gray-400">
+        Henüz haftanın yıldızı ürün bulunmuyor
       </div>
     );
   }
@@ -71,36 +93,28 @@ const FeaturedProducts = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
-        {products.slice(currentIndex, currentIndex + 4).map((product) => (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {featuredProducts.slice(currentIndex, currentIndex + getVisibleProducts()).map((product) => (
           <motion.div
             key={product._id}
-            className={`bg-gray-800/30 rounded-xl p-4 border ${
-              product.isDiscounted 
-                ? 'border-red-500/50 shadow-lg shadow-red-500/10' 
-                : 'border-gray-700/50 hover:border-emerald-500/50'
-            } transition-all duration-200`}
+            className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 border border-gray-700/50 flex flex-col"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
           >
-            <div className="aspect-square rounded-lg overflow-hidden bg-gray-900/50 mb-4 relative">
+            <div className="relative aspect-square rounded-lg overflow-hidden mb-4 bg-gray-700/50">
               <img
                 src={product.image}
                 alt={product.name}
-                className="w-full h-full object-contain p-2"
+                className="w-full h-full object-contain hover:scale-110 transition-transform duration-300"
               />
-            </div>
-            <div className="flex items-center gap-2 mb-2">
-              <h3 className="text-white font-medium truncate flex-1" title={product.name}>
-                {product.name}
-              </h3>
               {product.isDiscounted && (
-                <div className="bg-red-500/20 text-red-400 px-2 py-1 rounded-lg text-sm font-bold whitespace-nowrap">
-                  %{((1 - product.discountedPrice / product.price) * 100).toFixed(0)}
+                <div className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded">
+                  %{(((product.price - product.discountedPrice) / product.price) * 100).toFixed(0)} İndirim
                 </div>
               )}
             </div>
+            <h3 className="text-lg font-semibold text-white mb-2 flex-grow">{product.name}</h3>
             <div className="space-y-1">
               {product.isDiscounted ? (
                 <>
@@ -108,9 +122,9 @@ const FeaturedProducts = () => {
                     <span className="text-sm text-gray-400 line-through">
                       ₺{product.price.toFixed(2)}
                     </span>
-                  </div>
-                  <div className="text-lg font-bold text-red-400">
-                    ₺{product.discountedPrice.toFixed(2)}
+                    <span className="text-lg font-bold text-red-400">
+                      ₺{product.discountedPrice.toFixed(2)}
+                    </span>
                   </div>
                 </>
               ) : (
@@ -118,15 +132,13 @@ const FeaturedProducts = () => {
                   ₺{product.price.toFixed(2)}
                 </div>
               )}
-              <div className="text-sm text-gray-400">
-                {product.category}
-              </div>
             </div>
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               className="w-full mt-4 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 
                 py-2 px-4 rounded-lg font-medium transition-all duration-200"
+              onClick={() => handleAddToCart(product)}
             >
               Sepete Ekle
             </motion.button>
@@ -134,7 +146,7 @@ const FeaturedProducts = () => {
         ))}
       </div>
 
-      {products.length === 0 && (
+      {featuredProducts.length === 0 && (
         <div className="text-center py-8 text-gray-400">
           Henüz haftanın yıldızı ürün bulunmuyor
         </div>

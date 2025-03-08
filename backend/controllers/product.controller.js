@@ -132,36 +132,6 @@ export const getRecommendedProducts = async (req, res) => {
   }
 };
 
-export const getProductsByCategory = async (req, res) => {
-  try {
-    const { category, subcategory } = req.params;
-    const { brands } = req.query; // URL'den seçili markaları al
-
-    let query = { category };
-
-    // Alt kategori varsa ekle
-    if (subcategory) {
-      query.subcategory = subcategory;
-    }
-
-    // Seçili markalar varsa filtrele
-    if (brands) {
-      const selectedBrands = brands.split(','); // Virgülle ayrılmış markaları diziye çevir
-      query.brand = { $in: selectedBrands };
-    }
-
-    // Gizli olmayan ve sıralamaya göre ürünleri getir
-    const products = await Product.find({
-      ...query,
-      isHidden: false
-    }).sort({ order: 1 });
-
-    res.json(products);
-  } catch (error) {
-    console.error("Ürünler getirilirken hata:", error);
-    res.status(500).json({ message: "Ürünler getirilirken hata oluştu" });
-  }
-};
 
 export const toggleFeaturedProduct = async (req, res) => {
   try {
@@ -389,5 +359,91 @@ export const detectProductBrands = async (req, res) => {
   } catch (error) {
     console.error('Marka tespiti hatası:', error);
     res.status(500).json({ message: 'Marka tespiti sırasında hata oluştu' });
+  }
+};
+
+export const updateProductImage = async (req, res) => {
+  try {
+    const { image } = req.body;
+    const productId = req.params.id;
+
+    if (!image) {
+      return res.status(400).json({ message: "Resim alanı zorunludur" });
+    }
+
+    const product = await Product.findById(productId);
+    if (!product) {
+      return res.status(404).json({ message: "Ürün bulunamadı" });
+    }
+
+    // Eski resmi Cloudinary'den sil
+    if (product.image) {
+      const publicId = product.image.split("/").pop().split(".")[0];
+      try {
+        await cloudinary.uploader.destroy(`products/${publicId}`);
+      } catch (error) {
+        console.log("Eski resim silinirken hata:", error);
+      }
+    }
+
+    // Yeni resmi Cloudinary'ye yükle
+    const cloudinaryResponse = await cloudinary.uploader.upload(image, {
+      folder: "products",
+    });
+
+    // Ürünü güncelle
+    product.image = cloudinaryResponse.secure_url;
+    await product.save();
+
+    res.status(200).json({
+      message: "Ürün görseli güncellendi",
+      image: cloudinaryResponse.secure_url
+    });
+  } catch (error) {
+    console.error("Ürün görseli güncellenirken hata:", error);
+    res.status(500).json({ message: "Sunucu hatası", error: error.message });
+  }
+};
+
+export const updateProductDiscount = async (req, res) => {
+  try {
+    const { discountedPrice } = req.body;
+    const product = await Product.findById(req.params.id);
+    
+    if (!product) {
+      return res.status(404).json({ message: "Ürün bulunamadı" });
+    }
+
+    if (discountedPrice >= product.price) {
+      return res.status(400).json({ message: "İndirimli fiyat normal fiyattan yüksek olamaz" });
+    }
+
+    product.isDiscounted = true;
+    product.discountedPrice = discountedPrice;
+    await product.save();
+
+    res.json({ message: "İndirim başarıyla uygulandı", product });
+  } catch (error) {
+    console.error("İndirim uygulama hatası:", error);
+    res.status(500).json({ message: "İndirim uygulanırken hata oluştu" });
+  }
+};
+
+export const removeProductDiscount = async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    
+    if (!product) {
+      return res.status(404).json({ message: "Ürün bulunamadı" });
+    }
+
+    product.isDiscounted = false;
+    product.discountedPrice = null;
+    await product.save();
+
+    res.json({ message: "İndirim başarıyla kaldırıldı", product });
+  } catch (error) {
+    console.error("İndirim kaldırma hatası:", error);
+    res.status(500).json({ message: "İndirim kaldırılırken hata oluştu" });
   }
 };

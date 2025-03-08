@@ -37,3 +37,17 @@ export const addPhoneFieldToAllUsers = async (req, res) => {
     res.status(500).json({ success: false, message: "Telefon alanı eklenirken hata oluştu" });
   }
 };
+
+export const deleteUser = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const deletedUser = await User.findByIdAndDelete(userId);
+    if (!deletedUser) {
+      return res.status(404).json({ success: false, message: "Kullanıcı bulunamadı" });
+    }
+    res.status(200).json({ success: true, message: "Kullanıcı başarıyla silindi" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Kullanıcı silinirken hata oluştu" });
+  }
+};
