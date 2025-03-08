@@ -12,6 +12,11 @@ const FeaturedProducts = ({ featuredProducts }) => {
   const { user } = useUserStore();
   const navigate = useNavigate();
 
+  const calculateDiscountPercentage = (price, discountedPrice) => {
+    if (!price || !discountedPrice) return 0;
+    return (((price - discountedPrice) / price) * 100).toFixed(0);
+  };
+
   const handleAddToCart = (product) => {
     if (!user) {
       toast.error("Sepete ürün eklemek için lütfen giriş yapın");
@@ -108,9 +113,9 @@ const FeaturedProducts = ({ featuredProducts }) => {
                 alt={product.name}
                 className="w-full h-full object-contain hover:scale-110 transition-transform duration-300"
               />
-              {product.isDiscounted && (
+              {product.isDiscounted && product.price && product.discountedPrice && (
                 <div className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded">
-                  %{(((product.price - product.discountedPrice) / product.price) * 100).toFixed(0)} İndirim
+                  %{calculateDiscountPercentage(product.price, product.discountedPrice)} İndirim
                 </div>
               )}
             </div>
