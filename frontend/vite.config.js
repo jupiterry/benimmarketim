@@ -22,6 +22,20 @@ export default defineConfig({
 			webp: {
 				quality: 80,
 				lossless: false
+			},
+			svg: {
+				multipass: true,
+				plugins: [
+					{
+						name: 'preset-default',
+						params: {
+							overrides: {
+								removeViewBox: false,
+								removeTitle: false,
+							},
+						},
+					},
+				],
 			}
 		})
 	],
