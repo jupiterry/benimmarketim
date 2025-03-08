@@ -354,6 +354,11 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
     }
   }, [loading, hasMore]);
 
+  const calculateDiscountPercentage = (price, discountedPrice) => {
+    if (!price || !discountedPrice) return 0;
+    return (((price - discountedPrice) / price) * 100).toFixed(0);
+  };
+
   return (
     <motion.div
       className="bg-gray-800/30 shadow-2xl rounded-2xl overflow-hidden max-w-full mx-auto border border-gray-700/50"
@@ -472,7 +477,7 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
                                     <>
                                       <img
                                         className="h-full w-full object-contain p-2"
-                                        src={product.image}
+                                        src={product.image || '/placeholder.png'}
                                         alt={product.name}
                                       />
                                       <div className="absolute inset-0 bg-gray-900/80 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-200">
@@ -549,15 +554,17 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
                                 <div className="flex flex-col">
                                   {product.isDiscounted && (
                                     <div className="flex items-center gap-2 mb-1">
-                                      <span className="text-xs text-gray-400 line-through">₺{product.price.toFixed(2)}</span>
+                                      <span className="text-xs text-gray-400 line-through">
+                                        ₺{(product.price || 0).toFixed(2)}
+                                      </span>
                                       <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full">
-                                        %{((1 - product.discountedPrice / product.price) * 100).toFixed(0)} İndirim
+                                        %{calculateDiscountPercentage(product.price, product.discountedPrice)} İndirim
                                       </span>
                                     </div>
                                   )}
                                   <div className="flex items-center gap-2">
                                     <span className="text-sm text-gray-300 font-medium">
-                                      ₺{(product.isDiscounted ? product.discountedPrice : product.price).toFixed(2)}
+                                      ₺{((product.isDiscounted ? product.discountedPrice : product.price) || 0).toFixed(2)}
                                     </span>
                                     <div className="flex gap-1">
                                       <motion.button
