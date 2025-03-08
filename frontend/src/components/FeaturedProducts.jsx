@@ -120,16 +120,16 @@ const FeaturedProducts = ({ featuredProducts }) => {
                 <>
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-400 line-through">
-                      ₺{product.price.toFixed(2)}
+                      ₺{(product.price || 0).toFixed(2)}
                     </span>
                     <span className="text-lg font-bold text-red-400">
-                      ₺{product.discountedPrice.toFixed(2)}
+                      ₺{(product.discountedPrice || 0).toFixed(2)}
                     </span>
                   </div>
                 </>
               ) : (
                 <div className="text-lg font-bold text-emerald-400">
-                  ₺{product.price.toFixed(2)}
+                  ₺{(product.price || 0).toFixed(2)}
                 </div>
               )}
             </div>
