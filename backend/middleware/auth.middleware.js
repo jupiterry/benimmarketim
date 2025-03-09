@@ -4,10 +4,14 @@ import User from "../models/user.model.js"; // Kullanıcı modeliniz
 
 export const protectRoute = async (req, res, next) => {
   try {
-    const accessToken = req.cookies.accessToken; // Cookie’den token al
+    // Hem cookie hem de Authorization header'ı kontrol et
+    const accessToken = req.cookies.accessToken || req.headers.authorization?.split(' ')[1];
 
     if (!accessToken) {
-      return res.status(401).json({ success: false, message: "Unauthorized - No access token provided" });
+      return res.status(401).json({ 
+        success: false, 
+        message: "No access token provided" 
+      });
     }
 
     try {
@@ -43,7 +47,7 @@ export const adminRoute = (req, res, next) => {
 
 export const checkAuth = async (req, res) => {
   try {
-    const user = req.user; // protectRoute middleware’den al
+    const user = req.user; // protectRoute middleware'den al
     res.json({ success: true, user }); // Kullanıcının tüm bilgilerini (role dahil) döndür
   } catch (error) {
     res.status(500).json({ success: false, message: "Sunucu hatası", error: error.message });
