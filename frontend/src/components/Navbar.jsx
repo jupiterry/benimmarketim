@@ -15,67 +15,46 @@ const OrderNotification = () => {
     const [showSoundSettings, setShowSoundSettings] = useState(false);
     const { user } = useUserStore();
     const [selectedSound, setSelectedSound] = useState(() => localStorage.getItem('notificationSound') || 'ringtone');
-    const [notificationSounds, setNotificationSounds] = useState({});
-    
-    // Ses dosyalarını yükle
-    useEffect(() => {
-        const sounds = {
-            ringtone: new Audio('/ringtone.mp3'),
-            bell: new Audio('/bell.mp3'),
-            chime: new Audio('/chime.mp3'),
-            furelise: new Audio('/fur-elise.mp3'),
-            gnosienne: new Audio('/gnosienne-no1.mp3'),
-            vivaldi: new Audio('/vivaldi-winter.mp3')
-        };
-
-        // Tüm sesleri önceden yükle
-        Object.values(sounds).forEach(audio => {
-            audio.load();
-            audio.preload = 'auto';
-        });
-
-        setNotificationSounds(sounds);
-        
-        // Cleanup
-        return () => {
-            Object.values(sounds).forEach(audio => {
-                audio.pause();
-                audio.currentTime = 0;
-            });
-        };
-    }, []);
+    const [currentAudio, setCurrentAudio] = useState(null);
+    const notificationSounds = {
+        ringtone: new Audio('/ringtone.mp3'),
+        bell: new Audio('/bell.mp3'),
+        chime: new Audio('/chime.mp3'),
+        furelise: new Audio('/fur-elise.mp3'),
+        gnosienne: new Audio('/gnosienne-no1.mp3'),
+        vivaldi: new Audio('/vivaldi-winter.mp3')
+    };
 
     // Ses değiştirme fonksiyonu
     const changeNotificationSound = (soundName) => {
-        if (!notificationSounds[soundName]) return;
-
-        // Tüm sesleri durdur
-        Object.values(notificationSounds).forEach(audio => {
-            audio.pause();
-            audio.currentTime = 0;
-        });
+        // Eğer çalan bir ses varsa durdur
+        if (currentAudio) {
+            currentAudio.pause();
+            currentAudio.currentTime = 0;
+        }
 
         setSelectedSound(soundName);
         localStorage.setItem('notificationSound', soundName);
+        const newAudio = notificationSounds[soundName];
+        setCurrentAudio(newAudio);
         
         // Yeni sesi çal
-        notificationSounds[soundName].play().catch(err => {
+        newAudio.play().catch(err => {
             console.log('Ses çalma hatası:', err);
         });
     };
 
     // Yeni sipariş bildirimi geldiğinde ses çalma
     const playNotificationSound = () => {
-        if (!notificationSounds[selectedSound]) return;
+        // Eğer çalan bir ses varsa durdur
+        if (currentAudio) {
+            currentAudio.pause();
+            currentAudio.currentTime = 0;
+        }
 
-        // Tüm sesleri durdur
-        Object.values(notificationSounds).forEach(audio => {
-            audio.pause();
-            audio.currentTime = 0;
-        });
-
-        // Seçili sesi çal
-        notificationSounds[selectedSound].play().catch(err => {
+        const audio = notificationSounds[selectedSound];
+        setCurrentAudio(audio);
+        audio.play().catch(err => {
             console.log('Ses çalma hatası:', err);
         });
     };
