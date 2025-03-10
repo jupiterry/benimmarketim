@@ -18,7 +18,19 @@ const socket = io(ENDPOINT, {
   reconnection: true,
   reconnectionAttempts: 5,
   reconnectionDelay: 1000,
-  autoConnect: false
+  autoConnect: false,
+  forceNew: true,
+  timeout: 20000,
+  upgrade: false
+});
+
+// Socket bağlantı hatası yönetimi
+socket.on('connect_error', (error) => {
+  console.error('Socket.IO bağlantı hatası:', error);
+  if (error.message === 'xhr poll error') {
+    // Polling hatası durumunda WebSocket'e geçmeyi zorla
+    socket.io.opts.transports = ['websocket'];
+  }
 });
 
 const OrdersList = () => {

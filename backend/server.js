@@ -61,10 +61,13 @@ const io = new Server(httpServer, {
     allowedHeaders: ['Content-Type', 'Authorization']
   },
   transports: ['websocket'],
+  allowUpgrades: false,
   path: '/socket.io/',
   pingTimeout: 60000,
   pingInterval: 25000,
-  connectTimeout: 45000
+  connectTimeout: 45000,
+  maxHttpBufferSize: 1e8,
+  allowEIO3: true
 });
 
 // Global socket.io erişimi için
@@ -77,7 +80,6 @@ io.on('connection', (socket) => {
   socket.on('joinAdminRoom', () => {
     socket.join('adminRoom');
     console.log('Admin odaya katıldı:', socket.id);
-    // Bağlantı başarılı olduğunda bir onay mesajı gönder
     socket.emit('adminJoined', { status: 'success', message: 'Admin odaya başarıyla katıldı' });
   });
 
@@ -87,6 +89,15 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', (reason) => {
     console.log('Kullanıcı ayrıldı:', socket.id, 'Sebep:', reason);
+  });
+
+  // Bağlantı hatası yönetimi
+  socket.on('connect_error', (error) => {
+    console.error('Bağlantı hatası:', error);
+  });
+
+  socket.on('connect_timeout', (timeout) => {
+    console.error('Bağlantı zaman aşımı:', timeout);
   });
 });
 
