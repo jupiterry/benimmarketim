@@ -4,66 +4,6 @@ import { Search, Package2, ChevronLeft, ChevronRight, RefreshCw } from "lucide-r
 import toast from "react-hot-toast";
 import io from "socket.io-client";
 
-// Socket.IO endpoint yapılandırması
-const ENDPOINT = import.meta.env.PROD 
-  ? "https://devrekbenimmarketim.com"
-  : "http://localhost:5000";
-
-// Socket.IO istemci yapılandırması
-const socket = io(ENDPOINT, { 
-  transports: ["websocket"],
-  path: '/socket.io/',
-  secure: true,
-  rejectUnauthorized: false,
-  reconnection: true,
-  reconnectionAttempts: 5,
-  reconnectionDelay: 1000,
-  autoConnect: false,
-  forceNew: true,
-  timeout: 20000,
-  upgrade: false,
-  withCredentials: true
-});
-
-// Socket bağlantı yönetimi
-socket.on('connect', () => {
-  console.log('Socket.IO bağlantısı başarılı');
-  // Bağlantı başarılı olduğunda ping gönder
-  socket.emit('ping');
-});
-
-socket.on('pong', () => {
-  console.log('Server pong yanıtı alındı');
-});
-
-socket.on('connect_success', (data) => {
-  console.log('Bağlantı başarılı mesajı:', data);
-});
-
-socket.on('connect_error', (error) => {
-  console.error('Socket.IO bağlantı hatası:', error);
-  
-  // Hata detaylarını logla
-  console.log('Hata detayları:', {
-    message: error.message,
-    description: error.description,
-    type: error.type,
-    endpoint: ENDPOINT
-  });
-
-  // WebSocket'e geçmeyi dene
-  if (error.message === 'xhr poll error') {
-    console.log('WebSocket transport kullanılıyor...');
-    socket.io.opts.transports = ['websocket'];
-  }
-
-  // 5 saniye sonra yeniden bağlanmayı dene
-  setTimeout(() => {
-    console.log('Yeniden bağlanmaya çalışılıyor...');
-    socket.connect();
-  }, 5000);
-});
-
 const OrdersList = () => {
   const [orderAnalyticsData, setOrderAnalyticsData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -99,22 +39,33 @@ const OrdersList = () => {
 
   // İlk yükleme ve Socket.IO bağlantısı
   useEffect(() => {
-    // Socket bağlantısını başlat
-    socket.connect();
+    fetchOrderAnalyticsData();
 
-    socket.on('joinAdminRoom', () => {
-      console.log('Admin odasına katıldı');
+    // Socket.IO bağlantısı
+    const socket = io('http://localhost:5000', {
+      withCredentials: true,
+      transports: ['polling', 'websocket']
+    });
+
+    socket.on('connect', () => {
+      console.log('Socket.IO bağlantısı başarılı');
+      socket.emit('joinAdminRoom');
     });
 
     socket.on('newOrder', (data) => {
-      console.log('Yeni sipariş alındı:', data);
-      fetchOrderAnalyticsData();
-      toast.success('Yeni bir sipariş geldi!');
+      console.log('Yeni sipariş bildirimi alındı:', data);
+      fetchOrderAnalyticsData(); // Siparişleri yenile
+      toast.success('Yeni sipariş geldi!', {
+        icon: '🛍️',
+        duration: 4000
+      });
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('Socket.IO bağlantı hatası:', error);
     });
 
     return () => {
-      socket.off('joinAdminRoom');
-      socket.off('newOrder');
       socket.disconnect();
     };
   }, []);

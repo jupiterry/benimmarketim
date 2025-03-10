@@ -2,7 +2,6 @@ import express from "express";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import path from "path";
-import { fileURLToPath } from 'url';
 import cors from "cors";
 import userRoutes from "./routes/userRoutes.js";
 import ordersAnalyticsRoutes from "./routes/ordersAnalytics.route.js";
@@ -15,22 +14,13 @@ import analyticsRoutes from "./routes/analytics.route.js";
 import feedbackRoutes from "./routes/feedback.route.js";
 import { createServer } from "http";
 import { Server } from "socket.io";
-import { connectDB } from "./lib/db.js";
 
-// ES modules için __dirname tanımı
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { connectDB } from "./lib/db.js";
 
 dotenv.config();
 
 const corsOptions = {
-  origin: [
-    "http://localhost:5173",
-    "https://www.devrekbenimmarketim.com",
-    "http://www.devrekbenimmarketim.com",
-    "https://devrekbenimmarketim.com",
-    "http://devrekbenimmarketim.com"
-  ],
+  origin: ["http://localhost:5173"],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
@@ -45,42 +35,17 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
 
-// Uploads klasörü için statik dosya sunumu
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
 // Socket.IO yapılandırması
 const io = new Server(httpServer, {
   cors: {
-    origin: [
-      'https://devrekbenimmarketim.com',
-      'https://www.devrekbenimmarketim.com',
-      'http://localhost:5173'
-    ],
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    origin: "http://localhost:5173",
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization']
+    transports: ['polling', 'websocket']
   },
-  path: '/socket.io/',
-  transports: ['websocket'],
-  allowUpgrades: false,
   pingTimeout: 60000,
-  pingInterval: 25000,
-  connectTimeout: 45000,
-  maxHttpBufferSize: 1e8,
-  allowEIO3: true,
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST']
-  },
-  handlePreflightRequest: (req, res) => {
-    res.writeHead(200, {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET,POST",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      "Access-Control-Allow-Credentials": true
-    });
-    res.end();
-  }
+  pingInterval: 25000
 });
 
 // Global socket.io erişimi için
@@ -88,41 +53,21 @@ app.set('io', io);
 
 // Socket.IO bağlantı yönetimi
 io.on('connection', (socket) => {
-  console.log('Yeni bir kullanıcı bağlandı:', socket.id);
-
-  // Bağlantı başarılı olduğunda log
-  socket.emit('connect_success', { message: 'Bağlantı başarılı' });
+  console.log('Yeni bir kullanıcı bağlandı. Socket ID:', socket.id);
 
   socket.on('joinAdminRoom', () => {
     socket.join('adminRoom');
-    console.log('Admin odaya katıldı:', socket.id);
-    socket.emit('adminJoined', { status: 'success', message: 'Admin odaya başarıyla katıldı' });
+    console.log('Admin odaya katıldı');
   });
 
-  socket.on('error', (error) => {
-    console.error('Socket hatası:', error);
-  });
-
-  socket.on('disconnect', (reason) => {
-    console.log('Kullanıcı ayrıldı:', socket.id, 'Sebep:', reason);
-  });
-
-  // Bağlantı hatası yönetimi
-  socket.on('connect_error', (error) => {
-    console.error('Bağlantı hatası:', error);
-    // Hata durumunda yeniden bağlanma denemesi
-    socket.connect();
-  });
-
-  socket.on('connect_timeout', (timeout) => {
-    console.error('Bağlantı zaman aşımı:', timeout);
-  });
-
-  // Ping/Pong kontrolü
-  socket.on('ping', () => {
-    socket.emit('pong');
+  socket.on('disconnect', () => {
+    console.log('Kullanıcı ayrıldı');
   });
 });
+
+const PORT = process.env.PORT || 5000;
+
+const __dirname = path.resolve();
 
 // Routes
 app.use("/api/orders-analytics", ordersAnalyticsRoutes);
@@ -142,10 +87,7 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
-const PORT = process.env.PORT || 5000;
-
-// Sunucuyu localhost'ta dinle
-httpServer.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server ${PORT} portunda çalışıyor`);
+httpServer.listen(PORT, () => {
+  console.log(`Sunucu ${PORT} portunda çalışıyor`);
   connectDB();
 });
