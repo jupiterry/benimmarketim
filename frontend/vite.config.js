@@ -8,35 +8,32 @@ export default defineConfig({
 		react(),
 		ViteImageOptimizer({
 			jpg: {
-				quality: 80,
-				progressive: true
+				quality: 85,
+				progressive: true,
+				mozjpeg: true
 			},
 			jpeg: {
-				quality: 80,
-				progressive: true
+				quality: 85,
+				progressive: true,
+				mozjpeg: true
 			},
 			png: {
-				quality: 80,
-				progressive: true
+				quality: 85,
+				progressive: true,
+				optimizationLevel: 3
 			},
 			webp: {
-				quality: 80,
-				lossless: false
+				quality: 85,
+				lossless: false,
+				force: true
 			},
-			svg: {
-				multipass: true,
-				plugins: [
-					{
-						name: 'preset-default',
-						params: {
-							overrides: {
-								removeViewBox: false,
-								removeTitle: false,
-							},
-						},
-					},
-				],
-			}
+			avif: {
+				quality: 85,
+				lossless: false,
+				force: true
+			},
+			cache: true,
+			cacheLocation: '.vite-image-cache'
 		})
 	],
 	server: {

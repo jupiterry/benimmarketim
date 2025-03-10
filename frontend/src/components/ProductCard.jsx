@@ -1,5 +1,5 @@
 import toast from "react-hot-toast";
-import { ShoppingCart } from "lucide-react";
+import { ShoppingCart, Package2 } from "lucide-react";
 import { useUserStore } from "../stores/useUserStore";
 import { useCartStore } from "../stores/useCartStore";
 import { useState } from "react";
@@ -11,6 +11,7 @@ const ProductCard = ({ product, isAdmin }) => {
   const { addToCart } = useCartStore();
   const [isEditing, setIsEditing] = useState(false);
   const [discountedPrice, setDiscountedPrice] = useState(product.discountedPrice);
+  const [imageError, setImageError] = useState(false);
 
   const handleAddToCart = () => {
     if (!user) {
@@ -46,6 +47,12 @@ const ProductCard = ({ product, isAdmin }) => {
     }
   };
 
+  const handleImageError = (e) => {
+    console.error('Görsel yükleme hatası:', e);
+    console.log('Yüklenemeyen görsel URL:', product.image);
+    setImageError(true);
+  };
+
   if (product.isHidden) return null;
 
   return (
@@ -58,22 +65,20 @@ const ProductCard = ({ product, isAdmin }) => {
     >
       <div className="flex flex-col flex-1">
         <div className="relative aspect-square overflow-hidden rounded-t-lg bg-white/5">
-          <motion.img
-            loading="lazy"
-            className="h-full w-full object-contain p-2 mix-blend-normal group-hover:scale-110 transition-transform duration-300"
-            src={product.thumbnail || product.image || '/placeholder.png'}
-            srcSet={`${product.thumbnail || product.image || '/placeholder.png'} 300w,
-                    ${product.image || '/placeholder.png'} 600w`}
-            sizes="(max-width: 768px) 300px,
-                   600px"
-            alt={product.name}
-            decoding="async"
-            fetchpriority="low"
-            onError={(e) => {
-              e.target.onerror = null;
-              e.target.src = '/placeholder.png';
-            }}
-          />
+          {!imageError ? (
+            <img
+              src={product.image}
+              alt={product.name}
+              onError={handleImageError}
+              className="w-full h-full object-contain"
+              loading="lazy"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-gray-800">
+              <Package2 className="w-12 h-12 text-gray-600" />
+            </div>
+          )}
           {product.isOutOfStock && (
             <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
               <span className="text-white font-bold text-lg">Tükendi</span>

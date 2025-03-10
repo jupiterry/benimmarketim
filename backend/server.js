@@ -20,10 +20,16 @@ import { connectDB } from "./lib/db.js";
 dotenv.config();
 
 const corsOptions = {
-  origin: ["http://localhost:5173"],
+  origin: [
+    "http://localhost:5173", 
+    "https://www.devrekbenimmarketim.com",
+    "http://www.devrekbenimmarketim.com",
+    "https://res.cloudinary.com"
+  ],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
+  exposedHeaders: ['Access-Control-Allow-Origin'],
   optionsSuccessStatus: 200,
 };
 
@@ -32,6 +38,17 @@ const httpServer = createServer(app);
 
 // Express middleware'leri
 app.use(cors(corsOptions));
+
+// CORS Pre-flight için
+app.options('*', cors(corsOptions));
+
+// Cloudinary görselleri için CORS header'ları
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+});
+
 app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
 
