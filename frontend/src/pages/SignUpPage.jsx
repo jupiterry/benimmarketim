@@ -79,7 +79,7 @@ const SignUpPage = () => {
 									text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 
 									focus:border-transparent transition-all duration-200"
 									placeholder="Örn: Ahmet Yılmaz"
-									pattern="^[A-Za-zÇçĞğİıÖöŞşÜü\\s]{2,}\\s+[A-Za-zÇçĞğİıÖöŞşÜü\\s]{2,}$"
+									pattern="^[a-zA-ZğüşıöçĞÜŞİÖÇ\s]{2,}\s+[a-zA-ZğüşıöçĞÜŞİÖÇ\s]{2,}$"
 									title="Lütfen geçerli bir isim ve soyisim giriniz (en az ikişer harfli)"
 								/>
 								<div className="absolute inset-0 rounded-xl border border-emerald-500/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
