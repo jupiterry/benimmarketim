@@ -2,6 +2,7 @@ import express from "express";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import path from "path";
+import { fileURLToPath } from 'url';
 import cors from "cors";
 import userRoutes from "./routes/userRoutes.js";
 import ordersAnalyticsRoutes from "./routes/ordersAnalytics.route.js";
@@ -14,8 +15,11 @@ import analyticsRoutes from "./routes/analytics.route.js";
 import feedbackRoutes from "./routes/feedback.route.js";
 import { createServer } from "http";
 import { Server } from "socket.io";
-
 import { connectDB } from "./lib/db.js";
+
+// ES modules için __dirname tanımı
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
@@ -50,8 +54,7 @@ const io = new Server(httpServer, {
     origin: [
       'https://devrekbenimmarketim.com',
       'https://www.devrekbenimmarketim.com',
-      'http://localhost:5173',
-      'http://localhost:5000',
+      'http://localhost:5173'
     ],
     methods: ['GET', 'POST'],
     credentials: true
@@ -78,10 +81,6 @@ io.on('connection', (socket) => {
   });
 });
 
-const PORT = process.env.PORT || 5000;
-
-const __dirname = path.resolve();
-
 // Routes
 app.use("/api/orders-analytics", ordersAnalyticsRoutes);
 app.use("/api/auth", authRoutes);
@@ -100,7 +99,10 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
-httpServer.listen(PORT, () => {
+const PORT = process.env.PORT || 5000;
+
+// Sunucuyu localhost'ta dinle
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`Server ${PORT} portunda çalışıyor`);
   connectDB();
 });
