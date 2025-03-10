@@ -60,14 +60,27 @@ const io = new Server(httpServer, {
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization']
   },
+  path: '/socket.io/',
   transports: ['websocket'],
   allowUpgrades: false,
-  path: '/socket.io/',
   pingTimeout: 60000,
   pingInterval: 25000,
   connectTimeout: 45000,
   maxHttpBufferSize: 1e8,
-  allowEIO3: true
+  allowEIO3: true,
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  },
+  handlePreflightRequest: (req, res) => {
+    res.writeHead(200, {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET,POST",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Allow-Credentials": true
+    });
+    res.end();
+  }
 });
 
 // Global socket.io erişimi için
@@ -76,6 +89,9 @@ app.set('io', io);
 // Socket.IO bağlantı yönetimi
 io.on('connection', (socket) => {
   console.log('Yeni bir kullanıcı bağlandı:', socket.id);
+
+  // Bağlantı başarılı olduğunda log
+  socket.emit('connect_success', { message: 'Bağlantı başarılı' });
 
   socket.on('joinAdminRoom', () => {
     socket.join('adminRoom');
@@ -94,10 +110,17 @@ io.on('connection', (socket) => {
   // Bağlantı hatası yönetimi
   socket.on('connect_error', (error) => {
     console.error('Bağlantı hatası:', error);
+    // Hata durumunda yeniden bağlanma denemesi
+    socket.connect();
   });
 
   socket.on('connect_timeout', (timeout) => {
     console.error('Bağlantı zaman aşımı:', timeout);
+  });
+
+  // Ping/Pong kontrolü
+  socket.on('ping', () => {
+    socket.emit('pong');
   });
 });
 

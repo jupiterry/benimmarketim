@@ -21,16 +21,47 @@ const socket = io(ENDPOINT, {
   autoConnect: false,
   forceNew: true,
   timeout: 20000,
-  upgrade: false
+  upgrade: false,
+  withCredentials: true
 });
 
-// Socket bağlantı hatası yönetimi
+// Socket bağlantı yönetimi
+socket.on('connect', () => {
+  console.log('Socket.IO bağlantısı başarılı');
+  // Bağlantı başarılı olduğunda ping gönder
+  socket.emit('ping');
+});
+
+socket.on('pong', () => {
+  console.log('Server pong yanıtı alındı');
+});
+
+socket.on('connect_success', (data) => {
+  console.log('Bağlantı başarılı mesajı:', data);
+});
+
 socket.on('connect_error', (error) => {
   console.error('Socket.IO bağlantı hatası:', error);
+  
+  // Hata detaylarını logla
+  console.log('Hata detayları:', {
+    message: error.message,
+    description: error.description,
+    type: error.type,
+    endpoint: ENDPOINT
+  });
+
+  // WebSocket'e geçmeyi dene
   if (error.message === 'xhr poll error') {
-    // Polling hatası durumunda WebSocket'e geçmeyi zorla
+    console.log('WebSocket transport kullanılıyor...');
     socket.io.opts.transports = ['websocket'];
   }
+
+  // 5 saniye sonra yeniden bağlanmayı dene
+  setTimeout(() => {
+    console.log('Yeniden bağlanmaya çalışılıyor...');
+    socket.connect();
+  }, 5000);
 });
 
 const OrdersList = () => {
@@ -71,13 +102,8 @@ const OrdersList = () => {
     // Socket bağlantısını başlat
     socket.connect();
 
-    socket.on('connect', () => {
-      console.log('Socket.IO bağlantısı başarılı');
-      socket.emit('joinAdminRoom');
-    });
-
-    socket.on('connect_error', (error) => {
-      console.error('Socket.IO bağlantı hatası:', error);
+    socket.on('joinAdminRoom', () => {
+      console.log('Admin odasına katıldı');
     });
 
     socket.on('newOrder', (data) => {
@@ -87,8 +113,7 @@ const OrdersList = () => {
     });
 
     return () => {
-      socket.off('connect');
-      socket.off('connect_error');
+      socket.off('joinAdminRoom');
       socket.off('newOrder');
       socket.disconnect();
     };
