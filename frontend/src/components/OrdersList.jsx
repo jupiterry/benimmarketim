@@ -4,13 +4,14 @@ import { Search, Package2, ChevronLeft, ChevronRight, RefreshCw } from "lucide-r
 import toast from "react-hot-toast";
 import io from "socket.io-client";
 
-const ENDPOINT =
-     "https://devrekbenimmarketim.com"
-     "http://localhost:5000";
-
-const socket = io(ENDPOINT, {
-  withCredentials: true,
-  transports: ["websocket"],
+const socket = io('https://devrekbenimmarketim.com', {
+  path: '/socket.io/',
+  transports: ['websocket', 'polling'],
+  secure: true,
+  rejectUnauthorized: false,
+  reconnection: true,
+  reconnectionAttempts: 5,
+  reconnectionDelay: 1000
 });
 
 const OrdersList = () => {
@@ -28,11 +29,10 @@ const OrdersList = () => {
     try {
       const response = await axios.get("/orders-analytics");
       console.log("Admin sipariş verileri:", response.data);
-      const sortedUsersOrders =
-        response.data.orderAnalyticsData?.usersOrders?.map((userOrder) => ({
-          ...userOrder,
-          orders: userOrder.orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
-        })) || [];
+      const sortedUsersOrders = response.data.orderAnalyticsData?.usersOrders?.map(userOrder => ({
+        ...userOrder,
+        orders: userOrder.orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
+      })) || [];
 
       setOrderAnalyticsData({
         totalOrders: response.data.orderAnalyticsData?.totalOrders || 0,
@@ -47,38 +47,41 @@ const OrdersList = () => {
     }
   };
 
+  // İlk yükleme ve Socket.IO bağlantısı
   useEffect(() => {
     fetchOrderAnalyticsData();
 
-    socket.on("connect", () => {
-      console.log("Socket.IO bağlantısı başarılı");
-      socket.emit("joinAdminRoom");
+    // Socket.IO bağlantısı
+    socket.on('connect', () => {
+      console.log('Socket.IO bağlantısı başarılı');
+      socket.emit('joinAdminRoom');
     });
 
-    socket.on("newOrder", (data) => {
-      console.log("Yeni sipariş bildirimi alındı:", data);
+    socket.on('connect_error', (error) => {
+      console.error('Socket.IO bağlantı hatası:', error);
+    });
+
+    socket.on('newOrder', (data) => {
+      console.log('Yeni sipariş alındı:', data);
       fetchOrderAnalyticsData();
-      toast.success("Yeni sipariş geldi!", {
-        icon: "🛍️",
-        duration: 4000,
-      });
-    });
-
-    socket.on("connect_error", (error) => {
-      console.error("Socket.IO bağlantı hatası:", error);
+      toast.success('Yeni bir sipariş geldi!');
     });
 
     return () => {
+      socket.off('connect');
+      socket.off('connect_error');
+      socket.off('newOrder');
       socket.disconnect();
     };
   }, []);
 
+  // Otomatik yenileme
   useEffect(() => {
     let interval;
     if (autoRefresh) {
       interval = setInterval(() => {
         fetchOrderAnalyticsData();
-      }, 30000);
+      }, 30000); // Her 30 saniyede bir yenile
     }
     return () => clearInterval(interval);
   }, [autoRefresh]);
@@ -104,13 +107,14 @@ const OrdersList = () => {
 
   const filterOrders = (orders) => {
     return orders.filter((order) => {
-      const matchesSearch =
+      const matchesSearch = 
         order.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        order.products.some((product) =>
+        order.products.some(product => 
           product.name.toLowerCase().includes(searchTerm.toLowerCase())
         );
 
-      const matchesStatus = statusFilter === "all" || order.status === statusFilter;
+      const matchesStatus = 
+        statusFilter === "all" || order.status === statusFilter;
 
       const orderDate = new Date(order.createdAt);
       const today = new Date();
@@ -144,11 +148,7 @@ const OrdersList = () => {
     );
   }
 
-  if (
-    !orderAnalyticsData ||
-    !orderAnalyticsData.usersOrders ||
-    orderAnalyticsData.usersOrders.length === 0
-  ) {
+  if (!orderAnalyticsData || !orderAnalyticsData.usersOrders || orderAnalyticsData.usersOrders.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] text-white">
         <div className="text-6xl mb-4">📦</div>
@@ -157,14 +157,13 @@ const OrdersList = () => {
     );
   }
 
-  const filteredOrders = orderAnalyticsData.usersOrders
-    .flatMap((userOrder) =>
-      filterOrders(userOrder.orders).map((order) => ({
-        ...order,
-        user: userOrder.user,
-      }))
-    )
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  // Filtrelenmiş siparişleri sayfalama
+  const filteredOrders = orderAnalyticsData.usersOrders.flatMap(userOrder =>
+    filterOrders(userOrder.orders).map(order => ({
+      ...order,
+      user: userOrder.user
+    }))
+  ).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   const totalPages = Math.ceil(filteredOrders.length / ordersPerPage);
   const currentOrders = filteredOrders.slice(
@@ -174,6 +173,7 @@ const OrdersList = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pt-20">
+      {/* Filtreler ve Arama */}
       <div className="bg-gray-800 p-6 rounded-lg mb-6">
         <div className="flex flex-col md:flex-row gap-4 items-center justify-between mb-6">
           <div className="flex-1 w-full md:w-auto">
@@ -192,18 +192,24 @@ const OrdersList = () => {
             <button
               onClick={() => setAutoRefresh(!autoRefresh)}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                autoRefresh
-                  ? "bg-emerald-500 hover:bg-emerald-600 text-white"
-                  : "bg-gray-700 hover:bg-gray-600 text-gray-300"
+                autoRefresh 
+                  ? 'bg-emerald-500 hover:bg-emerald-600 text-white' 
+                  : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
               }`}
               title={autoRefresh ? "Otomatik yenileme açık" : "Otomatik yenileme kapalı"}
             >
-              <RefreshCw className={`w-5 h-5 ${autoRefresh ? "animate-spin" : ""}`} />
-              <span className="hidden sm:inline">{autoRefresh ? "Otomatik" : "Manuel"}</span>
+              <RefreshCw 
+                className={`w-5 h-5 ${autoRefresh ? 'animate-spin' : ''}`} 
+              />
+              <span className="hidden sm:inline">
+                {autoRefresh ? "Otomatik" : "Manuel"}
+              </span>
             </button>
-            <div className="text-sm text-gray-400">Son yenileme: {lastRefresh.toLocaleTimeString()}</div>
+            <div className="text-sm text-gray-400">
+              Son yenileme: {lastRefresh.toLocaleTimeString()}
+            </div>
             <select
-              className="bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className={`bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500`}
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
@@ -226,6 +232,8 @@ const OrdersList = () => {
             </select>
           </div>
         </div>
+
+        {/* Sipariş İstatistikleri */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-gray-700 p-4 rounded-lg">
             <div className="text-gray-400">Toplam Sipariş</div>
@@ -234,34 +242,38 @@ const OrdersList = () => {
           <div className="bg-gray-700 p-4 rounded-lg">
             <div className="text-gray-400">Hazırlanan</div>
             <div className="text-2xl font-bold text-emerald-400">
-              {filteredOrders.filter((order) => order.status === "Hazırlanıyor").length}
+              {filteredOrders.filter(order => order.status === "Hazırlanıyor").length}
             </div>
           </div>
           <div className="bg-gray-700 p-4 rounded-lg">
             <div className="text-gray-400">Yolda</div>
             <div className="text-2xl font-bold text-yellow-400">
-              {filteredOrders.filter((order) => order.status === "Yolda").length}
+              {filteredOrders.filter(order => order.status === "Yolda").length}
             </div>
           </div>
           <div className="bg-gray-700 p-4 rounded-lg">
             <div className="text-gray-400">Teslim Edilen</div>
             <div className="text-2xl font-bold text-blue-400">
-              {filteredOrders.filter((order) => order.status === "Teslim Edildi").length}
+              {filteredOrders.filter(order => order.status === "Teslim Edildi").length}
             </div>
           </div>
           <div className="bg-gray-700 p-4 rounded-lg">
             <div className="text-gray-400">İptal Edilen</div>
             <div className="text-2xl font-bold text-red-400">
-              {filteredOrders.filter((order) => order.status === "İptal Edildi").length}
+              {filteredOrders.filter(order => order.status === "İptal Edildi").length}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Siparişler Listesi */}
       <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 auto-rows-auto">
         {currentOrders.map((order, index) => {
+          // Son 3 siparişin rengini belirle
           const isRecent = index < 3;
           let bgColorClass = "bg-gray-800";
-
+          
+          // Eğer sipariş durumu "Yolda", "Teslim Edildi" veya "İptal Edildi" ise
           if (order.status === "Yolda") {
             bgColorClass = "bg-yellow-500/20";
           } else if (order.status === "Teslim Edildi") {
@@ -269,16 +281,18 @@ const OrdersList = () => {
           } else if (order.status === "İptal Edildi") {
             bgColorClass = "bg-red-500/20";
           } else if (isRecent) {
-            if (index === 0) bgColorClass = "bg-emerald-500/20";
-            else if (index === 1) bgColorClass = "bg-yellow-500/20";
-            else if (index === 2) bgColorClass = "bg-red-500/20";
+            // Son 3 sipariş için renklendirme (iptal edilmemiş siparişler için)
+            if (index === 0) bgColorClass = "bg-emerald-500/20"; // En son gelen
+            else if (index === 1) bgColorClass = "bg-yellow-500/20"; // İkinci son
+            else if (index === 2) bgColorClass = "bg-red-500/20"; // Üçüncü son
           }
 
           return (
-            <div
-              key={order.orderId}
+            <div 
+              key={order.orderId} 
               className={`${bgColorClass} p-4 rounded-lg shadow-lg transform transition-all duration-200 hover:scale-[1.01]`}
             >
+              {/* Başlık ve Durum */}
               <div className="flex justify-between items-start mb-3">
                 <div>
                   <h3 className="text-lg font-bold text-white">{order.user.name}</h3>
@@ -303,6 +317,8 @@ const OrdersList = () => {
                   <option value="İptal Edildi">İptal Edildi</option>
                 </select>
               </div>
+
+              {/* Müşteri Bilgileri */}
               <div className="bg-gray-700/50 p-2 rounded-lg mb-3">
                 <div className="text-sm text-gray-400 space-y-1">
                   <p>📧 {order.user.email}</p>
@@ -310,29 +326,29 @@ const OrdersList = () => {
                   <p>📍 {order.user.address || "Adres belirtilmemiş"}</p>
                 </div>
               </div>
+
+              {/* Sipariş Detayları */}
               <div className="bg-gray-700/50 p-2 rounded-lg mb-3">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-emerald-400 font-bold text-lg">₺{order.totalAmount}</span>
                   <span className="text-sm text-gray-400">
-                    📅{" "}
-                    {new Date(order.createdAt).toLocaleString("tr-TR", {
+                    📅 {new Date(order.createdAt).toLocaleString("tr-TR", {
                       day: "2-digit",
                       month: "2-digit",
                       year: "numeric",
                       hour: "2-digit",
-                      minute: "2-digit",
+                      minute: "2-digit"
                     })}
                   </span>
                 </div>
               </div>
+
+              {/* Ürünler */}
               <div className="flex-grow">
                 <div className="text-sm font-semibold text-white mb-2">Ürünler</div>
                 <div className="space-y-2">
                   {order.products.map((product, index) => (
-                    <div
-                      key={index}
-                      className="bg-gray-700/50 p-2 rounded-lg flex items-center justify-between"
-                    >
+                    <div key={index} className="bg-gray-700/50 p-2 rounded-lg flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="bg-gray-700 h-14 w-14 rounded-lg flex items-center justify-center overflow-hidden">
                           {product.image ? (
@@ -355,6 +371,8 @@ const OrdersList = () => {
                   ))}
                 </div>
               </div>
+
+              {/* Sipariş Notu */}
               {order.note && (
                 <div className="mt-3 bg-gray-700/50 p-2 rounded-lg">
                   <p className="text-xs text-gray-400">Not:</p>
@@ -365,10 +383,12 @@ const OrdersList = () => {
           );
         })}
       </div>
+
+      {/* Sayfalama */}
       {totalPages > 1 && (
         <div className="flex justify-center items-center mt-6 gap-2">
           <button
-            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
             disabled={currentPage === 1}
             className="p-2 bg-gray-700 rounded-lg text-white disabled:opacity-50 hover:bg-gray-600 transition-colors"
           >
@@ -378,7 +398,7 @@ const OrdersList = () => {
             Sayfa {currentPage} / {totalPages}
           </span>
           <button
-            onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
             disabled={currentPage === totalPages}
             className="p-2 bg-gray-700 rounded-lg text-white disabled:opacity-50 hover:bg-gray-600 transition-colors"
           >
