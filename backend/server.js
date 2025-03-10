@@ -14,8 +14,14 @@ import analyticsRoutes from "./routes/analytics.route.js";
 import feedbackRoutes from "./routes/feedback.route.js";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
 import { connectDB } from "./lib/db.js";
+
+// ES modules için __dirname tanımlaması
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 dotenv.config();
 
@@ -42,7 +48,7 @@ app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
 
 // Uploads klasörü için statik dosya sunumu
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(join(__dirname, 'uploads')));
 
 // Socket.IO yapılandırması
 const io = new Server(httpServer, {
@@ -82,8 +88,6 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 5000;
-
-const __dirname = path.resolve();
 
 // Routes
 app.use("/api/orders-analytics", ordersAnalyticsRoutes);
