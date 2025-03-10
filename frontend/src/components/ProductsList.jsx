@@ -6,6 +6,7 @@ import axios from "../lib/axios";
 import toast from "react-hot-toast";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import InfiniteScroll from "react-infinite-scroll-component";
+import { getProductThumbnail } from '../lib/cloudinary';
 
 const categories = [
 	{ href: "/kahve", name: "Benim Kahvem", imageUrl: "/kahve.png" },
@@ -506,8 +507,9 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
                                     <>
                                       <img
                                         className="h-full w-full object-contain p-2"
-                                        src={product.image || '/placeholder.png'}
+                                        src={product.image ? getProductThumbnail(product.image) : '/placeholder.png'}
                                         alt={product.name}
+                                        loading="lazy"
                                       />
                                       <div className="absolute inset-0 bg-gray-900/80 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-200">
                                         <Upload className="h-5 w-5 text-white" />
