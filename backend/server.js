@@ -63,8 +63,7 @@ const io = new Server(httpServer, {
       "https://devrekbenimmarketim.com",
       "http://devrekbenimmarketim.com",
       "http://145.14.158.226:5173",
-      "https://145.14.158.226:5173",
-      "https://145.14.158.226:5000"
+      "https://145.14.158.226:5173"
     ],
     methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type", "Authorization"],
