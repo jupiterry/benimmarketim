@@ -42,22 +42,9 @@ const OrdersList = () => {
     fetchOrderAnalyticsData();
 
     // Socket.IO bağlantısı
-    const socket = io('http://145.14.158.226:5000', {
+    const socket = io('http://localhost:5000', {
       withCredentials: true,
-      transports: ['websocket', 'polling'],
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      reconnectionAttempts: 5,
-      timeout: 45000,
-      path: '/socket.io/',
-      autoConnect: false
-    });
-
-    // Bağlantıyı başlat
-    socket.connect();
-
-    socket.io.on("reconnect_attempt", (attempt) => {
-      console.log('Yeniden bağlanma denemesi:', attempt);
+      transports: ['polling', 'websocket']
     });
 
     socket.on('connect', () => {

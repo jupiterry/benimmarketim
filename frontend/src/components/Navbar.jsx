@@ -62,20 +62,15 @@ const OrderNotification = () => {
     useEffect(() => {
         if (user?.role === 'admin') {
             console.log('Admin bağlantısı başlatılıyor...');
-            const socket = io('http://145.14.158.226:5000', {
+            const socket = io('http://localhost:5000', {
                 withCredentials: true,
-                transports: ['websocket', 'polling'],
+                transports: ['polling', 'websocket'],
                 reconnectionDelay: 1000,
                 reconnectionDelayMax: 5000,
-                reconnectionAttempts: 5,
-                timeout: 45000,
-                forceNew: true,
-                path: '/socket.io/',
-                autoConnect: false
+                reconnectionAttempts: 10,
+                timeout: 20000,
+                forceNew: true
             });
-
-            // Bağlantıyı başlat
-            socket.connect();
 
             socket.io.on("error", (error) => {
                 console.error('Socket.IO altyapı hatası:', error);

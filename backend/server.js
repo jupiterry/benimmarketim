@@ -31,9 +31,7 @@ const corsOptions = {
     "https://www.devrekbenimmarketim.com",
     "http://www.devrekbenimmarketim.com",
     "https://devrekbenimmarketim.com",
-    "http://devrekbenimmarketim.com",
-    "http://145.14.158.226:5173",
-    "https://145.14.158.226:5173"
+    "http://devrekbenimmarketim.com"
   ],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -61,26 +59,15 @@ const io = new Server(httpServer, {
       "https://www.devrekbenimmarketim.com",
       "http://www.devrekbenimmarketim.com",
       "https://devrekbenimmarketim.com",
-      "http://devrekbenimmarketim.com",
-      "http://145.14.158.226:5173",
-      "https://145.14.158.226:5173"
+      "http://devrekbenimmarketim.com"
     ],
     methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true
+    credentials: true,
+    transports: ['polling', 'websocket']
   },
-  allowEIO3: true,
   pingTimeout: 60000,
-  pingInterval: 25000,
-  transports: ['websocket', 'polling'],
-  path: '/socket.io/',
-  cookie: {
-    name: 'io',
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production'
-  },
-  connectTimeout: 45000,
-  maxHttpBufferSize: 1e8
+  pingInterval: 25000
 });
 
 // Global socket.io erişimi için
@@ -89,23 +76,14 @@ app.set('io', io);
 // Socket.IO bağlantı yönetimi
 io.on('connection', (socket) => {
   console.log('Yeni bir kullanıcı bağlandı. Socket ID:', socket.id);
-  console.log('Transport tipi:', socket.conn.transport.name);
-
-  socket.conn.on('upgrade', (transport) => {
-    console.log('Transport yükseltildi:', transport.name);
-  });
 
   socket.on('joinAdminRoom', () => {
     socket.join('adminRoom');
-    console.log('Admin odaya katıldı. Socket ID:', socket.id);
+    console.log('Admin odaya katıldı');
   });
 
-  socket.on('error', (error) => {
-    console.error('Socket error:', error);
-  });
-
-  socket.on('disconnect', (reason) => {
-    console.log('Kullanıcı ayrıldı. Sebep:', reason);
+  socket.on('disconnect', () => {
+    console.log('Kullanıcı ayrıldı');
   });
 });
 
@@ -129,7 +107,7 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
-httpServer.listen(PORT, '0.0.0.0', () => {
-  console.log(`Sunucu ${PORT} portunda çalışıyor (http://145.14.158.226:${PORT})`);
+httpServer.listen(PORT, () => {
+  console.log(`Sunucu ${PORT} portunda çalışıyor`);
   connectDB();
 });
