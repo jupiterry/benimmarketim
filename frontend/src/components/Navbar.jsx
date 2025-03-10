@@ -62,7 +62,7 @@ const OrderNotification = () => {
     useEffect(() => {
         if (user?.role === 'admin') {
             console.log('Admin bağlantısı başlatılıyor...');
-            const socket = io('http://localhost:5000', {
+            const socket = io('http://devrekbenimmarketim.com:5000', {
                 withCredentials: true,
                 transports: ['polling', 'websocket'],
                 reconnectionDelay: 1000,

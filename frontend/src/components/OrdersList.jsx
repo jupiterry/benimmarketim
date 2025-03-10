@@ -42,7 +42,7 @@ const OrdersList = () => {
     fetchOrderAnalyticsData();
 
     // Socket.IO bağlantısı
-    const socket = io('http://localhost:5000', {
+    const socket = io('http://devrekbenimmarketim.com:5000', {
       withCredentials: true,
       transports: ['polling', 'websocket']
     });
