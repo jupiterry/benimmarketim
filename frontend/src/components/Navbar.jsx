@@ -16,58 +16,38 @@ const OrderNotification = () => {
     const { user } = useUserStore();
     const [selectedSound, setSelectedSound] = useState(() => localStorage.getItem('notificationSound') || 'ringtone');
     const [notificationSounds, setNotificationSounds] = useState({});
-    const [isAudioInitialized, setIsAudioInitialized] = useState(false);
-
+    
     // Ses dosyalarını yükle
     useEffect(() => {
-        const initializeAudio = () => {
-            const sounds = {
-                ringtone: new Audio('/ringtone.mp3'),
-                bell: new Audio('/bell.mp3'),
-                chime: new Audio('/chime.mp3'),
-                furelise: new Audio('/fur-elise.mp3'),
-                gnosienne: new Audio('/gnosienne-no1.mp3'),
-                vivaldi: new Audio('/vivaldi-winter.mp3')
-            };
-
-            // Tüm sesleri önceden yükle
-            Object.values(sounds).forEach(audio => {
-                audio.load();
-                audio.preload = 'auto';
-                // Ses bittiğinde durumu sıfırla
-                audio.onended = () => {
-                    audio.currentTime = 0;
-                };
-            });
-
-            setNotificationSounds(sounds);
-            setIsAudioInitialized(true);
+        const sounds = {
+            ringtone: new Audio('/ringtone.mp3'),
+            bell: new Audio('/bell.mp3'),
+            chime: new Audio('/chime.mp3'),
+            furelise: new Audio('/fur-elise.mp3'),
+            gnosienne: new Audio('/gnosienne-no1.mp3'),
+            vivaldi: new Audio('/vivaldi-winter.mp3')
         };
 
-        // Sayfa yüklendiğinde bir kere kullanıcı etkileşimi bekle
-        const handleUserInteraction = () => {
-            if (!isAudioInitialized) {
-                initializeAudio();
-                document.removeEventListener('click', handleUserInteraction);
-            }
-        };
+        // Tüm sesleri önceden yükle
+        Object.values(sounds).forEach(audio => {
+            audio.load();
+            audio.preload = 'auto';
+        });
 
-        document.addEventListener('click', handleUserInteraction);
-
+        setNotificationSounds(sounds);
+        
+        // Cleanup
         return () => {
-            document.removeEventListener('click', handleUserInteraction);
-            if (notificationSounds) {
-                Object.values(notificationSounds).forEach(audio => {
-                    audio.pause();
-                    audio.currentTime = 0;
-                });
-            }
+            Object.values(sounds).forEach(audio => {
+                audio.pause();
+                audio.currentTime = 0;
+            });
         };
-    }, [isAudioInitialized]);
+    }, []);
 
     // Ses değiştirme fonksiyonu
     const changeNotificationSound = (soundName) => {
-        if (!notificationSounds[soundName] || !isAudioInitialized) return;
+        if (!notificationSounds[soundName]) return;
 
         // Tüm sesleri durdur
         Object.values(notificationSounds).forEach(audio => {
@@ -78,35 +58,26 @@ const OrderNotification = () => {
         setSelectedSound(soundName);
         localStorage.setItem('notificationSound', soundName);
         
-        // Test sesini çal
-        const audio = notificationSounds[soundName];
-        const playPromise = audio.play();
-        
-        if (playPromise !== undefined) {
-            playPromise.catch(err => {
-                console.log('Ses çalma hatası:', err);
-            });
-        }
+        // Yeni sesi çal
+        notificationSounds[soundName].play().catch(err => {
+            console.log('Ses çalma hatası:', err);
+        });
     };
 
     // Yeni sipariş bildirimi geldiğinde ses çalma
     const playNotificationSound = () => {
-        if (!notificationSounds[selectedSound] || !isAudioInitialized) return;
+        if (!notificationSounds[selectedSound]) return;
 
-        const audio = notificationSounds[selectedSound];
-        
-        // Eğer ses zaten çalıyorsa, baştan başlat
-        if (!audio.paused) {
+        // Tüm sesleri durdur
+        Object.values(notificationSounds).forEach(audio => {
+            audio.pause();
             audio.currentTime = 0;
-        } else {
-            const playPromise = audio.play();
-            
-            if (playPromise !== undefined) {
-                playPromise.catch(err => {
-                    console.log('Ses çalma hatası:', err);
-                });
-            }
-        }
+        });
+
+        // Seçili sesi çal
+        notificationSounds[selectedSound].play().catch(err => {
+            console.log('Ses çalma hatası:', err);
+        });
     };
 
     useEffect(() => {
