@@ -363,7 +363,7 @@ const Navbar = () => {
           <div className="flex-shrink-0">
             <Link to="/">
               <img
-                src="/logo.png"
+                src="/logo2.png"
                 alt="Benim Marketim Logo"
                 className="h-12 w-48 object-contain transition-transform duration-300 hover:scale-105"
               />

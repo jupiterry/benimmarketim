@@ -20,7 +20,13 @@ import { connectDB } from "./lib/db.js";
 dotenv.config();
 
 const corsOptions = {
-  origin: ["http://localhost:5173"],
+  origin: [
+    "http://localhost:5173",
+    "https://www.devrekbenimmarketim.com",
+    "http://www.devrekbenimmarketim.com",
+    "https://devrekbenimmarketim.com",
+    "http://devrekbenimmarketim.com"
+  ],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
@@ -35,10 +41,20 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
 
+// Uploads klasörü için statik dosya sunumu
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // Socket.IO yapılandırması
 const io = new Server(httpServer, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: [
+      "http://localhost:5173",
+      "http://localhost:5000",
+      "https://www.devrekbenimmarketim.com",
+      "http://www.devrekbenimmarketim.com",
+      "https://devrekbenimmarketim.com",
+      "http://devrekbenimmarketim.com"
+    ],
     methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
