@@ -38,11 +38,11 @@ app.use(cookieParser());
 // Socket.IO yapılandırması
 const io = new Server(httpServer, {
   cors: {
-    origin: "http://localhost:5173",
-    methods: ["GET", "POST"],
+    origin: ["https://www.devrekbenimmarketim.com", "http://www.devrekbenimmarketim.com"],
+    methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
-    transports: ['polling', 'websocket']
+    transports: ['websocket', 'polling']
   },
   pingTimeout: 60000,
   pingInterval: 25000

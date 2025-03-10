@@ -42,9 +42,9 @@ const OrdersList = () => {
     fetchOrderAnalyticsData();
 
     // Socket.IO bağlantısı
-    const socket = io('http://localhost:5000', {
+    const socket = io('https://www.devrekbenimmarketim.com', {
       withCredentials: true,
-      transports: ['polling', 'websocket']
+      transports: ['websocket', 'polling']
     });
 
     socket.on('connect', () => {
@@ -146,7 +146,7 @@ const OrdersList = () => {
   if (!orderAnalyticsData || !orderAnalyticsData.usersOrders || orderAnalyticsData.usersOrders.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] text-white">
-        <div className="text-6xl mb-4">📦</div>
+        <div className="text-6xl mb-4">��</div>
         <div className="text-xl">Henüz sipariş bulunmamaktadır.</div>
       </div>
     );
