@@ -4,14 +4,18 @@ import { Search, Package2, ChevronLeft, ChevronRight, RefreshCw } from "lucide-r
 import toast from "react-hot-toast";
 import io from "socket.io-client";
 
-const socket = io('https://devrekbenimmarketim.com', {
+// Socket.IO istemci yapılandırması
+const socket = io(import.meta.env.PROD ? 'https://devrekbenimmarketim.com' : 'http://localhost:5000', {
   path: '/socket.io/',
-  transports: ['websocket', 'polling'],
+  transports: ['polling', 'websocket'],
   secure: true,
   rejectUnauthorized: false,
   reconnection: true,
   reconnectionAttempts: 5,
-  reconnectionDelay: 1000
+  reconnectionDelay: 1000,
+  timeout: 20000,
+  autoConnect: false,
+  withCredentials: true
 });
 
 const OrdersList = () => {
@@ -49,9 +53,9 @@ const OrdersList = () => {
 
   // İlk yükleme ve Socket.IO bağlantısı
   useEffect(() => {
-    fetchOrderAnalyticsData();
+    // Socket bağlantısını başlat
+    socket.connect();
 
-    // Socket.IO bağlantısı
     socket.on('connect', () => {
       console.log('Socket.IO bağlantısı başarılı');
       socket.emit('joinAdminRoom');

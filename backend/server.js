@@ -56,12 +56,21 @@ const io = new Server(httpServer, {
       'https://www.devrekbenimmarketim.com',
       'http://localhost:5173'
     ],
-    methods: ['GET', 'POST'],
-    credentials: true
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization']
   },
-  transports: ['websocket', 'polling'],
   allowEIO3: true,
-  path: '/socket.io/'
+  transports: ['polling', 'websocket'],
+  path: '/socket.io/',
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  cookie: {
+    name: 'io',
+    path: '/',
+    httpOnly: true,
+    sameSite: 'strict'
+  }
 });
 
 // Global socket.io erişimi için
