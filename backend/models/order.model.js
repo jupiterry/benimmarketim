@@ -52,7 +52,7 @@ const orderSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["Hazırlanıyor", "Yolda", "Teslim Edildi"],
+      enum: ["Hazırlanıyor", "Yolda", "Teslim Edildi", "İptal Edildi"],
       default: "Hazırlanıyor",
     },
   },

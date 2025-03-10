@@ -91,10 +91,10 @@ export const useProductStore = create((set) => ({
                 ),
                 loading: false,
             }));
-            toast.success("Ürün öne çıkarıldı");
+            toast.success(response.data.isFeatured ? "Ürün öne çıkarıldı" : "Ürün öne çıkarılanlardan kaldırıldı");
         } catch (error) {
             set({ loading: false });
-            toast.error(error.response?.data?.error || "Ürün öne çıkarılamadı");
+            toast.error(error.response?.data?.error || "İşlem başarısız oldu");
         }
     },
 

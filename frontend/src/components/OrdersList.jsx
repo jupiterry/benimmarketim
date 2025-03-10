@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import axios from "../lib/axios";
 import { Search, Package2, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
+import io from "socket.io-client";
 
 const OrdersList = () => {
   const [orderAnalyticsData, setOrderAnalyticsData] = useState(null);
@@ -36,9 +37,37 @@ const OrdersList = () => {
     }
   };
 
-  // İlk yükleme
+  // İlk yükleme ve Socket.IO bağlantısı
   useEffect(() => {
     fetchOrderAnalyticsData();
+
+    // Socket.IO bağlantısı
+    const socket = io('http://localhost:5000', {
+      withCredentials: true,
+      transports: ['polling', 'websocket']
+    });
+
+    socket.on('connect', () => {
+      console.log('Socket.IO bağlantısı başarılı');
+      socket.emit('joinAdminRoom');
+    });
+
+    socket.on('newOrder', (data) => {
+      console.log('Yeni sipariş bildirimi alındı:', data);
+      fetchOrderAnalyticsData(); // Siparişleri yenile
+      toast.success('Yeni sipariş geldi!', {
+        icon: '🛍️',
+        duration: 4000
+      });
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('Socket.IO bağlantı hatası:', error);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
   // Otomatik yenileme
@@ -175,7 +204,7 @@ const OrdersList = () => {
               Son yenileme: {lastRefresh.toLocaleTimeString()}
             </div>
             <select
-              className="bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className={`bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500`}
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
@@ -183,6 +212,7 @@ const OrdersList = () => {
               <option value="Hazırlanıyor">Hazırlanıyor</option>
               <option value="Yolda">Yolda</option>
               <option value="Teslim Edildi">Teslim Edildi</option>
+              <option value="İptal Edildi">İptal Edildi</option>
             </select>
             <select
               className="bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -222,6 +252,12 @@ const OrdersList = () => {
               {filteredOrders.filter(order => order.status === "Teslim Edildi").length}
             </div>
           </div>
+          <div className="bg-gray-700 p-4 rounded-lg">
+            <div className="text-gray-400">İptal Edilen</div>
+            <div className="text-2xl font-bold text-red-400">
+              {filteredOrders.filter(order => order.status === "İptal Edildi").length}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -232,13 +268,15 @@ const OrdersList = () => {
           const isRecent = index < 3;
           let bgColorClass = "bg-gray-800";
           
-          // Eğer sipariş durumu "Yolda" veya "Teslim Edildi" ise
+          // Eğer sipariş durumu "Yolda", "Teslim Edildi" veya "İptal Edildi" ise
           if (order.status === "Yolda") {
             bgColorClass = "bg-yellow-500/20";
           } else if (order.status === "Teslim Edildi") {
             bgColorClass = "bg-blue-500/20";
+          } else if (order.status === "İptal Edildi") {
+            bgColorClass = "bg-red-500/20";
           } else if (isRecent) {
-            // Son 3 sipariş için renklendirme
+            // Son 3 sipariş için renklendirme (iptal edilmemiş siparişler için)
             if (index === 0) bgColorClass = "bg-emerald-500/20"; // En son gelen
             else if (index === 1) bgColorClass = "bg-yellow-500/20"; // İkinci son
             else if (index === 2) bgColorClass = "bg-red-500/20"; // Üçüncü son
@@ -261,6 +299,8 @@ const OrdersList = () => {
                       ? "bg-blue-500 text-white"
                       : order.status === "Yolda"
                       ? "bg-yellow-500 text-gray-900"
+                      : order.status === "İptal Edildi"
+                      ? "bg-red-500 text-white"
                       : "bg-emerald-500 text-white"
                   }`}
                   value={order.status}
@@ -269,6 +309,7 @@ const OrdersList = () => {
                   <option value="Hazırlanıyor">Hazırlanıyor</option>
                   <option value="Yolda">Yolda</option>
                   <option value="Teslim Edildi">Teslim Edildi</option>
+                  <option value="İptal Edildi">İptal Edildi</option>
                 </select>
               </div>
 

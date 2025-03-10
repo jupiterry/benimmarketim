@@ -58,6 +58,33 @@ export const createOrder = async (req, res) => {
     // Siparişi kaydet
     await newOrder.save();
 
+    // Socket.IO ile admin'e bildirim gönder
+    try {
+        const io = req.app.get('io');
+        if (!io) {
+            console.error('Socket.IO nesnesi bulunamadı!');
+        } else {
+            console.log('Socket.IO bildirimi gönderiliyor...');
+            const adminRoom = io.sockets.adapter.rooms.get('adminRoom');
+            console.log('Admin odası üyeleri:', adminRoom?.size || 0);
+
+            const notification = {
+                message: 'Yeni bir sipariş geldi!',
+                order: {
+                    id: newOrder._id.toString(),
+                    totalAmount: newOrder.totalAmount,
+                    status: newOrder.status,
+                    createdAt: newOrder.createdAt
+                }
+            };
+
+            io.to('adminRoom').emit('newOrder', notification);
+            console.log('Bildirim gönderildi:', notification);
+        }
+    } catch (socketError) {
+        console.error('Socket.IO bildirimi gönderilirken hata:', socketError);
+    }
+
     // Sipariş başarıyla oluşturulduğunda, kullanıcının sepetini temizle
     req.user.cartItems = [];
     await req.user.save(); // Sepeti sıfırla

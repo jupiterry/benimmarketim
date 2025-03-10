@@ -5,7 +5,7 @@ import {
   getDailyOrdersData,
   updateOrderStatus,
   getUserOrders,
-  createOrder, // Yeni endpoint
+  cancelOrder,
 } from "../controllers/ordersAnalytics.controller.js";
 
 const router = express.Router();
@@ -36,7 +36,7 @@ router.put("/update-status", protectRoute, adminRoute, updateOrderStatus);
 // Kullanıcının kendi siparişlerini alması için endpoint
 router.get("/user-orders", protectRoute, getUserOrders);
 
-// Yeni sipariş oluşturma endpoint'i
-router.post("/create-order", protectRoute, createOrder);
+// Sipariş iptal etme endpoint'i
+router.put("/cancel-order", protectRoute, cancelOrder);
 
 export default router;

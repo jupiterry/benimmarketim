@@ -62,13 +62,23 @@ export const updateOrderStatus = async (req, res) => {
   try {
     const { orderId, status } = req.body;
 
-    if (!["Hazırlanıyor", "Yolda", "Teslim Edildi"].includes(status)) {
+    if (!["Hazırlanıyor", "Yolda", "Teslim Edildi", "İptal Edildi"].includes(status)) {
       return res.status(400).json({ message: "Geçersiz sipariş durumu!" });
     }
 
     const order = await Order.findById(orderId);
     if (!order) {
       return res.status(404).json({ message: "Sipariş bulunamadı!" });
+    }
+
+    // Eğer sipariş zaten teslim edilmiş veya iptal edilmişse, durumu değiştirilemez
+    if (order.status === "Teslim Edildi" || order.status === "İptal Edildi") {
+      return res.status(400).json({ message: "Bu siparişin durumu artık değiştirilemez!" });
+    }
+
+    // Yolda olan bir sipariş sadece teslim edildi olarak işaretlenebilir
+    if (order.status === "Yolda" && status !== "Teslim Edildi") {
+      return res.status(400).json({ message: "Yoldaki sipariş sadece teslim edildi olarak işaretlenebilir!" });
     }
 
     order.status = status;
@@ -136,15 +146,18 @@ export const getUserOrders = async (req, res) => {
   try {
     const userId = req.user._id;
     const orders = await Order.find({ user: userId })
-      .populate("products.product", "name price image")
+      .populate({
+        path: 'products.product',
+        select: 'name price image'
+      })
       .sort({ createdAt: -1 });
 
     const formattedOrders = orders.map(order => ({
       _id: order._id,
       products: order.products.map(p => ({
-        name: p.product?.name || "Bilinmeyen Ürün",
+        name: p.product?.name || p.name || "Bilinmeyen Ürün",
         quantity: p.quantity,
-        price: p.product?.price || 0,
+        price: p.product?.price || p.price || 0,
         image: p.product?.image || null,
       })),
       totalAmount: order.totalAmount,
@@ -160,28 +173,33 @@ export const getUserOrders = async (req, res) => {
   }
 };
 
-// Sipariş oluşturma (bildirim ve log'lar kaldırıldı)
-export const createOrder = async (req, res) => {
+// Sipariş iptal etme fonksiyonu
+export const cancelOrder = async (req, res) => {
   try {
-    const { userId, products, total, city, phone, note } = req.body;
+    const { orderId } = req.body;
+    const userId = req.user._id;
 
-    // Sipariş oluşturma mantığı
-    const order = await Order.create({
-      user: userId,
-      products,
-      totalAmount: total,
-      city,
-      phone,
-      note: note || "",
-    });
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ message: "Sipariş bulunamadı!" });
+    }
 
-    res.status(201).json({
-      success: true,
-      message: "Sipariş başarıyla oluşturuldu!",
-      orderId: order._id,
-    });
+    // Kullanıcının kendi siparişini iptal etme kontrolü
+    if (!req.user.isAdmin && order.user.toString() !== userId.toString()) {
+      return res.status(403).json({ message: "Bu siparişi iptal etme yetkiniz yok!" });
+    }
+
+    // Sadece "Hazırlanıyor" durumundaki siparişler iptal edilebilir
+    if (order.status !== "Hazırlanıyor") {
+      return res.status(400).json({ message: "Bu sipariş artık iptal edilemez!" });
+    }
+
+    order.status = "İptal Edildi";
+    await order.save();
+
+    res.json({ message: "Sipariş başarıyla iptal edildi!", order });
   } catch (error) {
-    console.error("Sipariş oluşturulurken hata:", error.message);
-    res.status(500).json({ message: "Sunucu hatası", error: error.message });
+    console.error("Sipariş iptal edilirken hata:", error.message);
+    res.status(500).json({ message: "Server hatası", error: error.message });
   }
 };

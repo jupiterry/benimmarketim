@@ -12,31 +12,64 @@ import couponRoutes from "./routes/coupon.route.js";
 import paymentRoutes from "./routes/payment.route.js";
 import analyticsRoutes from "./routes/analytics.route.js";
 import feedbackRoutes from "./routes/feedback.route.js";
+import { createServer } from "http";
+import { Server } from "socket.io";
 
 import { connectDB } from "./lib/db.js";
 
 dotenv.config();
 
 const corsOptions = {
-  origin: [
-    "http://localhost:5173",
-    "https://devrekbenimmarketim.com",
-    "https://www.devrekbenimmarketim.com",
-  ],
+  origin: ["http://localhost:5173"],
   credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
   optionsSuccessStatus: 200,
 };
 
 const app = express();
+const httpServer = createServer(app);
+
+// Express middleware'leri
+app.use(cors(corsOptions));
+app.use(express.json({ limit: "10mb" }));
+app.use(cookieParser());
+
+// Socket.IO yapılandırması
+const io = new Server(httpServer, {
+  cors: {
+    origin: "http://localhost:5173",
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+    transports: ['polling', 'websocket']
+  },
+  pingTimeout: 60000,
+  pingInterval: 25000
+});
+
+// Global socket.io erişimi için
+app.set('io', io);
+
+// Socket.IO bağlantı yönetimi
+io.on('connection', (socket) => {
+  console.log('Yeni bir kullanıcı bağlandı. Socket ID:', socket.id);
+
+  socket.on('joinAdminRoom', () => {
+    socket.join('adminRoom');
+    console.log('Admin odaya katıldı');
+  });
+
+  socket.on('disconnect', () => {
+    console.log('Kullanıcı ayrıldı');
+  });
+});
+
 const PORT = process.env.PORT || 5000;
 
 const __dirname = path.resolve();
 
-app.use(express.json({ limit: "10mb" }));
-app.use(cookieParser());
-app.use(cors(corsOptions));
-app.use(express.json());
-
+// Routes
 app.use("/api/orders-analytics", ordersAnalyticsRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
@@ -54,7 +87,7 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`Sunucu ${PORT} portunda çalışıyor`);
   connectDB();
 });

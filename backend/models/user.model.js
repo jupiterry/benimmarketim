@@ -5,7 +5,15 @@ const userSchema = new mongoose.Schema(
 	{
 		name: {
 			type: String,
-			required: [true, "Name is required"],
+			required: [true, "İsim ve soyisim zorunludur"],
+			validate: {
+				validator: function(value) {
+					// En az iki kelime ve her kelime en az 2 karakter olmalı
+					const words = value.trim().split(/\s+/);
+					return words.length >= 2 && words.every(word => word.length >= 2);
+				},
+				message: "Lütfen geçerli bir isim ve soyisim giriniz (örn: Ahmet Yılmaz)"
+			}
 		},
 		email: {
 			type: String,

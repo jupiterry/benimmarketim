@@ -359,6 +359,35 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
     return (((price - discountedPrice) / price) * 100).toFixed(0);
   };
 
+  const handleDeleteProduct = async (productId) => {
+    try {
+      await deleteProduct(productId);
+      setLocalProducts(prevProducts => prevProducts.filter(product => product._id !== productId));
+    } catch (error) {
+      console.error("Ürün silme hatası:", error);
+      toast.error("Ürün silinirken hata oluştu");
+    }
+  };
+
+  const handleFeatureToggle = async (productId) => {
+    const product = localProducts.find(p => p._id === productId);
+    if (!product) return;
+
+    try {
+      await toggleFeaturedProduct(productId);
+      setLocalProducts(prevProducts =>
+        prevProducts.map(p =>
+          p._id === productId
+            ? { ...p, isFeatured: !p.isFeatured }
+            : p
+        )
+      );
+    } catch (error) {
+      console.error("Öne çıkarma durumu değiştirme hatası:", error);
+      toast.error("Öne çıkarma durumu değiştirilirken hata oluştu");
+    }
+  };
+
   return (
     <motion.div
       className="bg-gray-800/30 shadow-2xl rounded-2xl overflow-hidden max-w-full mx-auto border border-gray-700/50"
@@ -631,7 +660,7 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
                               <motion.button
                                 whileHover={{ scale: 1.1 }}
                                 whileTap={{ scale: 0.9 }}
-                                onClick={() => toggleFeaturedProduct(product._id)}
+                                onClick={() => handleFeatureToggle(product._id)}
                                 className={`p-2 rounded-xl transition-all duration-200 ${
                                   product.isFeatured
                                     ? "bg-yellow-500/20 text-yellow-400"
@@ -708,7 +737,7 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
                                   <motion.button
                                     whileHover={{ scale: 1.1 }}
                                     whileTap={{ scale: 0.9 }}
-                                    onClick={() => deleteProduct(product._id)}
+                                    onClick={() => handleDeleteProduct(product._id)}
                                     className="text-red-400 hover:text-red-300 bg-red-500/10 p-2 rounded-lg
                                       hover:bg-red-500/20 transition-all duration-200 opacity-0 group-hover:opacity-100"
                                   >

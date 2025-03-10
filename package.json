@@ -20,6 +20,7 @@
 		"cookie-parser": "^1.4.6",
 		"cors": "^2.8.5",
 		"csv-parser": "^3.2.0",
+		"disable-devtool": "^0.3.8",
 		"dotenv": "^16.4.5",
 		"express": "^4.19.2",
 		"framer-motion": "^12.4.7",
@@ -31,6 +32,8 @@
 		"react-infinite-scroll-component": "^6.1.0",
 		"react-slick": "^0.30.3",
 		"slick-carousel": "^1.8.1",
+		"socket.io": "^4.8.1",
+		"socket.io-client": "^4.8.1",
 		"stripe": "^16.8.0",
 		"zustand": "^5.0.3"
 	},
