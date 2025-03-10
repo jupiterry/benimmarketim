@@ -129,7 +129,7 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
-httpServer.listen(PORT, '145.14.158.226', () => {
-  console.log(`Sunucu ${PORT} portunda ve ${process.env.NODE_ENV} modunda çalışıyor (http://145.14.158.226:${PORT})`);
+httpServer.listen(PORT, '0.0.0.0', () => {
+  console.log(`Sunucu ${PORT} portunda çalışıyor (http://145.14.158.226:${PORT})`);
   connectDB();
 });
