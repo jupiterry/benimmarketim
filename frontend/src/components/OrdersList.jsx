@@ -44,7 +44,22 @@ const OrdersList = () => {
     // Socket.IO bağlantısı
     const socket = io('https://devrekbenimmarketim.com', {
       withCredentials: true,
-      transports: ['polling', 'websocket']
+      transports: ['websocket', 'polling'],
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: 5,
+      timeout: 20000,
+      path: '/socket.io/',
+      autoConnect: false
+    });
+
+    // Bağlantıyı başlat
+    socket.connect();
+
+    socket.io.on("reconnect_attempt", (attempt) => {
+      console.log('Yeniden bağlanma denemesi:', attempt);
+      // WebSocket'e geçiş yap
+      socket.io.opts.transports = ['websocket'];
     });
 
     socket.on('connect', () => {

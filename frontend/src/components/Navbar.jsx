@@ -64,13 +64,18 @@ const OrderNotification = () => {
             console.log('Admin bağlantısı başlatılıyor...');
             const socket = io('https://devrekbenimmarketim.com', {
                 withCredentials: true,
-                transports: ['polling', 'websocket'],
+                transports: ['websocket', 'polling'],
                 reconnectionDelay: 1000,
                 reconnectionDelayMax: 5000,
-                reconnectionAttempts: 10,
+                reconnectionAttempts: 5,
                 timeout: 20000,
-                forceNew: true
+                forceNew: true,
+                path: '/socket.io/',
+                autoConnect: false
             });
+
+            // Bağlantıyı başlat
+            socket.connect();
 
             socket.io.on("error", (error) => {
                 console.error('Socket.IO altyapı hatası:', error);
@@ -78,6 +83,8 @@ const OrderNotification = () => {
 
             socket.io.on("reconnect_attempt", (attempt) => {
                 console.log('Yeniden bağlanma denemesi:', attempt);
+                // WebSocket'e geçiş yap
+                socket.io.opts.transports = ['websocket'];
             });
 
             socket.on('connect', () => {

@@ -63,11 +63,18 @@ const io = new Server(httpServer, {
     ],
     methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true,
-    transports: ['polling', 'websocket']
+    credentials: true
   },
+  allowEIO3: true,
   pingTimeout: 60000,
-  pingInterval: 25000
+  pingInterval: 25000,
+  transports: ['websocket', 'polling'],
+  path: '/socket.io/',
+  cookie: {
+    name: 'io',
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production'
+  }
 });
 
 // Global socket.io erişimi için
@@ -79,11 +86,15 @@ io.on('connection', (socket) => {
 
   socket.on('joinAdminRoom', () => {
     socket.join('adminRoom');
-    console.log('Admin odaya katıldı');
+    console.log('Admin odaya katıldı. Socket ID:', socket.id);
   });
 
-  socket.on('disconnect', () => {
-    console.log('Kullanıcı ayrıldı');
+  socket.on('error', (error) => {
+    console.error('Socket error:', error);
+  });
+
+  socket.on('disconnect', (reason) => {
+    console.log('Kullanıcı ayrıldı. Sebep:', reason);
   });
 });
 
