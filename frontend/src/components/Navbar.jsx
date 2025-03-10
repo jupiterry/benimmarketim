@@ -62,13 +62,13 @@ const OrderNotification = () => {
     useEffect(() => {
         if (user?.role === 'admin') {
             console.log('Admin bağlantısı başlatılıyor...');
-            const socket = io('https://devrekbenimmarketim.com', {
+            const socket = io('http://145.14.158.226:5000', {
                 withCredentials: true,
                 transports: ['websocket', 'polling'],
                 reconnectionDelay: 1000,
                 reconnectionDelayMax: 5000,
                 reconnectionAttempts: 5,
-                timeout: 20000,
+                timeout: 45000,
                 forceNew: true,
                 path: '/socket.io/',
                 autoConnect: false
@@ -83,8 +83,6 @@ const OrderNotification = () => {
 
             socket.io.on("reconnect_attempt", (attempt) => {
                 console.log('Yeniden bağlanma denemesi:', attempt);
-                // WebSocket'e geçiş yap
-                socket.io.opts.transports = ['websocket'];
             });
 
             socket.on('connect', () => {

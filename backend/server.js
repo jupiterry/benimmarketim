@@ -31,7 +31,9 @@ const corsOptions = {
     "https://www.devrekbenimmarketim.com",
     "http://www.devrekbenimmarketim.com",
     "https://devrekbenimmarketim.com",
-    "http://devrekbenimmarketim.com"
+    "http://devrekbenimmarketim.com",
+    "http://145.14.158.226:5173",
+    "https://145.14.158.226:5173"
   ],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -59,7 +61,10 @@ const io = new Server(httpServer, {
       "https://www.devrekbenimmarketim.com",
       "http://www.devrekbenimmarketim.com",
       "https://devrekbenimmarketim.com",
-      "http://devrekbenimmarketim.com"
+      "http://devrekbenimmarketim.com",
+      "http://145.14.158.226:5173",
+      "https://145.14.158.226:5173",
+      "https://145.14.158.226:5000"
     ],
     methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -74,7 +79,9 @@ const io = new Server(httpServer, {
     name: 'io',
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production'
-  }
+  },
+  connectTimeout: 45000,
+  maxHttpBufferSize: 1e8
 });
 
 // Global socket.io erişimi için
@@ -83,6 +90,11 @@ app.set('io', io);
 // Socket.IO bağlantı yönetimi
 io.on('connection', (socket) => {
   console.log('Yeni bir kullanıcı bağlandı. Socket ID:', socket.id);
+  console.log('Transport tipi:', socket.conn.transport.name);
+
+  socket.conn.on('upgrade', (transport) => {
+    console.log('Transport yükseltildi:', transport.name);
+  });
 
   socket.on('joinAdminRoom', () => {
     socket.join('adminRoom');
@@ -118,7 +130,7 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
-httpServer.listen(PORT, () => {
-  console.log(`Sunucu ${PORT} portunda çalışıyor`);
+httpServer.listen(PORT, '145.14.158.226', () => {
+  console.log(`Sunucu ${PORT} portunda ve ${process.env.NODE_ENV} modunda çalışıyor (http://145.14.158.226:${PORT})`);
   connectDB();
 });
