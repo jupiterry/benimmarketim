@@ -4,18 +4,21 @@ import { Search, Package2, ChevronLeft, ChevronRight, RefreshCw } from "lucide-r
 import toast from "react-hot-toast";
 import io from "socket.io-client";
 
+// Socket.IO endpoint yapılandırması
+const ENDPOINT = import.meta.env.PROD 
+  ? "https://devrekbenimmarketim.com"
+  : "http://localhost:5000";
+
 // Socket.IO istemci yapılandırması
-const socket = io(import.meta.env.PROD ? 'https://devrekbenimmarketim.com' : 'http://localhost:5000', {
+const socket = io(ENDPOINT, { 
+  transports: ["websocket"],
   path: '/socket.io/',
-  transports: ['polling', 'websocket'],
   secure: true,
   rejectUnauthorized: false,
   reconnection: true,
   reconnectionAttempts: 5,
   reconnectionDelay: 1000,
-  timeout: 20000,
-  autoConnect: false,
-  withCredentials: true
+  autoConnect: false
 });
 
 const OrdersList = () => {

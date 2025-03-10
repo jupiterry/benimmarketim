@@ -60,17 +60,11 @@ const io = new Server(httpServer, {
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization']
   },
-  allowEIO3: true,
-  transports: ['polling', 'websocket'],
+  transports: ['websocket'],
   path: '/socket.io/',
   pingTimeout: 60000,
   pingInterval: 25000,
-  cookie: {
-    name: 'io',
-    path: '/',
-    httpOnly: true,
-    sameSite: 'strict'
-  }
+  connectTimeout: 45000
 });
 
 // Global socket.io erişimi için
@@ -83,10 +77,16 @@ io.on('connection', (socket) => {
   socket.on('joinAdminRoom', () => {
     socket.join('adminRoom');
     console.log('Admin odaya katıldı:', socket.id);
+    // Bağlantı başarılı olduğunda bir onay mesajı gönder
+    socket.emit('adminJoined', { status: 'success', message: 'Admin odaya başarıyla katıldı' });
   });
 
-  socket.on('disconnect', () => {
-    console.log('Kullanıcı ayrıldı:', socket.id);
+  socket.on('error', (error) => {
+    console.error('Socket hatası:', error);
+  });
+
+  socket.on('disconnect', (reason) => {
+    console.log('Kullanıcı ayrıldı:', socket.id, 'Sebep:', reason);
   });
 });
 
