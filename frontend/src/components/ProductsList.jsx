@@ -26,6 +26,7 @@ const categories = [
 	{ href: "/icecekler", name: "Buz Gibi İçecekler", imageUrl: "/juice.png" },
 	{ href: "/dondurulmus", name: "Dondurulmuş Gıdalar", imageUrl: "/frozen.png" },
 	{ href: "/baharat", name: "Baharatlar", imageUrl: "/spices.png" },
+  { href: "/dondurma", name: "Golf Dondurmalar", imageUrl: "/dondurma.png" }
 ];
 
 

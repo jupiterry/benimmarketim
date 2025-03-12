@@ -21,7 +21,8 @@ const categories = [
 	{ href: "/et", name: "Şarküteri & Et Ürünleri" },
 	{ href: "/icecekler", name: "Buz Gibi İçecekler" },
 	{ href: "/dondurulmus", name: "Dondurulmuş Gıdalar" },
-	{ href: "/baharat", name: "Baharatlar" }
+	{ href: "/baharat", name: "Baharatlar" },
+	{ href: "/dondurma", name: "Golf Dondurmalar" }
 ];
 
 const CreateProductForm = () => {
