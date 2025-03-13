@@ -12,6 +12,7 @@ import { useUserStore } from "./stores/useUserStore";
 import LoadingSpinner from "./components/LoadingSpinner";
 import CartPage from "./pages/CartPage";
 import { useCartStore } from "./stores/useCartStore";
+import { useSettingsStore } from "./stores/useSettingsStore";
 import PurchaseSuccessPage from "./pages/PurchaseSuccessPage";
 import OrderCreated from "./pages/OrderCreated";
 import Footer from "./components/Footer";
@@ -31,6 +32,7 @@ const ProtectedRoute = ({ children }) => {
 function App() {
   const { user, checkAuth, checkingAuth } = useUserStore();
   const { getCartItems } = useCartStore();
+  const { fetchSettings } = useSettingsStore();
 
   useEffect(() => {
     checkAuth();
@@ -40,6 +42,10 @@ function App() {
     if (!user) return;
     getCartItems();
   }, [getCartItems, user]);
+
+  useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
 
   if (checkingAuth) return <LoadingSpinner />;
 

@@ -12,6 +12,7 @@ import couponRoutes from "./routes/coupon.route.js";
 import paymentRoutes from "./routes/payment.route.js";
 import analyticsRoutes from "./routes/analytics.route.js";
 import feedbackRoutes from "./routes/feedback.route.js";
+import settingsRoutes from "./routes/settings.route.js";
 import { createServer } from "http";
 import { Server } from "socket.io";
 
@@ -96,6 +97,7 @@ app.use("/api/coupons", couponRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/feedback", feedbackRoutes);
+app.use("/api/settings", settingsRoutes);
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "/frontend/dist")));

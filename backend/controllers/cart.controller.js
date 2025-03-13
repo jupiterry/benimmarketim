@@ -1,29 +1,114 @@
 import Product from "../models/product.model.js";
 import Order from "../models/order.model.js";
+import Settings from "../models/settings.model.js";
 
-// Saat kontrolü için yardımcı fonksiyon
-const isWithinOrderHours = () => {
+// Saat kontrolü için global bir önbellek tanımlayalım
+global.orderHoursCache = {
+  startHour: 10,
+  startMinute: 0,
+  endHour: 1,
+  endMinute: 0,
+  lastUpdated: 0
+};
+
+// Önbellek süresini 1 dakikaya indirelim
+const CACHE_TTL = 60 * 1000; 
+
+// Önbelleği hemen temizleme/yenileme fonksiyonu
+export const refreshOrderHoursCache = async () => {
+  try {
+    const settings = await Settings.getSettings();
+    console.log("Sipariş saatleri önbelleği yenileniyor:", settings);
+    global.orderHoursCache = {
+      startHour: settings.orderStartHour,
+      startMinute: settings.orderStartMinute,
+      endHour: settings.orderEndHour,
+      endMinute: settings.orderEndMinute,
+      lastUpdated: new Date().getTime()
+    };
+    return true;
+  } catch (error) {
+    console.error("Önbellek yenilenirken hata:", error);
+    return false;
+  }
+};
+
+const isWithinOrderHours = async () => {
   const now = new Date();
+  const currentTime = now.getTime();
+
+  // Önbellek süresi dolduysa veya ilk kez çağrılıyorsa veritabanından getir
+  if (currentTime - global.orderHoursCache.lastUpdated > CACHE_TTL) {
+    try {
+      const settings = await Settings.getSettings();
+      console.log("Sipariş saatleri ayarları alındı:", settings);
+      global.orderHoursCache = {
+        startHour: settings.orderStartHour,
+        startMinute: settings.orderStartMinute,
+        endHour: settings.orderEndHour,
+        endMinute: settings.orderEndMinute,
+        lastUpdated: currentTime
+      };
+    } catch (error) {
+      console.error("Sipariş saatleri ayarları getirilirken hata:", error);
+      // Hata durumunda önbellekteki son değerleri kullan
+    }
+  }
+
   const currentHour = now.getHours();
   const currentMinute = now.getMinutes();
 
-  // Sabah 11:30'dan gece 23:30'a kadar olan aralığı kontrol et
-  const startHour = 1;
-  const startMinute = 30;
-  const endHour = 23;
-  const endMinute = 30;
-
   const currentTimeInMinutes = currentHour * 60 + currentMinute;
-  const startTimeInMinutes = startHour * 60 + startMinute; // 11:30 = 690 dakika
-  const endTimeInMinutes = endHour * 60 + endMinute;       // 23:30 = 1410 dakika
+  const startTimeInMinutes = global.orderHoursCache.startHour * 60 + global.orderHoursCache.startMinute;
+  const endTimeInMinutes = global.orderHoursCache.endHour * 60 + global.orderHoursCache.endMinute;
 
-  return currentTimeInMinutes >= startTimeInMinutes && currentTimeInMinutes <= endTimeInMinutes;
+  console.log("Zaman Kontrolü Yapılıyor:");
+  console.log(`Şuanki Zaman: ${currentHour}:${currentMinute} (${currentTimeInMinutes} dakika)`);
+  console.log(`Başlangıç: ${global.orderHoursCache.startHour}:${global.orderHoursCache.startMinute} (${startTimeInMinutes} dakika)`);
+  console.log(`Bitiş: ${global.orderHoursCache.endHour}:${global.orderHoursCache.endMinute} (${endTimeInMinutes} dakika)`);
+
+  // Gece yarısını geçen saat aralığını doğru şekilde kontrol et
+  let isWithinHours;
+  if (startTimeInMinutes < endTimeInMinutes) {
+    // Normal durum: Başlangıç saati, bitiş saatinden önce (aynı gün içinde)
+    isWithinHours = currentTimeInMinutes >= startTimeInMinutes && currentTimeInMinutes <= endTimeInMinutes;
+    console.log("Normal saat aralığı kontrolü sonucu:", isWithinHours);
+  } else {
+    // Gece yarısını geçen durum: (ör: 10:00'dan 01:00'a)
+    isWithinHours = currentTimeInMinutes >= startTimeInMinutes || currentTimeInMinutes <= endTimeInMinutes;
+    console.log("Gece yarısını geçen saat aralığı kontrolü sonucu:", isWithinHours);
+  }
+
+  return isWithinHours;
+};
+
+// Sipariş saati mesajını oluşturan yardımcı fonksiyon
+const getOrderHoursMessage = async () => {
+  try {
+    const settings = await Settings.getSettings();
+    console.log("Hata mesajı için sipariş saatleri:", settings);
+    
+    // Daha anlamlı saat ifadeleri kullanalım
+    const formatHour = (hour) => {
+      if (hour === 0) return "00:00";
+      if (hour < 12) return `sabah ${hour}`;
+      if (hour === 12) return "öğlen 12";
+      if (hour < 17) return `öğleden sonra ${hour}`;
+      if (hour < 21) return `akşam ${hour}`;
+      return `gece ${hour}`;
+    };
+    
+    return `Siparişler sadece ${formatHour(settings.orderStartHour)}:${settings.orderStartMinute.toString().padStart(2, '0')} ile ${formatHour(settings.orderEndHour)}:${settings.orderEndMinute.toString().padStart(2, '0')} arasında verilebilir.`;
+  } catch (error) {
+    console.error("Sipariş saatleri mesajı oluşturulurken hata:", error);
+    return "Siparişler sadece belirlenen saatler arasında verilebilir.";
+  }
 };
 
 export const addToCart = async (req, res) => {
   try {
-	if (!isWithinOrderHours()) {
-		return res.status(400).json({ error: "Siparişler sadece sabah 11:30 ile gece 23:30 arasında verilebilir." });
+	if (!await isWithinOrderHours()) {
+		return res.status(400).json({ error: await getOrderHoursMessage() });
 	  }
     const { productId, quantity = 1 } = req.body; // 🚀 `quantity` eksikse 1 olarak ayarla
     const user = req.user;
@@ -128,8 +213,8 @@ export const updateQuantity = async (req, res) => {
 export const placeOrder = async (req, res) => {
 	try {
 	  // Saat kontrolü
-	  if (!isWithinOrderHours()) {
-		return res.status(400).json({ error: "Siparişler sadece sabah 10:00 ile gece 01:00 arasında verilebilir." });
+	  if (!await isWithinOrderHours()) {
+		return res.status(400).json({ error: await getOrderHoursMessage() });
 	  }
   
 	  const { products, city, phone, note } = req.body;
@@ -162,9 +247,12 @@ export const placeOrder = async (req, res) => {
 		})
 	  );
   
-	  // Minimum sipariş tutarı kontrolü
-	  if (totalAmount < 250) {
-		return res.status(400).json({ error: "Sipariş tutarı minimum 250 TL olmalıdır!" });
+	  // Minimum sipariş tutarı kontrolü - ayarlardan al
+	  const settings = await Settings.getSettings();
+	  const minimumOrderAmount = settings.minimumOrderAmount || 250; // Varsayılan 250 TL
+  
+	  if (totalAmount < minimumOrderAmount) {
+		return res.status(400).json({ error: `Sipariş tutarı minimum ${minimumOrderAmount} TL olmalıdır!` });
 	  }
   
 	  // Yeni sipariş oluştur

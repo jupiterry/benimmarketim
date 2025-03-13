@@ -1,4 +1,4 @@
-import { BarChart, PlusCircle, ShoppingBasket, Upload, Users, Package2, MessageSquare } from "lucide-react";
+import { BarChart, PlusCircle, ShoppingBasket, Upload, Users, Package2, MessageSquare, Settings } from "lucide-react";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "../lib/axios";
@@ -10,6 +10,7 @@ import CreateProductForm from "../components/CreateProductForm";
 import ProductsList from "../components/ProductsList";
 import OrdersList from "../components/OrdersList";
 import FeedbackList from "../components/FeedbackList";
+import SettingsTab from "../components/SettingsTab";
 
 const AdminPage = () => {
   const [activeTab, setActiveTab] = useState("products");
@@ -147,29 +148,25 @@ const AdminPage = () => {
         animate={{ opacity: 1, y: 0 }}
         className="max-w-xl mx-auto bg-gray-700/30 rounded-xl p-8 border border-gray-600/30"
       >
-        <h2 className="text-2xl font-bold bg-gradient-to-r from-emerald-400 to-teal-500 bg-clip-text text-transparent mb-4">
-          Toplu Ürün Yükleme
-        </h2>
-        <p className="text-gray-300 mb-6">
-          CSV formatında bir dosya yükleyerek ürünleri toplu olarak ekleyebilirsiniz.
-        </p>
-        <label className="block">
-          <span className="sr-only">CSV Dosyası Seç</span>
-          <input
-            type="file"
-            accept=".csv"
-            onChange={handleBulkUpload}
-            className="block w-full text-sm text-gray-300
-              file:mr-4 file:py-3 file:px-6
-              file:rounded-xl file:border-0
-              file:text-sm file:font-semibold
-              file:bg-gradient-to-r file:from-emerald-500 file:to-teal-600
-              file:text-white
-              hover:file:from-emerald-600 hover:file:to-teal-700
-              file:cursor-pointer file:transition-all
-              file:duration-300"
-          />
-        </label>
+        <h2 className="text-2xl font-bold text-white mb-6 text-center">Ürünleri Toplu Yükle</h2>
+        <div className="mb-6 text-gray-300 text-sm">
+          <p>CSV dosyası ile ürünleri toplu olarak yükleyebilirsiniz. CSV dosyası aşağıdaki başlıklara sahip olmalıdır:</p>
+          <code className="block mt-2 p-3 bg-gray-800 rounded-md overflow-x-auto">
+            name,description,price,image,category,stock,isOutOfStock,isHidden,discountedPrice
+          </code>
+        </div>
+        <div className="flex flex-col items-center">
+          <label className="w-full flex flex-col items-center px-4 py-6 bg-gray-700 text-gray-300 rounded-lg shadow-lg tracking-wide border border-gray-600 cursor-pointer hover:bg-gray-600 transition-colors">
+            <Upload className="w-8 h-8" />
+            <span className="mt-2 text-base">CSV Dosyası Seç</span>
+            <input 
+              type="file" 
+              accept=".csv" 
+              className="hidden" 
+              onChange={handleBulkUpload}
+            />
+          </label>
+        </div>
       </motion.div>
     },
     {
@@ -177,6 +174,12 @@ const AdminPage = () => {
       label: "Geri Bildirimler",
       icon: <MessageSquare className="w-5 h-5" />,
       component: <FeedbackList />
+    },
+    {
+      id: "settings",
+      label: "Ayarlar",
+      icon: <Settings className="w-5 h-5" />,
+      component: <SettingsTab />
     }
   ];
 

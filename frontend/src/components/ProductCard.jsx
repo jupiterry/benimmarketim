@@ -13,7 +13,7 @@ const ProductCard = ({ product, isAdmin }) => {
   const [discountedPrice, setDiscountedPrice] = useState(product.discountedPrice);
   const [imageError, setImageError] = useState(false);
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!user) {
       toast.error("Sepete ürün eklemek için lütfen sisteme giriş yapın.", { id: "login" });
       return;
@@ -22,16 +22,21 @@ const ProductCard = ({ product, isAdmin }) => {
       toast.error("Bu ürün tükenmiştir.", { id: "out-of-stock" });
       return;
     }
-    addToCart(product);
-    toast.success("Ürün sepete eklendi!", {
-      icon: "🛍️",
-      position: "top-center",
-      style: {
-        borderRadius: "10px",
-        background: "#333",
-        color: "#fff",
-      },
-    });
+    
+    try {
+      await addToCart(product);
+      toast.success("Ürün sepete eklendi!", {
+        icon: "🛍️",
+        position: "top-center",
+        style: {
+          borderRadius: "10px",
+          background: "#333",
+          color: "#fff",
+        },
+      });
+    } catch (error) {
+      // Hata mesajı useCartStore içinde gösteriliyor, burada bir şey yapmaya gerek yok
+    }
   };
 
   const handleDiscountUpdate = async () => {

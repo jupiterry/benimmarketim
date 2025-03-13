@@ -2,15 +2,17 @@ import { motion } from "framer-motion";
 import { useCartStore } from "../stores/useCartStore";
 import { useNavigate } from "react-router-dom";
 import axios from "../lib/axios";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import cities from "../data/cities";
 import toast from "react-hot-toast";
 import { Clock, Truck, Info } from "lucide-react";
 import { useUserStore } from "../stores/useUserStore";
+import { useSettingsStore } from "../stores/useSettingsStore";
 import FeedbackForm from "./FeedbackForm";
 
 const OrderSummary = () => {
   const { total, subtotal, coupon, isCouponApplied, cart, clearCart } = useCartStore();
+  const { settings, fetchSettings } = useSettingsStore();
   const [selectedCity, setSelectedCity] = useState("");
   const [phone, setPhone] = useState("");
   const [note, setNote] = useState("");
@@ -18,13 +20,17 @@ const OrderSummary = () => {
   const navigate = useNavigate();
   const { user } = useUserStore();
 
+  useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
+
   const savings = subtotal - total;
   const formattedSubtotal = subtotal.toFixed(2);
   const formattedTotal = total.toFixed(2);
   const formattedSavings = savings.toFixed(2);
 
   // Minimum sipariş tutarı için ilerleme hesaplama
-  const MIN_ORDER_AMOUNT = 250;
+  const MIN_ORDER_AMOUNT = settings.minimumOrderAmount;
   const progress = (total / MIN_ORDER_AMOUNT) * 100;
   const remainingAmount = MIN_ORDER_AMOUNT - total;
 
@@ -150,7 +156,7 @@ const OrderSummary = () => {
         </div>
         <div className="flex items-center gap-2 text-sm text-gray-300">
           <Info className="w-4 h-4" />
-          <span>₺250 üzeri siparişlerde ücretsiz teslimat</span>
+          <span>₺{MIN_ORDER_AMOUNT} üzeri siparişlerde ücretsiz teslimat</span>
         </div>
       </div>
 
@@ -231,7 +237,7 @@ const OrderSummary = () => {
           onClick={handlePayment}
           disabled={total < MIN_ORDER_AMOUNT}
         >
-          {total < MIN_ORDER_AMOUNT ? 'Minimum Tutar 250₺' : 'Sepeti Onayla'}
+          {total < MIN_ORDER_AMOUNT ? `Minimum Tutar ${MIN_ORDER_AMOUNT}₺` : 'Sepeti Onayla'}
         </motion.button>
       </div>
     </motion.div>

@@ -64,8 +64,11 @@ export const useCartStore = create((set, get) => ({
 				return { cart: newCart };
 			});
 			get().calculateTotals();
+			return Promise.resolve();
 		} catch (error) {
-			toast.error(error.response.data.message || "Lütfen saati kontrol ediniz.");
+			const errorMessage = error.response?.data?.error || error.response?.data?.message || "Lütfen saati kontrol ediniz.";
+			toast.error(errorMessage);
+			return Promise.reject(error);
 		}
 	},
 	removeFromCart: async (productId) => {

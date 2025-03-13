@@ -17,14 +17,19 @@ const FeaturedProducts = ({ featuredProducts }) => {
     return (((price - discountedPrice) / price) * 100).toFixed(0);
   };
 
-  const handleAddToCart = (product) => {
+  const handleAddToCart = async (product) => {
     if (!user) {
       toast.error("Sepete ürün eklemek için lütfen giriş yapın");
       navigate("/login");
       return;
     }
-    addToCart(product);
-    toast.success("Ürün sepete eklendi!");
+    
+    try {
+      await addToCart(product);
+      toast.success("Ürün sepete eklendi!");
+    } catch (error) {
+      // Hata mesajı useCartStore içinde gösteriliyor
+    }
   };
 
   const nextSlide = () => {
