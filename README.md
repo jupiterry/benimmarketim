@@ -64,9 +64,6 @@ Modern tasarıma sahip, React ve Node.js ile geliştirilmiş kapsamlı bir e-tic
 - Redis
 - JWT Kimlik Doğrulama
 
-**Ödeme İşleme:**
-- Stripe API
-
 ## 🚀 Kurulum ve Çalıştırma
 
 ### Gereksinimler
