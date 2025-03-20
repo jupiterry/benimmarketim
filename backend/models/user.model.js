@@ -31,6 +31,10 @@ const userSchema = new mongoose.Schema(
 			type: String,
 			trim: true,
 		},
+		lastActive: {
+			type: Date,
+			default: Date.now
+		},
 		cartItems: [
 			{
 				quantity: {

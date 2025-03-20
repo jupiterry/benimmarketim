@@ -1,8 +1,9 @@
 // backend/routes/userRoutes.js
 import express from "express";
-import { getAllUsers, updateUser, addPhoneFieldToAllUsers, deleteUser } from "../controllers/userController.js";
+import { getAllUsers, updateUser, addPhoneFieldToAllUsers, deleteUser, resetUserPassword } from "../controllers/userController.js";
 import { protectRoute, adminRoute } from "../middleware/auth.middleware.js"; // Yeni middleware'leri import et
 import { getUserInfo } from "../controllers/user.controller.js";
+import { updateLastActive } from "../middleware/updateLastActive.js";
 
 const router = express.Router();
 
@@ -10,9 +11,10 @@ const router = express.Router();
 router.get("/", protectRoute, adminRoute, getAllUsers); // Tüm kullanıcıları getir
 router.put("/:userId", protectRoute, adminRoute, updateUser); // Kullanıcıyı güncelle
 router.delete("/:userId", protectRoute, adminRoute, deleteUser);
+router.post("/:userId/reset-password", protectRoute, adminRoute, resetUserPassword); // Şifre sıfırlama
 
 // Kullanıcı bilgilerini getir
-router.get("/:id", protectRoute, getUserInfo);
+router.get("/:id", protectRoute, updateLastActive, getUserInfo);
 
 // Herkesin erişebileceği endpoint
 router.post("/add-phone-field", addPhoneFieldToAllUsers);
