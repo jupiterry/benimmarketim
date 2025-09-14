@@ -48,7 +48,7 @@ const SettingsTab = () => {
       setSaving(true);
       const success = await updateSettings(settings);
       if (success) {
-        toast.success("Ayarlar başarıyla güncellendi");
+        toast.success("Ayarlar başarıyla güncellendi!");
       } else {
         toast.error("Ayarlar güncellenirken hata oluştu");
       }
