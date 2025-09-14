@@ -33,12 +33,14 @@ const FeaturedProducts = ({ featuredProducts }) => {
   };
 
   const nextSlide = () => {
+    if (!Array.isArray(featuredProducts) || featuredProducts.length === 0) return;
     setCurrentIndex((prevIndex) =>
       prevIndex + getVisibleProducts() >= featuredProducts.length ? 0 : prevIndex + getVisibleProducts()
     );
   };
 
   const prevSlide = () => {
+    if (!Array.isArray(featuredProducts) || featuredProducts.length === 0) return;
     setCurrentIndex((prevIndex) =>
       prevIndex - getVisibleProducts() < 0 
         ? Math.max(0, featuredProducts.length - getVisibleProducts()) 
@@ -57,6 +59,7 @@ const FeaturedProducts = ({ featuredProducts }) => {
 
   useEffect(() => {
     const handleResize = () => {
+      if (!Array.isArray(featuredProducts) || featuredProducts.length === 0) return;
       const visibleProducts = getVisibleProducts();
       if (currentIndex + visibleProducts > featuredProducts.length) {
         setCurrentIndex(Math.max(0, featuredProducts.length - visibleProducts));
@@ -65,9 +68,9 @@ const FeaturedProducts = ({ featuredProducts }) => {
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [currentIndex, featuredProducts.length]);
+  }, [currentIndex, featuredProducts]);
 
-  if (!featuredProducts || featuredProducts.length === 0) {
+  if (!featuredProducts || !Array.isArray(featuredProducts) || featuredProducts.length === 0) {
     return (
       <div className="text-center py-8 text-gray-400">
         Henüz haftanın yıldızı ürün bulunmuyor
@@ -104,7 +107,7 @@ const FeaturedProducts = ({ featuredProducts }) => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {featuredProducts.slice(currentIndex, currentIndex + getVisibleProducts()).map((product) => (
+        {Array.isArray(featuredProducts) && featuredProducts.slice(currentIndex, currentIndex + getVisibleProducts()).map((product) => (
           <motion.div
             key={product._id}
             className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 border border-gray-700/50 flex flex-col"
@@ -156,7 +159,7 @@ const FeaturedProducts = ({ featuredProducts }) => {
         ))}
       </div>
 
-      {featuredProducts.length === 0 && (
+      {(!Array.isArray(featuredProducts) || featuredProducts.length === 0) && (
         <div className="text-center py-8 text-gray-400">
           Henüz haftanın yıldızı ürün bulunmuyor
         </div>

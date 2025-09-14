@@ -103,9 +103,11 @@ export const useProductStore = create((set) => ({
         set({ loading: true });
         try {
             const response = await axios.get("/products/featured");
-            set({ products: response.data, loading: false });
+            // Response'un array olup olmadığını kontrol et
+            const featuredProducts = Array.isArray(response.data) ? response.data : response.data.products || [];
+            set({ products: featuredProducts, loading: false });
         } catch (error) {
-            set({ error: "Öne çıkan ürünleri getirirken hata oluştu", loading: false });
+            set({ error: "Öne çıkan ürünleri getirirken hata oluştu", loading: false, products: [] });
             console.log("Öne çıkan ürünleri getirirken hata:", error);
         }
     },

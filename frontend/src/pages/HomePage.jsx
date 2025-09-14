@@ -254,25 +254,24 @@ const HomePage = () => {
 						whileInView="show"
 						viewport={{ once: true }}
 					>
-						{categories.map((category) => (
-							<motion.a
-								href={category.href}
-								key={category.href}
-								variants={item}
-								className="relative group transform perspective-1000 block"
-								whileHover={{ 
-									scale: 1.02,
-									rotateY: 10,
-									rotateX: 5,
-									translateZ: 20
-								}}
-								style={{
-									transformStyle: "preserve-3d"
-								}}
-							>
-								<CategoryItem category={category} />
-							</motion.a>
-						))}
+					{categories.map((category) => (
+						<motion.div
+							key={category.href}
+							variants={item}
+							className="relative group transform perspective-1000 block"
+							whileHover={{ 
+								scale: 1.02,
+								rotateY: 10,
+								rotateX: 5,
+								translateZ: 20
+							}}
+							style={{
+								transformStyle: "preserve-3d"
+							}}
+						>
+							<CategoryItem category={category} />
+						</motion.div>
+					))}
 					</motion.div>
 				</div>
 			</div>
