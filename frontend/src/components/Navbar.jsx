@@ -73,12 +73,14 @@ const OrderNotification = () => {
             
             const socket = io(getSocketURL(), {
                 withCredentials: true,
-                transports: ['websocket', 'polling'],
+                transports: ['polling', 'websocket'], // Polling'i önce dene
                 reconnectionDelay: 1000,
                 reconnectionDelayMax: 5000,
-                reconnectionAttempts: 10,
-                timeout: 20000,
-                forceNew: true
+                reconnectionAttempts: 5, // Daha az deneme
+                timeout: 10000, // Daha kısa timeout
+                forceNew: true,
+                upgrade: true, // Polling'den WebSocket'e geçişe izin ver
+                rememberUpgrade: false // Her seferinde polling ile başla
             });
 
             socket.io.on("error", (error) => {

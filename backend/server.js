@@ -72,10 +72,12 @@ const io = new Server(httpServer, {
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
-    transports: ['websocket', 'polling']
+    transports: ['polling', 'websocket'] // Polling'i önce dene
   },
-  pingTimeout: 60000,
-  pingInterval: 25000
+  pingTimeout: 30000, // Daha kısa timeout
+  pingInterval: 15000, // Daha sık ping
+  allowEIO3: true, // Eski protokol desteği
+  transports: ['polling', 'websocket'] // Transport sırası
 });
 
 // Global socket.io erişimi için
