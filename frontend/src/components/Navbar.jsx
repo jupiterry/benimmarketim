@@ -63,6 +63,10 @@ const OrderNotification = () => {
         if (user?.role === 'admin') {
             console.log('Admin bağlantısı başlatılıyor...');
             
+            // Socket.IO geçici olarak devre dışı - CORS sorunu çözülene kadar
+            console.log('Socket.IO geçici olarak devre dışı bırakıldı');
+            return;
+            
             // Development ve production ortamları için farklı Socket.IO URL'leri
             const getSocketURL = () => {
                 if (import.meta.env.DEV) {
