@@ -314,7 +314,7 @@ const FeedbackList = () => {
             <div className="mt-4">
               <div className="text-sm text-gray-400 mb-2">Son 30 Gün Trendi</div>
               <div className="h-24 flex items-end gap-1">
-                {stats.recentTrends.slice(-10).map((trend, index) => {
+                {Array.isArray(stats.recentTrends) && stats.recentTrends.slice(-10).map((trend, index) => {
                   const height = (trend.averageRating / 5) * 100;
                   const color = trend.averageRating >= 4 ? 'bg-emerald-500' :
                                trend.averageRating <= 2 ? 'bg-red-500' : 'bg-yellow-500';

@@ -54,15 +54,17 @@ export const useCartStore = create((set, get) => ({
 		try {
 			await axios.post("/cart", { productId: product._id });
 
-			set((prevState) => {
-				const existingItem = prevState.cart.find((item) => item._id === product._id);
-				const newCart = existingItem
-					? prevState.cart.map((item) =>
-							item._id === product._id ? { ...item, quantity: item.quantity + 1 } : item
-					  )
-					: [...prevState.cart, { ...product, quantity: 1 }];
-				return { cart: newCart };
-			});
+		set((prevState) => {
+			// Cart'ın array olduğundan emin ol
+			const currentCart = Array.isArray(prevState.cart) ? prevState.cart : [];
+			const existingItem = currentCart.find((item) => item._id === product._id);
+			const newCart = existingItem
+				? currentCart.map((item) =>
+						item._id === product._id ? { ...item, quantity: item.quantity + 1 } : item
+				  )
+				: [...currentCart, { ...product, quantity: 1 }];
+			return { cart: newCart };
+		});
 			get().calculateTotals();
 			return Promise.resolve();
 		} catch (error) {
@@ -73,7 +75,10 @@ export const useCartStore = create((set, get) => ({
 	},
 	removeFromCart: async (productId) => {
 		await axios.delete(`/cart`, { data: { productId } });
-		set((prevState) => ({ cart: prevState.cart.filter((item) => item._id !== productId) }));
+		set((prevState) => {
+			const currentCart = Array.isArray(prevState.cart) ? prevState.cart : [];
+			return { cart: currentCart.filter((item) => item._id !== productId) };
+		});
 		get().calculateTotals();
 	},
 	updateQuantity: async (productId, quantity) => {
@@ -83,14 +88,18 @@ export const useCartStore = create((set, get) => ({
 		}
 
 		await axios.put(`/cart/${productId}`, { quantity });
-		set((prevState) => ({
-			cart: prevState.cart.map((item) => (item._id === productId ? { ...item, quantity } : item)),
-		}));
+		set((prevState) => {
+			const currentCart = Array.isArray(prevState.cart) ? prevState.cart : [];
+			return {
+				cart: currentCart.map((item) => (item._id === productId ? { ...item, quantity } : item)),
+			};
+		});
 		get().calculateTotals();
 	},
 	calculateTotals: () => {
 		const { cart, coupon } = get();
-		const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+		const currentCart = Array.isArray(cart) ? cart : [];
+		const subtotal = currentCart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 		let total = subtotal;
 
 		if (coupon) {

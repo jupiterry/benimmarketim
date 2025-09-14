@@ -69,10 +69,13 @@ export const useProductStore = create((set) => ({
         set({ loading: true });
         try {
             await axios.delete(`/products/${productId}`);
-            set((prevProducts) => ({
-                products: prevProducts.products.filter((product) => product._id !== productId),
-                loading: false,
-            }));
+            set((prevProducts) => {
+                const currentProducts = Array.isArray(prevProducts.products) ? prevProducts.products : [];
+                return {
+                    products: currentProducts.filter((product) => product._id !== productId),
+                    loading: false,
+                };
+            });
             toast.success("Ürün başarıyla silindi");
         } catch (error) {
             set({ loading: false });
