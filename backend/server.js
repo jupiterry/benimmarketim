@@ -45,10 +45,13 @@ app.use(cors(corsOptions));
 // CORS Pre-flight için
 app.options('*', cors(corsOptions));
 
-// Cloudinary görselleri için CORS header'ları
+// Cloudinary görselleri için CORS header'ları (sadece Cloudinary istekleri için)
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+  // Sadece Cloudinary istekleri için wildcard kullan
+  if (req.url.includes('cloudinary.com') || req.url.includes('res.cloudinary.com')) {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+  }
   next();
 });
 
