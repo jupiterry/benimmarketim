@@ -56,7 +56,12 @@ app.use(cookieParser());
 // Socket.IO yapılandırması
 const io = new Server(httpServer, {
   cors: {
-    origin: ["https://www.devrekbenimmarketim.com", "http://www.devrekbenimmarketim.com"],
+    origin: [
+      "https://www.devrekbenimmarketim.com", 
+      "http://www.devrekbenimmarketim.com",
+      "http://localhost:5173", // Development frontend
+      "http://localhost:3000"  // Alternatif development port
+    ],
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
