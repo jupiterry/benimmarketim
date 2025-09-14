@@ -45,6 +45,27 @@ app.use(cors(corsOptions));
 // CORS Pre-flight için
 app.options('*', cors(corsOptions));
 
+// Socket.IO için özel CORS middleware
+app.use('/socket.io', (req, res, next) => {
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    "https://www.devrekbenimmarketim.com",
+    "http://www.devrekbenimmarketim.com", 
+    "https://devrekbenimmarketim.com",
+    "http://devrekbenimmarketim.com",
+    "http://localhost:5173",
+    "http://localhost:3000"
+  ];
+  
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  next();
+});
+
 // Cloudinary görselleri için CORS header'ları (sadece Cloudinary istekleri için)
 app.use((req, res, next) => {
   // Sadece Cloudinary istekleri için wildcard kullan
