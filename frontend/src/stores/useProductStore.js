@@ -103,8 +103,21 @@ export const useProductStore = create((set) => ({
         set({ loading: true });
         try {
             const response = await axios.get("/products/featured");
-            // Response'un array olup olmadığını kontrol et
-            const featuredProducts = Array.isArray(response.data) ? response.data : response.data.products || [];
+            
+            // Backend'ten gelen response yapısını kontrol et
+            let featuredProducts = [];
+            
+            if (response.data && response.data.success && Array.isArray(response.data.products)) {
+                // Yeni format: { success: true, products: [...], count: number }
+                featuredProducts = response.data.products;
+            } else if (Array.isArray(response.data)) {
+                // Eski format: direkt array
+                featuredProducts = response.data;
+            } else if (response.data && Array.isArray(response.data.products)) {
+                // Alternatif format: { products: [...] }
+                featuredProducts = response.data.products;
+            }
+            
             set({ products: featuredProducts, loading: false });
         } catch (error) {
             set({ error: "Öne çıkan ürünleri getirirken hata oluştu", loading: false, products: [] });

@@ -34,10 +34,20 @@ export const getFeaturedProducts = async (req, res) => {
     // Tüm ürünleri birleştir (önce indirimli sonra öne çıkan)
     const allFeaturedProducts = [...discountedProducts, ...featuredProducts];
 
-    res.json(allFeaturedProducts);
+    // Tutarlı response yapısı için her zaman aynı formatı döndür
+    res.json({
+      success: true,
+      products: allFeaturedProducts,
+      count: allFeaturedProducts.length
+    });
   } catch (error) {
     console.error("Öne çıkan ürünler getirilirken hata:", error);
-    res.status(500).json({ message: "Sunucu hatası" });
+    res.status(500).json({ 
+      success: false,
+      message: "Sunucu hatası",
+      products: [],
+      count: 0
+    });
   }
 };
 
