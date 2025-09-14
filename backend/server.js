@@ -25,6 +25,8 @@ const corsOptions = {
     "http://localhost:5173", 
     "https://www.devrekbenimmarketim.com",
     "http://www.devrekbenimmarketim.com",
+    "https://devrekbenimmarketim.com", // www olmayan domain
+    "http://devrekbenimmarketim.com",  // www olmayan domain (http)
     "https://res.cloudinary.com"
   ],
   credentials: true,
@@ -59,6 +61,8 @@ const io = new Server(httpServer, {
     origin: [
       "https://www.devrekbenimmarketim.com", 
       "http://www.devrekbenimmarketim.com",
+      "https://devrekbenimmarketim.com", // www olmayan domain
+      "http://devrekbenimmarketim.com",  // www olmayan domain (http)
       "http://localhost:5173", // Development frontend
       "http://localhost:3000"  // Alternatif development port
     ],
