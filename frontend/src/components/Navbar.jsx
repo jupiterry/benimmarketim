@@ -64,24 +64,21 @@ const OrderNotification = () => {
             console.log('Admin bağlantısı başlatılıyor...');
           
             
-            // Development ve production ortamları için farklı Socket.IO URL'leri
+            // Basit Socket.IO konfigürasyonu
             const getSocketURL = () => {
                 if (import.meta.env.DEV) {
-                    return 'http://localhost:5000'; // Development'ta localhost
+                    return 'http://localhost:5000';
                 }
-                return 'https://www.devrekbenimmarketim.com'; // Production'da
+                return 'https://www.devrekbenimmarketim.com';
             };
             
             const socket = io(getSocketURL(), {
                 withCredentials: true,
-                transports: ['polling', 'websocket'], // Polling'i önce dene
-                reconnectionDelay: 1000,
-                reconnectionDelayMax: 5000,
-                reconnectionAttempts: 5, // Daha az deneme
-                timeout: 10000, // Daha kısa timeout
-                forceNew: true,
-                upgrade: true, // Polling'den WebSocket'e geçişe izin ver
-                rememberUpgrade: false // Her seferinde polling ile başla
+                transports: ['polling'], // Sadece polling - daha güvenilir
+                reconnectionDelay: 2000,
+                reconnectionAttempts: 3,
+                timeout: 5000,
+                forceNew: true
             });
 
             socket.io.on("error", (error) => {

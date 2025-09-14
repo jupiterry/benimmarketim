@@ -45,26 +45,7 @@ app.use(cors(corsOptions));
 // CORS Pre-flight için
 app.options('*', cors(corsOptions));
 
-// Socket.IO için özel CORS middleware
-app.use('/socket.io', (req, res, next) => {
-  const origin = req.headers.origin;
-  const allowedOrigins = [
-    "https://www.devrekbenimmarketim.com",
-    "http://www.devrekbenimmarketim.com", 
-    "https://devrekbenimmarketim.com",
-    "http://devrekbenimmarketim.com",
-    "http://localhost:5173",
-    "http://localhost:3000"
-  ];
-  
-  if (allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-  }
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  next();
-});
+// Socket.IO için özel CORS middleware kaldırıldı - Socket.IO kendi CORS'unu yönetiyor
 
 // Cloudinary görselleri için CORS header'ları (sadece Cloudinary istekleri için)
 app.use((req, res, next) => {
@@ -79,26 +60,15 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
 
-// Socket.IO yapılandırması
+// Socket.IO yapılandırması - Basit ve güvenilir
 const io = new Server(httpServer, {
   cors: {
-    origin: [
-      "https://www.devrekbenimmarketim.com", 
-      "http://www.devrekbenimmarketim.com",
-      "https://devrekbenimmarketim.com", // www olmayan domain
-      "http://devrekbenimmarketim.com",  // www olmayan domain (http)
-      "http://localhost:5173", // Development frontend
-      "http://localhost:3000"  // Alternatif development port
-    ],
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true,
-    transports: ['polling', 'websocket'] // Polling'i önce dene
+    origin: true, // Tüm origin'lere izin ver (güvenlik için daha sonra kısıtlanabilir)
+    methods: ["GET", "POST"],
+    credentials: true
   },
-  pingTimeout: 30000, // Daha kısa timeout
-  pingInterval: 15000, // Daha sık ping
-  allowEIO3: true, // Eski protokol desteği
-  transports: ['polling', 'websocket'] // Transport sırası
+  allowEIO3: true,
+  transports: ['polling'] // Sadece polling kullan - daha güvenilir
 });
 
 // Global socket.io erişimi için

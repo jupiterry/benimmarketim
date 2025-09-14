@@ -40,7 +40,7 @@ export default defineConfig({
 		proxy: {
 			"/api": "http://devrekbenimmarketim.com",
 			"/socket.io": {
-				target: 'http://www.devrekbenimmarketim.com',
+				target: 'http://devrekbenimmarketim.com',
 				ws: true,
 				changeOrigin: true
 			}
