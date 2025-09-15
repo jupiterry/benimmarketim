@@ -22,16 +22,24 @@ const OrdersList = () => {
 
       const css = `
         <style>
-          @page { size: 3in 5in; margin: 6mm; }
-          body { font-family: Arial, sans-serif; color: #000; }
-          .receipt { width: 100%; }
-          .header { text-align: center; margin-bottom: 8px; }
-          .title { font-size: 16px; font-weight: bold; }
-          .meta { font-size: 12px; }
-          .row { display: flex; justify-content: space-between; font-size: 12px; margin: 4px 0; }
-          .items { border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 6px 0; margin: 6px 0; }
-          .item { display: flex; justify-content: space-between; font-size: 12px; }
-          .totals { font-size: 13px; font-weight: bold; }
+          /* Mutlak sayfa boyutu ve sıfır kenar boşluğu */
+          @page { size: 3in 5in; margin: 0; }
+          html, body { width: 3in; height: 5in; margin: 0; padding: 0; }
+          body { font-family: Arial, sans-serif; color: #000; line-height: 1.25; }
+
+          /* İçerik alanı: tek sayfaya sığdır, taşmayı gizle */
+          .receipt { box-sizing: border-box; width: 3in; height: 5in; padding: 6mm; overflow: hidden; }
+          .header { text-align: center; margin-bottom: 6px; }
+          .title { font-size: 14px; font-weight: bold; }
+          .meta { font-size: 11px; }
+          .row { display: flex; justify-content: space-between; font-size: 11px; margin: 3px 0; gap: 6px; }
+          .items { border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 4px 0; margin: 4px 0; }
+          .item { display: flex; justify-content: space-between; font-size: 11px; gap: 8px; }
+          .item div:first-child { max-width: 60%; word-break: break-word; }
+          .totals { font-size: 12px; font-weight: bold; }
+
+          /* Sayfa bölünmesini engelle */
+          * { page-break-inside: avoid; }
         </style>`;
 
       const createdAt = new Date(order.createdAt).toLocaleString('tr-TR');
@@ -61,7 +69,24 @@ const OrdersList = () => {
               <div class="totals row"><div>Toplam</div><div>₺${(order.totalAmount).toFixed(2)}</div></div>
               ${noteHtml}
             </div>
-            <script>window.onload = function(){ window.print(); setTimeout(()=>window.close(), 300); }<\/script>
+            <script>
+              window.onload = function(){
+                try {
+                  // Fazla içerik varsa tek sayfaya ölçekle
+                  const el = document.querySelector('.receipt');
+                  const maxH = el.clientHeight; // 5in - padding
+                  const actual = el.scrollHeight;
+                  if (actual > maxH) {
+                    el.style.transformOrigin = 'top left';
+                    el.style.transform = 'scale(' + (maxH / actual).toFixed(3) + ')';
+                    // Ölçekten sonra boşluk kalmasın
+                    el.style.height = maxH + 'px';
+                  }
+                } catch(e){}
+                window.print();
+                setTimeout(()=>window.close(), 500);
+              }
+            <\/script>
           </body>
         </html>`;
 
