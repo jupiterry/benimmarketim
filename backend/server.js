@@ -17,6 +17,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 
 import { connectDB } from "./lib/db.js";
+import { refreshOrderHoursCache } from "./controllers/cart.controller.js";
 
 dotenv.config();
 
@@ -114,4 +115,10 @@ if (process.env.NODE_ENV === "production") {
 httpServer.listen(PORT, () => {
   console.log(`Sunucu ${PORT} portunda çalışıyor`);
   connectDB();
+  // Sunucu açılışında sipariş saatleri önbelleğini yenile
+  refreshOrderHoursCache().then(() => {
+    console.log('Sipariş saatleri önbelleği başlangıçta yenilendi');
+  }).catch(() => {
+    console.log('Sipariş saatleri önbelleği başlangıçta yenilenemedi');
+  });
 });

@@ -34,8 +34,9 @@ export const refreshOrderHoursCache = async () => {
 };
 
 const isWithinOrderHours = async () => {
-  const now = new Date();
-  const currentTime = now.getTime();
+  // Europe/Istanbul saatine göre şimdiki zamanı hesapla (sunucu UTC olsa bile)
+  const nowTr = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Istanbul' }));
+  const currentTime = nowTr.getTime();
 
   // Önbellek süresi dolduysa veya ilk kez çağrılıyorsa veritabanından getir
   if (currentTime - global.orderHoursCache.lastUpdated > CACHE_TTL) {
@@ -55,8 +56,8 @@ const isWithinOrderHours = async () => {
     }
   }
 
-  const currentHour = now.getHours();
-  const currentMinute = now.getMinutes();
+  const currentHour = nowTr.getHours();
+  const currentMinute = nowTr.getMinutes();
 
   const currentTimeInMinutes = currentHour * 60 + currentMinute;
   const startTimeInMinutes = global.orderHoursCache.startHour * 60 + global.orderHoursCache.startMinute;
