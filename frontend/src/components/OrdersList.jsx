@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "../lib/axios";
-import { Search, Package2, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
+import { Search, Package2, ChevronLeft, ChevronRight, RefreshCw, Printer } from "lucide-react";
 import toast from "react-hot-toast";
 import io from "socket.io-client";
 
@@ -14,6 +14,65 @@ const OrdersList = () => {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const ordersPerPage = 6;
+
+  const handlePrint = (order) => {
+    try {
+      const printWindow = window.open('', '_blank', 'width=450,height=800');
+      if (!printWindow) return;
+
+      const css = `
+        <style>
+          @page { size: 3in 5in; margin: 6mm; }
+          body { font-family: Arial, sans-serif; color: #000; }
+          .receipt { width: 100%; }
+          .header { text-align: center; margin-bottom: 8px; }
+          .title { font-size: 16px; font-weight: bold; }
+          .meta { font-size: 12px; }
+          .row { display: flex; justify-content: space-between; font-size: 12px; margin: 4px 0; }
+          .items { border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 6px 0; margin: 6px 0; }
+          .item { display: flex; justify-content: space-between; font-size: 12px; }
+          .totals { font-size: 13px; font-weight: bold; }
+        </style>`;
+
+      const createdAt = new Date(order.createdAt).toLocaleString('tr-TR');
+      const itemsHtml = order.products.map(p => `
+        <div class="item">
+          <div>${p.name} x ${p.quantity}</div>
+          <div>₺${(p.price).toFixed(2)}</div>
+        </div>
+      `).join('');
+
+      const noteHtml = order.note ? `<div class="row"><div>Not:</div><div>${order.note}</div></div>` : '';
+
+      const html = `
+        <html>
+          <head><meta charset="utf-8"/>${css}</head>
+          <body>
+            <div class="receipt">
+              <div class="header">
+                <div class="title">Benim Marketim</div>
+                <div class="meta">Sipariş ID: ${order.orderId}</div>
+                <div class="meta">Tarih: ${createdAt}</div>
+              </div>
+              <div class="row"><div>Müşteri</div><div>${order.user.name}</div></div>
+              <div class="row"><div>Telefon</div><div>${order.user.phone || '-'}</div></div>
+              <div class="row"><div>Adres</div><div style="max-width: 170px; text-align:right;">${order.user.address || '-'}</div></div>
+              <div class="items">${itemsHtml}</div>
+              <div class="totals row"><div>Toplam</div><div>₺${(order.totalAmount).toFixed(2)}</div></div>
+              ${noteHtml}
+            </div>
+            <script>window.onload = function(){ window.print(); setTimeout(()=>window.close(), 300); }<\/script>
+          </body>
+        </html>`;
+
+      printWindow.document.open();
+      printWindow.document.write(html);
+      printWindow.document.close();
+    } catch (e) {
+      console.error('Yazdırma hatası:', e);
+      toast.error('Yazdırma sırasında hata oluştu');
+    }
+  };
 
   const fetchOrderAnalyticsData = async () => {
     try {
@@ -293,6 +352,14 @@ const OrdersList = () => {
                   <h3 className="text-lg font-bold text-white">{order.user.name}</h3>
                   <p className="text-sm text-gray-400">ID: {order.orderId}</p>
                 </div>
+                <div className="flex gap-2 items-center">
+                <button
+                  onClick={() => handlePrint(order)}
+                  className="px-3 py-1 rounded-full bg-gray-600 hover:bg-gray-500 text-white text-sm flex items-center gap-1"
+                  title="Fişi yazdır"
+                >
+                  <Printer size={14}/> Yazdır
+                </button>
                 <select
                   className={`text-sm px-3 py-1 rounded-full font-semibold ${
                     order.status === "Teslim Edildi"
@@ -311,6 +378,7 @@ const OrdersList = () => {
                   <option value="Teslim Edildi">Teslim Edildi</option>
                   <option value="İptal Edildi">İptal Edildi</option>
                 </select>
+                </div>
               </div>
 
               {/* Müşteri Bilgileri */}
