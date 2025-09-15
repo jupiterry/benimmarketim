@@ -25,7 +25,7 @@ const OrdersList = () => {
           /* Mutlak sayfa boyutu ve sıfır kenar boşluğu */
           @page { size: 3in 5in; margin: 0; }
           html, body { width: 3in; height: 5in; margin: 0; padding: 0; }
-          body { font-family: Arial, sans-serif; color: #000; line-height: 1.25; }
+          body { font-family: Arial, sans-serif; color: #000; line-height: 1.25; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
           /* İçerik alanı: tek sayfaya sığdır, taşmayı gizle */
           .receipt { box-sizing: border-box; width: 3in; height: 5in; padding: 6mm; overflow: hidden; }
@@ -34,8 +34,9 @@ const OrdersList = () => {
           .meta { font-size: 11px; }
           .row { display: flex; justify-content: space-between; font-size: 11px; margin: 3px 0; gap: 6px; }
           .items { border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 4px 0; margin: 4px 0; }
-          .item { display: flex; justify-content: space-between; font-size: 11px; gap: 8px; }
-          .item div:first-child { max-width: 60%; word-break: break-word; }
+          .item { display: grid; grid-template-columns: 1fr auto; column-gap: 8px; font-size: 11px; align-items: start; }
+          .item .name { max-width: 60%; word-break: break-word; }
+          .item .price { min-width: 48px; text-align: right; font-weight: bold; }
           .totals { font-size: 12px; font-weight: bold; }
 
           /* Sayfa bölünmesini engelle */
@@ -45,8 +46,8 @@ const OrdersList = () => {
       const createdAt = new Date(order.createdAt).toLocaleString('tr-TR');
       const itemsHtml = order.products.map(p => `
         <div class="item">
-          <div>${p.name} x ${p.quantity}</div>
-          <div>₺${(p.price).toFixed(2)}</div>
+          <div class="name">${p.name} x ${p.quantity}</div>
+          <div class="price">₺${Number(p.price || 0).toFixed(2)}</div>
         </div>
       `).join('');
 
