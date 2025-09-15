@@ -30,7 +30,7 @@ const corsOptions = {
     "https://res.cloudinary.com"
   ],
   credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   exposedHeaders: ['Access-Control-Allow-Origin'],
   optionsSuccessStatus: 200,
