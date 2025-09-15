@@ -27,8 +27,8 @@ const OrdersList = () => {
           html, body { width: 3in; height: 5in; margin: 0; padding: 0; }
           body { font-family: Arial, sans-serif; color: #000; line-height: 1.25; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
-          /* İçerik alanı: tek sayfaya sığdır, taşmayı gizle */
-          .receipt { box-sizing: border-box; width: 3in; height: 5in; padding: 6mm; overflow: hidden; }
+          /* İçerik alanı: sayfa içinden taşmayacak sabit güvenli alan */
+          .receipt { box-sizing: border-box; width: 2.8in; min-height: 4.8in; max-height: 4.8in; padding: 4mm; margin: 0.1in auto; overflow: hidden; }
           .header { text-align: center; margin-bottom: 6px; }
           .title { font-size: 14px; font-weight: bold; }
           .meta { font-size: 11px; }
@@ -63,7 +63,7 @@ const OrdersList = () => {
                 <div class="meta">Sipariş ID: ${order.orderId}</div>
                 <div class="meta">Tarih: ${createdAt}</div>
               </div>
-              <div class="row"><div>Müşteri</div><div>${order.user.name}</div></div>
+              <div class="row"><div>Müşteri</d  iv><div>${order.user.name}</div></div>
               <div class="row"><div>Telefon</div><div>${order.user.phone || '-'}</div></div>
               <div class="row"><div>Adres</div><div style="max-width: 170px; text-align:right;">${order.user.address || '-'}</div></div>
               <div class="items">${itemsHtml}</div>
@@ -73,16 +73,13 @@ const OrdersList = () => {
             <script>
               window.onload = function(){
                 try {
-                  // Fazla içerik varsa tek sayfaya ölçekle
+                  // Ön ölçek: yazıcı farklı DPI kullanırsa taşma olmasın
                   const el = document.querySelector('.receipt');
-                  const maxH = el.clientHeight; // 5in - padding
-                  const actual = el.scrollHeight;
-                  if (actual > maxH) {
-                    el.style.transformOrigin = 'top left';
-                    el.style.transform = 'scale(' + (maxH / actual).toFixed(3) + ')';
-                    // Ölçekten sonra boşluk kalmasın
-                    el.style.height = maxH + 'px';
-                  }
+                  el.style.transformOrigin = 'top left';
+                  el.style.transform = 'scale(0.97)';
+                  // Aşırı içerik varsa dinamik ölçek uygula
+                  const maxH = el.clientHeight; const actual = el.scrollHeight;
+                  if (actual > maxH) el.style.transform = 'scale(' + (maxH / actual).toFixed(3) + ')';
                 } catch(e){}
                 window.print();
                 setTimeout(()=>window.close(), 500);
