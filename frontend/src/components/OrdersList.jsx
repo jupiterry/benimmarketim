@@ -17,32 +17,63 @@ const OrdersList = () => {
 
   const handlePrint = (order) => {
     try {
-      const printWindow = window.open('', '_blank', 'width=450,height=800');
+      const printWindow = window.open('', '_blank', 'width=400,height=700');
       if (!printWindow) return;
-
+  
       const css = `
         <style>
-          /* Mutlak sayfa boyutu ve sıfır kenar boşluğu */
-          @page { size: 3in 5in; margin: 0; }
-          html, body { width: 3in; height: 5in; margin: 0; padding: 0; }
-          body { font-family: Arial, sans-serif; color: #000; line-height: 1.25; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-
-          /* İçerik alanı: sayfa içinden taşmayacak sabit güvenli alan */
-          .receipt { box-sizing: border-box; width: 2.8in; min-height: 4.8in; max-height: 4.8in; padding: 4mm; margin: 0.1in auto; overflow: hidden; }
+          @page { size: 76mm 127mm; margin: 0; } /* 3x5 inch */
+          html, body {
+            width: 76mm;
+            height: 127mm;
+            margin: 0;
+            padding: 0;
+          }
+          body {
+            font-family: Arial, sans-serif;
+            color: #000;
+            line-height: 1.25;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+  
+          .receipt {
+            width: 76mm;
+            height: 127mm;
+            box-sizing: border-box;
+            padding: 6mm;
+            overflow: hidden; /* Taşma olmasın */
+          }
           .header { text-align: center; margin-bottom: 6px; }
           .title { font-size: 14px; font-weight: bold; }
           .meta { font-size: 11px; }
-          .row { display: flex; justify-content: space-between; font-size: 11px; margin: 3px 0; gap: 6px; }
-          .items { border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 4px 0; margin: 4px 0; }
-          .item { display: grid; grid-template-columns: 1fr auto; column-gap: 8px; font-size: 11px; align-items: start; }
+          .row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            margin: 3px 0;
+            gap: 6px;
+          }
+          .items {
+            border-top: 1px dashed #000;
+            border-bottom: 1px dashed #000;
+            padding: 4px 0;
+            margin: 4px 0;
+          }
+          .item {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            column-gap: 8px;
+            font-size: 11px;
+            align-items: start;
+          }
           .item .name { max-width: 60%; word-break: break-word; }
           .item .price { min-width: 48px; text-align: right; font-weight: bold; }
           .totals { font-size: 12px; font-weight: bold; }
-
-          /* Sayfa bölünmesini engelle */
           * { page-break-inside: avoid; }
-        </style>`;
-
+        </style>
+      `;
+  
       const createdAt = new Date(order.createdAt).toLocaleString('tr-TR');
       const itemsHtml = order.products.map(p => `
         <div class="item">
@@ -50,9 +81,11 @@ const OrdersList = () => {
           <div class="price">₺${Number(p.price || 0).toFixed(2)}</div>
         </div>
       `).join('');
-
-      const noteHtml = order.note ? `<div class="row"><div>Not:</div><div>${order.note}</div></div>` : '';
-
+  
+      const noteHtml = order.note
+        ? `<div class="row"><div>Not:</div><div>${order.note}</div></div>`
+        : '';
+  
       const html = `
         <html>
           <head><meta charset="utf-8"/>${css}</head>
@@ -63,7 +96,7 @@ const OrdersList = () => {
                 <div class="meta">Sipariş ID: ${order.orderId}</div>
                 <div class="meta">Tarih: ${createdAt}</div>
               </div>
-              <div class="row"><div>Müşteri</d  iv><div>${order.user.name}</div></div>
+              <div class="row"><div>Müşteri</div><div>${order.user.name}</div></div>
               <div class="row"><div>Telefon</div><div>${order.user.phone || '-'}</div></div>
               <div class="row"><div>Adres</div><div style="max-width: 170px; text-align:right;">${order.user.address || '-'}</div></div>
               <div class="items">${itemsHtml}</div>
@@ -73,21 +106,24 @@ const OrdersList = () => {
             <script>
               window.onload = function(){
                 try {
-                  // Ön ölçek: yazıcı farklı DPI kullanırsa taşma olmasın
                   const el = document.querySelector('.receipt');
-                  el.style.transformOrigin = 'top left';
-                  el.style.transform = 'scale(0.97)';
-                  // Aşırı içerik varsa dinamik ölçek uygula
-                  const maxH = el.clientHeight; const actual = el.scrollHeight;
-                  if (actual > maxH) el.style.transform = 'scale(' + (maxH / actual).toFixed(3) + ')';
+                  const maxH = el.clientHeight;
+                  const actual = el.scrollHeight;
+                  if (actual > maxH) {
+                    const scale = maxH / actual;
+                    el.style.transformOrigin = 'top left';
+                    el.style.transform = 'scale(' + scale.toFixed(3) + ')';
+                    el.style.height = maxH + 'px';
+                  }
                 } catch(e){}
                 window.print();
                 setTimeout(()=>window.close(), 500);
               }
             <\/script>
           </body>
-        </html>`;
-
+        </html>
+      `;
+  
       printWindow.document.open();
       printWindow.document.write(html);
       printWindow.document.close();
@@ -96,7 +132,7 @@ const OrdersList = () => {
       toast.error('Yazdırma sırasında hata oluştu');
     }
   };
-
+  
   const fetchOrderAnalyticsData = async () => {
     try {
       const response = await axios.get("/orders-analytics");
