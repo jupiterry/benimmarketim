@@ -236,23 +236,6 @@ export const placeOrder = async (req, res) => {
 	  if (!deliveryPoint) {
 		return res.status(400).json({ error: "Lütfen teslimat noktası seçiniz!" });
 	  }
-
-	  // Ayarları al
-	  const settings = await Settings.getSettings();
-	  
-	  // Teslimat noktaları kontrolü - hem kız hem erkek yurdu kapalıysa sipariş alınamaz
-	  const girlsDormEnabled = settings.deliveryPoints?.girlsDorm?.enabled;
-	  const boysDormEnabled = settings.deliveryPoints?.boysDorm?.enabled;
-	  
-	  if (!girlsDormEnabled && !boysDormEnabled) {
-		return res.status(400).json({ error: "Şu anda tüm teslimat noktaları kapalı. Sipariş alınamıyor!" });
-	  }
-	  
-	  // Seçilen teslimat noktasının aktif olup olmadığını kontrol et
-	  const selectedPointEnabled = deliveryPoint === 'girlsDorm' ? girlsDormEnabled : boysDormEnabled;
-	  if (!selectedPointEnabled) {
-		return res.status(400).json({ error: "Seçtiğiniz teslimat noktası şu anda kapalı. Lütfen başka bir nokta seçin!" });
-	  }
   
 	  // Toplam tutarı hesapla
 	  let totalAmount = 0;

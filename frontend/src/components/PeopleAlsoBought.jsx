@@ -40,7 +40,7 @@ const PeopleAlsoBought = () => {
 		</div>
 	);
 
-	const displayedProducts = recommendations.slice(0, 10);
+	const displayedProducts = recommendations.slice(0, 9);
 
 	if (displayedProducts.length === 0) {
 		return null;

@@ -7,7 +7,7 @@ const getBaseURL = () => {
 		return "http://localhost:5000/api"; // Backend'e direkt bağlan
 	}
 	// Production ortamında
-	return "https://devrekbenimmarketim.com/api";
+	return "https://www.devrekbenimmarketim.com/api";
 };
 
 const axiosInstance = axios.create({

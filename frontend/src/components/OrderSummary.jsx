@@ -87,25 +87,9 @@ const OrderSummary = () => {
         toast.error("Sepetiniz boş!", { id: "emptyCart" });
         return;
       }
-
-      // Teslimat noktaları kontrolü - hem kız hem erkek yurdu kapalıysa sipariş alınamaz
-      const girlsDormEnabled = settings.deliveryPoints?.girlsDorm?.enabled;
-      const boysDormEnabled = settings.deliveryPoints?.boysDorm?.enabled;
-      
-      if (!girlsDormEnabled && !boysDormEnabled) {
-        toast.error("Şu anda tüm teslimat noktaları kapalı. Sipariş alınamıyor!", { id: "allDeliveryPointsClosed" });
-        return;
-      }
   
       if (!selectedDeliveryPoint) {
         toast.error("Lütfen teslimat noktası seçin!", { id: "deliveryPoint" });
-        return;
-      }
-
-      // Seçilen teslimat noktasının aktif olup olmadığını kontrol et
-      const selectedPointEnabled = selectedDeliveryPoint === 'girlsDorm' ? girlsDormEnabled : boysDormEnabled;
-      if (!selectedPointEnabled) {
-        toast.error("Seçtiğiniz teslimat noktası şu anda kapalı. Lütfen başka bir nokta seçin!", { id: "selectedPointClosed" });
         return;
       }
   
@@ -599,14 +583,9 @@ const OrderSummary = () => {
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={handlePayment}
-          disabled={total < MIN_ORDER_AMOUNT || (!settings.deliveryPoints?.girlsDorm?.enabled && !settings.deliveryPoints?.boysDorm?.enabled)}
+          disabled={total < MIN_ORDER_AMOUNT}
         >
-          {total < MIN_ORDER_AMOUNT 
-            ? `Minimum Tutar ${MIN_ORDER_AMOUNT}₺` 
-            : (!settings.deliveryPoints?.girlsDorm?.enabled && !settings.deliveryPoints?.boysDorm?.enabled)
-            ? 'Tüm Teslimat Noktaları Kapalı'
-            : 'Sepeti Onayla'
-          }
+          {total < MIN_ORDER_AMOUNT ? `Minimum Tutar ${MIN_ORDER_AMOUNT}₺` : 'Sepeti Onayla'}
         </motion.button>
       </motion.div>
       </div>
