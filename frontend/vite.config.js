@@ -38,9 +38,9 @@ export default defineConfig({
 	],
 	server: {
 		proxy: {
-			"/api": "http://localhost:5000",
+			"/api": "http://devrekbenimmarketim.com",
 			"/socket.io": {
-				target: 'http://localhost:5000',
+				target: 'http://devrekbenimmarketim.com',
 				ws: true,
 				changeOrigin: true
 			}
