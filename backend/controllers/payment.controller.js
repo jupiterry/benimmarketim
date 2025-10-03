@@ -28,6 +28,24 @@ export const createOrder = async (req, res) => {
       return res.status(400).json({ message: "Lütfen teslimat noktası seçiniz" });
     }
 
+    // Ayarları al
+    const Settings = (await import("../models/settings.model.js")).default;
+    const settings = await Settings.getSettings();
+    
+    // Teslimat noktaları kontrolü - hem kız hem erkek yurdu kapalıysa sipariş alınamaz
+    const girlsDormEnabled = settings.deliveryPoints?.girlsDorm?.enabled;
+    const boysDormEnabled = settings.deliveryPoints?.boysDorm?.enabled;
+    
+    if (!girlsDormEnabled && !boysDormEnabled) {
+      return res.status(400).json({ message: "Şu anda tüm teslimat noktaları kapalı. Sipariş alınamıyor!" });
+    }
+    
+    // Seçilen teslimat noktasının aktif olup olmadığını kontrol et
+    const selectedPointEnabled = deliveryPoint === 'girlsDorm' ? girlsDormEnabled : boysDormEnabled;
+    if (!selectedPointEnabled) {
+      return res.status(400).json({ message: "Seçtiğiniz teslimat noktası şu anda kapalı. Lütfen başka bir nokta seçin!" });
+    }
+
     let totalAmount = 0;
 
     // Ürünleri kontrol et ve sipariş için gerekli verileri oluştur
