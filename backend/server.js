@@ -13,6 +13,7 @@ import paymentRoutes from "./routes/payment.route.js";
 import analyticsRoutes from "./routes/analytics.route.js";
 import feedbackRoutes from "./routes/feedback.route.js";
 import settingsRoutes from "./routes/settings.route.js";
+import flashSaleRoutes from "./routes/flashSale.route.js";
 import { createServer } from "http";
 import { Server } from "socket.io";
 
@@ -104,6 +105,7 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/settings", settingsRoutes);
+app.use("/api/flash-sales", flashSaleRoutes);
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "/frontend/dist")));

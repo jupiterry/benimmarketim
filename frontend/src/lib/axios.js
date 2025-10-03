@@ -4,7 +4,7 @@ import axios from "axios";
 const getBaseURL = () => {
 	// Development ortamında (Vite dev server)
 	if (import.meta.env.DEV) {
-		return "/api"; // Vite proxy kullan
+		return "http://localhost:5000/api"; // Backend'e direkt bağlan
 	}
 	// Production ortamında
 	return "https://www.devrekbenimmarketim.com/api";

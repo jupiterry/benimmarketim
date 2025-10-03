@@ -21,6 +21,10 @@ import {
   updateProductDiscount,
   updateProductImage,
   removeProductDiscount,
+  bulkDeleteProducts,
+  bulkUpdateVisibility,
+  bulkUpdatePrice,
+  bulkAddFlashSale,
 } from "../controllers/product.controller.js"; // Tüm kontrolörleri import et
 
 const router = express.Router();
@@ -226,5 +230,11 @@ router.patch("/toggle-hidden/:id", protectRoute, adminRoute, toggleHiddenProduct
 router.patch("/toggle-out-of-stock/:id", protectRoute, adminRoute, toggleOutOfStock);
 router.get('/export-csv', protectRoute, adminRoute, exportProductsToCSV);
 router.get('/detect-brands', protectRoute, adminRoute, detectProductBrands);
+
+// Toplu İşlem Route'ları
+router.post("/bulk-delete", protectRoute, adminRoute, bulkDeleteProducts);
+router.post("/bulk-visibility", protectRoute, adminRoute, bulkUpdateVisibility);
+router.post("/bulk-price-update", protectRoute, adminRoute, bulkUpdatePrice);
+router.post("/bulk-flash-sale", protectRoute, adminRoute, bulkAddFlashSale);
 
 export default router;

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "../lib/axios";
-import { Search, Package2, ChevronLeft, ChevronRight, RefreshCw, Printer } from "lucide-react";
+import { Search, Package2, ChevronLeft, ChevronRight, RefreshCw, Printer, Filter, X } from "lucide-react";
 import toast from "react-hot-toast";
 import io from "socket.io-client";
 
@@ -10,6 +10,10 @@ const OrdersList = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
+  const [deliveryPointFilter, setDeliveryPointFilter] = useState("all");
+  const [minAmount, setMinAmount] = useState("");
+  const [maxAmount, setMaxAmount] = useState("");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(new Date());
@@ -86,6 +90,8 @@ const OrdersList = () => {
         ? `<div class="row"><div>Not:</div><div>${order.note}</div></div>`
         : '';
   
+      const deliveryInfo = order.deliveryPointName || order.city || 'Teslimat Noktası Belirtilmemiş';
+      
       const html = `
         <html>
           <head><meta charset="utf-8"/>${css}</head>
@@ -95,6 +101,7 @@ const OrdersList = () => {
                 <div class="title">Benim Marketim</div>
                 <div class="meta">Sipariş ID: ${order.orderId}</div>
                 <div class="meta">Tarih: ${createdAt}</div>
+                <div class="meta">📍 ${deliveryInfo}</div>
               </div>
               <div class="row"><div>Müşteri</div><div>${order.user.name}</div></div>
               <div class="row"><div>Telefon</div><div>${order.user.phone || '-'}</div></div>
@@ -224,10 +231,20 @@ const OrdersList = () => {
         order.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
         order.products.some(product => 
           product.name.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        ) ||
+        order.user.name.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesStatus = 
         statusFilter === "all" || order.status === statusFilter;
+
+      const matchesDeliveryPoint = 
+        deliveryPointFilter === "all" || 
+        order.deliveryPoint === deliveryPointFilter ||
+        order.deliveryPointName?.toLowerCase().includes(deliveryPointFilter.toLowerCase());
+
+      const matchesAmount = 
+        (!minAmount || order.totalAmount >= parseFloat(minAmount)) &&
+        (!maxAmount || order.totalAmount <= parseFloat(maxAmount));
 
       const orderDate = new Date(order.createdAt);
       const today = new Date();
@@ -249,8 +266,18 @@ const OrdersList = () => {
         matchesDate = orderDate >= lastMonth;
       }
 
-      return matchesSearch && matchesStatus && matchesDate;
+      return matchesSearch && matchesStatus && matchesDate && matchesDeliveryPoint && matchesAmount;
     });
+  };
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("all");
+    setDateFilter("all");
+    setDeliveryPointFilter("all");
+    setMinAmount("");
+    setMaxAmount("");
+    setCurrentPage(1);
   };
 
   if (isLoading) {
@@ -301,7 +328,7 @@ const OrdersList = () => {
               />
             </div>
           </div>
-          <div className="flex gap-4 w-full md:w-auto items-center">
+          <div className="flex gap-2 w-full md:w-auto items-center flex-wrap">
             <button
               onClick={() => setAutoRefresh(!autoRefresh)}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
@@ -318,33 +345,128 @@ const OrdersList = () => {
                 {autoRefresh ? "Otomatik" : "Manuel"}
               </span>
             </button>
-            <div className="text-sm text-gray-400">
-              Son yenileme: {lastRefresh.toLocaleTimeString()}
+            <div className="text-sm text-gray-400 hidden lg:block">
+              Son: {lastRefresh.toLocaleTimeString()}
             </div>
             <select
-              className={`bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500`}
+              className="bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
-              <option value="all">Tüm Durumlar</option>
-              <option value="Hazırlanıyor">Hazırlanıyor</option>
-              <option value="Yolda">Yolda</option>
-              <option value="Teslim Edildi">Teslim Edildi</option>
-              <option value="İptal Edildi">İptal Edildi</option>
+              <option value="all">📦 Tüm Durumlar</option>
+              <option value="Hazırlanıyor">📦 Hazırlanıyor</option>
+              <option value="Yolda">🚚 Yolda</option>
+              <option value="Teslim Edildi">✅ Teslim Edildi</option>
+              <option value="İptal Edildi">❌ İptal Edildi</option>
             </select>
             <select
               className="bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
             >
-              <option value="all">Tüm Tarihler</option>
-              <option value="today">Bugün</option>
-              <option value="yesterday">Dün</option>
-              <option value="lastWeek">Son 7 Gün</option>
-              <option value="lastMonth">Son 30 Gün</option>
+              <option value="all">📅 Tüm Tarihler</option>
+              <option value="today">📅 Bugün</option>
+              <option value="yesterday">📅 Dün</option>
+              <option value="lastWeek">📅 Son 7 Gün</option>
+              <option value="lastMonth">📅 Son 30 Gün</option>
             </select>
+            <button
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                showAdvancedFilters 
+                  ? 'bg-emerald-500 text-white' 
+                  : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+              }`}
+            >
+              <Filter className="w-5 h-5" />
+              <span className="hidden sm:inline">Gelişmiş</span>
+            </button>
           </div>
         </div>
+
+        {/* Gelişmiş Filtreler */}
+        {showAdvancedFilters && (
+          <div className="bg-gray-700/50 rounded-lg p-4 space-y-4 animate-slideDown">
+            <div className="flex items-center justify-between">
+              <h3 className="text-white font-semibold flex items-center gap-2">
+                <Filter className="w-5 h-5" />
+                Gelişmiş Filtreler
+              </h3>
+              <button
+                onClick={clearFilters}
+                className="text-sm text-gray-400 hover:text-white flex items-center gap-1"
+              >
+                <X className="w-4 h-4" />
+                Temizle
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="text-sm text-gray-400 mb-1 block">Teslimat Noktası</label>
+                <select
+                  className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  value={deliveryPointFilter}
+                  onChange={(e) => setDeliveryPointFilter(e.target.value)}
+                >
+                  <option value="all">Tümü</option>
+                  <option value="girlsDorm">Kız KYK Yurdu</option>
+                  <option value="boysDorm">Erkek KYK Yurdu</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="text-sm text-gray-400 mb-1 block">Minimum Tutar (₺)</label>
+                <input
+                  type="number"
+                  placeholder="0"
+                  className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  value={minAmount}
+                  onChange={(e) => setMinAmount(e.target.value)}
+                />
+              </div>
+              
+              <div>
+                <label className="text-sm text-gray-400 mb-1 block">Maximum Tutar (₺)</label>
+                <input
+                  type="number"
+                  placeholder="∞"
+                  className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  value={maxAmount}
+                  onChange={(e) => setMaxAmount(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Aktif Filtre Bilgisi */}
+            <div className="flex flex-wrap gap-2">
+              {deliveryPointFilter !== "all" && (
+                <span className="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-sm flex items-center gap-1">
+                  📍 {deliveryPointFilter === "girlsDorm" ? "Kız Yurdu" : "Erkek Yurdu"}
+                  <button onClick={() => setDeliveryPointFilter("all")} className="hover:text-white">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {minAmount && (
+                <span className="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-sm flex items-center gap-1">
+                  Min: ₺{minAmount}
+                  <button onClick={() => setMinAmount("")} className="hover:text-white">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {maxAmount && (
+                <span className="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-sm flex items-center gap-1">
+                  Max: ₺{maxAmount}
+                  <button onClick={() => setMaxAmount("")} className="hover:text-white">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Sipariş İstatistikleri */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -406,37 +528,40 @@ const OrdersList = () => {
               className={`${bgColorClass} p-4 rounded-lg shadow-lg transform transition-all duration-200 hover:scale-[1.01]`}
             >
               {/* Başlık ve Durum */}
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <h3 className="text-lg font-bold text-white">{order.user.name}</h3>
-                  <p className="text-sm text-gray-400">ID: {order.orderId}</p>
+              <div className="flex flex-col gap-3 mb-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="text-lg font-bold text-white">{order.user.name}</h3>
+                    <p className="text-sm text-gray-400">ID: {order.orderId}</p>
+                  </div>
+                  <button
+                    onClick={() => handlePrint(order)}
+                    className="px-3 py-1.5 rounded-full bg-gray-600 hover:bg-gray-500 text-white text-sm flex items-center gap-1.5 transition-colors"
+                    title="Fişi yazdır"
+                  >
+                    <Printer size={14}/> Yazdır
+                  </button>
                 </div>
-                <div className="flex gap-2 items-center">
-                <button
-                  onClick={() => handlePrint(order)}
-                  className="px-3 py-1 rounded-full bg-gray-600 hover:bg-gray-500 text-white text-sm flex items-center gap-1"
-                  title="Fişi yazdır"
-                >
-                  <Printer size={14}/> Yazdır
-                </button>
-                <select
-                  className={`text-sm px-3 py-1 rounded-full font-semibold ${
-                    order.status === "Teslim Edildi"
-                      ? "bg-blue-500 text-white"
-                      : order.status === "Yolda"
-                      ? "bg-yellow-500 text-gray-900"
-                      : order.status === "İptal Edildi"
-                      ? "bg-red-500 text-white"
-                      : "bg-emerald-500 text-white"
-                  }`}
-                  value={order.status}
-                  onChange={(e) => updateOrderStatus(order.orderId, e.target.value)}
-                >
-                  <option value="Hazırlanıyor">Hazırlanıyor</option>
-                  <option value="Yolda">Yolda</option>
-                  <option value="Teslim Edildi">Teslim Edildi</option>
-                  <option value="İptal Edildi">İptal Edildi</option>
-                </select>
+                <div className="w-full">
+                  <label className="text-xs text-gray-400 mb-1 block">Sipariş Durumu:</label>
+                  <select
+                    className={`w-full text-sm px-4 py-2 rounded-lg font-semibold transition-colors ${
+                      order.status === "Teslim Edildi"
+                        ? "bg-blue-500 text-white"
+                        : order.status === "Yolda"
+                        ? "bg-yellow-500 text-gray-900"
+                        : order.status === "İptal Edildi"
+                        ? "bg-red-500 text-white"
+                        : "bg-emerald-500 text-white"
+                    }`}
+                    value={order.status}
+                    onChange={(e) => updateOrderStatus(order.orderId, e.target.value)}
+                  >
+                    <option value="Hazırlanıyor">📦 Hazırlanıyor</option>
+                    <option value="Yolda">🚚 Yolda</option>
+                    <option value="Teslim Edildi">✅ Teslim Edildi</option>
+                    <option value="İptal Edildi">❌ İptal Edildi</option>
+                  </select>
                 </div>
               </div>
 
@@ -445,7 +570,7 @@ const OrdersList = () => {
                 <div className="text-sm text-gray-400 space-y-1">
                   <p>📧 {order.user.email}</p>
                   <p>📱 {order.user.phone || "Telefon belirtilmemiş"}</p>
-                  <p>📍 {order.user.address || "Adres belirtilmemiş"}</p>
+                  <p>📍 {order.deliveryPointName || order.city || "Adres belirtilmemiş"}</p>
                 </div>
               </div>
 

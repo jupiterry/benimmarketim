@@ -41,13 +41,24 @@ const orderSchema = new mongoose.Schema(
       required: true,
       validate: {
         validator: function (v) {
-          return /^(\+90|0)?5\d{9}$/.test(v);
+          // En az 10 karakter ve sadece rakam, boşluk, +, -, (, ) karakterleri
+          const cleaned = v.replace(/[\s\-\(\)\+]/g, '');
+          return cleaned.length >= 10 && /^\d+$/.test(cleaned);
         },
-        message: "Geçerli bir telefon numarası girin!",
+        message: "Geçerli bir telefon numarası girin! (En az 10 rakam)",
       },
     },
     note: {
-      type: String, // Not alanını ekleyin
+      type: String,
+      default: "",
+    },
+    deliveryPoint: {
+      type: String,
+      enum: ["girlsDorm", "boysDorm"],
+      required: true,
+    },
+    deliveryPointName: {
+      type: String,
       default: "",
     },
     status: {

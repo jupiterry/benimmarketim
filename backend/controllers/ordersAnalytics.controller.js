@@ -41,6 +41,9 @@ export const getOrderAnalyticsData = async () => {
         totalAmount: order.totalAmount,
         status: order.status,
         note: order.note,
+        city: order.city,
+        deliveryPoint: order.deliveryPoint,
+        deliveryPointName: order.deliveryPointName,
         createdAt: order.createdAt,
       });
 
@@ -163,6 +166,10 @@ export const getUserOrders = async (req, res) => {
       totalAmount: order.totalAmount,
       status: order.status,
       note: order.note,
+      city: order.city,
+      deliveryPoint: order.deliveryPoint,
+      deliveryPointName: order.deliveryPointName,
+      phone: order.phone,
       createdAt: order.createdAt,
     }));
 

@@ -65,7 +65,12 @@ export const useUserStore = create(
           const response = await axios.get("/auth/profile");
           set({ user: response.data, checkingAuth: false });
         } catch (error) {
-          console.log(error.message);
+          // 401 hatası normal - kullanıcı giriş yapmamış
+          if (error.response?.status === 401) {
+            console.log("Kullanıcı giriş yapmamış");
+          } else {
+            console.log(error.message);
+          }
           set({ checkingAuth: false, user: null });
         }
       },
@@ -79,6 +84,10 @@ export const useUserStore = create(
           set({ checkingAuth: false });
           return response.data;
         } catch (error) {
+          // 401 hatası normal - kullanıcı giriş yapmamış
+          if (error.response?.status === 401) {
+            console.log("Token yenilenemedi - kullanıcı giriş yapmamış");
+          }
           set({ user: null, checkingAuth: false });
           throw error;
         }
@@ -110,23 +119,35 @@ axios.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
+    
+    // 401 hatası için özel kontrol
+    if (error.response?.status === 401) {
+      // Eğer kullanıcı zaten giriş yapmamışsa, refresh token deneme
+      const currentUser = useUserStore.getState().user;
+      if (!currentUser) {
+        // Kullanıcı giriş yapmamış, 401 hatası normal
+        return Promise.reject(error);
+      }
+      
+      // Kullanıcı giriş yapmış ama token süresi dolmuş, refresh dene
+      if (!originalRequest._retry) {
+        originalRequest._retry = true;
 
-      try {
-        if (refreshPromise) {
+        try {
+          if (refreshPromise) {
+            await refreshPromise;
+            return axios(originalRequest);
+          }
+
+          refreshPromise = useUserStore.getState().refreshToken();
           await refreshPromise;
+          refreshPromise = null;
+
           return axios(originalRequest);
+        } catch (refreshError) {
+          useUserStore.getState().logout();
+          return Promise.reject(refreshError);
         }
-
-        refreshPromise = useUserStore.getState().refreshToken();
-        await refreshPromise;
-        refreshPromise = null;
-
-        return axios(originalRequest);
-      } catch (refreshError) {
-        useUserStore.getState().logout();
-        return Promise.reject(refreshError);
       }
     }
     return Promise.reject(error);

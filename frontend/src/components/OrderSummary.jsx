@@ -3,26 +3,60 @@ import { useCartStore } from "../stores/useCartStore";
 import { useNavigate } from "react-router-dom";
 import axios from "../lib/axios";
 import { useState, useEffect } from "react";
-import cities from "../data/cities";
 import toast from "react-hot-toast";
-import { Clock, Truck, Info } from "lucide-react";
+import { Clock, Truck, Info, MapPin, CheckCircle, XCircle } from "lucide-react";
 import { useUserStore } from "../stores/useUserStore";
 import { useSettingsStore } from "../stores/useSettingsStore";
+import { isWithinOrderHours, getOrderHoursStatus, getOrderHoursCountdown } from "../lib/orderHours";
 import FeedbackForm from "./FeedbackForm";
 
 const OrderSummary = () => {
   const { total, subtotal, coupon, isCouponApplied, cart, clearCart } = useCartStore();
   const { settings, fetchSettings } = useSettingsStore();
-  const [selectedCity, setSelectedCity] = useState("");
   const [phone, setPhone] = useState("");
   const [note, setNote] = useState("");
   const [showFeedback, setShowFeedback] = useState(false);
+  const [selectedDeliveryPoint, setSelectedDeliveryPoint] = useState("");
+  const [orderHoursStatus, setOrderHoursStatus] = useState(null);
+  const [countdown, setCountdown] = useState({ hours: 0, minutes: 0, seconds: 0 });
   const navigate = useNavigate();
   const { user } = useUserStore();
 
   useEffect(() => {
     fetchSettings();
+    
+    // Admin ayarlarını her 5 saniyede bir kontrol et
+    const interval = setInterval(() => {
+      fetchSettings();
+    }, 5000);
+    
+    return () => clearInterval(interval);
   }, [fetchSettings]);
+
+  // Sipariş saatleri kontrolü
+  useEffect(() => {
+    if (settings) {
+      const status = getOrderHoursStatus(settings);
+      setOrderHoursStatus(status);
+      
+      if (status.isOutside) {
+        const countdownData = getOrderHoursCountdown(settings);
+        setCountdown(countdownData);
+      }
+    }
+  }, [settings]);
+
+  // Countdown timer
+  useEffect(() => {
+    if (orderHoursStatus?.isOutside && settings) {
+      const timer = setInterval(() => {
+        const countdownData = getOrderHoursCountdown(settings);
+        setCountdown(countdownData);
+      }, 1000);
+      
+      return () => clearInterval(timer);
+    }
+  }, [orderHoursStatus, settings]);
 
   const savings = subtotal - total;
   const formattedSubtotal = subtotal.toFixed(2);
@@ -43,13 +77,19 @@ const OrderSummary = () => {
 
   const handlePayment = async () => {
     try {
+      // Sipariş saatleri kontrolü
+      if (orderHoursStatus?.isOutside) {
+        toast.error(orderHoursStatus.message, { id: "orderHours" });
+        return;
+      }
+      
       if (cart.length === 0) {
         toast.error("Sepetiniz boş!", { id: "emptyCart" });
         return;
       }
   
-      if (!selectedCity.trim()) {
-        toast.error("Lütfen il seçin!", { id: "cityDistrict" });
+      if (!selectedDeliveryPoint) {
+        toast.error("Lütfen teslimat noktası seçin!", { id: "deliveryPoint" });
         return;
       }
   
@@ -73,19 +113,36 @@ const OrderSummary = () => {
   };
 
   const createOrder = async () => {
+    try {
     const orderItems = cart.map((item) => ({
       product: item._id,
       name: item.name,
       quantity: item.quantity,
       price: item.price,
     }));
+
+      const deliveryPointName = selectedDeliveryPoint === 'girlsDorm' 
+        ? settings.deliveryPoints?.girlsDorm?.name || 'Kız KYK Yurdu'
+        : settings.deliveryPoints?.boysDorm?.name || 'Erkek KYK Yurdu';
+    
+      console.log("Sipariş gönderiliyor:", {
+        products: orderItems,
+        city: deliveryPointName,
+        phone: phone,
+        deliveryPoint: selectedDeliveryPoint,
+        deliveryPointName: deliveryPointName
+      });
   
     const res = await axios.post("/cart/place-order", {
       products: orderItems,
-      city: selectedCity,
+        city: deliveryPointName,
       phone: phone,
       note: note,
+        deliveryPoint: selectedDeliveryPoint,
+        deliveryPointName: deliveryPointName
     });
+    
+      console.log("Sipariş yanıtı:", res.data);
   
     if (res.data.success) {
       localStorage.removeItem("cart");
@@ -94,6 +151,13 @@ const OrderSummary = () => {
       navigate("/siparisolusturuldu");
     } else {
       toast.error("Sipariş oluşturulurken hata oluştu!", { id: "orderError" });
+      }
+    } catch (error) {
+      console.error("createOrder hatası:", error);
+      console.error("Hata yanıtı:", error.response?.data);
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || "Sipariş oluşturulurken hata oluştu";
+      toast.error(errorMessage, { id: "orderError" });
+      throw error;
     }
   };
 
@@ -115,95 +179,379 @@ const OrderSummary = () => {
   }
 
   return (
+    <div className="relative overflow-hidden">
+      {/* Arka Plan Gradient */}
+      <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 via-green-500/10 to-teal-500/10 rounded-3xl"></div>
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-gray-900/20 to-gray-900/40 rounded-3xl"></div>
+      
+      <motion.div
+        className="relative bg-gray-900/60 rounded-3xl p-8 backdrop-blur-xl border border-emerald-500/20 shadow-2xl space-y-6"
+        initial={{ opacity: 0, y: 30, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.8, type: "spring" }}
+      >
+        {/* Header */}
+        <div className="text-center mb-8">
     <motion.div
-      className="space-y-4 rounded-lg border border-gray-700 bg-gray-800/50 backdrop-blur-sm p-4 shadow-sm sm:p-6"
-      initial={{ opacity: 0, y: 20 }}
+            className="inline-flex items-center gap-3 mb-4"
+            initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-    >
-      <p className="text-xl font-semibold text-emerald-400">Sipariş Özeti</p>
+            transition={{ duration: 0.6 }}
+          >
+            <div className="w-12 h-12 bg-gradient-to-r from-emerald-400 to-green-500 rounded-full flex items-center justify-center shadow-lg">
+              <span className="text-2xl">📋</span>
+            </div>
+            <h2 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 via-green-500 to-teal-500 bg-clip-text text-transparent">
+              Sipariş Özeti
+            </h2>
+            <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-teal-500 rounded-full flex items-center justify-center shadow-lg">
+              <span className="text-2xl">✨</span>
+            </div>
+          </motion.div>
+        </div>
+
+        {/* Sipariş Saatleri Durumu */}
+        {orderHoursStatus && (
+          <motion.div 
+            className={`rounded-2xl p-6 border ${
+              orderHoursStatus.isOutside 
+                ? 'bg-red-500/5 border-red-500/20' 
+                : 'bg-emerald-500/5 border-emerald-500/20'
+            }`}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                orderHoursStatus.isOutside 
+                  ? 'bg-red-500/20' 
+                  : 'bg-emerald-500/20'
+              }`}>
+                <Clock className={`w-4 h-4 ${
+                  orderHoursStatus.isOutside ? 'text-red-400' : 'text-emerald-400'
+                }`} />
+              </div>
+              <h3 className={`text-lg font-semibold ${
+                orderHoursStatus.isOutside ? 'text-red-400' : 'text-emerald-400'
+              }`}>
+                {orderHoursStatus.isOutside ? 'Sipariş Saatleri Dışı' : 'Sipariş Alınıyor'}
+              </h3>
+            </div>
+            
+            <div className="space-y-3">
+              <p className={`text-sm ${
+                orderHoursStatus.isOutside ? 'text-red-300' : 'text-emerald-300'
+              }`}>
+                {orderHoursStatus.message}
+              </p>
+              
+              {orderHoursStatus.isOutside && orderHoursStatus.nextOrderTime && (
+                <div className="bg-red-500/10 rounded-lg p-3 border border-red-500/20">
+                  <p className="text-red-300 text-sm">
+                    Bir sonraki sipariş zamanı: <span className="font-semibold">{orderHoursStatus.nextOrderTime}</span>
+                  </p>
+                </div>
+              )}
+              
+              {orderHoursStatus.isOutside && countdown.totalSeconds > 0 && (
+                <div className="bg-red-500/10 rounded-lg p-3 border border-red-500/20">
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="text-red-300 text-sm">Kalan süre:</span>
+                    <div className="flex items-center gap-1">
+                      <span className="bg-red-500/20 text-red-300 px-2 py-1 rounded text-sm font-mono">
+                        {countdown.hours.toString().padStart(2, '0')}
+                      </span>
+                      <span className="text-red-300">:</span>
+                      <span className="bg-red-500/20 text-red-300 px-2 py-1 rounded text-sm font-mono">
+                        {countdown.minutes.toString().padStart(2, '0')}
+                      </span>
+                      <span className="text-red-300">:</span>
+                      <span className="bg-red-500/20 text-red-300 px-2 py-1 rounded text-sm font-mono">
+                        {countdown.seconds.toString().padStart(2, '0')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
 
       {/* Minimum Sipariş Tutarı İlerleme Çubuğu */}
-      <div className="space-y-2">
-        <div className="h-2 w-full bg-gray-700 rounded-full overflow-hidden">
+        <motion.div 
+          className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 rounded-2xl p-6 border border-emerald-500/20"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+        >
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 bg-emerald-500/20 rounded-full flex items-center justify-center">
+              <span className="text-lg">🎯</span>
+            </div>
+            <h3 className="text-lg font-semibold text-emerald-400">Minimum Sipariş Tutarı</h3>
+          </div>
+          
+          <div className="space-y-3">
+            <div className="relative h-3 w-full bg-gray-700/50 rounded-full overflow-hidden">
           <motion.div
-            className="h-full bg-emerald-500"
+                className="h-full bg-gradient-to-r from-emerald-500 to-green-500 rounded-full shadow-lg"
             initial={{ width: 0 }}
             animate={{ width: `${Math.min(progress, 100)}%` }}
-            transition={{ duration: 0.5 }}
+                transition={{ duration: 1, delay: 0.5 }}
           />
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-pulse"></div>
         </div>
+            
         {remainingAmount > 0 ? (
-          <p className="text-sm text-gray-400 text-center">
-            Minimum sipariş tutarına ulaşmak için <span className="text-emerald-400 font-semibold">₺{remainingAmount.toFixed(2)}</span> daha eklemelisiniz
-          </p>
-        ) : (
-          <p className="text-sm text-emerald-400 text-center font-medium">
-            Minimum sipariş tutarına ulaştınız! ✨
-          </p>
-        )}
-      </div>
+              <div className="text-center space-y-2">
+                <p className="text-gray-300">
+                  Minimum tutara ulaşmak için
+                </p>
+                <div className="inline-flex items-center gap-2 bg-emerald-500/10 px-4 py-2 rounded-xl border border-emerald-500/20">
+                  <span className="text-2xl font-bold text-emerald-400">₺{remainingAmount.toFixed(2)}</span>
+                  <span className="text-emerald-300">daha eklemelisiniz</span>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center">
+                <div className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-green-500/20 px-4 py-2 rounded-xl border border-emerald-500/30">
+                  <span className="text-emerald-400 font-medium">Minimum tutara ulaştınız!</span>
+                  <span className="text-xl">✨</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </motion.div>
+
+        {/* Teslimat Noktası Seçimi */}
+        <motion.div 
+          className={`rounded-2xl p-6 border ${
+            orderHoursStatus?.isOutside 
+              ? 'bg-gray-800/30 border-gray-600/30 opacity-60' 
+              : 'bg-gradient-to-br from-gray-800/50 to-gray-900/50 border-emerald-500/20'
+          }`}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.6, delay: 0.4 }}
+        >
+          <div className="flex items-center gap-3 mb-4">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+              orderHoursStatus?.isOutside 
+                ? 'bg-gray-500/20' 
+                : 'bg-emerald-500/20'
+            }`}>
+              <MapPin className={`w-4 h-4 ${
+                orderHoursStatus?.isOutside ? 'text-gray-400' : 'text-emerald-400'
+              }`} />
+            </div>
+            <h3 className={`text-lg font-semibold ${
+              orderHoursStatus?.isOutside ? 'text-gray-400' : 'text-emerald-400'
+            }`}>
+              Teslimat Noktası Seçin
+              {orderHoursStatus?.isOutside && (
+                <span className="text-sm text-red-400 ml-2">(Sipariş saatleri dışı)</span>
+              )}
+            </h3>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            {/* Kız Yurdu */}
+            <motion.button
+              type="button"
+              onClick={() => !orderHoursStatus?.isOutside && settings.deliveryPoints?.girlsDorm?.enabled && setSelectedDeliveryPoint('girlsDorm')}
+              disabled={orderHoursStatus?.isOutside || !settings.deliveryPoints?.girlsDorm?.enabled}
+              whileHover={!orderHoursStatus?.isOutside && settings.deliveryPoints?.girlsDorm?.enabled ? { scale: 1.02, y: -2 } : {}}
+              whileTap={!orderHoursStatus?.isOutside && settings.deliveryPoints?.girlsDorm?.enabled ? { scale: 0.98 } : {}}
+              className={`relative p-6 rounded-2xl border-2 transition-all duration-300 ${
+                orderHoursStatus?.isOutside
+                  ? 'border-gray-500/30 bg-gradient-to-br from-gray-700/30 to-gray-800/30 cursor-not-allowed opacity-50'
+                  : selectedDeliveryPoint === 'girlsDorm'
+                  ? 'border-emerald-500 bg-gradient-to-br from-emerald-500/20 to-green-500/20 shadow-lg shadow-emerald-500/25'
+                  : settings.deliveryPoints?.girlsDorm?.enabled
+                  ? 'border-gray-600/50 bg-gradient-to-br from-gray-800/50 to-gray-900/50 hover:border-emerald-500/50 hover:shadow-lg'
+                  : 'border-red-500/50 bg-gradient-to-br from-red-500/10 to-red-600/10 cursor-not-allowed opacity-60'
+              }`}
+            >
+              {selectedDeliveryPoint === 'girlsDorm' && (
+                <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 to-green-500/10 rounded-2xl animate-pulse"></div>
+              )}
+              
+              <div className="relative flex flex-col items-center gap-3">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                  orderHoursStatus?.isOutside
+                    ? 'bg-gray-500/20 border-2 border-gray-500/50'
+                    : selectedDeliveryPoint === 'girlsDorm' 
+                    ? 'bg-emerald-500/20 border-2 border-emerald-500/50' 
+                    : settings.deliveryPoints?.girlsDorm?.enabled
+                    ? 'bg-gray-700/50 border-2 border-gray-600/50'
+                    : 'bg-red-500/20 border-2 border-red-500/50'
+                }`}>
+                  {orderHoursStatus?.isOutside ? (
+                    <Clock className="w-6 h-6 text-gray-400" />
+                  ) : settings.deliveryPoints?.girlsDorm?.enabled ? (
+                    <CheckCircle className={`w-6 h-6 ${selectedDeliveryPoint === 'girlsDorm' ? 'text-emerald-400' : 'text-gray-400'}`} />
+                  ) : (
+                    <XCircle className="w-6 h-6 text-red-400" />
+                  )}
+                </div>
+                
+                <div className="text-center">
+                  <span className={`text-sm font-semibold block ${
+                    orderHoursStatus?.isOutside 
+                      ? 'text-gray-400' 
+                      : settings.deliveryPoints?.girlsDorm?.enabled ? 'text-white' : 'text-red-400'
+                  }`}>
+                    {settings.deliveryPoints?.girlsDorm?.name || 'Kız KYK Yurdu'}
+                  </span>
+                  <span className={`text-xs font-medium px-2 py-1 rounded-full mt-2 inline-block ${
+                    orderHoursStatus?.isOutside
+                      ? 'text-gray-400 bg-gray-500/10'
+                      : settings.deliveryPoints?.girlsDorm?.enabled 
+                      ? 'text-emerald-400 bg-emerald-500/10' 
+                      : 'text-red-400 bg-red-500/10'
+                  }`}>
+                    {orderHoursStatus?.isOutside 
+                      ? '⏰ Saat Dışı' 
+                      : settings.deliveryPoints?.girlsDorm?.enabled ? '✅ Aktif' : '❌ Kapalı'}
+                  </span>
+                </div>
+              </div>
+            </motion.button>
+
+            {/* Erkek Yurdu */}
+            <motion.button
+              type="button"
+              onClick={() => !orderHoursStatus?.isOutside && settings.deliveryPoints?.boysDorm?.enabled && setSelectedDeliveryPoint('boysDorm')}
+              disabled={orderHoursStatus?.isOutside || !settings.deliveryPoints?.boysDorm?.enabled}
+              whileHover={!orderHoursStatus?.isOutside && settings.deliveryPoints?.boysDorm?.enabled ? { scale: 1.02, y: -2 } : {}}
+              whileTap={!orderHoursStatus?.isOutside && settings.deliveryPoints?.boysDorm?.enabled ? { scale: 0.98 } : {}}
+              className={`relative p-6 rounded-2xl border-2 transition-all duration-300 ${
+                orderHoursStatus?.isOutside
+                  ? 'border-gray-500/30 bg-gradient-to-br from-gray-700/30 to-gray-800/30 cursor-not-allowed opacity-50'
+                  : selectedDeliveryPoint === 'boysDorm'
+                  ? 'border-emerald-500 bg-gradient-to-br from-emerald-500/20 to-green-500/20 shadow-lg shadow-emerald-500/25'
+                  : settings.deliveryPoints?.boysDorm?.enabled
+                  ? 'border-gray-600/50 bg-gradient-to-br from-gray-800/50 to-gray-900/50 hover:border-emerald-500/50 hover:shadow-lg'
+                  : 'border-red-500/50 bg-gradient-to-br from-red-500/10 to-red-600/10 cursor-not-allowed opacity-60'
+              }`}
+            >
+              {selectedDeliveryPoint === 'boysDorm' && (
+                <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 to-green-500/10 rounded-2xl animate-pulse"></div>
+              )}
+              
+              <div className="relative flex flex-col items-center gap-3">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                  orderHoursStatus?.isOutside
+                    ? 'bg-gray-500/20 border-2 border-gray-500/50'
+                    : selectedDeliveryPoint === 'boysDorm' 
+                    ? 'bg-emerald-500/20 border-2 border-emerald-500/50' 
+                    : settings.deliveryPoints?.boysDorm?.enabled
+                    ? 'bg-gray-700/50 border-2 border-gray-600/50'
+                    : 'bg-red-500/20 border-2 border-red-500/50'
+                }`}>
+                  {orderHoursStatus?.isOutside ? (
+                    <Clock className="w-6 h-6 text-gray-400" />
+                  ) : settings.deliveryPoints?.boysDorm?.enabled ? (
+                    <CheckCircle className={`w-6 h-6 ${selectedDeliveryPoint === 'boysDorm' ? 'text-emerald-400' : 'text-gray-400'}`} />
+                  ) : (
+                    <XCircle className="w-6 h-6 text-red-400" />
+                  )}
+                </div>
+                
+                <div className="text-center">
+                  <span className={`text-sm font-semibold block ${
+                    orderHoursStatus?.isOutside 
+                      ? 'text-gray-400' 
+                      : settings.deliveryPoints?.boysDorm?.enabled ? 'text-white' : 'text-red-400'
+                  }`}>
+                    {settings.deliveryPoints?.boysDorm?.name || 'Erkek KYK Yurdu'}
+                  </span>
+                  <span className={`text-xs font-medium px-2 py-1 rounded-full mt-2 inline-block ${
+                    orderHoursStatus?.isOutside
+                      ? 'text-gray-400 bg-gray-500/10'
+                      : settings.deliveryPoints?.boysDorm?.enabled 
+                      ? 'text-emerald-400 bg-emerald-500/10' 
+                      : 'text-red-400 bg-red-500/10'
+                  }`}>
+                    {orderHoursStatus?.isOutside 
+                      ? '⏰ Saat Dışı' 
+                      : settings.deliveryPoints?.boysDorm?.enabled ? '✅ Aktif' : '❌ Kapalı'}
+                  </span>
+                </div>
+              </div>
+            </motion.button>
+          </div>
+        </motion.div>
 
       {/* Teslimat Bilgileri */}
-      <div className="bg-gray-700/50 rounded-lg p-4 space-y-3">
-        <div className="flex items-center gap-2 text-emerald-400">
-          <Truck className="w-5 h-5" />
-          <span className="font-medium">Teslimat Bilgileri</span>
+        <motion.div 
+          className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 rounded-2xl p-6 border border-emerald-500/20"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.6, delay: 0.6 }}
+        >
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 bg-emerald-500/20 rounded-full flex items-center justify-center">
+              <Truck className="w-4 h-4 text-emerald-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-emerald-400">Teslimat Bilgileri</h3>
         </div>
-        <div className="flex items-center gap-2 text-sm text-gray-300">
-          <Clock className="w-4 h-4" />
-          <span>Tahmini Teslimat: {getEstimatedDeliveryTime()}</span>
+          
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+              <Clock className="w-5 h-5 text-emerald-400" />
+              <span className="text-emerald-300 font-medium">Tahmini Teslimat: {getEstimatedDeliveryTime()}</span>
         </div>
-        <div className="flex items-center gap-2 text-sm text-gray-300">
-          <Info className="w-4 h-4" />
-          <span>₺{MIN_ORDER_AMOUNT} üzeri siparişlerde ücretsiz teslimat</span>
+            <div className="flex items-center gap-3 p-3 bg-blue-500/10 rounded-xl border border-blue-500/20">
+              <Info className="w-5 h-5 text-blue-400" />
+              <span className="text-blue-300 font-medium">₺{MIN_ORDER_AMOUNT} üzeri siparişlerde ücretsiz teslimat</span>
         </div>
       </div>
+        </motion.div>
 
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <dl className="flex items-center justify-between gap-4">
-            <dt className="text-base font-normal text-gray-300">Fiyat</dt>
-            <dd className="text-base font-medium text-white">₺{formattedSubtotal}</dd>
+        {/* Fiyat Özeti */}
+        <motion.div 
+          className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 rounded-2xl p-6 border border-emerald-500/20"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.6, delay: 0.8 }}
+        >
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 bg-emerald-500/20 rounded-full flex items-center justify-center">
+              <span className="text-lg">💰</span>
+            </div>
+            <h3 className="text-lg font-semibold text-emerald-400">Fiyat Özeti</h3>
+      </div>
+
+          <div className="space-y-3">
+            <dl className="flex items-center justify-between gap-4 p-3 bg-gray-700/30 rounded-xl">
+              <dt className="text-base font-medium text-gray-300">Ara Toplam</dt>
+              <dd className="text-base font-semibold text-white">₺{formattedSubtotal}</dd>
           </dl>
 
           {savings > 0 && (
-            <dl className="flex items-center justify-between gap-4">
-              <dt className="text-base font-normal text-gray-300">Kazanç</dt>
-              <dd className="text-base font-medium text-emerald-400">-₺{formattedSavings}</dd>
+              <dl className="flex items-center justify-between gap-4 p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+                <dt className="text-base font-medium text-emerald-300">💸 Toplam Kazanç</dt>
+                <dd className="text-base font-semibold text-emerald-400">-₺{formattedSavings}</dd>
             </dl>
           )}
 
           {coupon && isCouponApplied && (
-            <dl className="flex items-center justify-between gap-4">
-              <dt className="text-base font-normal text-gray-300">Kupon ({coupon.code})</dt>
-              <dd className="text-base font-medium text-emerald-400">-{coupon.discountPercentage}%</dd>
+              <dl className="flex items-center justify-between gap-4 p-3 bg-purple-500/10 rounded-xl border border-purple-500/20">
+                <dt className="text-base font-medium text-purple-300">🎟️ Kupon ({coupon.code})</dt>
+                <dd className="text-base font-semibold text-purple-400">-{coupon.discountPercentage}%</dd>
             </dl>
           )}
-          <dl className="flex items-center justify-between gap-4 border-t border-gray-600 pt-2">
-            <dt className="text-base font-bold text-white">Toplam</dt>
-            <dd className="text-base font-bold text-emerald-400">₺{formattedTotal}</dd>
+            
+            <div className="border-t border-emerald-500/30 pt-4">
+              <dl className="flex items-center justify-between gap-4 p-4 bg-gradient-to-r from-emerald-500/20 to-green-500/20 rounded-xl border border-emerald-500/30">
+                <dt className="text-xl font-bold text-white">🎯 Toplam Tutar</dt>
+                <dd className="text-2xl font-bold text-emerald-400">₺{formattedTotal}</dd>
           </dl>
         </div>
-
-        {/* Şehir Seçimi */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-300">Yurt</label>
-          <select
-            className="w-full rounded-lg border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            value={selectedCity}
-            onChange={(e) => {
-              setSelectedCity(e.target.value);
-            }}
-          >
-            <option value="">Adres Seçiniz</option>
-            {Object.keys(cities).map((city) => (
-              <option key={city} value={city}>
-                {city}
-              </option>
-            ))}
-          </select>
         </div>
+        </motion.div>
+
 
         {/* Telefon Numarası */}
         <div className="space-y-2">
@@ -239,8 +587,8 @@ const OrderSummary = () => {
         >
           {total < MIN_ORDER_AMOUNT ? `Minimum Tutar ${MIN_ORDER_AMOUNT}₺` : 'Sepeti Onayla'}
         </motion.button>
+      </motion.div>
       </div>
-    </motion.div>
   );
 };
 

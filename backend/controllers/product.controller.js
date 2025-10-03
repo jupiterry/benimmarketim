@@ -193,7 +193,7 @@ export const getProducts = async (req, res) => {
   try {
     console.log("Get products request received with query:", req.query);
     
-    const { category, page = 1, limit = 1200, search = "" } = req.query;
+    const { category, page = 1, limit = 9999999, search = "" } = req.query;
     let query = {};
 
     if (category) {
@@ -256,13 +256,69 @@ export const searchProducts = async (req, res) => {
   const { q } = req.query;
 
   try {
-    const products = await Product.find(
-      { $text: { $search: q } }, // Arama sorgusu
-      { score: { $meta: "textScore" } } // Arama skorunu döndür
-    ).sort({ score: { $meta: "textScore" } }); // Skora göre sırala
+    if (!q || q.trim() === '') {
+      return res.status(400).json({ success: false, message: "Arama terimi gerekli" });
+    }
 
-    res.status(200).json({ success: true, products });
+    // Gelişmiş arama sorgusu
+    const searchQuery = {
+      $and: [
+        { isHidden: false }, // Gizli ürünleri hariç tut
+        {
+          $or: [
+            // Tam eşleşme (en yüksek öncelik)
+            { name: { $regex: `^${q}$`, $options: 'i' } },
+            // Başlangıç eşleşmesi
+            { name: { $regex: `^${q}`, $options: 'i' } },
+            // İçerik eşleşmesi
+            { name: { $regex: q, $options: 'i' } },
+            { description: { $regex: q, $options: 'i' } },
+            { category: { $regex: q, $options: 'i' } },
+            // Kelime bazlı arama
+            { name: { $regex: q.split(' ').join('|'), $options: 'i' } }
+          ]
+        }
+      ]
+    };
+
+    const products = await Product.find(searchQuery)
+      .sort({ 
+        // Önce tam eşleşmeler, sonra başlangıç eşleşmeleri, sonra içerik eşleşmeleri
+        name: 1,
+        price: 1 
+      });
+
+    // Arama sonuçlarını skorlama
+    const scoredProducts = products.map(product => {
+      let score = 0;
+      const searchTerm = q.toLowerCase();
+      const productName = product.name.toLowerCase();
+      
+      // Tam eşleşme
+      if (productName === searchTerm) score += 100;
+      // Başlangıç eşleşmesi
+      else if (productName.startsWith(searchTerm)) score += 80;
+      // Kelime başlangıç eşleşmesi
+      else if (productName.split(' ').some(word => word.startsWith(searchTerm))) score += 60;
+      // İçerik eşleşmesi
+      else if (productName.includes(searchTerm)) score += 40;
+      // Açıklama eşleşmesi
+      else if (product.description && product.description.toLowerCase().includes(searchTerm)) score += 20;
+      
+      return { ...product.toObject(), searchScore: score };
+    });
+
+    // Skora göre sırala
+    scoredProducts.sort((a, b) => b.searchScore - a.searchScore);
+
+    res.status(200).json({ 
+      success: true, 
+      products: scoredProducts,
+      total: scoredProducts.length,
+      searchTerm: q
+    });
   } catch (error) {
+    console.error('Arama hatası:', error);
     res.status(500).json({ success: false, message: "Arama işlemi sırasında hata oluştu" });
   }
 };
@@ -455,5 +511,107 @@ export const removeProductDiscount = async (req, res) => {
   } catch (error) {
     console.error("İndirim kaldırma hatası:", error);
     res.status(500).json({ message: "İndirim kaldırılırken hata oluştu" });
+  }
+};
+
+// Toplu İşlemler
+export const bulkDeleteProducts = async (req, res) => {
+  try {
+    const { productIds } = req.body;
+    
+    if (!productIds || productIds.length === 0) {
+      return res.status(400).json({ message: "Ürün ID'leri gerekli" });
+    }
+
+    await Product.deleteMany({ _id: { $in: productIds } });
+    
+    res.json({ message: `${productIds.length} ürün silindi`, deletedCount: productIds.length });
+  } catch (error) {
+    console.error("Toplu silme hatası:", error);
+    res.status(500).json({ message: "Toplu silme işlemi başarısız" });
+  }
+};
+
+export const bulkUpdateVisibility = async (req, res) => {
+  try {
+    const { productIds, isHidden } = req.body;
+    
+    if (!productIds || productIds.length === 0) {
+      return res.status(400).json({ message: "Ürün ID'leri gerekli" });
+    }
+
+    await Product.updateMany(
+      { _id: { $in: productIds } },
+      { $set: { isHidden } }
+    );
+    
+    res.json({ 
+      message: `${productIds.length} ürün ${isHidden ? 'gizlendi' : 'görünür yapıldı'}`, 
+      updatedCount: productIds.length 
+    });
+  } catch (error) {
+    console.error("Toplu görünürlük güncelleme hatası:", error);
+    res.status(500).json({ message: "İşlem başarısız" });
+  }
+};
+
+export const bulkUpdatePrice = async (req, res) => {
+  try {
+    const { productIds, priceValue, priceType } = req.body;
+    
+    if (!productIds || productIds.length === 0) {
+      return res.status(400).json({ message: "Ürün ID'leri gerekli" });
+    }
+
+    const products = await Product.find({ _id: { $in: productIds } });
+    
+    for (const product of products) {
+      switch (priceType) {
+        case 'set':
+          product.price = priceValue;
+          break;
+        case 'increase':
+          product.price += priceValue;
+          break;
+        case 'decrease':
+          product.price = Math.max(0, product.price - priceValue);
+          break;
+        case 'percentage':
+          product.price = product.price * (1 + priceValue / 100);
+          break;
+      }
+      await product.save();
+    }
+    
+    res.json({ message: `${productIds.length} ürünün fiyatı güncellendi` });
+  } catch (error) {
+    console.error("Toplu fiyat güncelleme hatası:", error);
+    res.status(500).json({ message: "İşlem başarısız" });
+  }
+};
+
+export const bulkAddFlashSale = async (req, res) => {
+  try {
+    const { productIds, discountPercentage } = req.body;
+    
+    if (!productIds || productIds.length === 0) {
+      return res.status(400).json({ message: "Ürün ID'leri gerekli" });
+    }
+
+    const products = await Product.find({ _id: { $in: productIds } });
+    
+    for (const product of products) {
+      const discountedPrice = product.price * (1 - discountPercentage / 100);
+      product.discountedPrice = discountedPrice;
+      product.isDiscounted = true;
+      await product.save();
+    }
+    
+    res.json({ 
+      message: `${productIds.length} ürüne %${discountPercentage} flash sale uygulandı` 
+    });
+  } catch (error) {
+    console.error("Toplu flash sale hatası:", error);
+    res.status(500).json({ message: "İşlem başarısız" });
   }
 };

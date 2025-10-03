@@ -41,54 +41,140 @@ const CategoryPage = () => {
   }, [fetchProductsByCategory, category]);
 
   useEffect(() => {
-    setFilteredProducts(products);
+    // Gizlenen ürünleri filtrele
+    const visibleProducts = products.filter(product => !product.isHidden);
+    setFilteredProducts(visibleProducts);
   }, [products]);
 
   const categoryData = categories.find((cat) => cat.href.replace("/category/", "") === category);
   const displayName = categoryData ? categoryData.name : category.charAt(0).toUpperCase() + category.slice(1);
 
-  return (
-    <div className="min-h-screen bg-gray-900">
-      <div className="relative z-10 max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 sm:pt-24 md:pt-28 pb-16">
-        <motion.div
-          className="relative mb-8 sm:mb-12 flex flex-col items-center"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-        >
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white">
-            {displayName}
-          </h1>
-          <div className="mt-4 w-24 h-1 bg-gradient-to-r from-emerald-500 to-emerald-300 rounded-full"></div>
-        </motion.div>
+  // Flexbox ile responsive grid - boş alan olmayacak
+  const getGridClasses = (productCount) => {
+    if (productCount === 0) return "flex flex-col items-center";
+    if (productCount === 1) return "flex justify-center";
+    if (productCount === 2) return "flex flex-col sm:flex-row gap-4 justify-center";
+    if (productCount === 3) return "flex flex-col sm:flex-row md:grid md:grid-cols-3 gap-4";
+    if (productCount === 4) return "grid grid-cols-2 md:grid-cols-4 gap-4";
+    if (productCount === 5) return "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4";
+    if (productCount === 6) return "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4";
+    // 7+ ürün için standart grid
+    return "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4";
+  };
 
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+      {/* Hero Section */}
+      <div className="relative py-20 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r from-emerald-900/30 via-teal-900/30 to-emerald-900/30"></div>
+        <div className="absolute top-10 left-10 w-32 h-32 bg-emerald-500/20 rounded-full blur-xl animate-pulse"></div>
+        <div className="absolute bottom-10 right-10 w-24 h-24 bg-teal-500/20 rounded-full blur-xl animate-pulse delay-1000"></div>
+        
+        <div className="relative container mx-auto px-4 pt-16">
+          <motion.div
+            className="text-center"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+          >
+            <motion.div
+              className="inline-flex items-center gap-4 mb-6"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.8, delay: 0.2 }}
+            >
+              {categoryData?.imageUrl && (
+                <div className="w-16 h-16 bg-gradient-to-r from-emerald-400 to-teal-500 rounded-full flex items-center justify-center shadow-2xl">
+                  <img 
+                    src={categoryData.imageUrl} 
+                    alt={displayName}
+                    className="w-10 h-10 object-contain"
+                  />
+                </div>
+              )}
+              <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold bg-gradient-to-r from-emerald-400 via-teal-400 to-green-400 bg-clip-text text-transparent">
+                {displayName}
+              </h1>
+              <div className="w-16 h-16 bg-gradient-to-r from-teal-500 to-green-500 rounded-full flex items-center justify-center shadow-2xl">
+                <span className="text-2xl">🛍️</span>
+              </div>
+            </motion.div>
+            
+            <motion.p 
+              className="text-xl text-emerald-100 mb-8 max-w-2xl mx-auto"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4, duration: 0.8 }}
+            >
+              {filteredProducts.length} ürün bulundu ✨
+            </motion.p>
+          </motion.div>
+        </div>
+      </div>
+
+      <div className="relative z-10 max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
         <motion.div
-          className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6"
           initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.6 }}
+        >
+          {/* Ürünler Grid */}
+          <motion.div
+            className={getGridClasses(filteredProducts?.length || 0)}
+            initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.2 }}
         >
           {filteredProducts?.length === 0 ? (
-            <div className="col-span-full flex flex-col items-center justify-center py-16 px-4">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-              </svg>
-              <h2 className="text-2xl font-medium text-gray-400 text-center">
-                Ürün Bulunamadı
-              </h2>
-              <p className="mt-2 text-gray-500 text-center max-w-md">
-                Seçtiğiniz filtrelere uygun ürün bulunmamaktadır. Lütfen farklı filtreler deneyiniz.
-              </p>
+            <div className="col-span-full">
+              <motion.div 
+                className="flex flex-col items-center justify-center py-20 px-4"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.8, delay: 0.4 }}
+              >
+                <div className="relative mb-8">
+                  <div className="w-32 h-32 bg-gradient-to-r from-gray-700 to-gray-600 rounded-full flex items-center justify-center shadow-2xl">
+                    <span className="text-6xl">📦</span>
+                  </div>
+                  <div className="absolute -top-2 -right-2 w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
+                    <span className="text-white text-xl">❌</span>
+                  </div>
+                </div>
+                
+                <h2 className="text-3xl font-bold text-gray-300 text-center mb-4">
+                  Ürün Bulunamadı
+                </h2>
+                <p className="text-gray-400 text-center max-w-md text-lg leading-relaxed mb-8">
+                  Bu kategoride henüz ürün bulunmuyor. Yakında yeni ürünler eklenecek! 🚀
+                </p>
+                
+                <motion.button
+                  className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white px-8 py-3 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-emerald-500/25"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => window.history.back()}
+                >
+                  🔙 Geri Dön
+                </motion.button>
+              </motion.div>
             </div>
           ) : (
-            filteredProducts?.map((product) => (
-              <ProductCard 
-                key={product._id} 
-                product={product} 
-                isAdmin={user?.role === 'admin'} 
-              />
+            filteredProducts?.map((product, index) => (
+              <motion.div
+                key={product._id}
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.8 + index * 0.1 }}
+              >
+                <ProductCard 
+                  product={product} 
+                  isAdmin={user?.role === 'admin'} 
+                />
+              </motion.div>
             ))
           )}
+        </motion.div>
         </motion.div>
       </div>
     </div>

@@ -47,52 +47,74 @@ const PeopleAlsoBought = () => {
 	}
 
 	return (
-		<motion.div
-			className="mt-8 bg-gradient-to-b from-gray-800/50 to-gray-900/50 backdrop-blur-sm rounded-2xl p-4 sm:p-6 md:p-8 border border-gray-700/50 shadow-xl"
-			initial={{ opacity: 0, y: 20 }}
-			animate={{ opacity: 1, y: 0 }}
-			transition={{ duration: 0.5 }}
-		>
-			<div className="flex items-center gap-2 sm:gap-3 mb-6 sm:mb-8">
-				<div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-emerald-500/10 text-emerald-400">
-					<Star className="w-5 h-5 sm:w-6 sm:h-6" />
-				</div>
-				<div>
-					<h3 className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r from-emerald-400 to-teal-500 bg-clip-text text-transparent">
-						Haftanın Yıldızları
-					</h3>
-					<p className="text-gray-400 text-xs sm:text-sm md:text-base mt-1">
-						En çok tercih edilen ürünleri keşfedin
-					</p>
-				</div>
-			</div>
-
-			<div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-4 md:gap-6">
-				{displayedProducts.map((product, index) => (
-					<motion.div
-						key={product._id}
-						initial={{ opacity: 0, scale: 0.9 }}
-						animate={{ opacity: 1, scale: 1 }}
-						transition={{ duration: 0.3, delay: index * 0.1 }}
-						className="w-full"
+		<div className="relative overflow-hidden">
+			{/* Arka Plan Gradient */}
+			<div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-red-500/10 rounded-3xl"></div>
+			<div className="absolute inset-0 bg-gradient-to-b from-transparent via-gray-900/20 to-gray-900/40 rounded-3xl"></div>
+			
+			<div className="relative bg-gray-900/60 rounded-3xl p-8 backdrop-blur-xl border border-purple-500/20 shadow-2xl">
+				{/* Header */}
+				<div className="text-center mb-8">
+					<motion.div 
+						className="inline-flex items-center gap-3 mb-4"
+						initial={{ opacity: 0, y: -20 }}
+						animate={{ opacity: 1, y: 0 }}
+						transition={{ duration: 0.6 }}
 					>
-						<ProductCard product={product} />
+						<div className="w-12 h-12 bg-gradient-to-r from-purple-400 to-pink-500 rounded-full flex items-center justify-center shadow-lg">
+							<span className="text-2xl">💎</span>
+						</div>
+						<h2 className="text-4xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-red-500 bg-clip-text text-transparent">
+							Önerilen Ürünler
+						</h2>
+						<div className="w-12 h-12 bg-gradient-to-r from-pink-500 to-red-500 rounded-full flex items-center justify-center shadow-lg">
+							<span className="text-2xl">✨</span>
+						</div>
 					</motion.div>
-				))}
-			</div>
-
-			<motion.div
-				className="mt-6 sm:mt-8 flex justify-center"
-				initial={{ opacity: 0 }}
-				animate={{ opacity: 1 }}
-				transition={{ delay: 0.5 }}
-			>
-				<div className="flex items-center gap-2 text-gray-400 bg-gray-800/30 px-3 sm:px-4 py-2 rounded-xl border border-gray-700/30">
-					<TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />
-					<span className="text-xs sm:text-sm">Bu ürünler çok satıyor!</span>
+					<motion.p 
+						className="text-gray-300 text-lg max-w-2xl mx-auto"
+						initial={{ opacity: 0 }}
+						animate={{ opacity: 1 }}
+						transition={{ duration: 0.6, delay: 0.2 }}
+					>
+						Size özel seçtiğimiz popüler ürünler! 🎯
+					</motion.p>
 				</div>
-			</motion.div>
-		</motion.div>
+
+				{/* Products Grid */}
+				<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+					{displayedProducts.map((product, index) => (
+						<motion.div
+							key={product._id}
+							className="group relative bg-gradient-to-br from-gray-800/80 to-gray-900/80 backdrop-blur-sm rounded-2xl p-4 border border-gray-700/30 hover:border-purple-500/50 flex flex-col shadow-xl hover:shadow-2xl transition-all duration-500"
+							initial={{ opacity: 0, y: 30, scale: 0.9 }}
+							animate={{ opacity: 1, y: 0, scale: 1 }}
+							transition={{ duration: 0.5, delay: index * 0.1 }}
+							whileHover={{ y: -8, scale: 1.02 }}
+						>
+							{/* Glow Effect */}
+							<div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 -z-10 blur-xl"></div>
+							
+							<ProductCard product={product} />
+						</motion.div>
+					))}
+				</div>
+
+				{/* Bottom Badge */}
+				<motion.div
+					className="mt-8 flex justify-center"
+					initial={{ opacity: 0, y: 20 }}
+					animate={{ opacity: 1, y: 0 }}
+					transition={{ duration: 0.6, delay: 0.8 }}
+				>
+					<div className="flex items-center gap-3 bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-sm px-6 py-3 rounded-2xl border border-purple-500/30 shadow-lg">
+						<TrendingUp className="w-5 h-5 text-purple-400" />
+						<span className="text-purple-300 font-medium">Bu ürünler çok popüler!</span>
+						<span className="text-xl">🔥</span>
+					</div>
+				</motion.div>
+			</div>
+		</div>
 	);
 };
 

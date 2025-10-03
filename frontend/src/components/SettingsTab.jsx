@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { motion } from "framer-motion";
-import { Clock, ShoppingBasket } from "lucide-react";
+import { Clock, ShoppingBasket, MapPin, ToggleLeft, ToggleRight } from "lucide-react";
 import { useSettingsStore } from "../stores/useSettingsStore";
 
 const SettingsTab = () => {
@@ -11,7 +11,25 @@ const SettingsTab = () => {
     orderStartMinute: 0,
     orderEndHour: 1,
     orderEndMinute: 0,
-    minimumOrderAmount: 250
+    minimumOrderAmount: 250,
+    deliveryPoints: {
+      girlsDorm: {
+        name: "Kız KYK Yurdu",
+        enabled: true,
+        startHour: 10,
+        startMinute: 0,
+        endHour: 1,
+        endMinute: 0
+      },
+      boysDorm: {
+        name: "Erkek KYK Yurdu",
+        enabled: true,
+        startHour: 10,
+        startMinute: 0,
+        endHour: 1,
+        endMinute: 0
+      }
+    }
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -20,11 +38,36 @@ const SettingsTab = () => {
     loadSettings();
   }, []);
 
+  useEffect(() => {
+    if (storeSettings) {
+      setSettings({
+        ...storeSettings,
+        deliveryPoints: storeSettings.deliveryPoints || {
+          girlsDorm: {
+            name: "Kız KYK Yurdu",
+            enabled: true,
+            startHour: 10,
+            startMinute: 0,
+            endHour: 1,
+            endMinute: 0
+          },
+          boysDorm: {
+            name: "Erkek KYK Yurdu",
+            enabled: true,
+            startHour: 10,
+            startMinute: 0,
+            endHour: 1,
+            endMinute: 0
+          }
+        }
+      });
+    }
+  }, [storeSettings]);
+
   const loadSettings = async () => {
     try {
       setLoading(true);
       await fetchSettings();
-      setSettings(storeSettings);
     } catch (error) {
       console.error("Ayarlar getirilirken hata oluştu:", error);
       toast.error("Ayarlar getirilirken hata oluştu");
@@ -40,6 +83,23 @@ const SettingsTab = () => {
       ...prev,
       [name]: parsedValue
     }));
+  };
+
+  const handleDeliveryPointChange = (point, field, value) => {
+    setSettings(prev => ({
+      ...prev,
+      deliveryPoints: {
+        ...prev.deliveryPoints,
+        [point]: {
+          ...prev.deliveryPoints[point],
+          [field]: field === 'enabled' ? value : parseInt(value, 10)
+        }
+      }
+    }));
+  };
+
+  const toggleDeliveryPoint = (point) => {
+    handleDeliveryPointChange(point, 'enabled', !settings.deliveryPoints[point].enabled);
   };
 
   const handleSubmit = async (e) => {
@@ -176,6 +236,108 @@ const SettingsTab = () => {
               <span className="text-white">₺</span>
             </div>
           </div>
+        </div>
+
+        {/* Teslimat Noktaları */}
+        <div className="bg-gradient-to-br from-gray-700/50 to-gray-800/50 p-6 rounded-xl border border-gray-600/30 space-y-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-r from-emerald-500 to-green-500 rounded-xl flex items-center justify-center">
+              <MapPin className="w-5 h-5 text-white" />
+            </div>
+            <h3 className="text-xl font-bold text-white">Teslimat Noktaları</h3>
+          </div>
+
+          {/* Kız Yurdu */}
+          <motion.div 
+            className="bg-gradient-to-r from-pink-500/10 to-purple-500/10 p-6 rounded-xl border border-pink-500/20"
+            whileHover={{ scale: 1.02 }}
+            transition={{ duration: 0.2 }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gradient-to-r from-pink-500 to-purple-500 rounded-xl flex items-center justify-center">
+                  <span className="text-xl">👩</span>
+                </div>
+                <div>
+                  <h4 className="text-lg font-bold text-white">
+                    {settings.deliveryPoints?.girlsDorm?.name || "Kız KYK Yurdu"}
+                  </h4>
+                  <p className="text-sm text-gray-400">Kız öğrenci yurdu teslimat noktası</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  settings.deliveryPoints?.girlsDorm?.enabled 
+                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" 
+                    : "bg-red-500/20 text-red-400 border border-red-500/30"
+                }`}>
+                  {settings.deliveryPoints?.girlsDorm?.enabled ? "✅ Aktif" : "❌ Kapalı"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => toggleDeliveryPoint('girlsDorm')}
+                  className={`p-3 rounded-xl transition-all duration-300 ${
+                    settings.deliveryPoints?.girlsDorm?.enabled
+                      ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 hover:scale-105"
+                      : "bg-red-500/20 text-red-400 hover:bg-red-500/30 hover:scale-105"
+                  }`}
+                >
+                  {settings.deliveryPoints?.girlsDorm?.enabled ? (
+                    <ToggleRight className="w-6 h-6" />
+                  ) : (
+                    <ToggleLeft className="w-6 h-6" />
+                  )}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+
+
+          {/* Erkek Yurdu */}
+          <motion.div 
+            className="bg-gradient-to-r from-blue-500/10 to-cyan-500/10 p-6 rounded-xl border border-blue-500/20"
+            whileHover={{ scale: 1.02 }}
+            transition={{ duration: 0.2 }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center">
+                  <span className="text-xl">👨</span>
+                </div>
+                <div>
+                  <h4 className="text-lg font-bold text-white">
+                    {settings.deliveryPoints?.boysDorm?.name || "Erkek KYK Yurdu"}
+                  </h4>
+                  <p className="text-sm text-gray-400">Erkek öğrenci yurdu teslimat noktası</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  settings.deliveryPoints?.boysDorm?.enabled 
+                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" 
+                    : "bg-red-500/20 text-red-400 border border-red-500/30"
+                }`}>
+                  {settings.deliveryPoints?.boysDorm?.enabled ? "✅ Aktif" : "❌ Kapalı"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => toggleDeliveryPoint('boysDorm')}
+                  className={`p-3 rounded-xl transition-all duration-300 ${
+                    settings.deliveryPoints?.boysDorm?.enabled
+                      ? "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 hover:scale-105"
+                      : "bg-red-500/20 text-red-400 hover:bg-red-500/30 hover:scale-105"
+                  }`}
+                >
+                  {settings.deliveryPoints?.boysDorm?.enabled ? (
+                    <ToggleRight className="w-6 h-6" />
+                  ) : (
+                    <ToggleLeft className="w-6 h-6" />
+                  )}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+
         </div>
         
         <div className="flex justify-end">

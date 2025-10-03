@@ -15,7 +15,7 @@ export const getSettings = async (req, res) => {
 // Ayarları güncelle
 export const updateSettings = async (req, res) => {
   try {
-    const { orderStartHour, orderStartMinute, orderEndHour, orderEndMinute, minimumOrderAmount } = req.body;
+    const { orderStartHour, orderStartMinute, orderEndHour, orderEndMinute, minimumOrderAmount, deliveryPoints } = req.body;
     
     const settings = await Settings.getSettings();
     
@@ -25,6 +25,7 @@ export const updateSettings = async (req, res) => {
     if (orderEndHour !== undefined) settings.orderEndHour = orderEndHour;
     if (orderEndMinute !== undefined) settings.orderEndMinute = orderEndMinute;
     if (minimumOrderAmount !== undefined) settings.minimumOrderAmount = minimumOrderAmount;
+    if (deliveryPoints !== undefined) settings.deliveryPoints = deliveryPoints;
     
     await settings.save();
     

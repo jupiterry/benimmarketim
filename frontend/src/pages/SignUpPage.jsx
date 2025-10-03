@@ -39,12 +39,25 @@ const SignUpPage = () => {
 						initial={{ opacity: 0, y: -20 }}
 						animate={{ opacity: 1, y: 0 }}
 						transition={{ duration: 0.5, delay: 0.3 }}
-						className="mt-6 text-center"
+						className="mt-6 text-center mb-8"
 					>
-						<h2 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-emerald-200 bg-clip-text text-transparent">
+						<motion.div
+							className="mx-auto w-fit mb-6"
+							initial={{ scale: 0, rotate: -180 }}
+							animate={{ scale: 1, rotate: 0 }}
+							transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.4 }}
+						>
+							<div className="relative">
+								<div className="w-24 h-24 bg-gradient-to-tr from-emerald-500 via-emerald-400 to-emerald-300 rounded-3xl flex items-center justify-center shadow-2xl">
+									<UserPlus className="w-12 h-12 text-white" />
+								</div>
+								<div className="absolute -inset-1 bg-gradient-to-tr from-emerald-500 to-emerald-300 rounded-3xl blur opacity-30 animate-pulse"></div>
+							</div>
+						</motion.div>
+						<h2 className="text-4xl font-bold bg-gradient-to-r from-emerald-400 via-emerald-300 to-emerald-200 bg-clip-text text-transparent mb-2">
 							Hesabını Oluştur
 						</h2>
-						<p className="mt-2 text-sm text-gray-400">
+						<p className="text-gray-400 text-sm">
 							Hemen üye ol, alışverişin keyfini çıkar!
 						</p>
 					</motion.div>
@@ -75,9 +88,9 @@ const SignUpPage = () => {
 									required
 									value={formData.name}
 									onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-									className="block w-full pl-10 px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl 
-									text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 
-									focus:border-transparent transition-all duration-200"
+									className="block w-full pl-10 px-4 py-4 bg-gray-800/30 border border-gray-700/50 rounded-2xl 
+									text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 
+									focus:border-emerald-500/50 transition-all duration-300 hover:bg-gray-800/40"
 									placeholder="Örn: Ahmet Yılmaz"
 									pattern="^[a-zA-ZğüşıöçĞÜŞİÖÇ\s]{2,}\s+[a-zA-ZğüşıöçĞÜŞİÖÇ\s]{2,}$"
 									title="Lütfen geçerli bir isim ve soyisim giriniz (en az ikişer harfli)"
@@ -104,9 +117,9 @@ const SignUpPage = () => {
 									required
 									value={formData.phone}
 									onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-									className="block w-full pl-10 px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl 
-									text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 
-									focus:border-transparent transition-all duration-200"
+									className="block w-full pl-10 px-4 py-4 bg-gray-800/30 border border-gray-700/50 rounded-2xl 
+									text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 
+									focus:border-emerald-500/50 transition-all duration-300 hover:bg-gray-800/40"
 									placeholder="05XX XXX XX XX"
 								/>
 								<div className="absolute inset-0 rounded-xl border border-emerald-500/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
@@ -131,9 +144,9 @@ const SignUpPage = () => {
 									required
 									value={formData.email}
 									onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-									className="block w-full pl-10 px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl 
-									text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 
-									focus:border-transparent transition-all duration-200"
+									className="block w-full pl-10 px-4 py-4 bg-gray-800/30 border border-gray-700/50 rounded-2xl 
+									text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 
+									focus:border-emerald-500/50 transition-all duration-300 hover:bg-gray-800/40"
 									placeholder="benimmarketim@example.com"
 								/>
 								<div className="absolute inset-0 rounded-xl border border-emerald-500/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
@@ -158,9 +171,9 @@ const SignUpPage = () => {
 									required
 									value={formData.password}
 									onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-									className="block w-full pl-10 px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl 
-									text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 
-									focus:border-transparent transition-all duration-200"
+									className="block w-full pl-10 px-4 py-4 bg-gray-800/30 border border-gray-700/50 rounded-2xl 
+									text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 
+									focus:border-emerald-500/50 transition-all duration-300 hover:bg-gray-800/40"
 									placeholder="••••••••"
 								/>
 								<div className="absolute inset-0 rounded-xl border border-emerald-500/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
@@ -185,9 +198,9 @@ const SignUpPage = () => {
 									required
 									value={formData.confirmPassword}
 									onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-									className="block w-full pl-10 px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl 
-									text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 
-									focus:border-transparent transition-all duration-200"
+									className="block w-full pl-10 px-4 py-4 bg-gray-800/30 border border-gray-700/50 rounded-2xl 
+									text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 
+									focus:border-emerald-500/50 transition-all duration-300 hover:bg-gray-800/40"
 									placeholder="••••••••"
 								/>
 								<div className="absolute inset-0 rounded-xl border border-emerald-500/50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
@@ -201,20 +214,22 @@ const SignUpPage = () => {
 						>
 							<button
 								type="submit"
-								className="relative w-full group"
+								className="relative w-full group overflow-hidden"
 								disabled={loading}
 							>
-								<div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500 to-emerald-700 rounded-xl blur opacity-60 group-hover:opacity-100 transition duration-200"></div>
-								<div className="relative flex items-center justify-center gap-2 px-6 py-3 bg-gray-900 rounded-xl">
+								<div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-600 rounded-2xl blur opacity-60 group-hover:opacity-100 transition duration-300"></div>
+								<div className="relative flex items-center justify-center gap-3 py-4 px-6 bg-gradient-to-r from-emerald-600 to-emerald-500 
+								hover:from-emerald-500 hover:to-emerald-400 text-white font-semibold rounded-2xl 
+								disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300">
 									{loading ? (
 										<>
-											<Loader className="h-5 w-5 animate-spin text-emerald-400" />
-											<span className="text-sm font-semibold text-emerald-400">Yükleniyor...</span>
+											<Loader className="h-5 w-5 animate-spin" />
+											<span>Kayıt Olunuyor...</span>
 										</>
 									) : (
 										<>
-											<UserPlus className="h-5 w-5 text-emerald-400" />
-											<span className="text-sm font-semibold text-emerald-400">Kayıt Ol</span>
+											<UserPlus className="h-5 w-5" />
+											<span>Kayıt Ol</span>
 										</>
 									)}
 								</div>

@@ -60,16 +60,63 @@ const FeedbackTab = () => {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+      <div className="flex flex-col justify-center items-center min-h-[400px] space-y-4">
+        <motion.div
+          className="relative"
+          animate={{ rotate: 360 }}
+          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+        >
+          <div className="w-16 h-16 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full"></div>
+        </motion.div>
+        <motion.p
+          className="text-gray-400 text-lg"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+        >
+          Geri bildirimler yükleniyor...
+        </motion.p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <motion.div 
+      className="space-y-8"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6 }}
+    >
+      {/* Header */}
+      <motion.div 
+        className="text-center mb-8"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+      >
+        <div className="inline-flex items-center gap-4 mb-4">
+          <div className="w-12 h-12 bg-gradient-to-r from-emerald-500 to-green-500 rounded-xl flex items-center justify-center shadow-lg">
+            <MessageSquare className="w-6 h-6 text-white" />
+          </div>
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-green-400 bg-clip-text text-transparent">
+            Geri Bildirimler
+          </h2>
+          <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center shadow-lg">
+            <Star className="w-6 h-6 text-white" />
+          </div>
+        </div>
+        <p className="text-gray-400 text-lg">
+          Kullanıcı geri bildirimlerini yönetin ve analiz edin
+        </p>
+      </motion.div>
+
       {/* İstatistikler */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <motion.div 
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.3 }}
+      >
         <StatCard
           title="Toplam Geri Bildirim"
           value={stats?.totalFeedbacks || 0}
@@ -97,7 +144,12 @@ const FeedbackTab = () => {
       </div>
 
       {/* Geri Bildirim Listesi */}
-      <div className="bg-gray-800/50 backdrop-blur-xl rounded-xl border border-gray-700/50">
+      <motion.div 
+        className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-2xl border border-gray-700/50 shadow-2xl"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.4 }}
+      >
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-700/50">
             <thead>
@@ -175,23 +227,26 @@ const FeedbackTab = () => {
 
 const StatCard = ({ title, value, icon, color }) => {
   const colors = {
-    emerald: "from-emerald-500/20 to-emerald-500/5 text-emerald-500",
-    amber: "from-amber-500/20 to-amber-500/5 text-amber-500",
-    blue: "from-blue-500/20 to-blue-500/5 text-blue-500",
-    red: "from-red-500/20 to-red-500/5 text-red-500"
+    emerald: "from-emerald-500/20 to-emerald-500/5 text-emerald-500 border-emerald-500/30",
+    amber: "from-amber-500/20 to-amber-500/5 text-amber-500 border-amber-500/30",
+    blue: "from-blue-500/20 to-blue-500/5 text-blue-500 border-blue-500/30",
+    red: "from-red-500/20 to-red-500/5 text-red-500 border-red-500/30"
   };
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`bg-gradient-to-br ${colors[color]} p-6 rounded-xl border border-gray-700/50`}
+      whileHover={{ y: -5, scale: 1.02 }}
+      transition={{ duration: 0.3 }}
+      className={`bg-gradient-to-br ${colors[color]} p-6 rounded-2xl border shadow-xl hover:shadow-2xl transition-all duration-300`}
     >
-      <div className="flex items-center justify-between">
-        <div className={`p-2 rounded-lg bg-${color}-500/10`}>{icon}</div>
+      <div className="flex items-center justify-between mb-4">
+        <div className={`p-3 rounded-xl bg-${color}-500/10 shadow-lg`}>{icon}</div>
+        <div className={`w-3 h-3 rounded-full bg-${color}-500 animate-pulse`}></div>
       </div>
-      <div className="mt-4">
-        <div className="text-2xl font-bold text-white">{value}</div>
+      <div>
+        <div className="text-3xl font-bold text-white mb-2">{value}</div>
         <div className="text-sm text-gray-400">{title}</div>
       </div>
     </motion.div>

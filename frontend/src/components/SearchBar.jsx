@@ -33,7 +33,7 @@ const SearchBar = () => {
       }
 
       try {
-        const response = await axios.get(`/api/products/search?q=${query}`);
+        const response = await axios.get(`/products/search?q=${query}`);
         setSuggestions(response.data.products);
       } catch (error) {
         console.error("Öneriler yüklenirken hata:", error);

@@ -218,8 +218,10 @@ export const placeOrder = async (req, res) => {
 		return res.status(400).json({ error: await getOrderHoursMessage() });
 	  }
   
-	  const { products, city, phone, note } = req.body;
+	  const { products, city, phone, note, deliveryPoint, deliveryPointName } = req.body;
   
+	  console.log("Sipariş oluşturma isteği:", { products: products?.length, city, phone, deliveryPoint, deliveryPointName });
+
 	  // Sepet boş mu kontrolü
 	  if (!products || products.length === 0) {
 		return res.status(400).json({ error: "Sepet boş!" });
@@ -228,6 +230,11 @@ export const placeOrder = async (req, res) => {
 	  // Şehir ve telefon numarası zorunlu alanlar
 	  if (!city || !phone) {
 		return res.status(400).json({ error: "Şehir ve telefon numarası zorunludur!" });
+	  }
+
+	  // Teslimat noktası kontrolü
+	  if (!deliveryPoint) {
+		return res.status(400).json({ error: "Lütfen teslimat noktası seçiniz!" });
 	  }
   
 	  // Toplam tutarı hesapla
@@ -257,17 +264,25 @@ export const placeOrder = async (req, res) => {
 	  }
   
 	  // Yeni sipariş oluştur
-	  const newOrder = new Order({
+	  const orderData = {
 		user: req.user._id,
 		products: orderProducts,
 		totalAmount,
 		city,
 		phone,
-		note,
-	  });
+		note: note || "",
+		deliveryPoint,
+		deliveryPointName: deliveryPointName || ""
+	  };
+
+	  console.log("Oluşturulacak sipariş verisi:", orderData);
+
+	  const newOrder = new Order(orderData);
   
 	  // Siparişi kaydet
+	  console.log("Sipariş kaydediliyor...");
 	  await newOrder.save();
+	  console.log("Sipariş başarıyla kaydedildi:", newOrder._id);
 
       // Socket.IO ile admin'e bildirim gönder
       try {
@@ -310,7 +325,16 @@ export const placeOrder = async (req, res) => {
 		orderId: newOrder._id,
 	  });
 	} catch (error) {
-	  console.error("Sipariş oluşturulurken hata oluştu:", error);
-	  res.status(500).json({ message: "Sipariş oluşturulurken hata oluştu", error: error.message });
+	  console.error("Sipariş oluşturulurken hata oluştu:");
+	  console.error("Hata mesajı:", error.message);
+	  console.error("Hata stack:", error.stack);
+	  if (error.name === 'ValidationError') {
+		console.error("Validation hataları:", error.errors);
+	  }
+	  res.status(500).json({ 
+		message: "Sipariş oluşturulurken hata oluştu", 
+		error: error.message,
+		details: error.errors || {}
+	  });
 	}
   };

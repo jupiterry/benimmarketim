@@ -34,6 +34,77 @@ const settingsSchema = new mongoose.Schema(
       type: String,
       default: "default",
       unique: true,
+    },
+    // Teslimat Noktaları
+    deliveryPoints: {
+      girlsDorm: {
+        name: {
+          type: String,
+          default: "Kız KYK Yurdu"
+        },
+        enabled: {
+          type: Boolean,
+          default: true
+        },
+        startHour: {
+          type: Number,
+          default: 10,
+          min: 0,
+          max: 23
+        },
+        startMinute: {
+          type: Number,
+          default: 0,
+          min: 0,
+          max: 59
+        },
+        endHour: {
+          type: Number,
+          default: 1,
+          min: 0,
+          max: 23
+        },
+        endMinute: {
+          type: Number,
+          default: 0,
+          min: 0,
+          max: 59
+        }
+      },
+      boysDorm: {
+        name: {
+          type: String,
+          default: "Erkek KYK Yurdu"
+        },
+        enabled: {
+          type: Boolean,
+          default: true
+        },
+        startHour: {
+          type: Number,
+          default: 10,
+          min: 0,
+          max: 23
+        },
+        startMinute: {
+          type: Number,
+          default: 0,
+          min: 0,
+          max: 59
+        },
+        endHour: {
+          type: Number,
+          default: 1,
+          min: 0,
+          max: 23
+        },
+        endMinute: {
+          type: Number,
+          default: 0,
+          min: 0,
+          max: 59
+        }
+      }
     }
   },
   { timestamps: true }

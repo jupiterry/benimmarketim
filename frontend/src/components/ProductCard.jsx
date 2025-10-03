@@ -1,17 +1,114 @@
 import toast from "react-hot-toast";
-import { ShoppingCart, Package2 } from "lucide-react";
+import { ShoppingCart, Package2, Clock, Zap } from "lucide-react";
 import { useUserStore } from "../stores/useUserStore";
 import { useCartStore } from "../stores/useCartStore";
-import { useState } from "react";
+import { useSettingsStore } from "../stores/useSettingsStore";
+import { isWithinOrderHours } from "../lib/orderHours";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import { motion } from "framer-motion";
 
 const ProductCard = ({ product, isAdmin }) => {
   const { user } = useUserStore();
   const { addToCart } = useCartStore();
+  const { settings } = useSettingsStore();
   const [isEditing, setIsEditing] = useState(false);
   const [discountedPrice, setDiscountedPrice] = useState(product.discountedPrice);
   const [imageError, setImageError] = useState(false);
+  const [flashSales, setFlashSales] = useState([]);
+  
+  // Sipariş saatleri kontrolü
+  const isOrderHoursActive = isWithinOrderHours(settings);
+
+  // Flash Sale verilerini yükle
+  useEffect(() => {
+    fetchFlashSales();
+  }, []);
+
+  // Flash Sale süre güncellemesi için interval
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setFlashSales(prev => [...prev]);
+    }, 60000); // Her dakika güncelle
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchFlashSales = async () => {
+    try {
+      const response = await axios.get("/flash-sales/active");
+      setFlashSales(response.data.flashSales || []);
+    } catch (error) {
+      // 401 hatası normal - kullanıcı giriş yapmamış
+      if (error.response?.status !== 401) {
+        console.error("Flash sale'ler getirilemedi:", error);
+      }
+    }
+  };
+
+  // Süresi biten Flash Sale'leri temizle
+  const cleanupExpiredFlashSale = async (flashSaleId) => {
+    try {
+      await axios.delete(`/flash-sales/${flashSaleId}`);
+      // Flash sale listesini güncelle
+      setFlashSales(prev => prev.filter(sale => sale._id !== flashSaleId));
+    } catch (error) {
+      console.error("Flash sale silinemedi:", error);
+    }
+  };
+
+  // Flash Sale kalan süre hesaplama
+  const getFlashSaleTimeRemaining = (productId) => {
+    const flashSale = flashSales.find(sale => sale.product?._id === productId);
+    if (!flashSale) return null;
+
+    const now = new Date();
+    const start = new Date(flashSale.startDate);
+    const end = new Date(flashSale.endDate);
+
+    // Sona ermiş - flash sale'i temizle
+    if (now > end) {
+      // Flash sale'i backend'den sil
+      cleanupExpiredFlashSale(flashSale._id);
+      return null; // Artık gösterme
+    }
+
+    // Henüz başlamamış
+    if (now < start) {
+      const diff = start - now;
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      
+      if (days > 0) return `${days}g ${hours}s sonra başlar`;
+      if (hours > 0) return `${hours}s ${minutes}d sonra başlar`;
+      return `${minutes}d sonra başlar`;
+    }
+
+    // Aktif - kalan süre
+    const diff = end - now;
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (days > 0) return `${days}g ${hours}s kaldı`;
+    if (hours > 0) return `${hours}s ${minutes}d kaldı`;
+    return `${minutes}d kaldı`;
+  };
+
+  // Flash Sale durumu
+  const getFlashSaleStatus = (productId) => {
+    const flashSale = flashSales.find(sale => sale.product?._id === productId);
+    if (!flashSale) return null;
+
+    const now = new Date();
+    const start = new Date(flashSale.startDate);
+    const end = new Date(flashSale.endDate);
+
+    if (now < start) return "upcoming";
+    if (now > end) return "expired";
+    return "active";
+  };
 
   const handleAddToCart = async () => {
     if (!user) {
@@ -20,6 +117,10 @@ const ProductCard = ({ product, isAdmin }) => {
     }
     if (product.isOutOfStock) {
       toast.error("Bu ürün tükenmiştir.", { id: "out-of-stock" });
+      return;
+    }
+    if (!isOrderHoursActive) {
+      toast.error("Sipariş saatleri dışındayız. Lütfen daha sonra tekrar deneyin.", { id: "order-hours" });
       return;
     }
     
@@ -62,13 +163,16 @@ const ProductCard = ({ product, isAdmin }) => {
 
   return (
     <motion.div 
-      className="group flex flex-col h-full overflow-hidden rounded-lg border border-gray-700 bg-gray-800/50 backdrop-blur-sm shadow-lg hover:shadow-emerald-500/10 transition-all duration-300"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      whileHover={{ scale: 1.02 }}
+      className="group relative flex flex-col h-full overflow-hidden rounded-2xl border border-gray-700/50 bg-gradient-to-br from-gray-800/90 to-gray-900/90 backdrop-blur-sm shadow-2xl hover:shadow-emerald-500/20 hover:border-emerald-500/50 transition-all duration-500"
+      initial={{ opacity: 0, y: 30, scale: 0.9 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.6, type: "spring" }}
+      whileHover={{ scale: 1.02, y: -8 }}
     >
-      <div className="flex flex-col flex-1">
+      {/* Glow Effect */}
+      <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 -z-10 blur-xl"></div>
+      
+      <div className="relative flex flex-col flex-1">
         <div className="relative aspect-square overflow-hidden rounded-t-lg bg-white/5">
           {!imageError ? (
             <img
@@ -87,6 +191,20 @@ const ProductCard = ({ product, isAdmin }) => {
           {product.isOutOfStock && (
             <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
               <span className="text-white font-bold text-lg">Tükendi</span>
+            </div>
+          )}
+          
+          {/* Flash Sale Süre Göstergesi */}
+          {getFlashSaleTimeRemaining(product._id) && (
+            <div className={`absolute top-2 right-2 px-2 py-1 rounded-lg text-xs font-bold text-white shadow-lg ${
+              getFlashSaleStatus(product._id) === 'active' ? 'bg-gradient-to-r from-red-500 to-orange-500 animate-pulse' :
+              getFlashSaleStatus(product._id) === 'upcoming' ? 'bg-gradient-to-r from-blue-500 to-purple-500' :
+              'bg-gray-500'
+            }`}>
+              <div className="flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                <span className="whitespace-nowrap">{getFlashSaleTimeRemaining(product._id)}</span>
+              </div>
             </div>
           )}
         </div>
@@ -159,20 +277,39 @@ const ProductCard = ({ product, isAdmin }) => {
         </div>
       </div>
 
-      <div className="p-3 pt-0">
+      <div className="p-4 pt-0">
         <motion.button
-          className={`flex items-center justify-center rounded-lg px-3 py-2 text-center text-sm font-medium text-white w-full ${
+          className={`relative overflow-hidden flex items-center justify-center rounded-xl px-4 py-3 text-center font-semibold text-white w-full transition-all duration-300 ${
             product.isOutOfStock
-              ? "bg-red-600/50 cursor-not-allowed"
-              : "bg-emerald-600 hover:bg-emerald-700"
+              ? "bg-gradient-to-r from-red-500/50 to-red-600/50 cursor-not-allowed border border-red-500/30"
+              : !isOrderHoursActive
+              ? "bg-gradient-to-r from-gray-500/50 to-gray-600/50 cursor-not-allowed border border-gray-500/30"
+              : "bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 shadow-lg hover:shadow-emerald-500/25 border border-emerald-500/30 hover:border-emerald-400/50"
           }`}
           onClick={handleAddToCart}
-          disabled={product.isOutOfStock}
-          whileHover={!product.isOutOfStock ? { scale: 1.02 } : {}}
-          whileTap={!product.isOutOfStock ? { scale: 0.98 } : {}}
+          disabled={product.isOutOfStock || !isOrderHoursActive}
+          whileHover={!product.isOutOfStock && isOrderHoursActive ? { scale: 1.05 } : {}}
+          whileTap={!product.isOutOfStock && isOrderHoursActive ? { scale: 0.95 } : {}}
         >
-          <ShoppingCart size={18} className="mr-2" />
-          {product.isOutOfStock ? "Tükendi" : "Sepete Ekle"}
+          {!product.isOutOfStock && isOrderHoursActive && (
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+          )}
+          <motion.div
+            className="flex items-center gap-2"
+            whileHover={!product.isOutOfStock && isOrderHoursActive ? { x: 2 } : {}}
+          >
+            <motion.div
+              whileHover={!product.isOutOfStock && isOrderHoursActive ? { rotate: 360 } : {}}
+              transition={{ duration: 0.5 }}
+            >
+              {!isOrderHoursActive ? <Clock size={18} /> : <ShoppingCart size={18} />}
+            </motion.div>
+            {product.isOutOfStock 
+              ? "🚫 Tükendi" 
+              : !isOrderHoursActive 
+              ? "⏰ Saat Dışı" 
+              : "🛒 Sepete Ekle"}
+          </motion.div>
         </motion.button>
       </div>
     </motion.div>

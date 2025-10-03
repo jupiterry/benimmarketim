@@ -4,21 +4,28 @@ import Product from "../models/product.model.js";
 // Sipariş oluşturma fonksiyonu
 export const createOrder = async (req, res) => {
   try {
-    const { products, city, phone } = req.body;
+    const { products, city, phone, note, deliveryPoint, deliveryPointName } = req.body;
+
+    console.log("Sipariş oluşturma isteği:", { products, city, phone, deliveryPoint, deliveryPointName });
 
     // Geçerli ürünlerin olup olmadığını kontrol et
     if (!Array.isArray(products) || products.length === 0) {
-      toast.error("Sepetiniz Boş", { id: "login" });
+      return res.status(400).json({ message: "Sepetiniz boş" });
     }
 
     // Geçerli şehir seçimi kontrolü
     if (!city) {
-      toast.error("Lütfen İl seçiniz!", { id: "login" });
+      return res.status(400).json({ message: "Lütfen il seçiniz" });
     }
 
     // Geçerli telefon numarası kontrolü
     if (!phone || phone.length < 10) {
-      toast.error("Geçerli bir telefon numarası girin!", { id: "login" });
+      return res.status(400).json({ message: "Geçerli bir telefon numarası girin" });
+    }
+
+    // Teslimat noktası kontrolü
+    if (!deliveryPoint) {
+      return res.status(400).json({ message: "Lütfen teslimat noktası seçiniz" });
     }
 
     let totalAmount = 0;
@@ -47,16 +54,25 @@ export const createOrder = async (req, res) => {
     );
 
     // Yeni siparişi oluştur
-    const newOrder = new Order({
+    const orderData = {
       user: req.user._id,
       products: orderProducts,
       totalAmount,
       city,
       phone,
-    });
+      note: note || "",
+      deliveryPoint,
+      deliveryPointName: deliveryPointName || ""
+    };
+
+    console.log("Oluşturulacak sipariş verisi:", orderData);
+
+    const newOrder = new Order(orderData);
 
     // Siparişi kaydet
+    console.log("Sipariş kaydediliyor...");
     await newOrder.save();
+    console.log("Sipariş başarıyla kaydedildi:", newOrder._id);
 
     // Socket.IO ile admin'e bildirim gönder
     try {
@@ -95,8 +111,17 @@ export const createOrder = async (req, res) => {
       orderId: newOrder._id,
     });
   } catch (error) {
-    console.error("Sipariş oluşturulurken hata oluştu:", error);
-    res.status(500).json({ message: "Sipariş oluşturulurken hata oluştu", error: error.message });
+    console.error("Sipariş oluşturulurken hata oluştu:");
+    console.error("Hata mesajı:", error.message);
+    console.error("Hata stack:", error.stack);
+    if (error.name === 'ValidationError') {
+      console.error("Validation hataları:", error.errors);
+    }
+    res.status(500).json({ 
+      message: "Sipariş oluşturulurken hata oluştu", 
+      error: error.message,
+      details: error.errors || {}
+    });
   }
 };
 

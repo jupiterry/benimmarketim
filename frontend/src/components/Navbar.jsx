@@ -364,18 +364,22 @@ const Navbar = () => {
   }, [isMenuOpen]);
 
   return (
-    <header className="fixed top-0 left-0 w-full bg-gray-900/90 backdrop-blur-lg shadow-[0_2px_15px_-3px_rgba(0,0,0,0.3)] z-40 transition-all duration-300">
-      <div className="container mx-auto py-2 px-4">
-        <div className="flex items-center justify-between gap-4">
+    <header className="fixed top-0 left-0 w-full bg-gradient-to-r from-gray-900/95 via-gray-800/95 to-gray-900/95 backdrop-blur-xl shadow-2xl border-b border-emerald-500/20 z-50 transition-all duration-300">
+      <div className="container mx-auto py-3 px-4">
+        <div className="flex items-center justify-between gap-6">
           {/* Logo ve Arama Çubuğu Grubu */}
           <div className="flex items-center justify-between gap-4 flex-1">
             {/* Logo */}
-            <Link to="/" className="flex-shrink-0">
-              <img
-                src="/logo2.png"
-                alt="Benim Marketim Logo"
-                className="h-6 w-20 object-contain"
-              />
+            <Link to="/" className="flex-shrink-0 group">
+              <div className="flex items-center gap-2">
+                <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 p-2 rounded-lg shadow-lg group-hover:shadow-emerald-500/50 transition-all duration-300">
+                  <ShoppingCart className="w-5 h-5 text-white" />
+                </div>
+                <div className="hidden sm:block">
+                  <h1 className="text-white font-bold text-lg leading-tight">Benim</h1>
+                  <p className="text-emerald-400 text-xs font-medium -mt-1">Marketim</p>
+                </div>
+              </div>
             </Link>
             
             {/* Arama Çubuğu */}
@@ -385,78 +389,134 @@ const Navbar = () => {
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-2">
+          <nav className="hidden md:flex items-center gap-3">
             {user && (
-              <Link
-                to="/cart"
-                className="relative group text-gray-300 hover:text-emerald-400 transition-all duration-300 flex items-center gap-1 text-sm"
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
-                <ShoppingCart size={16} />
-                <span>Sepetim</span>
-                {cart.length > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-emerald-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs">
-                    {cart.length}
-                  </span>
-                )}
-              </Link>
+                <Link
+                  to="/cart"
+                  className="relative group bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 text-emerald-300 hover:text-emerald-200 transition-all duration-300 flex items-center gap-2 px-4 py-2 rounded-xl border border-emerald-500/30 hover:border-emerald-400/50 backdrop-blur-sm"
+                >
+                  <ShoppingCart size={18} />
+                  <span className="font-medium">Sepetim</span>
+                  {cart.length > 0 && (
+                    <motion.span 
+                      className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shadow-lg"
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", stiffness: 500 }}
+                    >
+                      {cart.length}
+                    </motion.span>
+                  )}
+                </Link>
+              </motion.div>
             )}
             {user && !isAdmin && (
-              <Link
-                to="/siparislerim"
-                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-sm font-medium transition-all duration-300 flex items-center gap-1"
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
-                <Package size={16} />
-                <span>Siparişlerim</span>
-              </Link>
+                <Link
+                  to="/siparislerim"
+                  className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-400 hover:to-purple-500 text-white px-4 py-2 rounded-xl font-medium transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-blue-500/25"
+                >
+                  <Package size={18} />
+                  <span>Siparişlerim</span>
+                </Link>
+              </motion.div>
             )}
             {isAdmin && (
               <>
                 <OrderNotification />
-                <Link
-                  to="/secret-dashboard"
-                  className="bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded text-sm font-medium transition-all duration-300 flex items-center gap-1"
+                <motion.div
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                 >
-                  <Lock size={16} />
-                  <span>İstatistikler</span>
-                </Link>
-              </>
-            )}
-            {user ? (
-              <button
-                onClick={logout}
-                className="bg-gray-700 hover:bg-gray-800 text-white px-3 py-1.5 rounded text-sm font-medium transition-all duration-300 flex items-center gap-1"
-              >
-                <LogOut size={16} />
-                <span>Çıkış</span>
-              </button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <Link
-                  to="/signup"
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded text-sm font-medium transition-all duration-300 flex items-center gap-1"
+                    <Link
+                      to="/secret-dashboard"
+                      className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white px-4 py-2 rounded-xl font-medium transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-emerald-500/25"
+                    >
+                      <Lock size={18} />
+                      <span>İstatistikler</span>
+                    </Link>
+                  </motion.div>
+                </>
+              )}
+              {user ? (
+                <motion.button
+                  onClick={logout}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-400 hover:to-pink-500 text-white px-4 py-2 rounded-xl font-medium transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-red-500/25"
                 >
-                  <UserPlus size={16} />
-                  <span>Kayıt Ol</span>
-                </Link>
-                <Link
-                  to="/login"
-                  className="bg-gray-700 hover:bg-gray-800 text-white px-3 py-1.5 rounded text-sm font-medium transition-all duration-300 flex items-center gap-1"
-                >
-                  <LogIn size={16} />
-                  <span>Giriş</span>
-                </Link>
-              </div>
-            )}
+                  <LogOut size={18} />
+                  <span>Çıkış</span>
+                </motion.button>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <motion.div
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <Link
+                      to="/signup"
+                      className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white px-4 py-2 rounded-xl font-medium transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-emerald-500/25"
+                    >
+                      <UserPlus size={18} />
+                      <span>Kayıt Ol</span>
+                    </Link>
+                  </motion.div>
+                  <motion.div
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                      <Link
+                        to="/login"
+                        className="bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600 text-white px-4 py-2 rounded-xl font-medium transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-gray-500/25 border border-gray-500/30"
+                      >
+                        <LogIn size={18} />
+                        <span>Giriş</span>
+                      </Link>
+                    </motion.div>
+                  </div>
+                )}
           </nav>
 
           {/* Mobil Menü Butonu */}
-          <button
+          <motion.button
             id="menu-button"
             onClick={toggleMenu}
-            className="md:hidden p-1 text-gray-400 hover:text-white transition-colors"
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            className="md:hidden p-3 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 text-emerald-300 hover:text-emerald-200 rounded-xl border border-emerald-500/30 hover:border-emerald-400/50 backdrop-blur-sm transition-all duration-300"
           >
-            {isMenuOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
+            <AnimatePresence mode="wait">
+              {isMenuOpen ? (
+                <motion.div
+                  key="close"
+                  initial={{ rotate: -90, opacity: 0 }}
+                  animate={{ rotate: 0, opacity: 1 }}
+                  exit={{ rotate: 90, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <X size={20} />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="menu"
+                  initial={{ rotate: 90, opacity: 0 }}
+                  animate={{ rotate: 0, opacity: 1 }}
+                  exit={{ rotate: -90, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <Menu size={20} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.button>
         </div>
 
         {/* Mobil Arama Çubuğu */}
