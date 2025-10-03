@@ -6,8 +6,8 @@ const getBaseURL = () => {
 	if (import.meta.env.DEV) {
 		return "http://localhost:5000/api"; // Backend'e direkt bağlan
 	}
-	// Production ortamında
-	return "https://www.devrekbenimmarketim.com/api";
+	// Production ortamında - frontend ile aynı domain kullan
+	return "https://devrekbenimmarketim.com/api";
 };
 
 const axiosInstance = axios.create({
