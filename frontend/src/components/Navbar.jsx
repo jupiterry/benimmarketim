@@ -69,7 +69,7 @@ const OrderNotification = () => {
                 if (import.meta.env.DEV) {
                     return 'http://localhost:5000';
                 }
-                return 'https://www.devrekbenimmarketim.com';
+                return 'https://devrekbenimmarketim.com';
             };
             
             const socket = io(getSocketURL(), {
