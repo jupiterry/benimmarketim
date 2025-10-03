@@ -567,29 +567,67 @@ const OrderSummary = () => {
         </motion.div>
 
 
-        {/* Telefon Numarası */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-300">Telefon Numaranız</label>
-          <input
-            type="tel"
-            placeholder="05XX XXX XX XX"
-            className="w-full rounded-lg border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-          />
-        </div>
+        {/* İletişim Bilgileri */}
+        <motion.div 
+          className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 rounded-2xl p-6 border border-emerald-500/20"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.6, delay: 1.0 }}
+        >
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-8 h-8 bg-emerald-500/20 rounded-full flex items-center justify-center">
+              <span className="text-lg">📞</span>
+            </div>
+            <h3 className="text-lg font-semibold text-emerald-400">İletişim Bilgileri</h3>
+          </div>
+          
+          <div className="space-y-6">
+            {/* Telefon Numarası */}
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+                <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                Telefon Numaranız
+              </label>
+              <div className="relative">
+                <input
+                  type="tel"
+                  placeholder="05XX XXX XX XX"
+                  maxLength={11}
+                  className="w-full rounded-xl border border-gray-600/50 bg-gray-700/50 px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-300 placeholder-gray-400"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                />
+                <div className="absolute inset-y-0 right-0 flex items-center gap-2 pr-3">
+                  <span className="text-xs text-gray-400">{phone.length}/11</span>
+                  <span className="text-emerald-400 text-sm">📱</span>
+                </div>
+              </div>
+            </div>
 
-        {/* Sipariş Notu Alanı */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-300">Sipariş Notu</label>
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            className="w-full rounded-lg border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            rows="3"
-            placeholder="Siparişinizle ilgili not ekleyebilirsiniz..."
-          />
-        </div>
+            {/* Sipariş Notu */}
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+                <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                Sipariş Notu
+                <span className="text-xs text-gray-400">(İsteğe bağlı)</span>
+              </label>
+              <div className="relative">
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  maxLength={200}
+                  className="w-full rounded-xl border border-gray-600/50 bg-gray-700/50 px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-300 placeholder-gray-400 resize-none"
+                  rows="3"
+                  placeholder="Siparişinizle ilgili özel notlarınızı buraya yazabilirsiniz..."
+                />
+                <div className="absolute bottom-3 right-3 flex items-center gap-1">
+                  <span className="text-emerald-400 text-sm">✍️</span>
+                  <span className="text-xs text-gray-400">{note.length}/200</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
 
         {/* Sepeti Onayla Butonu */}
         <motion.button
