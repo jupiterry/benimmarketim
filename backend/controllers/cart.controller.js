@@ -236,6 +236,24 @@ export const placeOrder = async (req, res) => {
 	  if (!deliveryPoint) {
 		return res.status(400).json({ error: "Lütfen teslimat noktası seçiniz!" });
 	  }
+
+	  // Teslimat noktalarının aktif olup olmadığını kontrol et
+	  const deliveryPointsStatus = settings.deliveryPoints;
+	  if (!deliveryPointsStatus) {
+		return res.status(400).json({ error: "Teslimat noktaları ayarları bulunamadı!" });
+	  }
+
+	  // Seçilen teslimat noktasının aktif olup olmadığını kontrol et
+	  const selectedPoint = deliveryPoint === 'girlsDorm' ? deliveryPointsStatus.girlsDorm : deliveryPointsStatus.boysDorm;
+	  if (!selectedPoint || !selectedPoint.enabled) {
+		return res.status(400).json({ error: "Seçilen teslimat noktası şu anda aktif değil!" });
+	  }
+
+	  // Hiçbir teslimat noktası aktif değilse sipariş alınamaz
+	  const hasActiveDeliveryPoints = deliveryPointsStatus.girlsDorm?.enabled || deliveryPointsStatus.boysDorm?.enabled;
+	  if (!hasActiveDeliveryPoints) {
+		return res.status(400).json({ error: "Şu anda hiçbir teslimat noktası aktif değil. Sipariş alınamıyor." });
+	  }
   
 	  // Toplam tutarı hesapla
 	  let totalAmount = 0;

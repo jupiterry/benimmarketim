@@ -7,7 +7,7 @@ import toast from "react-hot-toast";
 import { Clock, Truck, Info, MapPin, CheckCircle, XCircle } from "lucide-react";
 import { useUserStore } from "../stores/useUserStore";
 import { useSettingsStore } from "../stores/useSettingsStore";
-import { isWithinOrderHours, getOrderHoursStatus, getOrderHoursCountdown } from "../lib/orderHours";
+import { isWithinOrderHours, getOrderHoursStatus, getOrderHoursCountdown, getOrderStatus, getDeliveryPointsStatus } from "../lib/orderHours";
 import FeedbackForm from "./FeedbackForm";
 
 const OrderSummary = () => {
@@ -19,6 +19,7 @@ const OrderSummary = () => {
   const [selectedDeliveryPoint, setSelectedDeliveryPoint] = useState("");
   const [orderHoursStatus, setOrderHoursStatus] = useState(null);
   const [countdown, setCountdown] = useState({ hours: 0, minutes: 0, seconds: 0 });
+  const [orderStatus, setOrderStatus] = useState(null);
   const navigate = useNavigate();
   const { user } = useUserStore();
 
@@ -33,13 +34,17 @@ const OrderSummary = () => {
     return () => clearInterval(interval);
   }, [fetchSettings]);
 
-  // Sipariş saatleri kontrolü
+  // Sipariş durumu kontrolü (saatler + teslimat noktaları)
   useEffect(() => {
     if (settings) {
-      const status = getOrderHoursStatus(settings);
-      setOrderHoursStatus(status);
+      const status = getOrderStatus(settings);
+      setOrderStatus(status);
       
-      if (status.isOutside) {
+      // Sipariş saatleri durumunu da ayrıca kontrol et (countdown için)
+      const hoursStatus = getOrderHoursStatus(settings);
+      setOrderHoursStatus(hoursStatus);
+      
+      if (hoursStatus.isOutside) {
         const countdownData = getOrderHoursCountdown(settings);
         setCountdown(countdownData);
       }
@@ -77,9 +82,9 @@ const OrderSummary = () => {
 
   const handlePayment = async () => {
     try {
-      // Sipariş saatleri kontrolü
-      if (orderHoursStatus?.isOutside) {
-        toast.error(orderHoursStatus.message, { id: "orderHours" });
+      // Genel sipariş durumu kontrolü (saatler + teslimat noktaları)
+      if (!orderStatus?.canOrder) {
+        toast.error(orderStatus?.message || "Sipariş alınamıyor!", { id: "orderStatus" });
         return;
       }
       
@@ -210,11 +215,11 @@ const OrderSummary = () => {
           </motion.div>
         </div>
 
-        {/* Sipariş Saatleri Durumu */}
-        {orderHoursStatus && (
+        {/* Sipariş Durumu */}
+        {orderStatus && (
           <motion.div 
             className={`rounded-2xl p-6 border ${
-              orderHoursStatus.isOutside 
+              !orderStatus.canOrder 
                 ? 'bg-red-500/5 border-red-500/20' 
                 : 'bg-emerald-500/5 border-emerald-500/20'
             }`}
@@ -224,29 +229,36 @@ const OrderSummary = () => {
           >
             <div className="flex items-center gap-3 mb-4">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                orderHoursStatus.isOutside 
+                !orderStatus.canOrder 
                   ? 'bg-red-500/20' 
                   : 'bg-emerald-500/20'
               }`}>
-                <Clock className={`w-4 h-4 ${
-                  orderHoursStatus.isOutside ? 'text-red-400' : 'text-emerald-400'
-                }`} />
+                {orderStatus.reason === 'deliveryPoints' ? (
+                  <XCircle className="w-4 h-4 text-red-400" />
+                ) : orderStatus.reason === 'orderHours' ? (
+                  <Clock className="w-4 h-4 text-red-400" />
+                ) : (
+                  <Clock className={`w-4 h-4 ${!orderStatus.canOrder ? 'text-red-400' : 'text-emerald-400'}`} />
+                )}
               </div>
               <h3 className={`text-lg font-semibold ${
-                orderHoursStatus.isOutside ? 'text-red-400' : 'text-emerald-400'
+                !orderStatus.canOrder ? 'text-red-400' : 'text-emerald-400'
               }`}>
-                {orderHoursStatus.isOutside ? 'Sipariş Saatleri Dışı' : 'Sipariş Alınıyor'}
+                {!orderStatus.canOrder 
+                  ? (orderStatus.reason === 'deliveryPoints' ? 'Teslimat Noktaları Kapalı' : 'Sipariş Saatleri Dışı')
+                  : 'Sipariş Alınıyor'
+                }
               </h3>
             </div>
             
             <div className="space-y-3">
               <p className={`text-sm ${
-                orderHoursStatus.isOutside ? 'text-red-300' : 'text-emerald-300'
+                !orderStatus.canOrder ? 'text-red-300' : 'text-emerald-300'
               }`}>
-                {orderHoursStatus.message}
+                {orderStatus.message}
               </p>
               
-              {orderHoursStatus.isOutside && orderHoursStatus.nextOrderTime && (
+              {orderStatus.reason === 'orderHours' && orderHoursStatus?.isOutside && orderHoursStatus.nextOrderTime && (
                 <div className="bg-red-500/10 rounded-lg p-3 border border-red-500/20">
                   <p className="text-red-300 text-sm">
                     Bir sonraki sipariş zamanı: <span className="font-semibold">{orderHoursStatus.nextOrderTime}</span>
@@ -254,7 +266,7 @@ const OrderSummary = () => {
                 </div>
               )}
               
-              {orderHoursStatus.isOutside && countdown.totalSeconds > 0 && (
+              {orderStatus.reason === 'orderHours' && orderHoursStatus?.isOutside && countdown.totalSeconds > 0 && (
                 <div className="bg-red-500/10 rounded-lg p-3 border border-red-500/20">
                   <div className="flex items-center justify-center gap-2">
                     <span className="text-red-300 text-sm">Kalan süre:</span>
@@ -327,7 +339,7 @@ const OrderSummary = () => {
         {/* Teslimat Noktası Seçimi */}
         <motion.div 
           className={`rounded-2xl p-6 border ${
-            orderHoursStatus?.isOutside 
+            !orderStatus?.canOrder 
               ? 'bg-gray-800/30 border-gray-600/30 opacity-60' 
               : 'bg-gradient-to-br from-gray-800/50 to-gray-900/50 border-emerald-500/20'
           }`}
@@ -337,20 +349,22 @@ const OrderSummary = () => {
         >
           <div className="flex items-center gap-3 mb-4">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-              orderHoursStatus?.isOutside 
+              !orderStatus?.canOrder 
                 ? 'bg-gray-500/20' 
                 : 'bg-emerald-500/20'
             }`}>
               <MapPin className={`w-4 h-4 ${
-                orderHoursStatus?.isOutside ? 'text-gray-400' : 'text-emerald-400'
+                !orderStatus?.canOrder ? 'text-gray-400' : 'text-emerald-400'
               }`} />
             </div>
             <h3 className={`text-lg font-semibold ${
-              orderHoursStatus?.isOutside ? 'text-gray-400' : 'text-emerald-400'
+              !orderStatus?.canOrder ? 'text-gray-400' : 'text-emerald-400'
             }`}>
               Teslimat Noktası Seçin
-              {orderHoursStatus?.isOutside && (
-                <span className="text-sm text-red-400 ml-2">(Sipariş saatleri dışı)</span>
+              {!orderStatus?.canOrder && (
+                <span className="text-sm text-red-400 ml-2">
+                  ({orderStatus?.reason === 'deliveryPoints' ? 'Teslimat noktaları kapalı' : 'Sipariş saatleri dışı'})
+                </span>
               )}
             </h3>
           </div>
@@ -358,12 +372,12 @@ const OrderSummary = () => {
             {/* Kız Yurdu */}
             <motion.button
               type="button"
-              onClick={() => !orderHoursStatus?.isOutside && settings.deliveryPoints?.girlsDorm?.enabled && setSelectedDeliveryPoint('girlsDorm')}
-              disabled={orderHoursStatus?.isOutside || !settings.deliveryPoints?.girlsDorm?.enabled}
-              whileHover={!orderHoursStatus?.isOutside && settings.deliveryPoints?.girlsDorm?.enabled ? { scale: 1.02, y: -2 } : {}}
-              whileTap={!orderHoursStatus?.isOutside && settings.deliveryPoints?.girlsDorm?.enabled ? { scale: 0.98 } : {}}
+              onClick={() => orderStatus?.canOrder && settings.deliveryPoints?.girlsDorm?.enabled && setSelectedDeliveryPoint('girlsDorm')}
+              disabled={!orderStatus?.canOrder || !settings.deliveryPoints?.girlsDorm?.enabled}
+              whileHover={orderStatus?.canOrder && settings.deliveryPoints?.girlsDorm?.enabled ? { scale: 1.02, y: -2 } : {}}
+              whileTap={orderStatus?.canOrder && settings.deliveryPoints?.girlsDorm?.enabled ? { scale: 0.98 } : {}}
               className={`relative p-6 rounded-2xl border-2 transition-all duration-300 ${
-                orderHoursStatus?.isOutside
+                !orderStatus?.canOrder
                   ? 'border-gray-500/30 bg-gradient-to-br from-gray-700/30 to-gray-800/30 cursor-not-allowed opacity-50'
                   : selectedDeliveryPoint === 'girlsDorm'
                   ? 'border-emerald-500 bg-gradient-to-br from-emerald-500/20 to-green-500/20 shadow-lg shadow-emerald-500/25'
@@ -378,7 +392,7 @@ const OrderSummary = () => {
               
               <div className="relative flex flex-col items-center gap-3">
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                  orderHoursStatus?.isOutside
+                  !orderStatus?.canOrder
                     ? 'bg-gray-500/20 border-2 border-gray-500/50'
                     : selectedDeliveryPoint === 'girlsDorm' 
                     ? 'bg-emerald-500/20 border-2 border-emerald-500/50' 
@@ -386,7 +400,7 @@ const OrderSummary = () => {
                     ? 'bg-gray-700/50 border-2 border-gray-600/50'
                     : 'bg-red-500/20 border-2 border-red-500/50'
                 }`}>
-                  {orderHoursStatus?.isOutside ? (
+                  {!orderStatus?.canOrder ? (
                     <Clock className="w-6 h-6 text-gray-400" />
                   ) : settings.deliveryPoints?.girlsDorm?.enabled ? (
                     <CheckCircle className={`w-6 h-6 ${selectedDeliveryPoint === 'girlsDorm' ? 'text-emerald-400' : 'text-gray-400'}`} />
@@ -397,21 +411,21 @@ const OrderSummary = () => {
                 
                 <div className="text-center">
                   <span className={`text-sm font-semibold block ${
-                    orderHoursStatus?.isOutside 
+                    !orderStatus?.canOrder 
                       ? 'text-gray-400' 
                       : settings.deliveryPoints?.girlsDorm?.enabled ? 'text-white' : 'text-red-400'
                   }`}>
                     {settings.deliveryPoints?.girlsDorm?.name || 'Kız KYK Yurdu'}
                   </span>
                   <span className={`text-xs font-medium px-2 py-1 rounded-full mt-2 inline-block ${
-                    orderHoursStatus?.isOutside
+                    !orderStatus?.canOrder
                       ? 'text-gray-400 bg-gray-500/10'
                       : settings.deliveryPoints?.girlsDorm?.enabled 
                       ? 'text-emerald-400 bg-emerald-500/10' 
                       : 'text-red-400 bg-red-500/10'
                   }`}>
-                    {orderHoursStatus?.isOutside 
-                      ? '⏰ Saat Dışı' 
+                    {!orderStatus?.canOrder 
+                      ? (orderStatus?.reason === 'deliveryPoints' ? '❌ Kapalı' : '⏰ Saat Dışı')
                       : settings.deliveryPoints?.girlsDorm?.enabled ? '✅ Aktif' : '❌ Kapalı'}
                   </span>
                 </div>
@@ -421,12 +435,12 @@ const OrderSummary = () => {
             {/* Erkek Yurdu */}
             <motion.button
               type="button"
-              onClick={() => !orderHoursStatus?.isOutside && settings.deliveryPoints?.boysDorm?.enabled && setSelectedDeliveryPoint('boysDorm')}
-              disabled={orderHoursStatus?.isOutside || !settings.deliveryPoints?.boysDorm?.enabled}
-              whileHover={!orderHoursStatus?.isOutside && settings.deliveryPoints?.boysDorm?.enabled ? { scale: 1.02, y: -2 } : {}}
-              whileTap={!orderHoursStatus?.isOutside && settings.deliveryPoints?.boysDorm?.enabled ? { scale: 0.98 } : {}}
+              onClick={() => orderStatus?.canOrder && settings.deliveryPoints?.boysDorm?.enabled && setSelectedDeliveryPoint('boysDorm')}
+              disabled={!orderStatus?.canOrder || !settings.deliveryPoints?.boysDorm?.enabled}
+              whileHover={orderStatus?.canOrder && settings.deliveryPoints?.boysDorm?.enabled ? { scale: 1.02, y: -2 } : {}}
+              whileTap={orderStatus?.canOrder && settings.deliveryPoints?.boysDorm?.enabled ? { scale: 0.98 } : {}}
               className={`relative p-6 rounded-2xl border-2 transition-all duration-300 ${
-                orderHoursStatus?.isOutside
+                !orderStatus?.canOrder
                   ? 'border-gray-500/30 bg-gradient-to-br from-gray-700/30 to-gray-800/30 cursor-not-allowed opacity-50'
                   : selectedDeliveryPoint === 'boysDorm'
                   ? 'border-emerald-500 bg-gradient-to-br from-emerald-500/20 to-green-500/20 shadow-lg shadow-emerald-500/25'
@@ -441,7 +455,7 @@ const OrderSummary = () => {
               
               <div className="relative flex flex-col items-center gap-3">
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                  orderHoursStatus?.isOutside
+                  !orderStatus?.canOrder
                     ? 'bg-gray-500/20 border-2 border-gray-500/50'
                     : selectedDeliveryPoint === 'boysDorm' 
                     ? 'bg-emerald-500/20 border-2 border-emerald-500/50' 
@@ -449,7 +463,7 @@ const OrderSummary = () => {
                     ? 'bg-gray-700/50 border-2 border-gray-600/50'
                     : 'bg-red-500/20 border-2 border-red-500/50'
                 }`}>
-                  {orderHoursStatus?.isOutside ? (
+                  {!orderStatus?.canOrder ? (
                     <Clock className="w-6 h-6 text-gray-400" />
                   ) : settings.deliveryPoints?.boysDorm?.enabled ? (
                     <CheckCircle className={`w-6 h-6 ${selectedDeliveryPoint === 'boysDorm' ? 'text-emerald-400' : 'text-gray-400'}`} />
@@ -460,21 +474,21 @@ const OrderSummary = () => {
                 
                 <div className="text-center">
                   <span className={`text-sm font-semibold block ${
-                    orderHoursStatus?.isOutside 
+                    !orderStatus?.canOrder 
                       ? 'text-gray-400' 
                       : settings.deliveryPoints?.boysDorm?.enabled ? 'text-white' : 'text-red-400'
                   }`}>
                     {settings.deliveryPoints?.boysDorm?.name || 'Erkek KYK Yurdu'}
                   </span>
                   <span className={`text-xs font-medium px-2 py-1 rounded-full mt-2 inline-block ${
-                    orderHoursStatus?.isOutside
+                    !orderStatus?.canOrder
                       ? 'text-gray-400 bg-gray-500/10'
                       : settings.deliveryPoints?.boysDorm?.enabled 
                       ? 'text-emerald-400 bg-emerald-500/10' 
                       : 'text-red-400 bg-red-500/10'
                   }`}>
-                    {orderHoursStatus?.isOutside 
-                      ? '⏰ Saat Dışı' 
+                    {!orderStatus?.canOrder 
+                      ? (orderStatus?.reason === 'deliveryPoints' ? '❌ Kapalı' : '⏰ Saat Dışı')
                       : settings.deliveryPoints?.boysDorm?.enabled ? '✅ Aktif' : '❌ Kapalı'}
                   </span>
                 </div>
@@ -579,13 +593,22 @@ const OrderSummary = () => {
 
         {/* Sepeti Onayla Butonu */}
         <motion.button
-          className="flex w-full items-center justify-center rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-300 disabled:opacity-50 disabled:cursor-not-allowed"
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
+          className={`flex w-full items-center justify-center rounded-lg px-5 py-2.5 text-sm font-medium text-white focus:outline-none focus:ring-4 disabled:opacity-50 disabled:cursor-not-allowed ${
+            !orderStatus?.canOrder || total < MIN_ORDER_AMOUNT
+              ? 'bg-gray-600 cursor-not-allowed'
+              : 'bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-300'
+          }`}
+          whileHover={orderStatus?.canOrder && total >= MIN_ORDER_AMOUNT ? { scale: 1.02 } : {}}
+          whileTap={orderStatus?.canOrder && total >= MIN_ORDER_AMOUNT ? { scale: 0.98 } : {}}
           onClick={handlePayment}
-          disabled={total < MIN_ORDER_AMOUNT}
+          disabled={!orderStatus?.canOrder || total < MIN_ORDER_AMOUNT}
         >
-          {total < MIN_ORDER_AMOUNT ? `Minimum Tutar ${MIN_ORDER_AMOUNT}₺` : 'Sepeti Onayla'}
+          {!orderStatus?.canOrder 
+            ? orderStatus?.message || 'Sipariş Alınamıyor'
+            : total < MIN_ORDER_AMOUNT 
+            ? `Minimum Tutar ${MIN_ORDER_AMOUNT}₺` 
+            : 'Sepeti Onayla'
+          }
         </motion.button>
       </motion.div>
       </div>

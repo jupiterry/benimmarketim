@@ -139,3 +139,92 @@ export const getOrderHoursCountdown = (settings) => {
   
   return { hours, minutes, seconds, totalSeconds };
 };
+
+/**
+ * Teslimat noktalarının durumunu kontrol eder
+ * @param {Object} settings - Ayarlar objesi
+ * @returns {Object} - { hasActiveDeliveryPoints: boolean, message: string, activePoints: Array }
+ */
+export const getDeliveryPointsStatus = (settings) => {
+  if (!settings || !settings.deliveryPoints) {
+    return {
+      hasActiveDeliveryPoints: false,
+      message: "Teslimat noktaları ayarları bulunamadı!",
+      activePoints: []
+    };
+  }
+
+  const { girlsDorm, boysDorm } = settings.deliveryPoints;
+  const activePoints = [];
+  
+  if (girlsDorm?.enabled) {
+    activePoints.push({
+      key: 'girlsDorm',
+      name: girlsDorm.name || 'Kız KYK Yurdu',
+      enabled: true
+    });
+  }
+  
+  if (boysDorm?.enabled) {
+    activePoints.push({
+      key: 'boysDorm', 
+      name: boysDorm.name || 'Erkek KYK Yurdu',
+      enabled: true
+    });
+  }
+
+  if (activePoints.length === 0) {
+    return {
+      hasActiveDeliveryPoints: false,
+      message: "Şu anda hiçbir teslimat noktası aktif değil. Sipariş alınamıyor.",
+      activePoints: []
+    };
+  }
+
+  return {
+    hasActiveDeliveryPoints: true,
+    message: "Sipariş alınıyor",
+    activePoints
+  };
+};
+
+/**
+ * Genel sipariş durumunu kontrol eder (saatler + teslimat noktaları)
+ * @param {Object} settings - Ayarlar objesi
+ * @returns {Object} - { canOrder: boolean, message: string, reason: string }
+ */
+export const getOrderStatus = (settings) => {
+  if (!settings) {
+    return {
+      canOrder: false,
+      message: "Sipariş ayarları bulunamadı!",
+      reason: "settings"
+    };
+  }
+
+  // Önce teslimat noktalarını kontrol et
+  const deliveryStatus = getDeliveryPointsStatus(settings);
+  if (!deliveryStatus.hasActiveDeliveryPoints) {
+    return {
+      canOrder: false,
+      message: deliveryStatus.message,
+      reason: "deliveryPoints"
+    };
+  }
+
+  // Sonra sipariş saatlerini kontrol et
+  const hoursStatus = getOrderHoursStatus(settings);
+  if (hoursStatus.isOutside) {
+    return {
+      canOrder: false,
+      message: hoursStatus.message,
+      reason: "orderHours"
+    };
+  }
+
+  return {
+    canOrder: true,
+    message: "Sipariş alınıyor",
+    reason: null
+  };
+};
