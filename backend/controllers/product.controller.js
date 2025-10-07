@@ -260,6 +260,10 @@ export const searchProducts = async (req, res) => {
       return res.status(400).json({ success: false, message: "Arama terimi gerekli" });
     }
 
+    // Arama terimini güvenli hale getir
+    const searchTerm = q.trim();
+    const searchWords = searchTerm.split(' ').filter(word => word.length > 0);
+
     // Gelişmiş arama sorgusu
     const searchQuery = {
       $and: [
@@ -267,15 +271,15 @@ export const searchProducts = async (req, res) => {
         {
           $or: [
             // Tam eşleşme (en yüksek öncelik)
-            { name: { $regex: `^${q}$`, $options: 'i' } },
+            { name: { $regex: `^${searchTerm}$`, $options: 'i' } },
             // Başlangıç eşleşmesi
-            { name: { $regex: `^${q}`, $options: 'i' } },
+            { name: { $regex: `^${searchTerm}`, $options: 'i' } },
             // İçerik eşleşmesi
-            { name: { $regex: q, $options: 'i' } },
-            { description: { $regex: q, $options: 'i' } },
-            { category: { $regex: q, $options: 'i' } },
-            // Kelime bazlı arama
-            { name: { $regex: q.split(' ').join('|'), $options: 'i' } }
+            { name: { $regex: searchTerm, $options: 'i' } },
+            { description: { $regex: searchTerm, $options: 'i' } },
+            { category: { $regex: searchTerm, $options: 'i' } },
+            // Kelime bazlı arama (sadece birden fazla kelime varsa)
+            ...(searchWords.length > 1 ? [{ name: { $regex: searchWords.join('|'), $options: 'i' } }] : [])
           ]
         }
       ]
@@ -291,19 +295,19 @@ export const searchProducts = async (req, res) => {
     // Arama sonuçlarını skorlama
     const scoredProducts = products.map(product => {
       let score = 0;
-      const searchTerm = q.toLowerCase();
-      const productName = product.name.toLowerCase();
+      const searchTermLower = searchTerm.toLowerCase();
+      const productName = product.name ? product.name.toLowerCase() : '';
       
       // Tam eşleşme
-      if (productName === searchTerm) score += 100;
+      if (productName === searchTermLower) score += 100;
       // Başlangıç eşleşmesi
-      else if (productName.startsWith(searchTerm)) score += 80;
+      else if (productName.startsWith(searchTermLower)) score += 80;
       // Kelime başlangıç eşleşmesi
-      else if (productName.split(' ').some(word => word.startsWith(searchTerm))) score += 60;
+      else if (productName.split(' ').some(word => word.startsWith(searchTermLower))) score += 60;
       // İçerik eşleşmesi
-      else if (productName.includes(searchTerm)) score += 40;
+      else if (productName.includes(searchTermLower)) score += 40;
       // Açıklama eşleşmesi
-      else if (product.description && product.description.toLowerCase().includes(searchTerm)) score += 20;
+      else if (product.description && product.description.toLowerCase().includes(searchTermLower)) score += 20;
       
       return { ...product.toObject(), searchScore: score };
     });

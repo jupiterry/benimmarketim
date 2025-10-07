@@ -95,22 +95,6 @@ const CartPage = () => {
             transition={{ duration: 0.8, delay: 0.6 }}
           >
             <div className="text-center mb-12">
-              <motion.div 
-                className="inline-flex items-center gap-3 mb-4"
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
-              >
-                <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-lg">
-                  <span className="text-xl">💡</span>
-                </div>
-                <h2 className="text-3xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-red-500 bg-clip-text text-transparent">
-                  Bunlar da İlginizi Çekebilir
-                </h2>
-                <div className="w-10 h-10 bg-gradient-to-r from-pink-500 to-red-500 rounded-full flex items-center justify-center shadow-lg">
-                  <span className="text-xl">✨</span>
-                </div>
-              </motion.div>
               <motion.p 
                 className="text-gray-300 text-lg max-w-xl mx-auto"
                 initial={{ opacity: 0 }}

@@ -13,9 +13,14 @@ const ProductCard = ({ product, isAdmin }) => {
   const { addToCart } = useCartStore();
   const { settings } = useSettingsStore();
   const [isEditing, setIsEditing] = useState(false);
-  const [discountedPrice, setDiscountedPrice] = useState(product.discountedPrice);
+  const [discountedPrice, setDiscountedPrice] = useState(product?.discountedPrice);
   const [imageError, setImageError] = useState(false);
   const [flashSales, setFlashSales] = useState([]);
+
+  // Product undefined ise bileşeni render etme
+  if (!product) {
+    return null;
+  }
   
   // Sipariş saatleri kontrolü
   const isOrderHoursActive = isWithinOrderHours(settings);
@@ -115,7 +120,7 @@ const ProductCard = ({ product, isAdmin }) => {
       toast.error("Sepete ürün eklemek için lütfen sisteme giriş yapın.", { id: "login" });
       return;
     }
-    if (product.isOutOfStock) {
+    if (product?.isOutOfStock) {
       toast.error("Bu ürün tükenmiştir.", { id: "out-of-stock" });
       return;
     }
@@ -142,7 +147,7 @@ const ProductCard = ({ product, isAdmin }) => {
 
   const handleDiscountUpdate = async () => {
     try {
-      await axios.put(`/api/products/update-discount/${product._id}`, {
+      await axios.put(`/api/products/update-discount/${product?._id}`, {
         discountedPrice: Number(discountedPrice)
       });
       setIsEditing(false);
@@ -155,11 +160,11 @@ const ProductCard = ({ product, isAdmin }) => {
 
   const handleImageError = (e) => {
     console.error('Görsel yükleme hatası:', e);
-    console.log('Yüklenemeyen görsel URL:', product.image);
+    console.log('Yüklenemeyen görsel URL:', product?.image);
     setImageError(true);
   };
 
-  if (product.isHidden) return null;
+  if (product?.isHidden) return null;
 
   return (
     <motion.div 
@@ -176,8 +181,8 @@ const ProductCard = ({ product, isAdmin }) => {
         <div className="relative aspect-square overflow-hidden rounded-t-lg bg-white/5">
           {!imageError ? (
             <img
-              src={product.image}
-              alt={product.name}
+              src={product?.image}
+              alt={product?.name || 'Ürün'}
               onError={handleImageError}
               className="w-full h-full object-contain"
               loading="lazy"
@@ -188,22 +193,22 @@ const ProductCard = ({ product, isAdmin }) => {
               <Package2 className="w-12 h-12 text-gray-600" />
             </div>
           )}
-          {product.isOutOfStock && (
+          {product?.isOutOfStock && (
             <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
               <span className="text-white font-bold text-lg">Tükendi</span>
             </div>
           )}
           
           {/* Flash Sale Süre Göstergesi */}
-          {getFlashSaleTimeRemaining(product._id) && (
+          {getFlashSaleTimeRemaining(product?._id) && (
             <div className={`absolute top-2 right-2 px-2 py-1 rounded-lg text-xs font-bold text-white shadow-lg ${
-              getFlashSaleStatus(product._id) === 'active' ? 'bg-gradient-to-r from-red-500 to-orange-500 animate-pulse' :
-              getFlashSaleStatus(product._id) === 'upcoming' ? 'bg-gradient-to-r from-blue-500 to-purple-500' :
+              getFlashSaleStatus(product?._id) === 'active' ? 'bg-gradient-to-r from-red-500 to-orange-500 animate-pulse' :
+              getFlashSaleStatus(product?._id) === 'upcoming' ? 'bg-gradient-to-r from-blue-500 to-purple-500' :
               'bg-gray-500'
             }`}>
               <div className="flex items-center gap-1">
                 <Clock className="w-3 h-3" />
-                <span className="whitespace-nowrap">{getFlashSaleTimeRemaining(product._id)}</span>
+                <span className="whitespace-nowrap">{getFlashSaleTimeRemaining(product?._id)}</span>
               </div>
             </div>
           )}
@@ -212,27 +217,27 @@ const ProductCard = ({ product, isAdmin }) => {
         <div className="p-3 flex flex-col flex-1">
           <motion.h5
             className="text-base font-medium tracking-tight text-white line-clamp-2 mb-2 min-h-[2.5rem]"
-            title={product.name}
+            title={product?.name || 'Ürün'}
           >
-            {product.name}
+            {product?.name || 'Ürün'}
           </motion.h5>
           
           <motion.div className="flex flex-wrap items-center gap-2 mt-auto">
-            {product.discountedPrice ? (
+            {product?.discountedPrice ? (
               <>
                 <span className="text-xl font-bold text-emerald-400">
                   ₺{product.discountedPrice.toFixed(2)}
                 </span>
                 <span className="text-sm text-gray-400 line-through">
-                  ₺{product.price.toFixed(2)}
+                  ₺{product?.price?.toFixed(2) || '0.00'}
                 </span>
                 <span className="text-xs bg-red-500/10 text-red-400 px-1.5 py-0.5 rounded">
-                  %{Math.round((1 - product.discountedPrice / product.price) * 100)} İndirim
+                  %{Math.round((1 - product.discountedPrice / (product?.price || 1)) * 100)} İndirim
                 </span>
               </>
             ) : (
               <span className="text-xl font-bold text-emerald-400">
-                ₺{product.price.toFixed(2)}
+                ₺{product?.price?.toFixed(2) || '0.00'}
               </span>
             )}
           </motion.div>
@@ -257,7 +262,7 @@ const ProductCard = ({ product, isAdmin }) => {
                   <button
                     onClick={() => {
                       setIsEditing(false);
-                      setDiscountedPrice(product.discountedPrice);
+                      setDiscountedPrice(product?.discountedPrice);
                     }}
                     className="px-2 py-1 bg-red-600 rounded text-white"
                   >
@@ -280,31 +285,31 @@ const ProductCard = ({ product, isAdmin }) => {
       <div className="p-4 pt-0">
         <motion.button
           className={`relative overflow-hidden flex items-center justify-center rounded-xl px-4 py-3 text-center font-semibold text-white w-full transition-all duration-300 ${
-            product.isOutOfStock
+            product?.isOutOfStock
               ? "bg-gradient-to-r from-red-500/50 to-red-600/50 cursor-not-allowed border border-red-500/30"
               : !isOrderHoursActive
               ? "bg-gradient-to-r from-gray-500/50 to-gray-600/50 cursor-not-allowed border border-gray-500/30"
               : "bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 shadow-lg hover:shadow-emerald-500/25 border border-emerald-500/30 hover:border-emerald-400/50"
           }`}
           onClick={handleAddToCart}
-          disabled={product.isOutOfStock || !isOrderHoursActive}
-          whileHover={!product.isOutOfStock && isOrderHoursActive ? { scale: 1.05 } : {}}
-          whileTap={!product.isOutOfStock && isOrderHoursActive ? { scale: 0.95 } : {}}
+          disabled={product?.isOutOfStock || !isOrderHoursActive}
+          whileHover={!product?.isOutOfStock && isOrderHoursActive ? { scale: 1.05 } : {}}
+          whileTap={!product?.isOutOfStock && isOrderHoursActive ? { scale: 0.95 } : {}}
         >
-          {!product.isOutOfStock && isOrderHoursActive && (
+          {!product?.isOutOfStock && isOrderHoursActive && (
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
           )}
           <motion.div
             className="flex items-center gap-2"
-            whileHover={!product.isOutOfStock && isOrderHoursActive ? { x: 2 } : {}}
+            whileHover={!product?.isOutOfStock && isOrderHoursActive ? { x: 2 } : {}}
           >
             <motion.div
-              whileHover={!product.isOutOfStock && isOrderHoursActive ? { rotate: 360 } : {}}
+              whileHover={!product?.isOutOfStock && isOrderHoursActive ? { rotate: 360 } : {}}
               transition={{ duration: 0.5 }}
             >
               {!isOrderHoursActive ? <Clock size={18} /> : <ShoppingCart size={18} />}
             </motion.div>
-            {product.isOutOfStock 
+            {product?.isOutOfStock 
               ? "🚫 Tükendi" 
               : !isOrderHoursActive 
               ? "⏰ Saat Dışı" 

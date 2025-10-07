@@ -16,7 +16,8 @@ const SearchResultsPage = () => {
 
   // Flexbox ile responsive grid - boş alan olmayacak
   const getGridClasses = (productCount) => {
-    if (productCount === 0) return "flex flex-col items-center";
+    // productCount undefined veya null ise varsayılan değer döndür
+    if (!productCount || productCount === 0) return "flex flex-col items-center";
     if (productCount === 1) return "flex justify-center";
     if (productCount === 2) return "flex flex-col sm:flex-row gap-4 justify-center";
     if (productCount === 3) return "flex flex-col sm:flex-row md:grid md:grid-cols-3 gap-4";
@@ -50,8 +51,13 @@ const SearchResultsPage = () => {
 
         const searchResults = res.data.products || [];
         console.log("Arama Sonuçları:", searchResults);
-        // Gizlenen ürünleri filtrele
-        const visibleProducts = searchResults.filter(product => !product.isHidden);
+        // Gizlenen ürünleri filtrele ve null/undefined kontrolü yap
+        const visibleProducts = searchResults.filter(product => 
+          product && 
+          !product.isHidden && 
+          product.name && 
+          typeof product.name === 'string'
+        );
         setProducts(visibleProducts);
         setOriginalProducts(visibleProducts);
       } catch (error) {
@@ -125,11 +131,11 @@ const SearchResultsPage = () => {
                 <p className="text-sm sm:text-base text-gray-300">
                   <span className="font-semibold text-emerald-400">&quot;{query}&quot;</span> için 
                   <span className="mx-2 px-3 py-1 bg-emerald-500/20 rounded-full text-emerald-300 font-bold">
-                    {products.length}
+                    {products?.length || 0}
                   </span>
                   sonuç bulundu
                 </p>
-                {products.length > 0 && (
+                {(products?.length || 0) > 0 && (
                   <div className="hidden sm:flex items-center gap-2 text-xs text-gray-400">
                     <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
                     <span>Akıllı sıralama aktif</span>
@@ -140,7 +146,7 @@ const SearchResultsPage = () => {
           </div>
           
           {/* Arama İpuçları */}
-          {products.length === 0 && !isLoading && (
+          {(products?.length || 0) === 0 && !isLoading && (
             <div className="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
               <h3 className="text-yellow-400 font-semibold mb-2">💡 Arama İpuçları:</h3>
               <ul className="text-sm text-yellow-200 space-y-1">
@@ -175,7 +181,7 @@ const SearchResultsPage = () => {
               Tekrar Dene
             </button>
           </motion.div>
-        ) : products.length > 0 ? (
+        ) : (products?.length || 0) > 0 ? (
           <div>
             {/* Sonuç İstatistikleri */}
             <motion.div
@@ -210,7 +216,7 @@ const SearchResultsPage = () => {
                     </span>
                   </button>
                   <div className="text-sm text-emerald-400 font-semibold">
-                    {products.length} ürün
+                    {products?.length || 0} ürün
                   </div>
                 </div>
               </div>
@@ -221,9 +227,9 @@ const SearchResultsPage = () => {
               variants={container}
               initial="hidden"
               animate="show"
-              className={getGridClasses(products.length)}
+              className={getGridClasses(products?.length || 0)}
             >
-              {products.map((product, index) => (
+              {(products || []).map((product, index) => (
                 <motion.div 
                   key={product._id} 
                   variants={item}
