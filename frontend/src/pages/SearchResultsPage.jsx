@@ -16,7 +16,7 @@ const SearchResultsPage = () => {
 
   // Flexbox ile responsive grid - boş alan olmayacak
   const getGridClasses = (productCount) => {
-    // productCount undefined veya null ise varsayılan değer döndür
+    // productCount undefined, null veya 0 ise varsayılan değer döndür
     if (!productCount || productCount === 0) return "flex flex-col items-center";
     if (productCount === 1) return "flex justify-center";
     if (productCount === 2) return "flex flex-col sm:flex-row gap-4 justify-center";
@@ -42,7 +42,7 @@ const SearchResultsPage = () => {
           return;
         }
         
-        const res = await axios.get(`api/products/search?q=${encodeURIComponent(cleanQuery)}`);
+        const res = await axios.get(`/api/products/search?q=${encodeURIComponent(cleanQuery)}`);
         console.log("API Yanıtı:", res.data);
         
         if (!res.data || !res.data.success) {
@@ -52,7 +52,7 @@ const SearchResultsPage = () => {
         const searchResults = res.data.products || [];
         console.log("Arama Sonuçları:", searchResults);
         // Gizlenen ürünleri filtrele ve null/undefined kontrolü yap
-        const visibleProducts = searchResults.filter(product => 
+        const visibleProducts = (searchResults || []).filter(product => 
           product && 
           !product.isHidden && 
           product.name && 
@@ -227,7 +227,7 @@ const SearchResultsPage = () => {
               variants={container}
               initial="hidden"
               animate="show"
-              className={getGridClasses(products?.length || 0)}
+              className={getGridClasses(products && Array.isArray(products) ? products.length : 0)}
             >
               {(products || []).map((product, index) => (
                 <motion.div 

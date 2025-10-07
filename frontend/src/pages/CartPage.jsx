@@ -94,16 +94,6 @@ const CartPage = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.6 }}
           >
-            <div className="text-center mb-12">
-              <motion.p 
-                className="text-gray-300 text-lg max-w-xl mx-auto"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.6, delay: 0.2 }}
-              >
-                Size özel seçtiğimiz ürünler! 🎯
-              </motion.p>
-            </div>
             <PeopleAlsoBought />
           </motion.div>
         )}

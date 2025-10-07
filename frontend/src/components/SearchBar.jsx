@@ -33,10 +33,12 @@ const SearchBar = () => {
       }
 
       try {
-        const response = await axios.get(`/products/search?q=${query}`);
-        setSuggestions(response.data.products);
+        const response = await axios.get(`/api/products/search?q=${query}`);
+        const products = response.data?.products || [];
+        setSuggestions(Array.isArray(products) ? products : []);
       } catch (error) {
         console.error("Öneriler yüklenirken hata:", error);
+        setSuggestions([]);
       }
     };
 
@@ -91,7 +93,7 @@ const SearchBar = () => {
 
       {/* Arama Önerileri */}
       <AnimatePresence>
-        {showSuggestions && suggestions.length > 0 && (
+        {showSuggestions && suggestions && Array.isArray(suggestions) && suggestions.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
