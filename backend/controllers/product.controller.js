@@ -123,7 +123,7 @@ export const getRecommendedProducts = async (req, res) => {
   try {
     const products = await Product.aggregate([
       { $match: { isHidden: false } }, // Yalnızca görünür ürünleri getir (kullanıcılar için)
-      { $sample: { size: 9 } }, // 4 yerine 9 ürün getir
+      { $sample: { size: 10 } }, // 4 yerine 9 ürün getir
       {
         $project: {
           _id: 1,
