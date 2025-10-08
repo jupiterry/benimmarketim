@@ -56,7 +56,9 @@ export const signup = async (req, res) => {
 			name: user.name,
 			email: user.email,
 			role: user.role,
-			phone: user.phone
+			phone: user.phone,
+			accessToken: accessToken, // Flutter için token'ı response'da gönder
+			refreshToken: refreshToken // Flutter için refresh token'ı da gönder
 		});
 	} catch (error) {
 		console.log("Error in signup controller", error.message);
@@ -67,6 +69,8 @@ export const signup = async (req, res) => {
 export const login = async (req, res) => {
 	try {
 		const { email, password } = req.body;
+		console.log("Login request:", { email }); // Debug log
+		
 		const user = await User.findOne({ email });
 
 		if (user && (await user.comparePassword(password))) {
@@ -74,11 +78,15 @@ export const login = async (req, res) => {
 			await storeRefreshToken(user._id, refreshToken);
 			setCookies(res, accessToken, refreshToken);
 
+			console.log("Login successful, tokens generated"); // Debug log
+
 			res.json({
 				_id: user._id,
 				name: user.name,
 				email: user.email,
 				role: user.role,
+				accessToken: accessToken, // Flutter için token'ı response'da gönder
+				refreshToken: refreshToken // Flutter için refresh token'ı da gönder
 			});
 		} else {
 			res.status(400).json({ message: "Geçersiz E-posta veya Şifre" });
@@ -109,11 +117,14 @@ export const logout = async (req, res) => {
 // this will refresh the access token
 export const refreshToken = async (req, res) => {
 	try {
-		const refreshToken = req.cookies.refreshToken;
-
+		// Flutter'dan gelen refresh token'ı body'den al
+		const { refreshToken } = req.body;
+		
 		if (!refreshToken) {
 			return res.status(401).json({ message: "No refresh token provided" });
 		}
+
+		console.log("Refresh token request received"); // Debug log
 
 		const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
 		const storedToken = await redis.get(`refresh_token:${decoded.userId}`);
@@ -124,6 +135,7 @@ export const refreshToken = async (req, res) => {
 
 		const accessToken = jwt.sign({ userId: decoded.userId }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "15m" });
 
+		// Cookie'yi de güncelle
 		res.cookie("accessToken", accessToken, {
 			httpOnly: true,
 			secure: process.env.NODE_ENV === "production",
@@ -131,7 +143,13 @@ export const refreshToken = async (req, res) => {
 			maxAge: 15 * 60 * 1000,
 		});
 
-		res.json({ message: "Token refreshed successfully" });
+		console.log("Token refreshed successfully"); // Debug log
+
+		// Flutter için yeni access token'ı response'da gönder
+		res.json({ 
+			message: "Token refreshed successfully",
+			accessToken: accessToken
+		});
 	} catch (error) {
 		console.log("Error in refreshToken controller", error.message);
 		res.status(500).json({ message: "Server error", error: error.message });
@@ -144,4 +162,17 @@ export const getProfile = async (req, res) => {
 	} catch (error) {
 		res.status(500).json({ message: "Server error", error: error.message });
 	}
+};
+
+// Test endpoint'leri
+export const testApi = async (req, res) => {
+	res.json({ message: "API çalışıyor", timestamp: new Date().toISOString() });
+};
+
+export const testAuth = async (req, res) => {
+	res.json({ 
+		message: "Auth çalışıyor", 
+		user: req.user,
+		timestamp: new Date().toISOString()
+	});
 };

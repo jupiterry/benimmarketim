@@ -29,12 +29,17 @@ const corsOptions = {
     "http://www.devrekbenimmarketim.com",
     "https://devrekbenimmarketim.com", // www olmayan domain
     "http://devrekbenimmarketim.com",  // www olmayan domain (http)
-    "https://res.cloudinary.com"
+    "https://res.cloudinary.com",
+    // Flutter için localhost ve emulator IP'leri
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://10.0.2.2:5000", // Android emulator için
+    "http://localhost:5000" // iOS simulator için
   ],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  exposedHeaders: ['Access-Control-Allow-Origin'],
+  allowedHeaders: ["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
+  exposedHeaders: ['Access-Control-Allow-Origin', 'Set-Cookie'],
   optionsSuccessStatus: 200,
 };
 

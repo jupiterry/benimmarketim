@@ -206,7 +206,7 @@ const HomePage = () => {
 						transition={{ delay: 0.8, duration: 0.8 }}
 					>
 						<div className="text-center">
-							<div className="text-2xl sm:text-3xl font-bold text-emerald-400">1000+</div>
+							<div className="text-2xl sm:text-3xl font-bold text-emerald-400">3000+</div>
 							<div className="text-emerald-200 text-xs sm:text-sm">Ürün Çeşidi</div>
 						</div>
 						<div className="text-center">
