@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { ShoppingCart, Heart, Star, Clock, Shield, Truck } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const Footer = () => {
     return (
@@ -88,10 +89,20 @@ const Footer = () => {
                     transition={{ duration: 0.8, delay: 1 }}
                 >
                     <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                        {/* Telif Hakkı */}
-                        <p className="text-gray-400 text-sm text-center md:text-left">
-                    Ürün fiyatlarına KDV bedeli dahildir. © 2025 Benim Marketim. Tüm hakları saklıdır.
-                </p>
+                        {/* Telif Hakkı ve Linkler */}
+                        <div className="flex flex-col md:flex-row items-center gap-4">
+                            <p className="text-gray-400 text-sm text-center md:text-left">
+                                Ürün fiyatlarına KDV bedeli dahildir. © 2025 Benim Marketim. Tüm hakları saklıdır.
+                            </p>
+                            
+                            {/* Gizlilik Politikası Linki */}
+                            <Link 
+                                to="/privacy" 
+                                className="text-emerald-400 hover:text-emerald-300 text-sm transition-colors duration-200 underline"
+                            >
+                                Gizlilik Politikası
+                            </Link>
+                        </div>
 
                         {/* Geliştirici Bilgisi */}
                         <div className="flex items-center gap-2 text-sm">
