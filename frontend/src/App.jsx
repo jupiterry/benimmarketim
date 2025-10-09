@@ -19,6 +19,7 @@ import Footer from "./components/Footer";
 import SearchResultsPage from "./pages/SearchResultsPage";
 import BulkUpload from "./components/BulkUpload";
 import FeedbackPage from "./pages/FeedbackPage";
+import PrivacyPage from "./pages/PrivacyPage";
 import ScrollToTop from "./components/ScrollToTop";
 
 const ProtectedRoute = ({ children }) => {
@@ -95,6 +96,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/privacy" element={<PrivacyPage />} />
         </Routes>
       </div>
 
