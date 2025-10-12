@@ -22,6 +22,14 @@ import BulkUpload from "./components/BulkUpload";
 import FeedbackPage from "./pages/FeedbackPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import PhotocopyPage from "./pages/PhotocopyPage";
+import TermsPage from "./pages/TermsPage";
+import DistanceSalesPage from "./pages/DistanceSalesPage";
+import ReturnPolicyPage from "./pages/ReturnPolicyPage";
+import CookiesPage from "./pages/CookiesPage";
+import ContactPage from "./pages/ContactPage";
+import AboutPage from "./pages/AboutPage";
+import FAQPage from "./pages/FAQPage";
+import KVKKPage from "./pages/KVKKPage";
 import ScrollToTop from "./components/ScrollToTop";
 
 const ProtectedRoute = ({ children }) => {
@@ -100,6 +108,14 @@ function App() {
               }
             />
             <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/terms" element={<TermsPage />} />
+            <Route path="/distance-sales" element={<DistanceSalesPage />} />
+            <Route path="/return-policy" element={<ReturnPolicyPage />} />
+            <Route path="/cookies" element={<CookiesPage />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/faq" element={<FAQPage />} />
+            <Route path="/kvkk" element={<KVKKPage />} />
             <Route
               path="/fotokopi"
               element={

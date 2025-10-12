@@ -90,18 +90,76 @@ const Footer = () => {
                 >
                     <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                         {/* Telif Hakkı ve Linkler */}
-                        <div className="flex flex-col md:flex-row items-center gap-4">
-                            <p className="text-gray-400 text-sm text-center md:text-left">
+                        <div className="flex flex-col items-center gap-4">
+                            <p className="text-gray-400 text-sm text-center">
                                 Ürün fiyatlarına KDV bedeli dahildir. © 2025 Benim Marketim. Tüm hakları saklıdır.
                             </p>
                             
-                            {/* Gizlilik Politikası Linki */}
-                            <Link 
-                                to="/privacy" 
-                                className="text-emerald-400 hover:text-emerald-300 text-sm transition-colors duration-200 underline"
-                            >
-                                Gizlilik Politikası
-                            </Link>
+                            {/* Yasal Linkler */}
+                            <div className="flex flex-wrap items-center justify-center gap-4 text-xs">
+                                <Link 
+                                    to="/privacy" 
+                                    className="text-emerald-400 hover:text-emerald-300 transition-colors duration-200 hover:underline"
+                                >
+                                    Gizlilik Politikası
+                                </Link>
+                                <span className="text-gray-600">•</span>
+                                <Link 
+                                    to="/terms" 
+                                    className="text-emerald-400 hover:text-emerald-300 transition-colors duration-200 hover:underline"
+                                >
+                                    Kullanım Şartları
+                                </Link>
+                                <span className="text-gray-600">•</span>
+                                <Link 
+                                    to="/distance-sales" 
+                                    className="text-emerald-400 hover:text-emerald-300 transition-colors duration-200 hover:underline"
+                                >
+                                    Mesafeli Satış
+                                </Link>
+                                <span className="text-gray-600">•</span>
+                                <Link 
+                                    to="/return-policy" 
+                                    className="text-emerald-400 hover:text-emerald-300 transition-colors duration-200 hover:underline"
+                                >
+                                    İade Koşulları
+                                </Link>
+                                <span className="text-gray-600">•</span>
+                                <Link 
+                                    to="/cookies" 
+                                    className="text-emerald-400 hover:text-emerald-300 transition-colors duration-200 hover:underline"
+                                >
+                                    Çerez Politikası
+                                </Link>
+                                <span className="text-gray-600">•</span>
+                                <Link 
+                                    to="/contact" 
+                                    className="text-emerald-400 hover:text-emerald-300 transition-colors duration-200 hover:underline"
+                                >
+                                    İletişim
+                                </Link>
+                                <span className="text-gray-600">•</span>
+                                <Link 
+                                    to="/about" 
+                                    className="text-emerald-400 hover:text-emerald-300 transition-colors duration-200 hover:underline"
+                                >
+                                    Hakkımızda
+                                </Link>
+                                <span className="text-gray-600">•</span>
+                                <Link 
+                                    to="/faq" 
+                                    className="text-emerald-400 hover:text-emerald-300 transition-colors duration-200 hover:underline"
+                                >
+                                    SSS
+                                </Link>
+                                <span className="text-gray-600">•</span>
+                                <Link 
+                                    to="/kvkk" 
+                                    className="text-emerald-400 hover:text-emerald-300 transition-colors duration-200 hover:underline"
+                                >
+                                    KVKK
+                                </Link>
+                            </div>
                         </div>
 
                         {/* Geliştirici Bilgisi */}
