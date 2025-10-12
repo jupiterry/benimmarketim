@@ -503,30 +503,32 @@ const Navbar = () => {
           <motion.button
             id="menu-button"
             onClick={toggleMenu}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            className="md:hidden p-3 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 text-emerald-300 hover:text-emerald-200 rounded-xl border border-emerald-500/30 hover:border-emerald-400/50 backdrop-blur-sm transition-all duration-300"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="md:hidden relative p-3 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 text-emerald-300 hover:text-emerald-200 rounded-xl border border-emerald-500/30 hover:border-emerald-400/50 backdrop-blur-sm transition-all duration-300 shadow-lg hover:shadow-emerald-500/25"
           >
             <AnimatePresence mode="wait">
               {isMenuOpen ? (
                 <motion.div
                   key="close"
-                  initial={{ rotate: -90, opacity: 0 }}
-                  animate={{ rotate: 0, opacity: 1 }}
-                  exit={{ rotate: 90, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
+                  initial={{ rotate: -180, opacity: 0, scale: 0.8 }}
+                  animate={{ rotate: 0, opacity: 1, scale: 1 }}
+                  exit={{ rotate: 180, opacity: 0, scale: 0.8 }}
+                  transition={{ duration: 0.3, ease: "easeInOut" }}
+                  className="relative"
                 >
-                  <X size={20} />
+                  <X size={22} />
+                  <div className="absolute inset-0 bg-emerald-400/20 rounded-full animate-ping"></div>
                 </motion.div>
               ) : (
                 <motion.div
                   key="menu"
-                  initial={{ rotate: 90, opacity: 0 }}
-                  animate={{ rotate: 0, opacity: 1 }}
-                  exit={{ rotate: -90, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
+                  initial={{ rotate: 180, opacity: 0, scale: 0.8 }}
+                  animate={{ rotate: 0, opacity: 1, scale: 1 }}
+                  exit={{ rotate: -180, opacity: 0, scale: 0.8 }}
+                  transition={{ duration: 0.3, ease: "easeInOut" }}
                 >
-                  <Menu size={20} />
+                  <Menu size={22} />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -534,85 +536,183 @@ const Navbar = () => {
         </div>
 
         {/* Mobil Arama Çubuğu */}
-        <div className="md:hidden mt-2">
-          <SearchBar />
-        </div>
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="md:hidden mt-3"
+        >
+          <div className="bg-gray-800/30 backdrop-blur-sm rounded-xl p-2 border border-gray-700/50">
+            <SearchBar />
+          </div>
+        </motion.div>
 
         {/* Mobil Menü */}
-        {isMenuOpen && (
-          <div id="mobile-menu" className="md:hidden mt-2">
-            <nav className="flex flex-col gap-2">
+        <AnimatePresence>
+          {isMenuOpen && (
+            <motion.div
+              id="mobile-menu"
+              initial={{ opacity: 0, y: -20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              className="md:hidden mt-4"
+            >
+              {/* Kullanıcı Bilgisi */}
               {user && (
-                <Link
-                  to="/cart"
-                  onClick={toggleMenu}
-                  className="relative flex items-center justify-between bg-gray-800/50 hover:bg-gray-800 p-4 rounded-xl"
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="mb-4 p-4 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 rounded-xl border border-emerald-500/30"
                 >
                   <div className="flex items-center gap-3">
-                    <ShoppingCart size={20} className="text-emerald-400" />
-                    <span className="text-white font-medium">Sepetim</span>
+                    <div className="w-10 h-10 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full flex items-center justify-center">
+                      <span className="text-white font-bold text-sm">
+                        {user.name?.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-white font-medium">{user.name}</p>
+                      <p className="text-emerald-300 text-sm">{user.email}</p>
+                    </div>
                   </div>
-                  {cart.length > 0 && (
-                    <span className="bg-emerald-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm">
-                      {cart.length}
-                    </span>
+                </motion.div>
+              )}
+
+              <nav className="flex flex-col gap-3">
+                {/* Sepet */}
+                {user && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.2 }}
+                  >
+                    <Link
+                      to="/cart"
+                      onClick={toggleMenu}
+                      className="relative flex items-center justify-between bg-gradient-to-r from-emerald-600/80 to-teal-600/80 hover:from-emerald-500 hover:to-teal-500 p-4 rounded-xl shadow-lg hover:shadow-emerald-500/25 transition-all duration-300 group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-white/20 rounded-lg group-hover:bg-white/30 transition-colors">
+                          <ShoppingCart size={20} className="text-white" />
+                        </div>
+                        <span className="text-white font-bold">Sepetim</span>
+                      </div>
+                      {cart.length > 0 && (
+                        <motion.span
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          className="bg-white text-emerald-600 rounded-full w-7 h-7 flex items-center justify-center text-sm font-bold shadow-lg"
+                        >
+                          {cart.length}
+                        </motion.span>
+                      )}
+                    </Link>
+                  </motion.div>
+                )}
+
+                {/* Kullanıcı Menüleri */}
+                {user && !isAdmin && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="flex flex-col gap-3"
+                  >
+                    <Link
+                      to="/siparislerim"
+                      onClick={toggleMenu}
+                      className="flex items-center gap-3 bg-gradient-to-r from-blue-600/80 to-indigo-600/80 hover:from-blue-500 hover:to-indigo-500 p-4 rounded-xl shadow-lg hover:shadow-blue-500/25 transition-all duration-300 group"
+                    >
+                      <div className="p-2 bg-white/20 rounded-lg group-hover:bg-white/30 transition-colors">
+                        <Package size={20} className="text-white" />
+                      </div>
+                      <span className="text-white font-bold">Siparişlerim</span>
+                    </Link>
+
+                    <Link
+                      to="/fotokopi"
+                      onClick={toggleMenu}
+                      className="flex items-center gap-3 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-400 hover:to-red-500 p-4 rounded-xl shadow-lg hover:shadow-orange-500/25 transition-all duration-300 group"
+                    >
+                      <div className="p-2 bg-white/20 rounded-lg group-hover:bg-white/30 transition-colors">
+                        <FileText size={20} className="text-white" />
+                      </div>
+                      <span className="text-white font-bold">Fotokopi</span>
+                    </Link>
+                  </motion.div>
+                )}
+
+                {/* Admin Menüsü */}
+                {isAdmin && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.3 }}
+                  >
+                    <Link
+                      to="/secret-dashboard"
+                      onClick={toggleMenu}
+                      className="flex items-center gap-3 bg-gradient-to-r from-purple-600/80 to-pink-600/80 hover:from-purple-500 hover:to-pink-500 p-4 rounded-xl shadow-lg hover:shadow-purple-500/25 transition-all duration-300 group"
+                    >
+                      <div className="p-2 bg-white/20 rounded-lg group-hover:bg-white/30 transition-colors">
+                        <Lock size={20} className="text-white" />
+                      </div>
+                      <span className="text-white font-bold">Admin Paneli</span>
+                    </Link>
+                  </motion.div>
+                )}
+
+                {/* Giriş/Çıkış Butonları */}
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.4 }}
+                  className="mt-4 pt-4 border-t border-gray-700/50"
+                >
+                  {user ? (
+                    <button
+                      onClick={() => {
+                        logout();
+                        toggleMenu();
+                      }}
+                      className="flex items-center gap-3 bg-gradient-to-r from-red-600/80 to-pink-600/80 hover:from-red-500 hover:to-pink-500 p-4 rounded-xl shadow-lg hover:shadow-red-500/25 transition-all duration-300 w-full group"
+                    >
+                      <div className="p-2 bg-white/20 rounded-lg group-hover:bg-white/30 transition-colors">
+                        <LogOut size={20} className="text-white" />
+                      </div>
+                      <span className="text-white font-bold">Çıkış Yap</span>
+                    </button>
+                  ) : (
+                    <div className="flex flex-col gap-3">
+                      <Link
+                        to="/signup"
+                        onClick={toggleMenu}
+                        className="flex items-center gap-3 bg-gradient-to-r from-emerald-600/80 to-teal-600/80 hover:from-emerald-500 hover:to-teal-500 p-4 rounded-xl shadow-lg hover:shadow-emerald-500/25 transition-all duration-300 group"
+                      >
+                        <div className="p-2 bg-white/20 rounded-lg group-hover:bg-white/30 transition-colors">
+                          <UserPlus size={20} className="text-white" />
+                        </div>
+                        <span className="text-white font-bold">Kayıt Ol</span>
+                      </Link>
+                      <Link
+                        to="/login"
+                        onClick={toggleMenu}
+                        className="flex items-center gap-3 bg-gradient-to-r from-gray-600/80 to-gray-700/80 hover:from-gray-500 hover:to-gray-600 p-4 rounded-xl shadow-lg hover:shadow-gray-500/25 transition-all duration-300 group"
+                      >
+                        <div className="p-2 bg-white/20 rounded-lg group-hover:bg-white/30 transition-colors">
+                          <LogIn size={20} className="text-white" />
+                        </div>
+                        <span className="text-white font-bold">Giriş Yap</span>
+                      </Link>
+                    </div>
                   )}
-                </Link>
-              )}
-              {user && !isAdmin && (
-                <Link
-                  to="/siparislerim"
-                  onClick={toggleMenu}
-                  className="flex items-center gap-3 bg-blue-600/80 hover:bg-blue-600 p-4 rounded-xl"
-                >
-                  <Package size={20} className="text-white" />
-                  <span className="text-white font-medium">Siparişlerim</span>
-                </Link>
-              )}
-              {isAdmin && (
-                <Link
-                  to="/secret-dashboard"
-                  onClick={toggleMenu}
-                  className="flex items-center gap-3 bg-emerald-700/80 hover:bg-emerald-700 p-4 rounded-xl"
-                >
-                  <Lock size={20} className="text-white" />
-                  <span className="text-white font-medium">İstatistikler</span>
-                </Link>
-              )}
-              {user ? (
-                <button
-                  onClick={() => {
-                    logout();
-                    toggleMenu();
-                  }}
-                  className="flex items-center gap-3 bg-gray-800/50 hover:bg-gray-800 p-4 rounded-xl w-full"
-                >
-                  <LogOut size={20} className="text-red-400" />
-                  <span className="text-white font-medium">Çıkış</span>
-                </button>
-              ) : (
-                <>
-                  <Link
-                    to="/signup"
-                    onClick={toggleMenu}
-                    className="flex items-center gap-3 bg-emerald-600/80 hover:bg-emerald-600 p-4 rounded-xl"
-                  >
-                    <UserPlus size={20} className="text-white" />
-                    <span className="text-white font-medium">Kayıt Ol</span>
-                  </Link>
-                  <Link
-                    to="/login"
-                    onClick={toggleMenu}
-                    className="flex items-center gap-3 bg-gray-800/50 hover:bg-gray-800 p-4 rounded-xl"
-                  >
-                    <LogIn size={20} className="text-white" />
-                    <span className="text-white font-medium">Giriş</span>
-                  </Link>
-                </>
-              )}
-            </nav>
-          </div>
-        )}
+                </motion.div>
+              </nav>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </header>
   );

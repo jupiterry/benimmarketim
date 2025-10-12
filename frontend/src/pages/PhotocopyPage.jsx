@@ -231,13 +231,13 @@ const PhotocopyPage = () => {
                 <h1 className="text-3xl md:text-5xl font-bold bg-gradient-to-r from-orange-400 via-red-500 to-pink-500 bg-clip-text text-transparent">
                   Fotokopi Hizmeti
                 </h1>
-                <div className="flex items-center justify-center md:justify-start gap-2 mt-2">
-                  <div className="w-8 md:w-12 h-1 bg-gradient-to-r from-orange-500 to-red-600 rounded-full"></div>
-                  <span className="text-gray-400 text-sm md:text-lg">
-                    Dijital Fotokopi
-                  </span>
-                  <div className="w-8 md:w-12 h-1 bg-gradient-to-r from-red-600 to-pink-500 rounded-full"></div>
-                </div>
+                 <div className="flex items-center justify-center gap-2 mt-2">
+                   <div className="w-8 md:w-12 h-1 bg-gradient-to-r from-orange-500 to-red-600 rounded-full"></div>
+                   <span className="text-gray-400 text-sm md:text-lg">
+                     Dijital Fotokopi
+                   </span>
+                   <div className="w-8 md:w-12 h-1 bg-gradient-to-r from-red-600 to-pink-500 rounded-full"></div>
+                 </div>
               </div>
               <div className="w-12 h-12 md:w-16 md:h-16 bg-gradient-to-r from-red-600 to-pink-500 rounded-full flex items-center justify-center shadow-2xl">
                 <span className="text-xl md:text-2xl">📄</span>
