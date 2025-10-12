@@ -11,7 +11,7 @@ const KVKKPage = () => {
         <meta name="description" content="Benim Marketim KVKK aydınlatma metni ve kişisel verilerin korunması hakkında bilgiler." />
       </Helmet>
 
-      <div className="min-h-screen pt-24 pb-16 bg-gray-900">
+      <div className="min-h-screen pt-28 pb-16 bg-gray-900">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Başlık */}
           <motion.div
@@ -89,7 +89,7 @@ const KVKKPage = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
                   <h3 className="text-lg font-semibold text-blue-300 mb-2">Kimlik Bilgileri</h3>
-                  <p className="text-gray-300 text-sm">Ad, soyad, T.C. kimlik no, doğum tarihi</p>
+                  <p className="text-gray-300 text-sm">Ad, soyad, e-posta adresi, telefon numarası</p>
                 </div>
                 <div className="p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
                   <h3 className="text-lg font-semibold text-indigo-300 mb-2">İletişim Bilgileri</h3>

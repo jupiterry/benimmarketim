@@ -33,7 +33,7 @@ const ContactPage = () => {
         <meta name="description" content="Benim Marketim ile iletişime geçin. Sorularınız, önerileriniz ve şikayetleriniz için bizimle iletişim kurun." />
       </Helmet>
 
-      <div className="min-h-screen pt-24 pb-16 bg-gray-900">
+      <div className="min-h-screen pt-28 pb-16 bg-gray-900">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Başlık */}
           <motion.div
@@ -102,7 +102,6 @@ const ContactPage = () => {
                     <div>
                       <h3 className="text-lg font-semibold text-green-300">Telefon</h3>
                       <p className="text-gray-300">+90 (XXX) XXX XX XX</p>
-                      <p className="text-gray-300">+90 (XXX) XXX XX XX</p>
                     </div>
                   </div>
 
@@ -112,8 +111,8 @@ const ContactPage = () => {
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold text-purple-300">Adres</h3>
-                      <p className="text-gray-300">[Şirket Adresi]</p>
-                      <p className="text-gray-300">[Şehir, İlçe]</p>
+                      <p className="text-gray-300">Benim Marketim</p>
+                      <p className="text-gray-300">Devrek, Zonguldak</p>
                     </div>
                   </div>
 
@@ -123,9 +122,8 @@ const ContactPage = () => {
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold text-orange-300">Çalışma Saatleri</h3>
-                      <p className="text-gray-300">Pazartesi - Cuma: 09:00 - 18:00</p>
-                      <p className="text-gray-300">Cumartesi: 09:00 - 16:00</p>
-                      <p className="text-gray-300">Pazar: Kapalı</p>
+                      <p className="text-gray-300">Pazartesi - Cuma: 08:00 - 23:00</p>
+                      <p className="text-gray-300">Cumartesi: 09:00 - 23:00</p>
                     </div>
                   </div>
                 </div>

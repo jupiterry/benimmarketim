@@ -11,7 +11,7 @@ const PrivacyPage = () => {
         <meta name="description" content="Benim Marketim gizlilik politikası ve kişisel verilerin korunması hakkında bilgiler." />
       </Helmet>
 
-      <div className="min-h-screen pt-24 pb-16 bg-gray-900">
+      <div className="min-h-screen pt-28 pb-16 bg-gray-900">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Başlık */}
           <motion.div

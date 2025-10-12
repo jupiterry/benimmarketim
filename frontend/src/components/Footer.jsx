@@ -88,7 +88,7 @@ const Footer = () => {
                     animate={{ opacity: 1 }}
                     transition={{ duration: 0.8, delay: 1 }}
                 >
-                    <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div className="flex flex-col items-center justify-center gap-4">
                         {/* Telif Hakkı ve Linkler */}
                         <div className="flex flex-col items-center gap-4">
                             <p className="text-gray-400 text-sm text-center">

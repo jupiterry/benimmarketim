@@ -22,7 +22,7 @@ const FAQPage = () => {
         },
         {
           question: "Sipariş durumunu nasıl takip ederim?",
-          answer: "Hesabınızdan 'Siparişlerim' bölümünden sipariş durumunuzu takip edebilirsiniz. SMS ve e-posta bildirimleri de alırsınız."
+          answer: "Hesabınızdan 'Siparişlerim' bölümünden sipariş durumunuzu takip edebilirsiniz."
         }
       ]
     },
@@ -41,7 +41,7 @@ const FAQPage = () => {
         },
         {
           question: "Hangi bölgelere teslimat yapıyorsunuz?",
-          answer: "Şu anda [Şehir] merkez ve çevre ilçelere teslimat yapmaktayız. Teslimat bölgelerimiz sürekli genişlemektedir."
+          answer: "Şu anda Devrek bölgesine teslimat yapmaktayız. Teslimat bölgelerimiz sürekli genişlemektedir."
         }
       ]
     },
@@ -142,7 +142,7 @@ const FAQPage = () => {
         <meta name="description" content="Benim Marketim hakkında sıkça sorulan sorular ve cevapları." />
       </Helmet>
 
-      <div className="min-h-screen pt-24 pb-16 bg-gray-900">
+      <div className="min-h-screen pt-28 pb-16 bg-gray-900">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Başlık */}
           <motion.div

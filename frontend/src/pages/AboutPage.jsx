@@ -11,7 +11,7 @@ const AboutPage = () => {
         <meta name="description" content="Benim Marketim hakkında bilgiler, misyonumuz, vizyonumuz ve değerlerimiz." />
       </Helmet>
 
-      <div className="min-h-screen pt-24 pb-16 bg-gray-900">
+      <div className="min-h-screen pt-28 pb-16 bg-gray-900">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Başlık */}
           <motion.div
@@ -63,17 +63,17 @@ const AboutPage = () => {
             </div>
             <div className="prose prose-lg max-w-none">
               <p className="text-gray-300 leading-relaxed mb-4">
-                Benim Marketim, 2020 yılında müşterilerin taze ve kaliteli ürünlere kolay erişim sağlaması amacıyla kurulmuştur. 
-                Pandemi döneminde artan online alışveriş ihtiyacını karşılamak için yola çıktık.
+              Benim Marketim, 2020 yılında müşterilerin taze ve kaliteli ürünlere kolayca ulaşabilmesi amacıyla kuruldu.
               </p>
               <p className="text-gray-300 leading-relaxed mb-4">
-                Bugün, binlerce mutlu müşterimizle birlikte büyüyen bir aile olduk. 
-                Her gün daha iyi hizmet verebilmek için çalışmaya devam ediyoruz.
+              Bugün, binlerce mutlu müşterimizle büyüyen bir aile haline geldik.
+              Özellikle üniversite öğrencilerinin ve markete uzak yaşayan kişilerin, yağmurlu havalarda, gece karanlığında veya yorgun bir günün ardından dışarı çıkmak zorunda kalmadan ihtiyaçlarını karşılamalarını sağlıyoruz.
+              Sadece birkaç dokunuşla, diledikleri ürünleri kapılarına kadar ulaştırıyoruz.
               </p>
               <p className="text-gray-300 leading-relaxed">
-                Misyonumuz, müşterilerimize en taze ürünleri, en hızlı şekilde, 
-                en uygun fiyatlarla sunmaktır.
-              </p>
+              Misyonumuz; herkesin, her koşulda, en taze ürünlere en hızlı şekilde ve en uygun fiyatlarla ulaşmasını sağlamak.
+              Her gün, sizlere daha iyi bir alışveriş deneyimi sunmak için çalışıyoruz.
+              </p>  
             </div>
           </motion.div>
 
@@ -205,15 +205,15 @@ const AboutPage = () => {
             
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               <div className="text-center">
-                <div className="text-3xl font-bold text-emerald-400 mb-2">10,000+</div>
+                <div className="text-3xl font-bold text-emerald-400 mb-2">500+</div>
                 <div className="text-gray-300">Mutlu Müşteri</div>
               </div>
               <div className="text-center">
-                <div className="text-3xl font-bold text-teal-400 mb-2">50,000+</div>
+                <div className="text-3xl font-bold text-teal-400 mb-2">500+</div>
                 <div className="text-gray-300">Başarılı Teslimat</div>
               </div>
               <div className="text-center">
-                <div className="text-3xl font-bold text-green-400 mb-2">1,000+</div>
+                <div className="text-3xl font-bold text-green-400 mb-2">3,000+</div>
                 <div className="text-gray-300">Ürün Çeşidi</div>
               </div>
               <div className="text-center">

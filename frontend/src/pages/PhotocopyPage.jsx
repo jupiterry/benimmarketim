@@ -26,6 +26,8 @@ const PhotocopyPage = () => {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showUploadForm, setShowUploadForm] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [fileToDelete, setFileToDelete] = useState(null);
   const fileInputRef = useRef(null);
 
   // Form verileri
@@ -148,18 +150,32 @@ const PhotocopyPage = () => {
     }
   };
 
+  // Dosya silme modal'ını aç
+  const openDeleteModal = (file) => {
+    setFileToDelete(file);
+    setShowDeleteModal(true);
+  };
+
   // Dosya silme
-  const handleDelete = async (fileId) => {
-    if (!window.confirm("Bu dosyayı silmek istediğinizden emin misiniz?")) return;
+  const handleDelete = async () => {
+    if (!fileToDelete) return;
 
     try {
-      await axios.delete(`/photocopy/${fileId}`);
+      await axios.delete(`/photocopy/${fileToDelete._id}`);
       toast.success("Dosya silindi");
       fetchFiles();
+      setShowDeleteModal(false);
+      setFileToDelete(null);
     } catch (error) {
       console.error("Silme hatası:", error);
       toast.error("Dosya silinirken hata oluştu");
     }
+  };
+
+  // Modal'ı kapat
+  const closeDeleteModal = () => {
+    setShowDeleteModal(false);
+    setFileToDelete(null);
   };
 
   // Durum ikonu
@@ -504,7 +520,7 @@ const PhotocopyPage = () => {
                             <Download className="w-4 h-4 md:w-5 md:h-5" />
                           </button>
                           <button
-                            onClick={() => handleDelete(file._id)}
+                            onClick={() => openDeleteModal(file)}
                             className="p-2 md:p-3 text-red-400 hover:bg-red-500/20 rounded-xl transition-all duration-300 hover:text-red-300"
                             title="Sil"
                           >
@@ -532,6 +548,55 @@ const PhotocopyPage = () => {
           </motion.div>
         </div>
       </div>
+
+      {/* Silme Onay Modal'ı */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            className="bg-gray-800 rounded-2xl shadow-2xl border border-gray-700/50 max-w-md w-full p-6"
+          >
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center">
+                <Trash2 className="w-6 h-6 text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-white">Dosyayı Sil</h3>
+                <p className="text-gray-400">Bu işlem geri alınamaz</p>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-gray-300 mb-3">
+                <strong className="text-white">{fileToDelete?.originalName}</strong> dosyasını silmek istediğinizden emin misiniz?
+              </p>
+              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3">
+                <p className="text-red-300 text-sm">
+                  ⚠️ Bu dosya kalıcı olarak silinecek ve geri getirilemeyecek.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={closeDeleteModal}
+                className="flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium transition-colors duration-300"
+              >
+                İptal
+              </button>
+              <button
+                onClick={handleDelete}
+                className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-medium transition-colors duration-300 flex items-center justify-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Sil
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </>
   );
 };
