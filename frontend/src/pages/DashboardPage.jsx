@@ -99,7 +99,7 @@ const DashboardPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 pt-20 pb-10">
+    <div className="min-h-screen bg-gray-900 pt-24 pb-10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-emerald-400 mb-2">Yönetici Paneli</h1>

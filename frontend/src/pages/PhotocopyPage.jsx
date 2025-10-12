@@ -215,7 +215,7 @@ const PhotocopyPage = () => {
         <meta name="description" content="Dosyalarınızı yükleyin ve fotokopi çıktısı alın. PDF, resim, Word, Excel ve diğer belgelerinizi kolayca yükleyebilirsiniz." />
       </Helmet>
 
-      <div className="min-h-screen pt-20 md:pt-24 pb-16 bg-gray-900">
+      <div className="min-h-screen pt-24 pb-16 bg-gray-900">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Başlık */}
           <motion.div

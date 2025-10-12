@@ -13,7 +13,7 @@ const CartPage = () => {
   const [note, setNote] = useState("");
 
   return (
-    <div className="min-h-screen pt-24 pb-32 md:pb-16 bg-gray-900">
+    <div className="min-h-screen pt-24 pb-16 bg-gray-900">
       <div className="container mx-auto px-4">
         {/* Muhteşem Header */}
         <motion.div 

@@ -81,7 +81,7 @@ const HomePage = () => {
 	};
 
 	return (
-		<div className='relative min-h-screen text-white'>
+		<div className='relative min-h-screen text-white pt-24'>
 			{/* Hero Section - Muhteşem Tasarım */}
 			<div className="relative min-h-[100vh] sm:h-[800px] overflow-hidden">
 				{/* Arka Plan Gradient */}

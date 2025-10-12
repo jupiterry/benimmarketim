@@ -70,7 +70,7 @@ const CategoryPage = () => {
         <div className="absolute top-10 left-10 w-32 h-32 bg-emerald-500/20 rounded-full blur-xl animate-pulse"></div>
         <div className="absolute bottom-10 right-10 w-24 h-24 bg-teal-500/20 rounded-full blur-xl animate-pulse delay-1000"></div>
         
-        <div className="relative container mx-auto px-4 pt-16">
+        <div className="relative container mx-auto px-4 pt-24">
           <motion.div
             className="text-center"
             initial={{ opacity: 0, y: 30 }}
