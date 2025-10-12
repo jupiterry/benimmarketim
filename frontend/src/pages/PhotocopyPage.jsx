@@ -215,20 +215,43 @@ const PhotocopyPage = () => {
         <meta name="description" content="Dosyalarınızı yükleyin ve fotokopi çıktısı alın. PDF, resim, Word, Excel ve diğer belgelerinizi kolayca yükleyebilirsiniz." />
       </Helmet>
 
-      <div className="min-h-screen bg-gray-50 py-8">
+      <div className="min-h-screen pt-20 md:pt-24 pb-16 bg-gray-900">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Başlık */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-center mb-8"
+            className="text-center mb-8 md:mb-12"
           >
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">
-              Fotokopi Hizmeti
-            </h1>
-            <p className="text-gray-600 max-w-2xl mx-auto">
+            <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6 mb-6">
+              <div className="w-12 h-12 md:w-16 md:h-16 bg-gradient-to-r from-orange-500 to-red-600 rounded-full flex items-center justify-center shadow-2xl">
+                <FileText className="w-6 h-6 md:w-8 md:h-8 text-white" />
+              </div>
+              <div className="text-center md:text-left">
+                <h1 className="text-3xl md:text-5xl font-bold bg-gradient-to-r from-orange-400 via-red-500 to-pink-500 bg-clip-text text-transparent">
+                  Fotokopi Hizmeti
+                </h1>
+                <div className="flex items-center justify-center md:justify-start gap-2 mt-2">
+                  <div className="w-8 md:w-12 h-1 bg-gradient-to-r from-orange-500 to-red-600 rounded-full"></div>
+                  <span className="text-gray-400 text-sm md:text-lg">
+                    Dijital Fotokopi
+                  </span>
+                  <div className="w-8 md:w-12 h-1 bg-gradient-to-r from-red-600 to-pink-500 rounded-full"></div>
+                </div>
+              </div>
+              <div className="w-12 h-12 md:w-16 md:h-16 bg-gradient-to-r from-red-600 to-pink-500 rounded-full flex items-center justify-center shadow-2xl">
+                <span className="text-xl md:text-2xl">📄</span>
+              </div>
+            </div>
+            
+            <motion.p 
+              className="text-gray-300 text-lg max-w-2xl mx-auto"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 }}
+            >
               Dosyalarınızı yükleyin ve fotokopi çıktısı alın. PDF, resim, Word, Excel ve diğer belgelerinizi kolayca yükleyebilirsiniz.
-            </p>
+            </motion.p>
           </motion.div>
 
           {/* Yükleme Alanı */}
@@ -236,23 +259,30 @@ const PhotocopyPage = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="bg-white rounded-lg shadow-lg p-6 mb-8"
+            className="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-700/50 p-4 md:p-8 mb-8"
           >
             <div className="text-center">
               <div
-                className="border-2 border-dashed border-gray-300 rounded-lg p-8 cursor-pointer hover:border-emerald-500 transition-colors"
+                className="border-2 border-dashed border-gray-600 rounded-2xl p-6 md:p-12 cursor-pointer hover:border-orange-500 transition-all duration-300 hover:bg-gray-800/30 group"
                 onClick={() => fileInputRef.current?.click()}
               >
-                <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                <div className="relative">
+                  <Upload className="w-12 h-12 md:w-16 md:h-16 text-gray-400 mx-auto mb-4 md:mb-6 group-hover:text-orange-400 transition-colors" />
+                  <div className="absolute -top-1 -right-1 md:-top-2 md:-right-2 w-5 h-5 md:w-6 md:h-6 bg-gradient-to-r from-orange-500 to-red-500 rounded-full flex items-center justify-center">
+                    <span className="text-white text-xs">+</span>
+                  </div>
+                </div>
+                <h3 className="text-xl md:text-2xl font-bold text-white mb-2 md:mb-3">
                   Dosya Yükle
                 </h3>
-                <p className="text-gray-500 mb-4">
+                <p className="text-gray-300 mb-3 md:mb-4 text-sm md:text-lg">
                   PDF, resim, Word, Excel, PowerPoint veya metin dosyası yükleyin
                 </p>
-                <p className="text-sm text-gray-400">
-                  Maksimum dosya boyutu: 50MB
-                </p>
+                <div className="flex items-center justify-center gap-2 text-xs md:text-sm text-gray-400">
+                  <span className="w-1.5 h-1.5 md:w-2 md:h-2 bg-orange-500 rounded-full"></span>
+                  <span>Maksimum dosya boyutu: 50MB</span>
+                  <span className="w-1.5 h-1.5 md:w-2 md:h-2 bg-red-500 rounded-full"></span>
+                </div>
               </div>
               
               <input
@@ -270,10 +300,10 @@ const PhotocopyPage = () => {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-lg shadow-lg p-6 mb-8"
+              className="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-700/50 p-8 mb-8"
             >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-white">
                   Yükleme Ayarları
                 </h3>
                 <button
@@ -281,29 +311,31 @@ const PhotocopyPage = () => {
                     setShowUploadForm(false);
                     setSelectedFile(null);
                   }}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-gray-700 rounded-lg"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-6 h-6" />
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Dosya Bilgileri */}
                 <div>
-                  <div className="flex items-center space-x-3 mb-4">
-                    <File className="w-8 h-8 text-emerald-500" />
-                    <div>
-                      <p className="font-medium text-gray-900">{selectedFile.name}</p>
-                      <p className="text-sm text-gray-500">{formatFileSize(selectedFile.size)}</p>
+                  <div className="flex items-center space-x-4 mb-6 p-4 bg-gray-700/50 rounded-xl border border-gray-600/50">
+                    <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-r from-orange-500 to-red-500 rounded-xl flex items-center justify-center">
+                      <File className="w-5 h-5 md:w-6 md:h-6 text-white" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold text-white text-sm md:text-lg truncate">{selectedFile.name}</p>
+                      <p className="text-xs md:text-sm text-gray-300">{formatFileSize(selectedFile.size)}</p>
                     </div>
                   </div>
                 </div>
 
                 {/* Ayarlar */}
-                <div className="space-y-4">
+                <div className="space-y-4 md:space-y-6">
                   {/* Kopya Sayısı */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-bold text-white mb-3">
                       Kopya Sayısı
                     </label>
                     <input
@@ -312,19 +344,19 @@ const PhotocopyPage = () => {
                       max="100"
                       value={formData.copies}
                       onChange={(e) => setFormData({ ...formData, copies: parseInt(e.target.value) || 1 })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
                     />
                   </div>
 
                   {/* Renk */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-bold text-white mb-3">
                       Renk
                     </label>
                     <select
                       value={formData.color}
                       onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
                     >
                       <option value="black_white">Siyah-Beyaz</option>
                       <option value="color">Renkli</option>
@@ -333,13 +365,13 @@ const PhotocopyPage = () => {
 
                   {/* Kağıt Boyutu */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-bold text-white mb-3">
                       Kağıt Boyutu
                     </label>
                     <select
                       value={formData.paperSize}
                       onChange={(e) => setFormData({ ...formData, paperSize: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
                     >
                       <option value="A4">A4</option>
                       <option value="A3">A3</option>
@@ -350,14 +382,14 @@ const PhotocopyPage = () => {
 
                   {/* Notlar */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-bold text-white mb-3">
                       Notlar (Opsiyonel)
                     </label>
                     <textarea
                       value={formData.notes}
                       onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                       placeholder="Özel isteklerinizi buraya yazabilirsiniz..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
                       rows="3"
                     />
                   </div>
@@ -365,29 +397,29 @@ const PhotocopyPage = () => {
               </div>
 
               {/* Yükleme Butonu */}
-              <div className="mt-6 flex justify-end space-x-3">
+              <div className="mt-8 flex justify-end space-x-4">
                 <button
                   onClick={() => {
                     setShowUploadForm(false);
                     setSelectedFile(null);
                   }}
-                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+                  className="px-6 py-3 text-gray-300 bg-gray-700/50 border border-gray-600 rounded-xl hover:bg-gray-700 hover:text-white transition-all duration-300 font-medium"
                 >
                   İptal
                 </button>
                 <button
                   onClick={handleUpload}
                   disabled={uploading}
-                  className="px-6 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
+                  className="px-8 py-3 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-xl hover:from-orange-400 hover:to-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex items-center space-x-2 font-bold shadow-lg hover:shadow-orange-500/25"
                 >
                   {uploading ? (
                     <>
-                      <Loader className="w-4 h-4 animate-spin" />
+                      <Loader className="w-5 h-5 animate-spin" />
                       <span>Yükleniyor...</span>
                     </>
                   ) : (
                     <>
-                      <Upload className="w-4 h-4" />
+                      <Upload className="w-5 h-5" />
                       <span>Yükle</span>
                     </>
                   )}
@@ -401,62 +433,64 @@ const PhotocopyPage = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="bg-white rounded-lg shadow-lg"
+            className="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-700/50"
           >
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-medium text-gray-900">
+            <div className="px-8 py-6 border-b border-gray-700/50">
+              <h3 className="text-2xl font-bold text-white">
                 Yüklenen Dosyalar
               </h3>
             </div>
 
             {loading ? (
               <div className="flex justify-center items-center py-12">
-                <Loader className="w-8 h-8 animate-spin text-emerald-500" />
+                <Loader className="w-8 h-8 animate-spin text-orange-500" />
               </div>
             ) : files.length === 0 ? (
               <div className="text-center py-12">
-                <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500">Henüz dosya yüklenmemiş</p>
+                <FileText className="w-16 h-16 text-gray-500 mx-auto mb-4" />
+                <p className="text-gray-400 text-lg">Henüz dosya yüklenmemiş</p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-200">
+              <div className="divide-y divide-gray-700/50">
                 {files.map((file) => (
-                  <div key={file._id} className="p-6 hover:bg-gray-50">
-                    <div className="flex items-center justify-between">
+                  <div key={file._id} className="p-4 md:p-6 hover:bg-gray-700/30 transition-colors">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                       <div className="flex items-center space-x-4">
                         <div className="flex-shrink-0">
-                          <FileText className="w-8 h-8 text-emerald-500" />
+                          <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-r from-orange-500 to-red-500 rounded-xl flex items-center justify-center">
+                            <FileText className="w-5 h-5 md:w-6 md:h-6 text-white" />
+                          </div>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">
+                          <p className="text-base md:text-lg font-bold text-white truncate">
                             {file.originalName}
                           </p>
-                          <div className="flex items-center space-x-4 mt-1">
-                            <span className="text-sm text-gray-500">
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            <span className="text-xs md:text-sm text-gray-300 bg-gray-700/50 px-2 md:px-3 py-1 rounded-full">
                               {formatFileSize(file.fileSize)}
                             </span>
-                            <span className="text-sm text-gray-500">
+                            <span className="text-xs md:text-sm text-gray-300 bg-gray-700/50 px-2 md:px-3 py-1 rounded-full">
                               {file.copies} kopya
                             </span>
-                            <span className="text-sm text-gray-500">
+                            <span className="text-xs md:text-sm text-gray-300 bg-gray-700/50 px-2 md:px-3 py-1 rounded-full">
                               {file.color === 'color' ? 'Renkli' : 'Siyah-Beyaz'}
                             </span>
-                            <span className="text-sm text-gray-500">
+                            <span className="text-xs md:text-sm text-gray-300 bg-gray-700/50 px-2 md:px-3 py-1 rounded-full">
                               {file.paperSize}
                             </span>
                           </div>
                           {file.notes && (
-                            <p className="text-sm text-gray-600 mt-1">
-                              Not: {file.notes}
+                            <p className="text-xs md:text-sm text-gray-400 mt-2 bg-gray-700/30 p-2 md:p-3 rounded-lg">
+                              <strong>Not:</strong> {file.notes}
                             </p>
                           )}
                         </div>
                       </div>
                       
-                      <div className="flex items-center space-x-4">
-                        <div className="flex items-center space-x-2">
+                      <div className="flex items-center justify-between md:justify-end space-x-4">
+                        <div className="flex items-center space-x-2 bg-gray-700/50 px-3 md:px-4 py-2 rounded-xl">
                           {getStatusIcon(file.status)}
-                          <span className="text-sm text-gray-600">
+                          <span className="text-xs md:text-sm text-white font-medium">
                             {getStatusText(file.status)}
                           </span>
                         </div>
@@ -464,31 +498,31 @@ const PhotocopyPage = () => {
                         <div className="flex items-center space-x-2">
                           <button
                             onClick={() => handleDownload(file._id, file.originalName)}
-                            className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors"
+                            className="p-2 md:p-3 text-orange-400 hover:bg-orange-500/20 rounded-xl transition-all duration-300 hover:text-orange-300"
                             title="İndir"
                           >
-                            <Download className="w-4 h-4" />
+                            <Download className="w-4 h-4 md:w-5 md:h-5" />
                           </button>
                           <button
                             onClick={() => handleDelete(file._id)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                            className="p-2 md:p-3 text-red-400 hover:bg-red-500/20 rounded-xl transition-all duration-300 hover:text-red-300"
                             title="Sil"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4 md:w-5 md:h-5" />
                           </button>
                         </div>
                       </div>
                     </div>
                     
                     {file.adminNotes && (
-                      <div className="mt-3 p-3 bg-blue-50 rounded-md">
-                        <p className="text-sm text-blue-800">
+                      <div className="mt-4 p-3 md:p-4 bg-blue-900/30 border border-blue-700/50 rounded-xl">
+                        <p className="text-xs md:text-sm text-blue-300">
                           <strong>Admin Notu:</strong> {file.adminNotes}
                         </p>
                       </div>
                     )}
                     
-                    <div className="mt-2 text-xs text-gray-500">
+                    <div className="mt-3 text-xs text-gray-500 bg-gray-800/50 px-2 md:px-3 py-1 md:py-2 rounded-lg inline-block">
                       Yüklenme: {new Date(file.createdAt).toLocaleString('tr-TR')}
                     </div>
                   </div>
