@@ -13,6 +13,7 @@ import FeedbackList from "../components/FeedbackList";
 import SettingsTab from "../components/SettingsTab";
 import DashboardWidgets from "../components/DashboardWidgets";
 import UsersTab from "../components/UsersTab";
+import PhotocopyTab from "../components/PhotocopyTab";
 
 const AdminPage = () => {
   const [activeTab, setActiveTab] = useState("products");
@@ -181,6 +182,12 @@ const AdminPage = () => {
       label: "Geri Bildirimler",
       icon: <MessageSquare className="w-5 h-5" />,
       component: <FeedbackList />
+    },
+    {
+      id: "photocopy",
+      label: "Fotokopi",
+      icon: <Package2 className="w-5 h-5" />,
+      component: <PhotocopyTab />
     },
     {
       id: "settings",

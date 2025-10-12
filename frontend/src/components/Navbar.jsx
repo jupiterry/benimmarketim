@@ -1,4 +1,4 @@
-import { ShoppingCart, UserPlus, LogIn, LogOut, Lock, Package, Menu, X, Bell } from "lucide-react";
+import { ShoppingCart, UserPlus, LogIn, LogOut, Lock, Package, Menu, X, Bell, FileText } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useUserStore } from "../stores/useUserStore";
 import { useCartStore } from "../stores/useCartStore";
@@ -415,18 +415,32 @@ const Navbar = () => {
               </motion.div>
             )}
             {user && !isAdmin && (
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <Link
-                  to="/siparislerim"
-                  className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-400 hover:to-purple-500 text-white px-4 py-2 rounded-xl font-medium transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-blue-500/25"
+              <>
+                <motion.div
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                 >
-                  <Package size={18} />
-                  <span>Siparişlerim</span>
-                </Link>
-              </motion.div>
+                  <Link
+                    to="/siparislerim"
+                    className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-400 hover:to-purple-500 text-white px-4 py-2 rounded-xl font-medium transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-blue-500/25"
+                  >
+                    <Package size={18} />
+                    <span>Siparişlerim</span>
+                  </Link>
+                </motion.div>
+                <motion.div
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <Link
+                    to="/fotokopi"
+                    className="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-400 hover:to-red-500 text-white px-4 py-2 rounded-xl font-medium transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-orange-500/25"
+                  >
+                    <FileText size={18} />
+                    <span>Fotokopi</span>
+                  </Link>
+                </motion.div>
+              </>
             )}
             {isAdmin && (
               <>

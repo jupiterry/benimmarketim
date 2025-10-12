@@ -14,6 +14,7 @@ import analyticsRoutes from "./routes/analytics.route.js";
 import feedbackRoutes from "./routes/feedback.route.js";
 import settingsRoutes from "./routes/settings.route.js";
 import flashSaleRoutes from "./routes/flashSale.route.js";
+import photocopyRoutes from "./routes/photocopy.route.js";
 import { createServer } from "http";
 import { Server } from "socket.io";
 
@@ -111,6 +112,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/flash-sales", flashSaleRoutes);
+app.use("/api/photocopy", photocopyRoutes);
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "/frontend/dist")));
