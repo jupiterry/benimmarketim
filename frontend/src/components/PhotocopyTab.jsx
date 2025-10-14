@@ -36,14 +36,34 @@ const PhotocopyTab = () => {
   // Dosyaları getir
   const fetchFiles = async () => {
     try {
-      const params = new URLSearchParams();
-      if (filters.status) params.append('status', filters.status);
-      if (filters.user) params.append('user', filters.user);
-      if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
-      if (filters.dateTo) params.append('dateTo', filters.dateTo);
-
-      const response = await axios.get(`/photocopy/admin/all?${params}`);
-      setFiles(response.data.data);
+      // Önce tüm dosyaları getir
+      const response = await axios.get('/photocopy/admin/complete-list');
+      let allFiles = response.data.data;
+      
+      // Filtreleme uygula
+      if (filters.status) {
+        allFiles = allFiles.filter(file => file.status === filters.status);
+      }
+      if (filters.user) {
+        allFiles = allFiles.filter(file => 
+          file.user && (
+            file.user.name?.toLowerCase().includes(filters.user.toLowerCase()) ||
+            file.user.email?.toLowerCase().includes(filters.user.toLowerCase())
+          )
+        );
+      }
+      if (filters.dateFrom) {
+        const fromDate = new Date(filters.dateFrom);
+        allFiles = allFiles.filter(file => new Date(file.createdAt) >= fromDate);
+      }
+      if (filters.dateTo) {
+        const toDate = new Date(filters.dateTo);
+        toDate.setHours(23, 59, 59, 999); // Günün sonuna kadar
+        allFiles = allFiles.filter(file => new Date(file.createdAt) <= toDate);
+      }
+      
+      setFiles(allFiles);
+      console.log(`Toplam ${allFiles.length} dosya yüklendi`);
     } catch (error) {
       console.error("Dosyalar getirilirken hata:", error);
       toast.error("Dosyalar yüklenirken hata oluştu");
@@ -342,9 +362,21 @@ const PhotocopyTab = () => {
                       <FileText className="w-8 h-8 text-emerald-500" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {file.originalName}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {file.originalName}
+                        </p>
+                        {file.fileExists === false && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            Dosya Yok
+                          </span>
+                        )}
+                        {file.fileExists === true && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            Dosya Var
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center space-x-4 mt-1">
                         <span className="text-sm text-gray-500">
                           {formatFileSize(file.fileSize)}

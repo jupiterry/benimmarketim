@@ -189,6 +189,58 @@ export const getAllFiles = async (req, res) => {
   }
 };
 
+// Admin için tüm dosyaları getir (filtreleme olmadan)
+export const getAllFilesComplete = async (req, res) => {
+  try {
+    console.log("Admin tüm dosyalar isteniyor...");
+    
+    // Tüm dosyaları getir, hiçbir filtreleme yapma
+    const files = await Photocopy.find({})
+      .populate('user', 'name email phone')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    console.log(`Toplam ${files.length} dosya bulundu`);
+    
+    // Her dosya için detaylı bilgi
+    const filesWithDetails = files.map(file => ({
+      _id: file._id,
+      originalName: file.originalName,
+      fileName: file.fileName,
+      filePath: file.filePath,
+      fileSize: file.fileSize,
+      fileType: file.fileType,
+      status: file.status,
+      copies: file.copies,
+      color: file.color,
+      notes: file.notes,
+      adminNotes: file.adminNotes,
+      createdAt: file.createdAt,
+      updatedAt: file.updatedAt,
+      downloadCount: file.downloadCount,
+      lastDownloaded: file.lastDownloaded,
+      user: file.user,
+      // Dosya var mı kontrol et
+      fileExists: fs.existsSync(file.filePath)
+    }));
+
+    res.json({
+      success: true,
+      data: filesWithDetails,
+      total: filesWithDetails.length,
+      message: `${filesWithDetails.length} dosya bulundu`
+    });
+
+  } catch (error) {
+    console.error("Admin tüm dosyalar getirilirken hata:", error);
+    res.status(500).json({
+      success: false,
+      message: "Dosyalar getirilirken hata oluştu",
+      error: error.message
+    });
+  }
+};
+
 // Dosya indirme
 export const downloadFile = async (req, res) => {
   try {

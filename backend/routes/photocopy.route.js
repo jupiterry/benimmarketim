@@ -3,6 +3,7 @@ import {
   uploadFile,
   getUserFiles,
   getAllFiles,
+  getAllFilesComplete,
   downloadFile,
   updateFileStatus,
   deleteFile,
@@ -28,6 +29,7 @@ router.delete("/:fileId", protectRoute, deleteFile);
 // Admin rotaları
 router.get("/admin/all", protectRoute, adminRoute, getAllFiles);
 router.get("/admin/stats", protectRoute, adminRoute, getStats);
+router.get("/admin/complete-list", protectRoute, adminRoute, getAllFilesComplete);
 router.put("/admin/:fileId", protectRoute, adminRoute, updateFileStatus);
 
 export default router;
