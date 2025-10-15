@@ -1,5 +1,7 @@
 import User from "../models/user.model.js";
 import Order from "../models/order.model.js";
+import Product from "../models/product.model.js";
+import Feedback from "../models/feedback.model.js";
 
 // Kullanıcı bilgilerini getir
 export const getUserInfo = async (req, res) => {
@@ -66,5 +68,45 @@ export const getBestCustomers = async (req, res) => {
   } catch (error) {
     console.error("En iyi müşteriler getirilirken hata:", error);
     res.status(500).json({ message: "Sunucu hatası", error: error.message });
+  }
+};
+
+// Hesap silme
+export const deleteAccount = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { reason } = req.body;
+
+    if (!reason || reason.trim() === '') {
+      return res.status(400).json({ message: "Hesap silme nedeni belirtilmelidir" });
+    }
+
+    // Kullanıcının tüm verilerini sil
+    const deletionTasks = [
+      // Siparişleri sil
+      Order.deleteMany({ user: userId }),
+      
+      // Geri bildirimleri sil
+      Feedback.deleteMany({ user: userId }),
+      
+      // Sepet verilerini temizle (eğer ayrı bir model varsa)
+      // Cart.deleteMany({ user: userId }),
+      
+      // Kullanıcıyı sil
+      User.findByIdAndDelete(userId)
+    ];
+
+    await Promise.all(deletionTasks);
+
+    // Log kaydı
+    console.log(`Kullanıcı hesabı silindi - ID: ${userId}, Neden: ${reason}`);
+
+    res.json({ 
+      message: "Hesabınız ve tüm verileriniz başarıyla silindi",
+      deletedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Hesap silme hatası:", error);
+    res.status(500).json({ message: "Hesap silinirken hata oluştu", error: error.message });
   }
 }; 

@@ -159,6 +159,13 @@ const Footer = () => {
                                 >
                                     KVKK
                                 </Link>
+                                <span className="text-gray-600">•</span>
+                                <Link 
+                                    to="/hesap-silme" 
+                                    className="text-red-400 hover:text-red-300 transition-colors duration-200 hover:underline"
+                                >
+                                    Hesap Silme
+                                </Link>
                             </div>
                         </div>
 

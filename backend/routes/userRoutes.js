@@ -2,7 +2,7 @@
 import express from "express";
 import { getAllUsers, updateUser, addPhoneFieldToAllUsers, deleteUser, resetUserPassword } from "../controllers/userController.js";
 import { protectRoute, adminRoute } from "../middleware/auth.middleware.js"; // Yeni middleware'leri import et
-import { getUserInfo, getBestCustomers } from "../controllers/user.controller.js";
+import { getUserInfo, getBestCustomers, deleteAccount } from "../controllers/user.controller.js";
 import { updateLastActive } from "../middleware/updateLastActive.js";
 
 const router = express.Router();
@@ -16,6 +16,9 @@ router.post("/:userId/reset-password", protectRoute, adminRoute, resetUserPasswo
 
 // Kullanıcı bilgilerini getir
 router.get("/:id", protectRoute, updateLastActive, getUserInfo);
+
+// Hesap silme (kullanıcı kendi hesabını silebilir)
+router.post("/delete-account", protectRoute, deleteAccount);
 
 // Herkesin erişebileceği endpoint
 router.post("/add-phone-field", addPhoneFieldToAllUsers);

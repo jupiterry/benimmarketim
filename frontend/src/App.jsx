@@ -30,6 +30,7 @@ import ContactPage from "./pages/ContactPage";
 import AboutPage from "./pages/AboutPage";
 import FAQPage from "./pages/FAQPage";
 import KVKKPage from "./pages/KVKKPage";
+import AccountDeletionPage from "./pages/AccountDeletionPage";
 import ScrollToTop from "./components/ScrollToTop";
 
 const ProtectedRoute = ({ children }) => {
@@ -121,6 +122,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <PhotocopyPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/hesap-silme"
+              element={
+                <ProtectedRoute>
+                  <AccountDeletionPage />
                 </ProtectedRoute>
               }
             />
