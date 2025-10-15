@@ -34,15 +34,15 @@ const setCookies = (res, accessToken, refreshToken) => {
 };
 
 export const signup = async (req, res) => {
-	const { email, password, name, phone } = req.body;
+	const { email, password, name, phone, deviceType } = req.body;
 	try {
-		console.log("Kayıt isteği alındı:", { email, name, phone }); // Debug log
+		console.log("Kayıt isteği alındı:", { email, name, phone, deviceType }); // Debug log
 		const userExists = await User.findOne({ email });
 
 		if (userExists) {
 			return res.status(400).json({ message: "Kullanıcı zaten mevcut" });
 		}
-		const user = await User.create({ name, email, password, phone });
+		const user = await User.create({ name, email, password, phone, deviceType });
 		console.log("Oluşturulan kullanıcı:", user); // Debug log
 
 		// authenticate
@@ -68,12 +68,19 @@ export const signup = async (req, res) => {
 
 export const login = async (req, res) => {
 	try {
-		const { email, password } = req.body;
-		console.log("Login request:", { email }); // Debug log
+		const { email, password, deviceType } = req.body;
+		console.log("Login request:", { email, deviceType }); // Debug log
 		
 		const user = await User.findOne({ email });
 
 		if (user && (await user.comparePassword(password))) {
+			// Update device type if provided
+			if (deviceType) {
+				user.lastDeviceType = user.deviceType;
+				user.deviceType = deviceType;
+				await user.save();
+			}
+			
 			const { accessToken, refreshToken } = generateTokens(user._id);
 			await storeRefreshToken(user._id, refreshToken);
 			setCookies(res, accessToken, refreshToken);

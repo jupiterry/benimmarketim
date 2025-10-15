@@ -55,6 +55,16 @@ const userSchema = new mongoose.Schema(
 		hasFeedback: {
 			type: Boolean,
 			default: false
+		},
+		deviceType: {
+			type: String,
+			enum: ["desktop", "mobile", "tablet", "unknown"],
+			default: "unknown"
+		},
+		lastDeviceType: {
+			type: String,
+			enum: ["desktop", "mobile", "tablet", "unknown"],
+			default: "unknown"
 		}
 	},
 	{

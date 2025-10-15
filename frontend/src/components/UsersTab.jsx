@@ -17,10 +17,53 @@ import {
   Key,
   Save,
   X,
-  Copy
+  Copy,
+  Monitor,
+  Smartphone,
+  Tablet
 } from "lucide-react";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
+
+// Device type helper functions
+const getDeviceIcon = (deviceType) => {
+  switch (deviceType) {
+    case 'desktop':
+      return <Monitor className="w-4 h-4" />;
+    case 'mobile':
+      return <Smartphone className="w-4 h-4" />;
+    case 'tablet':
+      return <Tablet className="w-4 h-4" />;
+    default:
+      return <Monitor className="w-4 h-4" />;
+  }
+};
+
+const getDeviceName = (deviceType) => {
+  switch (deviceType) {
+    case 'desktop':
+      return 'Bilgisayar';
+    case 'mobile':
+      return 'Telefon';
+    case 'tablet':
+      return 'Tablet';
+    default:
+      return 'Bilinmiyor';
+  }
+};
+
+const getDeviceColor = (deviceType) => {
+  switch (deviceType) {
+    case 'desktop':
+      return 'text-blue-400 bg-blue-500/20 border-blue-500/30';
+    case 'mobile':
+      return 'text-green-400 bg-green-500/20 border-green-500/30';
+    case 'tablet':
+      return 'text-purple-400 bg-purple-500/20 border-purple-500/30';
+    default:
+      return 'text-gray-400 bg-gray-500/20 border-gray-500/30';
+  }
+};
 
 const UsersTab = ({ users, loading, error, onRefresh }) => {
   const [bestCustomers, setBestCustomers] = useState([]);
@@ -155,7 +198,10 @@ const UsersTab = ({ users, loading, error, onRefresh }) => {
       const lastActive = new Date(u.lastActive);
       const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
       return lastActive > dayAgo;
-    }).length
+    }).length,
+    desktopUsers: users.filter(u => u.deviceType === "desktop").length,
+    mobileUsers: users.filter(u => u.deviceType === "mobile").length,
+    tabletUsers: users.filter(u => u.deviceType === "tablet").length
   };
 
   if (loading) {
@@ -177,7 +223,7 @@ const UsersTab = ({ users, loading, error, onRefresh }) => {
   return (
     <div className="space-y-6">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -234,6 +280,51 @@ const UsersTab = ({ users, loading, error, onRefresh }) => {
               <p className="text-white text-3xl font-bold mt-1">{stats.active24h}</p>
             </div>
             <UserCheck className="w-12 h-12 text-emerald-400 opacity-50" />
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="bg-gradient-to-br from-blue-500/10 to-blue-600/10 p-6 rounded-xl border border-blue-500/20"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-400 text-sm font-medium">Bilgisayar</p>
+              <p className="text-white text-3xl font-bold mt-1">{stats.desktopUsers}</p>
+            </div>
+            <Monitor className="w-12 h-12 text-blue-400 opacity-50" />
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="bg-gradient-to-br from-green-500/10 to-green-600/10 p-6 rounded-xl border border-green-500/20"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-400 text-sm font-medium">Telefon</p>
+              <p className="text-white text-3xl font-bold mt-1">{stats.mobileUsers}</p>
+            </div>
+            <Smartphone className="w-12 h-12 text-green-400 opacity-50" />
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="bg-gradient-to-br from-purple-500/10 to-purple-600/10 p-6 rounded-xl border border-purple-500/20"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-400 text-sm font-medium">Tablet</p>
+              <p className="text-white text-3xl font-bold mt-1">{stats.tabletUsers}</p>
+            </div>
+            <Tablet className="w-12 h-12 text-purple-400 opacity-50" />
           </div>
         </motion.div>
       </div>
@@ -407,6 +498,19 @@ const UsersTab = ({ users, loading, error, onRefresh }) => {
                           <p className="text-gray-500 text-xs mt-1">
                             Son aktif: {new Date(user.lastActive).toLocaleDateString('tr-TR')}
                           </p>
+                        )}
+                        {user.deviceType && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${getDeviceColor(user.deviceType)}`}>
+                              {getDeviceIcon(user.deviceType)}
+                              {getDeviceName(user.deviceType)}
+                            </span>
+                            {user.lastDeviceType && user.lastDeviceType !== user.deviceType && (
+                              <span className="text-gray-500 text-xs">
+                                (Önceki: {getDeviceName(user.lastDeviceType)})
+                              </span>
+                            )}
+                          </div>
                         )}
                       </div>
                     )}

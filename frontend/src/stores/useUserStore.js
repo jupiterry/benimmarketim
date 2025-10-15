@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import axios from "../lib/axios";
 import { toast } from "react-hot-toast";
+import { detectDeviceType } from "../lib/deviceDetection";
 
 export const useUserStore = create(
   persist(
@@ -22,8 +23,9 @@ export const useUserStore = create(
         }
 
         try {
-          console.log("Gönderilen kayıt verileri:", { name, email, password, phone });
-          const res = await axios.post("/auth/signup", { name, email, password, phone });
+          const deviceType = detectDeviceType();
+          console.log("Gönderilen kayıt verileri:", { name, email, password, phone, deviceType });
+          const res = await axios.post("/auth/signup", { name, email, password, phone, deviceType });
           console.log("Backend'den dönen yanıt:", res.data);
           
           const userData = { ...res.data, phone };
@@ -40,7 +42,8 @@ export const useUserStore = create(
         set({ loading: true });
 
         try {
-          const res = await axios.post("/auth/login", { email, password });
+          const deviceType = detectDeviceType();
+          const res = await axios.post("/auth/login", { email, password, deviceType });
           set({ user: res.data, loading: false });
           toast.success("Giriş başarılı!");
         } catch (error) {
