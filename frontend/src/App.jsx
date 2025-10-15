@@ -125,14 +125,7 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/hesap-silme"
-              element={
-                <ProtectedRoute>
-                  <AccountDeletionPage />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/hesap-silme" element={<AccountDeletionPage />} />
           </Routes>
         </div>
 

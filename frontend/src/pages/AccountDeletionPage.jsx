@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Helmet } from "react-helmet-async";
 import { 
@@ -8,7 +8,6 @@ import {
   FileText, 
   User, 
   ShoppingCart, 
-  CreditCard,
   Mail,
   Phone,
   CheckCircle,
@@ -19,11 +18,13 @@ import {
   Database,
   Settings,
   Eye,
-  EyeOff
+  EyeOff,
+  LogIn
 } from "lucide-react";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
 import { useUserStore } from "../stores/useUserStore";
+import { Link } from "react-router-dom";
 
 const AccountDeletionPage = () => {
   const { user, logout } = useUserStore();
@@ -33,8 +34,22 @@ const AccountDeletionPage = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [deletionType, setDeletionType] = useState("full"); // "full" veya "partial"
   const [selectedDataTypes, setSelectedDataTypes] = useState([]);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+
+  // Üye olmayan kullanıcılar için giriş modal'ını göster
+  useEffect(() => {
+    if (!user) {
+      setShowLoginModal(true);
+    }
+  }, [user]);
 
   const handleDeleteAccount = async () => {
+    if (!user) {
+      toast.error("Hesap silme işlemi için giriş yapmanız gerekiyor");
+      setShowLoginModal(true);
+      return;
+    }
+
     if (!deletionReason.trim()) {
       toast.error("Lütfen hesap silme nedeninizi belirtin");
       return;
@@ -83,7 +98,6 @@ const AccountDeletionPage = () => {
   const dataTypes = [
     { id: "personal", name: "Kişisel Bilgiler", description: "Ad, soyad, e-posta, telefon numarası" },
     { id: "orders", name: "Sipariş Geçmişi", description: "Tüm siparişler ve alışveriş verileri" },
-    { id: "payment", name: "Ödeme Bilgileri", description: "Kart bilgileri ve ödeme geçmişi" },
     { id: "addresses", name: "Adres Bilgileri", description: "Teslimat adresleri" },
     { id: "files", name: "Yüklenen Dosyalar", description: "Fotokopi dosyaları ve belgeler" },
     { id: "preferences", name: "Tercihler", description: "Hesap ayarları ve kullanıcı tercihleri" },
@@ -270,15 +284,15 @@ const AccountDeletionPage = () => {
                     <span>Sipariş geçmişiniz ve alışveriş verileriniz</span>
                   </li>
                   <li className="flex items-center gap-2">
-                    <CreditCard className="w-4 h-4" />
-                    <span>Ödeme bilgileriniz ve adres bilgileriniz</span>
+                    <Shield className="w-4 h-4" />
+                    <span>Adres bilgileriniz</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <FileText className="w-4 h-4" />
                     <span>Fotokopi dosyalarınız ve diğer yüklediğiniz belgeler</span>
                   </li>
                   <li className="flex items-center gap-2">
-                    <Shield className="w-4 h-4" />
+                    <Settings className="w-4 h-4" />
                     <span>Hesap ayarlarınız ve tercihleriniz</span>
                   </li>
                 </ul>
@@ -286,37 +300,39 @@ const AccountDeletionPage = () => {
             </div>
           </motion.div>
 
-          {/* Hesap Bilgileri */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-700/50 p-6 mb-8"
-          >
-            <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-              <User className="w-5 h-5 text-emerald-400" />
-              Silinecek Hesap Bilgileri
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-center gap-3 p-3 bg-gray-700/50 rounded-xl">
-                <Mail className="w-5 h-5 text-emerald-400" />
-                <div>
-                  <p className="text-sm text-gray-400">E-posta</p>
-                  <p className="text-white font-medium">{user?.email}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-3 bg-gray-700/50 rounded-xl">
+          {/* Hesap Bilgileri - Sadece giriş yapmış kullanıcılar için */}
+          {user && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-700/50 p-6 mb-8"
+            >
+              <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                 <User className="w-5 h-5 text-emerald-400" />
-                <div>
-                  <p className="text-sm text-gray-400">Ad Soyad</p>
-                  <p className="text-white font-medium">{user?.firstName} {user?.lastName}</p>
+                Silinecek Hesap Bilgileri
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-center gap-3 p-3 bg-gray-700/50 rounded-xl">
+                  <Mail className="w-5 h-5 text-emerald-400" />
+                  <div>
+                    <p className="text-sm text-gray-400">E-posta</p>
+                    <p className="text-white font-medium">{user?.email}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 p-3 bg-gray-700/50 rounded-xl">
+                  <User className="w-5 h-5 text-emerald-400" />
+                  <div>
+                    <p className="text-sm text-gray-400">Ad Soyad</p>
+                    <p className="text-white font-medium">{user?.firstName} {user?.lastName}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          </motion.div>
+            </motion.div>
+          )}
 
-          {/* Silme Türü Seçimi */}
-          {!showConfirmation ? (
+          {/* Silme Türü Seçimi - Sadece giriş yapmış kullanıcılar için */}
+          {user && !showConfirmation ? (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -443,7 +459,7 @@ const AccountDeletionPage = () => {
                 </button>
               </div>
             </motion.div>
-          ) : (
+          ) : user && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -539,6 +555,58 @@ const AccountDeletionPage = () => {
           </motion.div>
         </div>
       </div>
+
+      {/* Giriş Modal'ı */}
+      {showLoginModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            className="bg-gray-800 rounded-2xl shadow-2xl border border-gray-700/50 max-w-md w-full p-6"
+          >
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-12 h-12 bg-emerald-500/20 rounded-full flex items-center justify-center">
+                <LogIn className="w-6 h-6 text-emerald-400" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-white">Giriş Yapın</h3>
+                <p className="text-gray-400">Hesap silme işlemi için giriş yapmanız gerekiyor</p>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-gray-300 mb-4">
+                Hesap silme işlemini gerçekleştirmek için önce giriş yapmanız gerekmektedir. 
+                Bu sayfa Google Play Store veri silme politikası gereksinimlerini karşılamak için 
+                herkese açık olarak sunulmaktadır.
+              </p>
+              <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-3">
+                <p className="text-blue-200 text-sm">
+                  <strong>Not:</strong> Bu sayfayı inceleyebilir, ancak hesap silme işlemi için 
+                  giriş yapmanız gerekmektedir.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowLoginModal(false)}
+                className="flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium transition-colors duration-300"
+              >
+                Sayfayı İncele
+              </button>
+              <Link
+                to="/login"
+                className="flex-1 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-medium transition-colors duration-300 flex items-center justify-center gap-2"
+              >
+                <LogIn className="w-4 h-4" />
+                Giriş Yap
+              </Link>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </>
   );
 };
