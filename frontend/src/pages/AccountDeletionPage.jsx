@@ -13,7 +13,13 @@ import {
   Phone,
   CheckCircle,
   X,
-  Loader
+  Loader,
+  Info,
+  Clock,
+  Database,
+  Settings,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
@@ -25,6 +31,8 @@ const AccountDeletionPage = () => {
   const [deletionReason, setDeletionReason] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [deletionType, setDeletionType] = useState("full"); // "full" veya "partial"
+  const [selectedDataTypes, setSelectedDataTypes] = useState([]);
 
   const handleDeleteAccount = async () => {
     if (!deletionReason.trim()) {
@@ -32,16 +40,28 @@ const AccountDeletionPage = () => {
       return;
     }
 
+    if (deletionType === "partial" && selectedDataTypes.length === 0) {
+      toast.error("Lütfen silmek istediğiniz veri türlerini seçin");
+      return;
+    }
+
     setIsDeleting(true);
     try {
       await axios.post('/user/delete-account', {
-        reason: deletionReason
+        reason: deletionReason,
+        deletionType: deletionType,
+        selectedDataTypes: deletionType === "partial" ? selectedDataTypes : null
       });
       
       setShowSuccess(true);
       setTimeout(() => {
-        logout();
-        window.location.href = '/';
+        if (deletionType === "full") {
+          logout();
+          window.location.href = '/';
+        } else {
+          // Kısmi silme durumunda sadece anasayfaya yönlendir
+          window.location.href = '/';
+        }
       }, 3000);
     } catch (error) {
       console.error("Hesap silme hatası:", error);
@@ -59,6 +79,24 @@ const AccountDeletionPage = () => {
     "Teknik sorunlar yaşıyorum",
     "Diğer"
   ];
+
+  const dataTypes = [
+    { id: "personal", name: "Kişisel Bilgiler", description: "Ad, soyad, e-posta, telefon numarası" },
+    { id: "orders", name: "Sipariş Geçmişi", description: "Tüm siparişler ve alışveriş verileri" },
+    { id: "payment", name: "Ödeme Bilgileri", description: "Kart bilgileri ve ödeme geçmişi" },
+    { id: "addresses", name: "Adres Bilgileri", description: "Teslimat adresleri" },
+    { id: "files", name: "Yüklenen Dosyalar", description: "Fotokopi dosyaları ve belgeler" },
+    { id: "preferences", name: "Tercihler", description: "Hesap ayarları ve kullanıcı tercihleri" },
+    { id: "feedback", name: "Geri Bildirimler", description: "Gönderilen geri bildirimler" }
+  ];
+
+  const handleDataTypeToggle = (dataTypeId) => {
+    setSelectedDataTypes(prev => 
+      prev.includes(dataTypeId) 
+        ? prev.filter(id => id !== dataTypeId)
+        : [...prev, dataTypeId]
+    );
+  };
 
   if (showSuccess) {
     return (
@@ -78,9 +116,14 @@ const AccountDeletionPage = () => {
               <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
                 <CheckCircle className="w-8 h-8 text-green-400" />
               </div>
-              <h1 className="text-2xl font-bold text-white mb-4">Hesap Başarıyla Silindi</h1>
+              <h1 className="text-2xl font-bold text-white mb-4">
+                {deletionType === "full" ? "Hesap Başarıyla Silindi" : "Veriler Başarıyla Silindi"}
+              </h1>
               <p className="text-gray-300 mb-6">
-                Hesabınız ve tüm verileriniz başarıyla silindi. Anasayfaya yönlendiriliyorsunuz...
+                {deletionType === "full" 
+                  ? "Hesabınız ve tüm verileriniz başarıyla silindi. Anasayfaya yönlendiriliyorsunuz..."
+                  : "Seçilen verileriniz başarıyla silindi. Anasayfaya yönlendiriliyorsunuz..."
+                }
               </p>
               <div className="flex justify-center">
                 <Loader className="w-6 h-6 animate-spin text-emerald-400" />
@@ -95,8 +138,9 @@ const AccountDeletionPage = () => {
   return (
     <>
       <Helmet>
-        <title>Hesap Silme - Benim Marketim</title>
-        <meta name="description" content="Hesabınızı ve tüm verilerinizi kalıcı olarak silin. Bu işlem geri alınamaz." />
+        <title>Hesap ve Veri Silme - Benim Marketim</title>
+        <meta name="description" content="Benim Marketim uygulamasında hesabınızı ve verilerinizi silin. Google Play Store veri silme politikası uyumlu." />
+        <meta name="robots" content="index, follow" />
       </Helmet>
 
       <div className="min-h-screen pt-24 pb-16 bg-gray-900">
@@ -113,12 +157,12 @@ const AccountDeletionPage = () => {
               </div>
               <div className="text-center md:text-left">
                 <h1 className="text-3xl md:text-5xl font-bold bg-gradient-to-r from-red-400 via-red-500 to-red-600 bg-clip-text text-transparent">
-                  Hesap Silme
+                  Hesap ve Veri Silme
                 </h1>
                 <div className="flex items-center justify-center gap-2 mt-2">
                   <div className="w-8 md:w-12 h-1 bg-gradient-to-r from-red-500 to-red-600 rounded-full"></div>
                   <span className="text-gray-400 text-sm md:text-lg">
-                    Kalıcı Silme
+                    Benim Marketim
                   </span>
                   <div className="w-8 md:w-12 h-1 bg-gradient-to-r from-red-600 to-red-500 rounded-full"></div>
                 </div>
@@ -128,21 +172,85 @@ const AccountDeletionPage = () => {
               </div>
             </div>
             
-            <motion.p 
-              className="text-gray-300 text-lg max-w-2xl mx-auto"
+            <motion.div 
+              className="text-gray-300 text-lg max-w-3xl mx-auto"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.3 }}
             >
-              Hesabınızı ve tüm verilerinizi kalıcı olarak silmek istediğinizden emin misiniz?
-            </motion.p>
+              <p className="mb-4">
+                <strong className="text-white">Benim Marketim</strong> uygulamasında hesabınızı ve verilerinizi silmek için aşağıdaki adımları takip edin.
+              </p>
+              <p className="text-sm text-gray-400">
+                Bu sayfa Google Play Store veri silme politikası gereksinimlerini karşılamak için hazırlanmıştır.
+              </p>
+            </motion.div>
+          </motion.div>
+
+          {/* Kullanıcı Adımları */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="bg-blue-900/20 border border-blue-500/30 rounded-2xl p-6 mb-8"
+          >
+            <div className="flex items-start gap-4">
+              <Info className="w-6 h-6 text-blue-400 flex-shrink-0 mt-1" />
+              <div>
+                <h3 className="text-xl font-bold text-blue-400 mb-3">Hesap Silme Adımları</h3>
+                <p className="text-blue-200 mb-4">
+                  <strong>Benim Marketim</strong> uygulamasında hesabınızı silmek için aşağıdaki adımları takip edin:
+                </p>
+                <ol className="text-blue-200 space-y-2 list-decimal list-inside">
+                  <li>Bu sayfada hesap silme nedeninizi seçin</li>
+                  <li>Tam hesap silme veya kısmi veri silme seçeneğini belirleyin</li>
+                  <li>Kısmi silme seçtiyseniz, silmek istediğiniz veri türlerini işaretleyin</li>
+                  <li>Son onay ekranında işlemi onaylayın</li>
+                  <li>Hesabınız ve seçtiğiniz veriler kalıcı olarak silinecektir</li>
+                </ol>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Veri Türleri ve Saklama Süreleri */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-700/50 p-6 mb-8"
+          >
+            <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <Database className="w-5 h-5 text-emerald-400" />
+              Veri Türleri ve Saklama Süreleri
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {dataTypes.map((dataType) => (
+                <div key={dataType.id} className="p-4 bg-gray-700/50 rounded-xl border border-gray-600/50">
+                  <div className="flex items-start justify-between mb-2">
+                    <h4 className="font-semibold text-white">{dataType.name}</h4>
+                    <Clock className="w-4 h-4 text-gray-400" />
+                  </div>
+                  <p className="text-sm text-gray-300 mb-2">{dataType.description}</p>
+                  <p className="text-xs text-gray-400">
+                    <strong>Saklama Süresi:</strong> Hesap silinene kadar
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 p-3 bg-yellow-900/20 border border-yellow-500/30 rounded-xl">
+              <p className="text-yellow-200 text-sm">
+                <strong>Not:</strong> Yasal yükümlülükler gereği, bazı veriler (örneğin fatura bilgileri) 
+                muhasebe kayıtları için belirli süreler boyunca saklanabilir. Bu veriler kişisel olarak 
+                tanımlanamaz hale getirilir.
+              </p>
+            </div>
           </motion.div>
 
           {/* Uyarı Kutusu */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
+            transition={{ delay: 0.2 }}
             className="bg-red-900/20 border border-red-500/30 rounded-2xl p-6 mb-8"
           >
             <div className="flex items-start gap-4">
@@ -207,7 +315,7 @@ const AccountDeletionPage = () => {
             </div>
           </motion.div>
 
-          {/* Silme Nedeni */}
+          {/* Silme Türü Seçimi */}
           {!showConfirmation ? (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -216,25 +324,106 @@ const AccountDeletionPage = () => {
               className="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-700/50 p-8"
             >
               <h3 className="text-2xl font-bold text-white mb-6">
-                Hesap Silme Nedeni
+                Silme Türü Seçimi
               </h3>
               <p className="text-gray-300 mb-6">
-                Lütfen hesabınızı silme nedeninizi belirtin. Bu bilgi, hizmetimizi geliştirmemize yardımcı olacaktır.
+                Hesabınızı tamamen silmek veya sadece belirli verilerinizi silmek arasında seçim yapabilirsiniz.
               </p>
               
-              <div className="space-y-3 mb-6">
-                {deletionReasons.map((reason, index) => (
-                  <label key={index} className="flex items-center gap-3 p-4 bg-gray-700/50 rounded-xl cursor-pointer hover:bg-gray-700/70 transition-colors">
-                    <input
-                      type="radio"
-                      name="reason"
-                      value={reason}
-                      onChange={(e) => setDeletionReason(e.target.value)}
-                      className="w-4 h-4 text-red-500"
-                    />
-                    <span className="text-white">{reason}</span>
-                  </label>
-                ))}
+              {/* Silme Türü Seçenekleri */}
+              <div className="space-y-4 mb-8">
+                <label className="flex items-start gap-4 p-4 bg-gray-700/50 rounded-xl cursor-pointer hover:bg-gray-700/70 transition-colors border-2 border-transparent hover:border-red-500/30">
+                  <input
+                    type="radio"
+                    name="deletionType"
+                    value="full"
+                    checked={deletionType === "full"}
+                    onChange={(e) => setDeletionType(e.target.value)}
+                    className="w-4 h-4 text-red-500 mt-1"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Trash2 className="w-5 h-5 text-red-400" />
+                      <span className="text-white font-semibold">Tam Hesap Silme</span>
+                    </div>
+                    <p className="text-gray-300 text-sm">
+                      Hesabınızı ve tüm verilerinizi kalıcı olarak siler. Bu işlem geri alınamaz.
+                    </p>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-4 p-4 bg-gray-700/50 rounded-xl cursor-pointer hover:bg-gray-700/70 transition-colors border-2 border-transparent hover:border-orange-500/30">
+                  <input
+                    type="radio"
+                    name="deletionType"
+                    value="partial"
+                    checked={deletionType === "partial"}
+                    onChange={(e) => setDeletionType(e.target.value)}
+                    className="w-4 h-4 text-orange-500 mt-1"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Settings className="w-5 h-5 text-orange-400" />
+                      <span className="text-white font-semibold">Kısmi Veri Silme</span>
+                    </div>
+                    <p className="text-gray-300 text-sm">
+                      Sadece seçtiğiniz veri türlerini siler. Hesabınız aktif kalır.
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              {/* Kısmi Veri Silme Seçenekleri */}
+              {deletionType === "partial" && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  className="mb-6"
+                >
+                  <h4 className="text-lg font-semibold text-white mb-4">
+                    Silmek İstediğiniz Veri Türlerini Seçin
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {dataTypes.map((dataType) => (
+                      <label key={dataType.id} className="flex items-start gap-3 p-3 bg-gray-700/30 rounded-lg cursor-pointer hover:bg-gray-700/50 transition-colors border border-gray-600/30">
+                        <input
+                          type="checkbox"
+                          checked={selectedDataTypes.includes(dataType.id)}
+                          onChange={() => handleDataTypeToggle(dataType.id)}
+                          className="w-4 h-4 text-orange-500 mt-1"
+                        />
+                        <div className="flex-1">
+                          <span className="text-white text-sm font-medium">{dataType.name}</span>
+                          <p className="text-gray-400 text-xs">{dataType.description}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Silme Nedeni */}
+              <div className="mb-6">
+                <h4 className="text-lg font-semibold text-white mb-4">
+                  Silme Nedeni
+                </h4>
+                <p className="text-gray-300 mb-4 text-sm">
+                  Lütfen silme nedeninizi belirtin. Bu bilgi, hizmetimizi geliştirmemize yardımcı olacaktır.
+                </p>
+                <div className="space-y-2">
+                  {deletionReasons.map((reason, index) => (
+                    <label key={index} className="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg cursor-pointer hover:bg-gray-700/50 transition-colors">
+                      <input
+                        type="radio"
+                        name="reason"
+                        value={reason}
+                        onChange={(e) => setDeletionReason(e.target.value)}
+                        className="w-4 h-4 text-red-500"
+                      />
+                      <span className="text-white text-sm">{reason}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4">
@@ -250,7 +439,7 @@ const AccountDeletionPage = () => {
                   className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-medium transition-colors duration-300 flex items-center justify-center gap-2"
                 >
                   <Trash2 className="w-4 h-4" />
-                  Hesabı Sil
+                  {deletionType === "full" ? "Hesabı Sil" : "Verileri Sil"}
                 </button>
               </div>
             </motion.div>
@@ -271,9 +460,25 @@ const AccountDeletionPage = () => {
               </div>
 
               <div className="bg-red-900/20 border border-red-500/30 rounded-xl p-4 mb-6">
-                <p className="text-red-200 text-sm">
+                <p className="text-red-200 text-sm mb-2">
+                  <strong>Silme türü:</strong> {deletionType === "full" ? "Tam Hesap Silme" : "Kısmi Veri Silme"}
+                </p>
+                <p className="text-red-200 text-sm mb-2">
                   <strong>Seçilen neden:</strong> {deletionReason}
                 </p>
+                {deletionType === "partial" && selectedDataTypes.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-red-200 text-sm mb-1">
+                      <strong>Silinecek veri türleri:</strong>
+                    </p>
+                    <ul className="text-red-200 text-xs list-disc list-inside">
+                      {selectedDataTypes.map(dataTypeId => {
+                        const dataType = dataTypes.find(dt => dt.id === dataTypeId);
+                        return <li key={dataTypeId}>{dataType?.name}</li>;
+                      })}
+                    </ul>
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4">
@@ -291,12 +496,12 @@ const AccountDeletionPage = () => {
                   {isDeleting ? (
                     <>
                       <Loader className="w-4 h-4 animate-spin" />
-                      Siliniyor...
+                      {deletionType === "full" ? "Hesap Siliniyor..." : "Veriler Siliniyor..."}
                     </>
                   ) : (
                     <>
                       <Trash2 className="w-4 h-4" />
-                      Hesabı Kalıcı Olarak Sil
+                      {deletionType === "full" ? "Hesabı Kalıcı Olarak Sil" : "Seçilen Verileri Sil"}
                     </>
                   )}
                 </button>
