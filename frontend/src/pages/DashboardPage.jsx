@@ -17,10 +17,53 @@ import {
   FileSpreadsheet,
   Download,
   ThumbsUp,
-  ThumbsDown
+  ThumbsDown,
+  Monitor,
+  Smartphone,
+  Tablet
 } from "lucide-react";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
+
+// Device type helper functions
+const getDeviceIcon = (deviceType) => {
+  switch (deviceType) {
+    case 'desktop':
+      return <Monitor className="w-4 h-4" />;
+    case 'mobile':
+      return <Smartphone className="w-4 h-4" />;
+    case 'tablet':
+      return <Tablet className="w-4 h-4" />;
+    default:
+      return <Monitor className="w-4 h-4" />;
+  }
+};
+
+const getDeviceName = (deviceType) => {
+  switch (deviceType) {
+    case 'desktop':
+      return 'Bilgisayar';
+    case 'mobile':
+      return 'Telefon';
+    case 'tablet':
+      return 'Tablet';
+    default:
+      return 'Bilinmiyor';
+  }
+};
+
+const getDeviceColor = (deviceType) => {
+  switch (deviceType) {
+    case 'desktop':
+      return 'text-blue-400 bg-blue-500/20 border-blue-500/30';
+    case 'mobile':
+      return 'text-green-400 bg-green-500/20 border-green-500/30';
+    case 'tablet':
+      return 'text-purple-400 bg-purple-500/20 border-purple-500/30';
+    default:
+      return 'text-gray-400 bg-gray-500/20 border-gray-500/30';
+  }
+};
 
 const DashboardPage = () => {
   const [activeTab, setActiveTab] = useState("products");
@@ -387,6 +430,19 @@ const DashboardPage = () => {
                         <div>
                           <h3 className="text-lg font-medium text-white">{user.name}</h3>
                           <p className="text-sm text-gray-400">{user.email}</p>
+                          {user.deviceType && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${getDeviceColor(user.deviceType)}`}>
+                                {getDeviceIcon(user.deviceType)}
+                                {getDeviceName(user.deviceType)}
+                              </span>
+                              {user.lastDeviceType && user.lastDeviceType !== user.deviceType && (
+                                <span className="text-gray-500 text-xs">
+                                  (Önceki: {getDeviceName(user.lastDeviceType)})
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
