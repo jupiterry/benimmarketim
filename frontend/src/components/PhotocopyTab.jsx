@@ -75,12 +75,12 @@ const PhotocopyTab = () => {
     }
   };
 
-  // Dosya silme
+  // Dosya silme (Admin)
   const deleteFile = async (fileId) => {
     if (!window.confirm("Bu dosyayı silmek istediğinizden emin misiniz?")) return;
 
     try {
-      await axios.delete(`/photocopy/${fileId}`);
+      await axios.delete(`/photocopy/admin/${fileId}`);
       toast.success("Dosya silindi");
       fetchFiles();
     } catch (error) {

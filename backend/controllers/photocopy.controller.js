@@ -315,3 +315,39 @@ export const updateFileStatus = async (req, res) => {
     });
   }
 };
+
+// Admin: Delete file
+export const adminDeleteFile = async (req, res) => {
+  try {
+    const { fileId } = req.params;
+
+    const photocopy = await Photocopy.findById(fileId);
+
+    if (!photocopy) {
+      return res.status(404).json({
+        success: false,
+        message: "Dosya bulunamadı"
+      });
+    }
+
+    // Delete file from filesystem
+    if (fs.existsSync(photocopy.filePath)) {
+      fs.unlinkSync(photocopy.filePath);
+    }
+
+    // Delete from database
+    await Photocopy.findByIdAndDelete(fileId);
+
+    res.json({
+      success: true,
+      message: "Dosya başarıyla silindi"
+    });
+  } catch (error) {
+    console.error("Admin delete error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Dosya silinirken hata oluştu",
+      error: error.message
+    });
+  }
+};

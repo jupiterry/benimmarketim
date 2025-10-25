@@ -8,7 +8,8 @@ import {
   deleteFile,
   getAllFiles,
   getStats,
-  updateFileStatus
+  updateFileStatus,
+  adminDeleteFile
 } from "../controllers/photocopy.controller.js";
 
 const router = express.Router();
@@ -23,5 +24,6 @@ router.delete("/:fileId", protectRoute, deleteFile);
 router.get("/admin/all", protectRoute, adminRoute, getAllFiles);
 router.get("/admin/stats", protectRoute, adminRoute, getStats);
 router.put("/admin/:fileId", protectRoute, adminRoute, updateFileStatus);
+router.delete("/admin/:fileId", protectRoute, adminRoute, adminDeleteFile);
 
 export default router;
