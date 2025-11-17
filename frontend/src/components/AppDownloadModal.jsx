@@ -23,10 +23,8 @@ const AppDownloadModal = () => {
       const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
       setIsIOS(isIOSDevice);
       
-      // Mobil cihazlarda otomatik göster
-      if (detected === "mobile" || detected === "tablet") {
-        setIsOpen(true);
-      }
+      // Tüm cihazlarda göster (mobil, tablet ve desktop)
+      setIsOpen(true);
     }
   }, []);
 
@@ -36,10 +34,8 @@ const AppDownloadModal = () => {
   };
 
   const handleDownload = () => {
-    // Android cihazlarda Play Store'a yönlendir
-    if (!isIOS) {
-      window.open(PLAY_STORE_URL, "_blank");
-    }
+    // Tüm cihazlarda Play Store'a yönlendir
+    window.open(PLAY_STORE_URL, "_blank");
     handleClose();
   };
 
@@ -142,21 +138,22 @@ const AppDownloadModal = () => {
                       <motion.button
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
-                        onClick={handleIOSContinue}
+                        onClick={handleDownload}
                         className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-3 shadow-xl transition-all duration-300"
                       >
-                        <Apple className="w-5 h-5" />
-                        <span>iOS Kullanıcısıyım, Web'de Devam Et</span>
+                        <Download className="w-5 h-5" />
+                        <span>Google Play Store'de Aç</span>
+                        <ExternalLink className="w-4 h-4" />
                       </motion.button>
                       
                       <motion.button
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
-                        onClick={handleDownload}
+                        onClick={handleIOSContinue}
                         className="w-full bg-white/10 hover:bg-white/20 border border-white/30 text-white font-semibold py-3 px-6 rounded-xl flex items-center justify-center gap-2 transition-all duration-300"
                       >
-                        <span>Yine de Play Store'u Aç</span>
-                        <ExternalLink className="w-4 h-4" />
+                        <Apple className="w-5 h-5" />
+                        <span>iOS Kullanıcısıyım, Web'de Devam Et</span>
                       </motion.button>
                     </>
                   )}

@@ -222,6 +222,95 @@ const HomePage = () => {
 				</motion.div>
 			</div>
 
+			{/* Mobil Uygulama Banner */}
+			<motion.div
+				initial={{ opacity: 0, y: 30 }}
+				animate={{ opacity: 1, y: 0 }}
+				transition={{ delay: 0.3, duration: 0.8 }}
+				className="relative bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 py-8 sm:py-12 overflow-hidden"
+			>
+				{/* Arka Plan Dekorasyonları */}
+				<div className="absolute inset-0 opacity-20">
+					<div className="absolute top-0 left-0 w-64 h-64 bg-white rounded-full blur-3xl"></div>
+					<div className="absolute bottom-0 right-0 w-64 h-64 bg-white rounded-full blur-3xl"></div>
+				</div>
+
+				<div className="container mx-auto px-4 relative z-10">
+					<div className="flex flex-col md:flex-row items-center justify-between gap-6">
+						{/* Sol Taraf - İçerik */}
+						<div className="flex-1 text-center md:text-left">
+							<motion.div
+								initial={{ opacity: 0, x: -20 }}
+								animate={{ opacity: 1, x: 0 }}
+								transition={{ delay: 0.4 }}
+								className="flex items-center justify-center md:justify-start gap-3 mb-4"
+							>
+								<div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+									<Smartphone className="w-8 h-8 text-white" />
+								</div>
+								<h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white">
+									📱 Mobil Uygulamamız Çıktı!
+								</h2>
+							</motion.div>
+							<motion.p
+								initial={{ opacity: 0, x: -20 }}
+								animate={{ opacity: 1, x: 0 }}
+								transition={{ delay: 0.5 }}
+								className="text-white/90 text-lg sm:text-xl mb-4 leading-relaxed"
+							>
+								Artık <span className="font-bold text-white">Benim Marketim</span> mobil uygulamasından 
+								sipariş verebilirsiniz! Daha hızlı, daha kolay ve daha pratik alışveriş deneyimi.
+							</motion.p>
+							<motion.div
+								initial={{ opacity: 0, x: -20 }}
+								animate={{ opacity: 1, x: 0 }}
+								transition={{ delay: 0.6 }}
+								className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-sm sm:text-base text-white/80"
+							>
+								<div className="flex items-center gap-2">
+									<span>⚡</span>
+									<span>Daha Hızlı</span>
+								</div>
+								<div className="flex items-center gap-2">
+									<span>🔔</span>
+									<span>Anlık Bildirimler</span>
+								</div>
+								<div className="flex items-center gap-2">
+									<span>💳</span>
+									<span>Kolay Ödeme</span>
+								</div>
+								<div className="flex items-center gap-2">
+									<span>📦</span>
+									<span>Sipariş Takibi</span>
+								</div>
+							</motion.div>
+						</div>
+
+						{/* Sağ Taraf - Buton */}
+						<motion.div
+							initial={{ opacity: 0, x: 20 }}
+							animate={{ opacity: 1, x: 0 }}
+							transition={{ delay: 0.5 }}
+							className="flex-shrink-0"
+						>
+							<a
+								href="https://play.google.com/store/apps/details?id=com.jupi.benimapp.benimmarketim_app&hl=tr"
+								target="_blank"
+								rel="noopener noreferrer"
+								className="inline-flex items-center gap-3 bg-white text-emerald-600 font-bold px-6 sm:px-8 py-4 sm:py-5 rounded-xl hover:bg-emerald-50 transition-all duration-300 shadow-2xl hover:shadow-emerald-500/50 hover:scale-105"
+							>
+								<Download className="w-5 h-5 sm:w-6 sm:h-6" />
+								<span className="text-base sm:text-lg">Play Store'dan İndir</span>
+								<ExternalLink className="w-4 h-4 sm:w-5 sm:h-5" />
+							</a>
+						</motion.div>
+					</div>
+				</div>
+
+				{/* Alt Dekoratif Çizgi */}
+				<div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-white/30 to-transparent"></div>
+			</motion.div>
+
 			{/* Kategoriler */}
 			<div ref={categoriesRef} className="py-16 bg-gray-900">
 				<div className="container mx-auto px-4">

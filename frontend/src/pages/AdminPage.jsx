@@ -1,4 +1,4 @@
-import { BarChart, PlusCircle, ShoppingBasket, Upload, Users, Package2, MessageSquare, Settings, LayoutDashboard, Bell, AlertCircle } from "lucide-react";
+import { BarChart, PlusCircle, ShoppingBasket, Upload, Users, Package2, MessageSquare, Settings, LayoutDashboard, Bell, AlertCircle, Image } from "lucide-react";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "../lib/axios";
@@ -14,6 +14,7 @@ import SettingsTab from "../components/SettingsTab";
 import DashboardWidgets from "../components/DashboardWidgets";
 import UsersTab from "../components/UsersTab";
 import PhotocopyTab from "../components/PhotocopyTab";
+import BannerTab from "../components/BannerTab";
 
 const AdminPage = () => {
   const [activeTab, setActiveTab] = useState("products");
@@ -188,6 +189,12 @@ const AdminPage = () => {
       label: "Fotokopi",
       icon: <Package2 className="w-5 h-5" />,
       component: <PhotocopyTab />
+    },
+    {
+      id: "banners",
+      label: "Banner'lar",
+      icon: <Image className="w-5 h-5" />,
+      component: <BannerTab />
     },
     {
       id: "settings",
