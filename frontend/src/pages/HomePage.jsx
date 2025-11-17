@@ -1,9 +1,10 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import CategoryItem from "../components/CategoryItem";
 import { useProductStore } from "../stores/useProductStore";
 import FeaturedProducts from "../components/FeaturedProducts";
 import { motion } from "framer-motion";
-import { ShoppingCart, Sparkles, TrendingUp, Clock, Gift } from "lucide-react";
+import { ShoppingCart, Sparkles, TrendingUp, Clock, Gift, Smartphone, Download, Apple, X, ExternalLink } from "lucide-react";
+import { detectDeviceType } from "../lib/deviceDetection";
 
 const categories = [
 	{ href: "/kahve", name: "Benim Kahvem", imageUrl: "/kahve.png" },

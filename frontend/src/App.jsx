@@ -32,6 +32,7 @@ import FAQPage from "./pages/FAQPage";
 import KVKKPage from "./pages/KVKKPage";
 import AccountDeletionPage from "./pages/AccountDeletionPage";
 import ScrollToTop from "./components/ScrollToTop";
+import AppDownloadModal from "./components/AppDownloadModal";
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useUserStore();
@@ -131,6 +132,7 @@ function App() {
 
         <Footer />
         <Toaster />
+        <AppDownloadModal />
       </div>
     </HelmetProvider>
   );
