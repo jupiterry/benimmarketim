@@ -227,88 +227,94 @@ const HomePage = () => {
 				initial={{ opacity: 0, y: 30 }}
 				animate={{ opacity: 1, y: 0 }}
 				transition={{ delay: 0.3, duration: 0.8 }}
-				className="relative bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 py-8 sm:py-12 overflow-hidden"
+				className="relative bg-gradient-to-br from-emerald-500 via-teal-500 to-emerald-600 py-10 sm:py-14 overflow-hidden"
 			>
 				{/* Arka Plan Dekorasyonları */}
-				<div className="absolute inset-0 opacity-20">
-					<div className="absolute top-0 left-0 w-64 h-64 bg-white rounded-full blur-3xl"></div>
-					<div className="absolute bottom-0 right-0 w-64 h-64 bg-white rounded-full blur-3xl"></div>
+				<div className="absolute inset-0 opacity-10">
+					<div className="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl"></div>
+					<div className="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl"></div>
 				</div>
 
-				<div className="container mx-auto px-4 relative z-10">
-					<div className="flex flex-col md:flex-row items-center justify-between gap-6">
-						{/* Sol Taraf - İçerik */}
-						<div className="flex-1 text-center md:text-left">
+				<div className="container mx-auto px-4 sm:px-6 relative z-10">
+					<div className="max-w-6xl mx-auto">
+						<div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-12">
+							{/* Sol Taraf - İçerik */}
+							<div className="flex-1 text-center lg:text-left w-full">
+								<motion.div
+									initial={{ opacity: 0, y: 20 }}
+									animate={{ opacity: 1, y: 0 }}
+									transition={{ delay: 0.4 }}
+									className="mb-6"
+								>
+									<div className="inline-flex items-center gap-3 mb-4">
+										<div className="w-14 h-14 sm:w-16 sm:h-16 bg-white/25 backdrop-blur-md rounded-2xl flex items-center justify-center shadow-lg">
+											<Smartphone className="w-7 h-7 sm:w-8 sm:h-8 text-white" />
+										</div>
+										<h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight">
+											Mobil Uygulamamız Çıktı!
+										</h2>
+									</div>
+								</motion.div>
+								
+								<motion.p
+									initial={{ opacity: 0, y: 20 }}
+									animate={{ opacity: 1, y: 0 }}
+									transition={{ delay: 0.5 }}
+									className="text-white/95 text-base sm:text-lg lg:text-xl mb-6 leading-relaxed max-w-2xl mx-auto lg:mx-0"
+								>
+									Artık <span className="font-bold text-white">Benim Marketim</span> mobil uygulamasından 
+									sipariş verebilirsiniz! Daha hızlı, daha kolay ve daha pratik alışveriş deneyimi.
+								</motion.p>
+								
+								<motion.div
+									initial={{ opacity: 0, y: 20 }}
+									animate={{ opacity: 1, y: 0 }}
+									transition={{ delay: 0.6 }}
+									className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 max-w-xl mx-auto lg:mx-0"
+								>
+									<div className="flex flex-col items-center lg:items-start gap-1.5 bg-white/10 backdrop-blur-sm rounded-lg p-3 border border-white/20">
+										<span className="text-2xl">⚡</span>
+										<span className="text-white text-xs sm:text-sm font-medium">Daha Hızlı</span>
+									</div>
+									<div className="flex flex-col items-center lg:items-start gap-1.5 bg-white/10 backdrop-blur-sm rounded-lg p-3 border border-white/20">
+										<span className="text-2xl">🔔</span>
+										<span className="text-white text-xs sm:text-sm font-medium">Anlık Bildirimler</span>
+									</div>
+									<div className="flex flex-col items-center lg:items-start gap-1.5 bg-white/10 backdrop-blur-sm rounded-lg p-3 border border-white/20">
+										<span className="text-2xl">💳</span>
+										<span className="text-white text-xs sm:text-sm font-medium">Kolay Ödeme</span>
+									</div>
+									<div className="flex flex-col items-center lg:items-start gap-1.5 bg-white/10 backdrop-blur-sm rounded-lg p-3 border border-white/20">
+										<span className="text-2xl">📦</span>
+										<span className="text-white text-xs sm:text-sm font-medium">Sipariş Takibi</span>
+									</div>
+								</motion.div>
+							</div>
+
+							{/* Sağ Taraf - Buton */}
 							<motion.div
-								initial={{ opacity: 0, x: -20 }}
-								animate={{ opacity: 1, x: 0 }}
-								transition={{ delay: 0.4 }}
-								className="flex items-center justify-center md:justify-start gap-3 mb-4"
-							>
-								<div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
-									<Smartphone className="w-8 h-8 text-white" />
-								</div>
-								<h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white">
-									📱 Mobil Uygulamamız Çıktı!
-								</h2>
-							</motion.div>
-							<motion.p
-								initial={{ opacity: 0, x: -20 }}
-								animate={{ opacity: 1, x: 0 }}
+								initial={{ opacity: 0, scale: 0.9 }}
+								animate={{ opacity: 1, scale: 1 }}
 								transition={{ delay: 0.5 }}
-								className="text-white/90 text-lg sm:text-xl mb-4 leading-relaxed"
+								className="flex-shrink-0 w-full lg:w-auto"
 							>
-								Artık <span className="font-bold text-white">Benim Marketim</span> mobil uygulamasından 
-								sipariş verebilirsiniz! Daha hızlı, daha kolay ve daha pratik alışveriş deneyimi.
-							</motion.p>
-							<motion.div
-								initial={{ opacity: 0, x: -20 }}
-								animate={{ opacity: 1, x: 0 }}
-								transition={{ delay: 0.6 }}
-								className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-sm sm:text-base text-white/80"
-							>
-								<div className="flex items-center gap-2">
-									<span>⚡</span>
-									<span>Daha Hızlı</span>
-								</div>
-								<div className="flex items-center gap-2">
-									<span>🔔</span>
-									<span>Anlık Bildirimler</span>
-								</div>
-								<div className="flex items-center gap-2">
-									<span>💳</span>
-									<span>Kolay Ödeme</span>
-								</div>
-								<div className="flex items-center gap-2">
-									<span>📦</span>
-									<span>Sipariş Takibi</span>
-								</div>
+								<a
+									href="https://play.google.com/store/apps/details?id=com.jupi.benimapp.benimmarketim_app&hl=tr"
+									target="_blank"
+									rel="noopener noreferrer"
+									className="inline-flex items-center justify-center gap-3 bg-white text-emerald-600 font-bold px-8 py-4 sm:px-10 sm:py-5 rounded-2xl hover:bg-emerald-50 transition-all duration-300 shadow-2xl hover:shadow-emerald-500/50 hover:scale-105 w-full lg:w-auto"
+								>
+									<Download className="w-5 h-5 sm:w-6 sm:h-6" />
+									<span className="text-base sm:text-lg">Play Store'dan İndir</span>
+									<ExternalLink className="w-4 h-4 sm:w-5 sm:h-5" />
+								</a>
 							</motion.div>
 						</div>
-
-						{/* Sağ Taraf - Buton */}
-						<motion.div
-							initial={{ opacity: 0, x: 20 }}
-							animate={{ opacity: 1, x: 0 }}
-							transition={{ delay: 0.5 }}
-							className="flex-shrink-0"
-						>
-							<a
-								href="https://play.google.com/store/apps/details?id=com.jupi.benimapp.benimmarketim_app&hl=tr"
-								target="_blank"
-								rel="noopener noreferrer"
-								className="inline-flex items-center gap-3 bg-white text-emerald-600 font-bold px-6 sm:px-8 py-4 sm:py-5 rounded-xl hover:bg-emerald-50 transition-all duration-300 shadow-2xl hover:shadow-emerald-500/50 hover:scale-105"
-							>
-								<Download className="w-5 h-5 sm:w-6 sm:h-6" />
-								<span className="text-base sm:text-lg">Play Store'dan İndir</span>
-								<ExternalLink className="w-4 h-4 sm:w-5 sm:h-5" />
-							</a>
-						</motion.div>
 					</div>
 				</div>
 
 				{/* Alt Dekoratif Çizgi */}
-				<div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-white/30 to-transparent"></div>
+				<div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-white/40 to-transparent"></div>
 			</motion.div>
 
 			{/* Kategoriler */}
