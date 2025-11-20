@@ -1,4 +1,4 @@
-import { BarChart, PlusCircle, ShoppingBasket, Upload, Users, Package2, MessageSquare, Settings, LayoutDashboard, Bell, AlertCircle, Image } from "lucide-react";
+import { BarChart, PlusCircle, ShoppingBasket, Upload, Users, Package2, MessageSquare, Settings, LayoutDashboard, Bell, AlertCircle, Image, Replace } from "lucide-react";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "../lib/axios";
@@ -15,6 +15,7 @@ import DashboardWidgets from "../components/DashboardWidgets";
 import UsersTab from "../components/UsersTab";
 import PhotocopyTab from "../components/PhotocopyTab";
 import BannerTab from "../components/BannerTab";
+import BulkTextReplaceTab from "../components/BulkTextReplaceTab";
 
 const AdminPage = () => {
   const [activeTab, setActiveTab] = useState("products");
@@ -177,6 +178,12 @@ const AdminPage = () => {
         </label>
         </div>
       </motion.div>
+    },
+    {
+      id: "bulk-text-replace",
+      label: "Metin Değiştir",
+      icon: <Replace className="w-5 h-5" />,
+      component: <BulkTextReplaceTab />
     },
     {
       id: "feedback",
