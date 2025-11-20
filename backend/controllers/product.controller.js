@@ -18,6 +18,34 @@ export const getAllProducts = async (req, res) => {
 
 export const getFeaturedProducts = async (req, res) => {
   try {
+    // Offline Sync Support: Check If-Modified-Since header
+    const ifModifiedSince = req.headers['if-modified-since'];
+    if (ifModifiedSince) {
+      const modifiedSinceDate = new Date(ifModifiedSince);
+      
+      // Get the latest featured product update time
+      const latestProduct = await Product.findOne({
+        $or: [
+          { isDiscounted: true, isHidden: false },
+          { isFeatured: true, isHidden: false }
+        ]
+      })
+        .sort({ updatedAt: -1 })
+        .select('updatedAt')
+        .lean();
+
+      if (latestProduct && latestProduct.updatedAt) {
+        const lastModified = new Date(latestProduct.updatedAt);
+        
+        // If data hasn't changed, return 304 Not Modified
+        if (lastModified <= modifiedSinceDate) {
+          res.setHeader('Last-Modified', lastModified.toUTCString());
+          res.setHeader('ETag', `"${lastModified.getTime()}"`);
+          return res.status(304).end();
+        }
+      }
+    }
+
     // Önce indirimli ürünleri getir
     const discountedProducts = await Product.find({
       isDiscounted: true,
@@ -33,6 +61,30 @@ export const getFeaturedProducts = async (req, res) => {
 
     // Tüm ürünleri birleştir (önce indirimli sonra öne çıkan)
     const allFeaturedProducts = [...discountedProducts, ...featuredProducts];
+
+    // Get the latest update time for Last-Modified header
+    const latestProduct = await Product.findOne({
+      $or: [
+        { isDiscounted: true, isHidden: false },
+        { isFeatured: true, isHidden: false }
+      ]
+    })
+      .sort({ updatedAt: -1 })
+      .select('updatedAt')
+      .lean();
+
+    const lastModified = latestProduct?.updatedAt 
+      ? new Date(latestProduct.updatedAt).toUTCString()
+      : new Date().toUTCString();
+    
+    const etag = latestProduct?.updatedAt
+      ? `"${new Date(latestProduct.updatedAt).getTime()}"`
+      : `"${Date.now()}"`;
+
+    // Set caching headers
+    res.setHeader('Last-Modified', lastModified);
+    res.setHeader('ETag', etag);
+    res.setHeader('Cache-Control', 'private, max-age=300'); // 5 minutes cache
 
     // Tutarlı response yapısı için her zaman aynı formatı döndür
     res.json({
@@ -204,6 +256,29 @@ export const getProducts = async (req, res) => {
       query.name = { $regex: new RegExp(search, "i") }; // Case-insensitive arama
     }
 
+    // Offline Sync Support: Check If-Modified-Since header
+    const ifModifiedSince = req.headers['if-modified-since'];
+    if (ifModifiedSince) {
+      const modifiedSinceDate = new Date(ifModifiedSince);
+      
+      // Get the latest product update time
+      const latestProduct = await Product.findOne(query)
+        .sort({ updatedAt: -1 })
+        .select('updatedAt')
+        .lean();
+
+      if (latestProduct && latestProduct.updatedAt) {
+        const lastModified = new Date(latestProduct.updatedAt);
+        
+        // If data hasn't changed, return 304 Not Modified
+        if (lastModified <= modifiedSinceDate) {
+          res.setHeader('Last-Modified', lastModified.toUTCString());
+          res.setHeader('ETag', `"${lastModified.getTime()}"`);
+          return res.status(304).end();
+        }
+      }
+    }
+
     // Toplam ürün sayısını al
     const total = await Product.countDocuments(query);
 
@@ -214,6 +289,25 @@ export const getProducts = async (req, res) => {
       .limit(Number(limit));
 
     console.log(`Products fetched: ${products.length}, Page: ${page}, Total: ${total}`);
+
+    // Get the latest update time for Last-Modified header
+    const latestProduct = await Product.findOne(query)
+      .sort({ updatedAt: -1 })
+      .select('updatedAt')
+      .lean();
+
+    const lastModified = latestProduct?.updatedAt 
+      ? new Date(latestProduct.updatedAt).toUTCString()
+      : new Date().toUTCString();
+    
+    const etag = latestProduct?.updatedAt
+      ? `"${new Date(latestProduct.updatedAt).getTime()}"`
+      : `"${Date.now()}"`;
+
+    // Set caching headers
+    res.setHeader('Last-Modified', lastModified);
+    res.setHeader('ETag', etag);
+    res.setHeader('Cache-Control', 'private, max-age=300'); // 5 minutes cache
     
     res.status(200).json({ 
       products,
@@ -617,5 +711,82 @@ export const bulkAddFlashSale = async (req, res) => {
   } catch (error) {
     console.error("Toplu flash sale hatası:", error);
     res.status(500).json({ message: "İşlem başarısız" });
+  }
+};
+
+// Similar Products Endpoint
+export const getSimilarProducts = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const limit = parseInt(req.query.limit) || 10;
+
+    // Get the current product
+    const currentProduct = await Product.findById(id);
+    if (!currentProduct) {
+      return res.status(404).json({ success: false, message: "Ürün bulunamadı" });
+    }
+
+    // Calculate price range (±20%)
+    const priceRange = {
+      min: currentProduct.price * 0.8,
+      max: currentProduct.price * 1.2,
+    };
+
+    // If product has discounted price, use that for range calculation
+    if (currentProduct.isDiscounted && currentProduct.discountedPrice) {
+      priceRange.min = currentProduct.discountedPrice * 0.8;
+      priceRange.max = currentProduct.discountedPrice * 1.2;
+    }
+
+    // Build query for similar products
+    const query = {
+      _id: { $ne: id }, // Exclude current product
+      isHidden: false, // Only visible products
+    };
+
+    // Find similar products
+    // Priority: 1. Same category, 2. Similar price range
+    const similarProducts = await Product.find({
+      ...query,
+      category: currentProduct.category,
+      price: { $gte: priceRange.min, $lte: priceRange.max },
+    })
+      .limit(limit)
+      .sort({ isFeatured: -1, order: 1, createdAt: -1 });
+
+    // If we don't have enough products, fill with same category regardless of price
+    if (similarProducts.length < limit) {
+      const additionalProducts = await Product.find({
+        ...query,
+        category: currentProduct.category,
+        _id: { $nin: [...similarProducts.map(p => p._id), id] },
+      })
+        .limit(limit - similarProducts.length)
+        .sort({ isFeatured: -1, order: 1, createdAt: -1 });
+
+      similarProducts.push(...additionalProducts);
+    }
+
+    // If still not enough, fill with any products in similar price range
+    if (similarProducts.length < limit) {
+      const priceRangeProducts = await Product.find({
+        ...query,
+        price: { $gte: priceRange.min, $lte: priceRange.max },
+        _id: { $nin: [...similarProducts.map(p => p._id), id] },
+      })
+        .limit(limit - similarProducts.length)
+        .sort({ isFeatured: -1, order: 1, createdAt: -1 });
+
+      similarProducts.push(...priceRangeProducts);
+    }
+
+    res.status(200).json({
+      success: true,
+      products: similarProducts,
+      count: similarProducts.length,
+    });
+  } catch (error) {
+    console.error("Error in getSimilarProducts:", error);
+    res.status(500).json({ success: false, message: "Benzer ürünler getirilirken hata oluştu" });
   }
 };

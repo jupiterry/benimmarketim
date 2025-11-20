@@ -25,6 +25,7 @@ import {
   bulkUpdateVisibility,
   bulkUpdatePrice,
   bulkAddFlashSale,
+  getSimilarProducts,
 } from "../controllers/product.controller.js"; // Tüm kontrolörleri import et
 
 const router = express.Router();
@@ -220,6 +221,7 @@ router.delete("/:id/discount", protectRoute, adminRoute, removeProductDiscount);
 router.get("/", getProducts); // Admin için tüm ürünleri getir
 router.get("/featured", getFeaturedProducts);
 router.get("/recommendations", getRecommendedProducts);
+router.get("/:id/similar", getSimilarProducts); // Similar products endpoint
 router.post("/", protectRoute, adminRoute, createProduct);
 router.patch("/:id", protectRoute, adminRoute, toggleFeaturedProduct);
 router.delete("/:id", protectRoute, adminRoute, deleteProduct);

@@ -45,8 +45,24 @@ const userSchema = new mongoose.Schema(
 					type: mongoose.Schema.Types.ObjectId,
 					ref: "Product",
 				},
+				addedAt: {
+					type: Date,
+					default: Date.now,
+				},
 			},
 		],
+		cartLastUpdated: {
+			type: Date,
+			default: Date.now,
+		},
+		fcmToken: {
+			type: String,
+			default: null,
+		},
+		pushNotificationsEnabled: {
+			type: Boolean,
+			default: true,
+		},
 		role: {
 			type: String,
 			enum: ["customer", "admin"],

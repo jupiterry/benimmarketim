@@ -18,11 +18,13 @@ import photocopyRoutes from "./routes/photocopy.route.js";
 import bannerRoutes from "./routes/banner.route.js";
 import categoryRoutes from "./routes/category.route.js";
 import appVersionRoutes from "./routes/appVersion.route.js";
+import cartReminderRoutes from "./routes/cartReminder.route.js";
 import { createServer } from "http";
 import { Server } from "socket.io";
 
 import { connectDB } from "./lib/db.js";
 import { refreshOrderHoursCache } from "./controllers/cart.controller.js";
+import { startCartReminderJob } from "./jobs/cartReminder.job.js";
 
 dotenv.config();
 
@@ -119,6 +121,7 @@ app.use("/api/photocopy", photocopyRoutes);
 app.use("/api/banners", bannerRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/app", appVersionRoutes);
+app.use("/api/cart-reminders", cartReminderRoutes);
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "/frontend/dist")));
@@ -136,4 +139,7 @@ httpServer.listen(PORT, () => {
   }).catch(() => {
     console.log('Sipariş saatleri önbelleği başlangıçta yenilenemedi');
   });
+  
+  // Start cart reminder cron job
+  startCartReminderJob();
 });

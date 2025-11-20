@@ -132,10 +132,13 @@ export const addToCart = async (req, res) => {
     const existingItem = user.cartItems.find((item) => item.product.toString() === productId);
     if (existingItem) {
       existingItem.quantity += quantity;
+      existingItem.addedAt = new Date();
     } else {
-      user.cartItems.push({ product: productId, quantity });
+      user.cartItems.push({ product: productId, quantity, addedAt: new Date() });
     }
 
+    // Update cart last updated timestamp
+    user.cartLastUpdated = new Date();
     await user.save();
     res.status(200).json(user.cartItems);
   } catch (error) {
@@ -174,6 +177,7 @@ export const removeAllFromCart = async (req, res) => {
       user.cartItems = user.cartItems.filter((item) => item.product.toString() !== productId);
     }
 
+    user.cartLastUpdated = new Date();
     await user.save();
     res.json(user.cartItems);
   } catch (error) {
@@ -194,11 +198,13 @@ export const updateQuantity = async (req, res) => {
     if (existingItem) {
       if (quantity === 0) {
         user.cartItems = user.cartItems.filter((item) => item.product.toString() !== productId);
+        user.cartLastUpdated = new Date();
         await user.save();
         return res.json(user.cartItems);
       }
 
       existingItem.quantity = quantity;
+      user.cartLastUpdated = new Date();
       await user.save();
       res.json(user.cartItems);
     } else {
