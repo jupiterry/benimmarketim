@@ -26,6 +26,7 @@ import {
   bulkUpdatePrice,
   bulkAddFlashSale,
   getSimilarProducts,
+  bulkReplaceText,
 } from "../controllers/product.controller.js"; // Tüm kontrolörleri import et
 
 const router = express.Router();
@@ -238,5 +239,6 @@ router.post("/bulk-delete", protectRoute, adminRoute, bulkDeleteProducts);
 router.post("/bulk-visibility", protectRoute, adminRoute, bulkUpdateVisibility);
 router.post("/bulk-price-update", protectRoute, adminRoute, bulkUpdatePrice);
 router.post("/bulk-flash-sale", protectRoute, adminRoute, bulkAddFlashSale);
+router.post("/bulk-replace-text", protectRoute, adminRoute, bulkReplaceText);
 
 export default router;

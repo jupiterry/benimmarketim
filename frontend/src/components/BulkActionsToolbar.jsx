@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckSquare, X, Trash2, Eye, EyeOff, DollarSign, Zap } from "lucide-react";
+import { CheckSquare, X, Trash2, Eye, EyeOff, DollarSign, Zap, Replace } from "lucide-react";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
 
@@ -15,6 +15,10 @@ const BulkActionsToolbar = ({
   const [priceValue, setPriceValue] = useState("");
   const [priceType, setPriceType] = useState("set"); // set, increase, decrease, percentage
   const [loading, setLoading] = useState(false);
+  // Metin değiştirme state'leri
+  const [findText, setFindText] = useState("");
+  const [replaceText, setReplaceText] = useState("");
+  const [caseSensitive, setCaseSensitive] = useState(false);
 
   const handleBulkAction = async (actionType) => {
     if (selectedProducts.length === 0) {
@@ -25,7 +29,7 @@ const BulkActionsToolbar = ({
     setAction(actionType);
     
     // Bazı işlemler için modal göster
-    if (actionType === "updatePrice" || actionType === "addFlashSale") {
+    if (actionType === "updatePrice" || actionType === "addFlashSale" || actionType === "replaceText") {
       setShowModal(true);
     } else {
       executeBulkAction(actionType);
@@ -88,6 +92,41 @@ const BulkActionsToolbar = ({
           });
           toast.success("Flash sale uygulandı");
           setShowModal(false);
+          break;
+
+        case "replaceText":
+          if (!findText || findText.trim() === "") {
+            toast.error("Aranacak metin boş olamaz");
+            setLoading(false);
+            return;
+          }
+          if (replaceText === undefined || replaceText === null) {
+            toast.error("Değiştirilecek metin gerekli");
+            setLoading(false);
+            return;
+          }
+          
+          // Onay iste
+          const confirmMessage = `${selectedProducts.length} ürünün isminde "${findText}" metni "${replaceText}" ile değiştirilecek. Devam etmek istiyor musunuz?`;
+          if (!window.confirm(confirmMessage)) {
+            setLoading(false);
+            return;
+          }
+
+          const response = await axios.post("/products/bulk-replace-text", {
+            findText: findText.trim(),
+            replaceText: replaceText,
+            caseSensitive: caseSensitive,
+            productIds: selectedProducts.length > 0 ? selectedProducts : null
+          });
+          
+          if (response.data.success) {
+            toast.success(response.data.message);
+            setShowModal(false);
+            setFindText("");
+            setReplaceText("");
+            setCaseSensitive(false);
+          }
           break;
       }
 
@@ -156,6 +195,15 @@ const BulkActionsToolbar = ({
           </button>
 
           <button
+            onClick={() => handleBulkAction("replaceText")}
+            className="px-3 py-1.5 bg-purple-500 hover:bg-purple-600 rounded-lg transition-colors flex items-center gap-1.5"
+            disabled={loading}
+          >
+            <Replace className="w-4 h-4" />
+            <span className="text-sm">Metin Değiştir</span>
+          </button>
+
+          <button
             onClick={() => handleBulkAction("delete")}
             className="px-3 py-1.5 bg-red-500 hover:bg-red-600 rounded-lg transition-colors flex items-center gap-1.5"
             disabled={loading}
@@ -184,7 +232,11 @@ const BulkActionsToolbar = ({
               className="bg-gray-800 rounded-2xl p-6 max-w-md w-full border border-gray-700"
             >
               <h3 className="text-xl font-bold text-white mb-4">
-                {action === "updatePrice" ? "Toplu Fiyat Güncelle" : "Flash Sale Ekle"}
+                {action === "updatePrice" 
+                  ? "Toplu Fiyat Güncelle" 
+                  : action === "addFlashSale" 
+                  ? "Flash Sale Ekle"
+                  : "Toplu Metin Değiştir"}
               </h3>
 
               {action === "updatePrice" && (
@@ -239,20 +291,92 @@ const BulkActionsToolbar = ({
                 </div>
               )}
 
+              {action === "replaceText" && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm text-gray-400 mb-1 block">Aranacak Metin</label>
+                    <input
+                      type="text"
+                      value={findText}
+                      onChange={(e) => setFindText(e.target.value)}
+                      className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="Örn: a, i, Coca Cola"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Ürün isimlerinde değiştirilecek metin/karakter
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-gray-400 mb-1 block">Yeni Metin</label>
+                    <input
+                      type="text"
+                      value={replaceText}
+                      onChange={(e) => setReplaceText(e.target.value)}
+                      className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="Örn: b, ı, Pepsi"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Yerine konulacak metin/karakter (boş bırakılabilir)
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="caseSensitive"
+                      checked={caseSensitive}
+                      onChange={(e) => setCaseSensitive(e.target.checked)}
+                      className="w-4 h-4 text-purple-600 bg-gray-700 border-gray-600 rounded focus:ring-purple-500"
+                    />
+                    <label htmlFor="caseSensitive" className="text-sm text-gray-400 cursor-pointer">
+                      Büyük/küçük harf duyarlı
+                    </label>
+                  </div>
+
+                  <div className="bg-gray-700/50 rounded-lg p-3 text-sm text-gray-300">
+                    <p className="font-semibold mb-1">Örnek:</p>
+                    <p className="text-xs">
+                      "{findText || "a"}" → "{replaceText || "b"}"
+                    </p>
+                    <p className="text-xs mt-2 text-gray-400">
+                      {selectedProducts.length > 0 
+                        ? `${selectedProducts.length} seçili ürünün isminde değişiklik yapılacak`
+                        : "Tüm ürünlerde değişiklik yapılacak"}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-3 mt-6">
                 <button
                   onClick={() => {
                     setShowModal(false);
                     setPriceValue("");
+                    setFindText("");
+                    setReplaceText("");
+                    setCaseSensitive(false);
                   }}
                   className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
                 >
                   İptal
                 </button>
                 <button
-                  onClick={() => executeBulkAction(action, priceValue)}
-                  disabled={loading}
-                  className="flex-1 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors disabled:opacity-50"
+                  onClick={() => {
+                    if (action === "replaceText") {
+                      executeBulkAction(action);
+                    } else {
+                      executeBulkAction(action, priceValue);
+                    }
+                  }}
+                  disabled={loading || (action === "replaceText" && !findText.trim())}
+                  className={`flex-1 px-4 py-2 ${
+                    action === "replaceText" 
+                      ? "bg-purple-500 hover:bg-purple-600" 
+                      : action === "addFlashSale"
+                      ? "bg-yellow-500 hover:bg-yellow-600"
+                      : "bg-emerald-500 hover:bg-emerald-600"
+                  } text-white rounded-lg transition-colors disabled:opacity-50`}
                 >
                   {loading ? "İşleniyor..." : "Uygula"}
                 </button>

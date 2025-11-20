@@ -714,6 +714,113 @@ export const bulkAddFlashSale = async (req, res) => {
   }
 };
 
+/**
+ * Toplu metin değiştirme - Ürün isimlerinde belirli metni değiştir
+ * POST /api/products/bulk-replace-text
+ * Body: { findText: "a", replaceText: "b", caseSensitive: false, productIds: [] (opsiyonel) }
+ */
+export const bulkReplaceText = async (req, res) => {
+  try {
+    const { findText, replaceText, caseSensitive = false, productIds = null } = req.body;
+
+    if (!findText || findText.trim() === '') {
+      return res.status(400).json({ 
+        success: false,
+        message: "Aranacak metin (findText) gerekli" 
+      });
+    }
+
+    if (replaceText === undefined || replaceText === null) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Değiştirilecek metin (replaceText) gerekli" 
+      });
+    }
+
+    // Query oluştur
+    let query = {};
+    if (productIds && Array.isArray(productIds) && productIds.length > 0) {
+      query._id = { $in: productIds };
+    }
+
+    // Ürünleri bul
+    const products = await Product.find(query);
+    
+    if (products.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Değiştirilecek ürün bulunamadı" 
+      });
+    }
+
+    let updatedCount = 0;
+    let totalReplacements = 0;
+    const updatedProducts = [];
+
+    // Her ürün için değişiklik yap
+    for (const product of products) {
+      const originalName = product.name;
+      
+      // Metin değiştirme
+      let newName;
+      if (caseSensitive) {
+        // Büyük/küçük harf duyarlı
+        newName = originalName.replace(new RegExp(escapeRegex(findText), 'g'), replaceText);
+      } else {
+        // Büyük/küçük harf duyarsız
+        newName = originalName.replace(new RegExp(escapeRegex(findText), 'gi'), replaceText);
+      }
+
+      // Eğer değişiklik olduysa kaydet
+      if (newName !== originalName) {
+        // Kaç kez değiştirildiğini say
+        const regex = caseSensitive 
+          ? new RegExp(escapeRegex(findText), 'g')
+          : new RegExp(escapeRegex(findText), 'gi');
+        const matches = originalName.match(regex);
+        const replacementCount = matches ? matches.length : 0;
+
+        product.name = newName;
+        await product.save();
+        
+        updatedCount++;
+        totalReplacements += replacementCount;
+        updatedProducts.push({
+          id: product._id,
+          oldName: originalName,
+          newName: newName,
+          replacements: replacementCount
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `${updatedCount} ürün güncellendi, toplam ${totalReplacements} değişiklik yapıldı`,
+      stats: {
+        totalProducts: products.length,
+        updatedProducts: updatedCount,
+        totalReplacements: totalReplacements
+      },
+      updatedProducts: updatedProducts.slice(0, 50) // İlk 50'sini göster
+    });
+  } catch (error) {
+    console.error("Toplu metin değiştirme hatası:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "Metin değiştirme işlemi başarısız",
+      error: error.message 
+    });
+  }
+};
+
+/**
+ * Regex karakterlerini escape et
+ */
+function escapeRegex(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // Similar Products Endpoint
 export const getSimilarProducts = async (req, res) => {
   try {
