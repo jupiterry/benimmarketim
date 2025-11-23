@@ -62,8 +62,12 @@ export const sendOrderNotification = async (orderData) => {
     // Önce genel webhook URL'ini kontrol et
     const webhookUrl = process.env.N8N_WEBHOOK_URL;
     
+    console.log('🔍 [n8n Debug] N8N_WEBHOOK_URL kontrol ediliyor...');
+    console.log('🔍 [n8n Debug] Webhook URL:', webhookUrl ? `${webhookUrl.substring(0, 30)}...` : 'TANIMLANMAMIŞ');
+    
     if (!webhookUrl) {
-      console.warn('N8N_WEBHOOK_URL tanımlanmamış. Sipariş bildirimi gönderilmedi.');
+      console.error('❌ [n8n Error] N8N_WEBHOOK_URL tanımlanmamış. Sipariş bildirimi gönderilmedi.');
+      console.error('❌ [n8n Error] Lütfen .env dosyasına N8N_WEBHOOK_URL ekleyin.');
       return false;
     }
 
@@ -91,7 +95,10 @@ export const sendOrderNotification = async (orderData) => {
       }
     };
 
-    console.log('n8n\'e sipariş bildirimi gönderiliyor:', webhookUrl);
+    console.log('📤 [n8n Debug] n8n\'e sipariş bildirimi gönderiliyor...');
+    console.log('📤 [n8n Debug] Webhook URL:', webhookUrl);
+    console.log('📤 [n8n Debug] Sipariş ID:', payload.order.id);
+    console.log('📤 [n8n Debug] Payload (ilk 500 karakter):', JSON.stringify(payload).substring(0, 500));
 
     const response = await axios.post(webhookUrl, payload, {
       headers: {
@@ -100,22 +107,43 @@ export const sendOrderNotification = async (orderData) => {
       timeout: 10000, // 10 saniye timeout (sipariş bildirimleri için daha uzun)
     });
 
+    console.log('📥 [n8n Debug] Response alındı');
+    console.log('📥 [n8n Debug] Response status:', response.status);
+    console.log('📥 [n8n Debug] Response data:', JSON.stringify(response.data).substring(0, 200));
+
     if (response.status === 200 || response.status === 201) {
-      console.log(`✅ Sipariş bildirimi başarıyla n8n'e gönderildi: ${payload.order.id}`);
+      console.log(`✅ [n8n Success] Sipariş bildirimi başarıyla n8n'e gönderildi: ${payload.order.id}`);
       return true;
     }
 
+    console.warn(`⚠️ [n8n Warning] Beklenmeyen response status: ${response.status}`);
     return false;
   } catch (error) {
     // Webhook gönderiminde hata olsa bile ana işlemi engellememek için
     // sadece logluyoruz, hata fırlatmıyoruz
-    console.error('❌ n8n sipariş bildirimi gönderilirken hata oluştu:', error.message);
+    console.error('❌ [n8n Error] n8n sipariş bildirimi gönderilirken hata oluştu!');
+    console.error('❌ [n8n Error] Hata mesajı:', error.message);
+    
     if (error.response) {
-      console.error('Response status:', error.response.status);
-      console.error('Response data:', error.response.data);
+      console.error('❌ [n8n Error] Response alındı ama hata var:');
+      console.error('❌ [n8n Error] Status:', error.response.status);
+      console.error('❌ [n8n Error] Status text:', error.response.statusText);
+      console.error('❌ [n8n Error] Data:', JSON.stringify(error.response.data).substring(0, 500));
+      console.error('❌ [n8n Error] Headers:', JSON.stringify(error.response.headers).substring(0, 300));
     } else if (error.request) {
-      console.error('Request gönderilemedi. n8n sunucusu erişilebilir mi kontrol edin.');
+      console.error('❌ [n8n Error] Request gönderildi ama response alınamadı!');
+      console.error('❌ [n8n Error] Bu genellikle şu anlama gelir:');
+      console.error('   1. n8n sunucusu çalışmıyor olabilir');
+      console.error('   2. n8n URL\'i yanlış olabilir');
+      console.error('   3. Network bağlantısı yok olabilir');
+      console.error('   4. Firewall/proxy isteği engelliyor olabilir');
+      console.error('❌ [n8n Error] Request detayları:', JSON.stringify(error.request).substring(0, 300));
+    } else {
+      console.error('❌ [n8n Error] İstek hazırlanırken hata oluştu');
+      console.error('❌ [n8n Error] Error config:', JSON.stringify(error.config).substring(0, 500));
     }
+    
+    console.error('❌ [n8n Error] Full error stack:', error.stack?.substring(0, 500));
     return false;
   }
 };

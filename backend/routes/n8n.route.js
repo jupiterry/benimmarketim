@@ -1,5 +1,5 @@
 import express from "express";
-import { receiveWebhook, testConnection } from "../controllers/n8n.controller.js";
+import { receiveWebhook, testConnection, testOrderNotification } from "../controllers/n8n.controller.js";
 import { protectRoute, adminRoute } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
@@ -27,6 +27,13 @@ router.post("/webhook", receiveWebhook);
  * GET /api/n8n/test
  */
 router.get("/test", testConnection);
+
+/**
+ * Test sipariş bildirimi endpoint'i
+ * Gerçek sipariş oluşturmadan n8n'e test bildirimi gönderir
+ * POST /api/n8n/test-order
+ */
+router.post("/test-order", testOrderNotification);
 
 export default router;
 

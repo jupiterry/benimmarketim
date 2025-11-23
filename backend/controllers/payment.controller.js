@@ -107,10 +107,13 @@ export const createOrder = async (req, res) => {
     await req.user.save(); // Sepeti sıfırla
 
     // n8n'e sipariş bildirimi gönder (asenkron, hata olsa bile ana işlemi engellemez)
+    console.log('🔔 [Sipariş] n8n bildirimi başlatılıyor...');
     try {
       const orderData = await Order.findById(newOrder._id)
         .populate('user', 'name email phone')
         .populate('products.product', 'name price');
+      
+      console.log('🔔 [Sipariş] Sipariş verisi alındı, bildirim hazırlanıyor...');
       
       // Sipariş bildirimi için hazırlanmış veri formatı
       const notificationData = {
@@ -138,11 +141,20 @@ export const createOrder = async (req, res) => {
         note: newOrder.note || ''
       };
       
+      console.log('🔔 [Sipariş] Bildirim verisi hazır, n8n\'e gönderiliyor...');
+      
       // n8n'e sipariş bildirimi gönder
-      await sendOrderNotification(notificationData);
+      const notificationResult = await sendOrderNotification(notificationData);
+      
+      if (notificationResult) {
+        console.log('✅ [Sipariş] n8n bildirimi başarıyla gönderildi!');
+      } else {
+        console.error('❌ [Sipariş] n8n bildirimi gönderilemedi!');
+      }
     } catch (n8nError) {
       // n8n webhook hatası ana işlemi engellemez
-      console.error('n8n sipariş bildirimi gönderilirken hata:', n8nError.message);
+      console.error('❌ [Sipariş Error] n8n sipariş bildirimi gönderilirken hata:', n8nError.message);
+      console.error('❌ [Sipariş Error] Error stack:', n8nError.stack);
     }
 
     res.status(201).json({
