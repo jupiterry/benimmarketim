@@ -48,6 +48,12 @@ Modern tasarıma sahip, React ve Node.js ile geliştirilmiş kapsamlı bir e-tic
 - Otomatik önbellek yenileme
 - Optimum veritabanı kullanımı
 
+### 🔗 n8n Entegrasyonu
+- Otomatik webhook gönderimi (sipariş, kullanıcı kaydı vb.)
+- n8n'den webhook alma desteği
+- Workflow otomasyonu için hazır altyapı
+- Detaylı entegrasyon kılavuzu için `N8N_INTEGRATION.md` dosyasına bakın
+
 ## 🛠️ Teknoloji Yığını
 
 **Frontend:**

@@ -1,6 +1,7 @@
 import { redis } from "../lib/redis.js";
 import User from "../models/user.model.js";
 import jwt from "jsonwebtoken";
+import { sendToN8N } from "../services/n8n.service.js";
 
 const generateTokens = (userId) => {
 	const accessToken = jwt.sign({ userId }, process.env.ACCESS_TOKEN_SECRET, {
@@ -50,6 +51,23 @@ export const signup = async (req, res) => {
 		await storeRefreshToken(user._id, refreshToken);
 
 		setCookies(res, accessToken, refreshToken);
+
+		// n8n'e kullanıcı kaydı webhook'u gönder (asenkron, hata olsa bile ana işlemi engellemez)
+		try {
+			await sendToN8N('user.registered', {
+				userId: user._id.toString(),
+				name: user.name,
+				email: user.email,
+				phone: user.phone || '',
+				role: user.role,
+				deviceType: user.deviceType || '',
+				createdAt: user.createdAt,
+				registeredAt: new Date().toISOString()
+			});
+		} catch (n8nError) {
+			// n8n webhook hatası ana işlemi engellemez
+			console.error('n8n webhook gönderilirken hata:', n8nError.message);
+		}
 
 		res.status(201).json({
 			_id: user._id,

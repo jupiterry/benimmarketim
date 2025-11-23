@@ -1,5 +1,6 @@
 import Order from "../models/order.model.js";
 import Product from "../models/product.model.js";
+import { sendOrderNotification } from "../services/n8n.service.js";
 
 // Sipariş oluşturma fonksiyonu
 export const createOrder = async (req, res) => {
@@ -104,6 +105,45 @@ export const createOrder = async (req, res) => {
     // Sipariş başarıyla oluşturulduğunda, kullanıcının sepetini temizle
     req.user.cartItems = [];
     await req.user.save(); // Sepeti sıfırla
+
+    // n8n'e sipariş bildirimi gönder (asenkron, hata olsa bile ana işlemi engellemez)
+    try {
+      const orderData = await Order.findById(newOrder._id)
+        .populate('user', 'name email phone')
+        .populate('products.product', 'name price');
+      
+      // Sipariş bildirimi için hazırlanmış veri formatı
+      const notificationData = {
+        orderId: newOrder._id.toString(),
+        _id: newOrder._id,
+        user: {
+          id: req.user._id.toString(),
+          _id: req.user._id,
+          name: req.user.name,
+          email: req.user.email,
+          phone: req.user.phone || phone
+        },
+        products: orderData.products.map(p => ({
+          name: p.name,
+          quantity: p.quantity,
+          price: p.price,
+          total: p.price * p.quantity
+        })),
+        totalAmount: newOrder.totalAmount,
+        city: newOrder.city,
+        deliveryPoint: newOrder.deliveryPoint,
+        deliveryPointName: newOrder.deliveryPointName,
+        status: newOrder.status,
+        createdAt: newOrder.createdAt,
+        note: newOrder.note || ''
+      };
+      
+      // n8n'e sipariş bildirimi gönder
+      await sendOrderNotification(notificationData);
+    } catch (n8nError) {
+      // n8n webhook hatası ana işlemi engellemez
+      console.error('n8n sipariş bildirimi gönderilirken hata:', n8nError.message);
+    }
 
     res.status(201).json({
       success: true,
