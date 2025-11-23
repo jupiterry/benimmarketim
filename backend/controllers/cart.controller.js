@@ -1,6 +1,7 @@
 import Product from "../models/product.model.js";
 import Order from "../models/order.model.js";
 import Settings from "../models/settings.model.js";
+import { sendOrderNotification } from "../services/n8n.service.js";
 
 // Saat kontrolü için global bir önbellek tanımlayalım
 global.orderHoursCache = {
@@ -341,6 +342,57 @@ export const placeOrder = async (req, res) => {
 	  // Kullanıcının sepetini temizle
 	  req.user.cartItems = [];
 	  await req.user.save();
+  
+	  // n8n'e sipariş bildirimi gönder (asenkron, hata olsa bile ana işlemi engellemez)
+	  console.log('🔔 [Sipariş] n8n bildirimi başlatılıyor...');
+	  try {
+		const orderData = await Order.findById(newOrder._id)
+		  .populate('user', 'name email phone')
+		  .populate('products.product', 'name price');
+		
+		console.log('🔔 [Sipariş] Sipariş verisi alındı, bildirim hazırlanıyor...');
+		
+		// Sipariş bildirimi için hazırlanmış veri formatı
+		const notificationData = {
+		  orderId: newOrder._id.toString(),
+		  _id: newOrder._id,
+		  user: {
+			id: req.user._id.toString(),
+			_id: req.user._id,
+			name: req.user.name,
+			email: req.user.email,
+			phone: req.user.phone || phone
+		  },
+		  products: orderData.products.map(p => ({
+			name: p.name,
+			quantity: p.quantity,
+			price: p.price,
+			total: p.price * p.quantity
+		  })),
+		  totalAmount: newOrder.totalAmount,
+		  city: newOrder.city,
+		  deliveryPoint: newOrder.deliveryPoint,
+		  deliveryPointName: newOrder.deliveryPointName,
+		  status: newOrder.status,
+		  createdAt: newOrder.createdAt,
+		  note: newOrder.note || ''
+		};
+		
+		console.log('🔔 [Sipariş] Bildirim verisi hazır, n8n\'e gönderiliyor...');
+		
+		// n8n'e sipariş bildirimi gönder
+		const notificationResult = await sendOrderNotification(notificationData);
+		
+		if (notificationResult) {
+		  console.log('✅ [Sipariş] n8n bildirimi başarıyla gönderildi!');
+		} else {
+		  console.error('❌ [Sipariş] n8n bildirimi gönderilemedi!');
+		}
+	  } catch (n8nError) {
+		// n8n webhook hatası ana işlemi engellemez
+		console.error('❌ [Sipariş Error] n8n sipariş bildirimi gönderilirken hata:', n8nError.message);
+		console.error('❌ [Sipariş Error] Error stack:', n8nError.stack);
+	  }
   
 	  // Başarılı yanıt döndür
 	  res.status(201).json({
