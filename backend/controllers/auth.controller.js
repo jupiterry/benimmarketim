@@ -1,5 +1,7 @@
 import { redis } from "../lib/redis.js";
 import User from "../models/user.model.js";
+import Order from "../models/order.model.js";
+import Feedback from "../models/feedback.model.js";
 import jwt from "jsonwebtoken";
 import { sendToN8N } from "../services/n8n.service.js";
 
@@ -200,4 +202,43 @@ export const testAuth = async (req, res) => {
 		user: req.user,
 		timestamp: new Date().toISOString()
 	});
+};
+
+// Kullanıcı kendi hesabını silme
+export const deleteMyAccount = async (req, res) => {
+	try {
+		// Güvenlik: Sadece authenticated kullanıcının kendi ID'sini kullan
+		// Body'den veya params'tan gelen userId parametreleri yok sayılır
+		const userId = req.user._id || req.user.id;
+		
+		if (!userId) {
+			return res.status(401).json({ message: "Kullanıcı kimliği bulunamadı" });
+		}
+
+		// Kullanıcının siparişlerini sil
+		await Order.deleteMany({ user: userId });
+		
+		// Kullanıcının geri bildirimlerini sil
+		await Feedback.deleteMany({ user: userId });
+		
+		// Redis'teki refresh token'ı sil
+		await redis.del(`refresh_token:${userId}`);
+		
+		// Kullanıcıyı sil
+		await User.findByIdAndDelete(userId);
+
+		// Cookie'leri temizle
+		res.clearCookie("accessToken");
+		res.clearCookie("refreshToken");
+
+		console.log(`Kullanıcı hesabı silindi - ID: ${userId}`);
+
+		res.json({ 
+			message: "Hesabınız başarıyla silindi",
+			deletedAt: new Date().toISOString()
+		});
+	} catch (error) {
+		console.error("Hesap silme hatası:", error);
+		res.status(500).json({ message: "Hesap silinirken hata oluştu", error: error.message });
+	}
 };

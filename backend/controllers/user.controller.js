@@ -74,7 +74,14 @@ export const getBestCustomers = async (req, res) => {
 // Hesap silme
 export const deleteAccount = async (req, res) => {
   try {
-    const userId = req.user.id;
+    // Güvenlik: Sadece authenticated kullanıcının kendi ID'sini kullan
+    // Body'den veya params'tan gelen userId parametreleri yok sayılır
+    const userId = req.user.id || req.user._id;
+    
+    if (!userId) {
+      return res.status(401).json({ message: "Kullanıcı kimliği bulunamadı" });
+    }
+    
     const { reason, deletionType, selectedDataTypes } = req.body;
 
     if (!reason || reason.trim() === '') {
