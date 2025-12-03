@@ -327,8 +327,13 @@ export const getProducts = async (req, res) => {
 export const updateProductPrice = async (req, res) => {
   try {
     const { price } = req.body;
-    if (!price) {
+    if (price === undefined || price === null || price === '') {
       return res.status(400).json({ message: "Fiyat alanı zorunludur" });
+    }
+
+    const priceNumber = Number(price);
+    if (isNaN(priceNumber) || priceNumber < 0) {
+      return res.status(400).json({ message: "Geçerli bir fiyat giriniz" });
     }
 
     const product = await Product.findById(req.params.id);
@@ -336,10 +341,10 @@ export const updateProductPrice = async (req, res) => {
       return res.status(404).json({ message: "Ürün bulunamadı" });
     }
 
-    product.price = price; // Yeni fiyatı kaydet
-    await product.save();
+    product.price = priceNumber; // Yeni fiyatı kaydet
+    const updatedProduct = await product.save();
 
-    res.status(200).json({ message: "Ürün fiyatı güncellendi", product });
+    res.status(200).json({ message: "Ürün fiyatı güncellendi", product: updatedProduct });
   } catch (error) {
     console.error("Ürün fiyatı güncellenirken hata:", error.message);
     res.status(500).json({ message: "Sunucu hatası", error: error.message });
@@ -423,7 +428,7 @@ export const searchProducts = async (req, res) => {
 
 export const updateProduct = async (req, res) => {
   try {
-    const { name, category, subcategory, isHidden, discountedPrice } = req.body;
+    const { name, category, subcategory, isHidden, discountedPrice, price } = req.body;
     const productId = req.params.id;
 
     if (!name || !category) {
@@ -440,6 +445,7 @@ export const updateProduct = async (req, res) => {
     product.subcategory = subcategory || "";
     if (isHidden !== undefined) product.isHidden = isHidden;
     if (discountedPrice !== undefined) product.discountedPrice = discountedPrice;
+    if (price !== undefined) product.price = Number(price);
 
     const updatedProduct = await product.save();
 

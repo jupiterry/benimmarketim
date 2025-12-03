@@ -132,17 +132,29 @@ export const useProductStore = create((set) => ({
     updateProductPrice: async (productId, newPrice) => {
         set({ loading: true });
         try {
-            const response = await axios.put(`/products/update-price/${productId}`, { price: newPrice });
+            const priceNumber = parseFloat(newPrice);
+            if (isNaN(priceNumber) || priceNumber < 0) {
+                set({ loading: false });
+                throw new Error("Geçerli bir fiyat giriniz");
+            }
+
+            const response = await axios.put(`/products/update-price/${productId}`, { price: priceNumber }, {
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem("token")}`,
+                },
+            });
+            
             set((prevProducts) => ({
                 products: prevProducts.products.map((product) =>
                     product._id === productId ? { ...product, price: response.data.product.price } : product
                 ),
                 loading: false,
             }));
-            toast.success("Ürün fiyatı başarıyla güncellendi");
+            
+            return response.data.product; // Güncellenmiş ürünü döndür
         } catch (error) {
             set({ loading: false });
-            toast.error(error.response?.data?.error || "Fiyat güncellenemedi");
+            throw error; // Hata'yı yukarı fırlat, çağıran yerde handle edilsin
         }
     },
 

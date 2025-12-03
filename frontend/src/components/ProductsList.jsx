@@ -316,24 +316,44 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
   };
 
   const savePrice = async (id) => {
-    if (newPrices[id] !== undefined) {
-      try {
-        await updateProductPrice(id, parseFloat(newPrices[id]));
-        setEditingPrice({ ...editingPrice, [id]: false });
-        
+    if (newPrices[id] === undefined) return;
+    
+    const newPrice = parseFloat(newPrices[id]);
+    if (isNaN(newPrice) || newPrice < 0) {
+      toast.error("Geçerli bir fiyat giriniz");
+      return;
+    }
+
+    // Optimistic update - hemen UI'ı güncelle
+    const previousPrice = localProducts.find(p => p._id === id)?.price;
+    setLocalProducts(prevProducts =>
+      prevProducts.map(product =>
+        product._id === id ? { ...product, price: newPrice } : product
+      )
+    );
+    setEditingPrice({ ...editingPrice, [id]: false });
+    
+    try {
+      // API'ye gönder
+      const updatedProduct = await updateProductPrice(id, newPrice);
+      // Response'dan gelen güncellenmiş fiyatı kullan (server'dan gelen değer)
+      if (updatedProduct) {
         setLocalProducts(prevProducts =>
           prevProducts.map(product =>
-            product._id === id ? { ...product, price: parseFloat(newPrices[id]) } : product
+            product._id === id ? { ...product, price: updatedProduct.price } : product
           )
         );
-        
-        await fetchAllProducts();
-        
-        toast.success("Fiyat başarıyla güncellendi");
-      } catch (error) {
-        console.error("Fiyat güncelleme hatası:", error);
-        toast.error("Fiyat güncellenirken hata oluştu");
       }
+      toast.success("Fiyat başarıyla güncellendi");
+    } catch (error) {
+      console.error("Fiyat güncelleme hatası:", error);
+      // Hata durumunda önceki değere geri dön
+      setLocalProducts(prevProducts =>
+        prevProducts.map(product =>
+          product._id === id ? { ...product, price: previousPrice } : product
+        )
+      );
+      toast.error(error.response?.data?.message || error.response?.data?.error || error.message || "Fiyat güncellenirken hata oluştu");
     }
   };
 
