@@ -632,10 +632,6 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
           category: selectedCategory ? selectedCategory.replace("/", "") : undefined,
           search: debouncedSearchTerm || undefined,
           _t: Date.now() // Cache busting için timestamp
-        },
-        headers: {
-          'Cache-Control': 'no-cache', // Cache'i bypass et
-          'Pragma': 'no-cache'
         }
       });
 
