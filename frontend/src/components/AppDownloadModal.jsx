@@ -4,6 +4,7 @@ import { X, Smartphone, Download, Apple, ExternalLink } from "lucide-react";
 import { detectDeviceType } from "../lib/deviceDetection";
 
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.jupi.benimapp.benimmarketim_app&hl=tr";
+const APP_STORE_URL = "https://apps.apple.com/tr/app/benim-marketim/id6755792336?l=tr";
 
 const AppDownloadModal = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -34,8 +35,18 @@ const AppDownloadModal = () => {
   };
 
   const handleDownload = () => {
-    // Tüm cihazlarda Play Store'a yönlendir
-    window.open(PLAY_STORE_URL, "_blank");
+    // iOS cihazlarda App Store'a, diğerlerinde Play Store'a yönlendir
+    if (isIOS) {
+      window.open(APP_STORE_URL, "_blank");
+    } else {
+      window.open(PLAY_STORE_URL, "_blank");
+    }
+    handleClose();
+  };
+
+  const handleIOSDownload = () => {
+    // iOS kullanıcıları için App Store'a yönlendir
+    window.open(APP_STORE_URL, "_blank");
     handleClose();
   };
 
@@ -133,16 +144,16 @@ const AppDownloadModal = () => {
                       <ExternalLink className="w-4 h-4" />
                     </motion.button>
                   ) : (
-                    // iOS - Alternatif buton
+                    // iOS - App Store'a yönlendir
                     <>
                       <motion.button
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
-                        onClick={handleDownload}
+                        onClick={handleIOSDownload}
                         className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-3 shadow-xl transition-all duration-300"
                       >
-                        <Download className="w-5 h-5" />
-                        <span>Google Play Store'de Aç</span>
+                        <Apple className="w-5 h-5" />
+                        <span>App Store'dan İndir</span>
                         <ExternalLink className="w-4 h-4" />
                       </motion.button>
                       
@@ -152,8 +163,7 @@ const AppDownloadModal = () => {
                         onClick={handleIOSContinue}
                         className="w-full bg-white/10 hover:bg-white/20 border border-white/30 text-white font-semibold py-3 px-6 rounded-xl flex items-center justify-center gap-2 transition-all duration-300"
                       >
-                        <Apple className="w-5 h-5" />
-                        <span>iOS Kullanıcısıyım, Web'de Devam Et</span>
+                        <span>Web'de Devam Et</span>
                       </motion.button>
                     </>
                   )}

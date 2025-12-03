@@ -49,7 +49,18 @@ const announcements = [
 	}
 ];
 
+const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.jupi.benimapp.benimmarketim_app&hl=tr";
+const APP_STORE_URL = "https://apps.apple.com/tr/app/benim-marketim/id6755792336?l=tr";
+
 const HomePage = () => {
+	const [isIOS, setIsIOS] = useState(false);
+
+	useEffect(() => {
+		// iOS kontrolü
+		const userAgent = navigator.userAgent.toLowerCase();
+		const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
+		setIsIOS(isIOSDevice);
+	}, []);
 	const { fetchFeaturedProducts, products, isLoading } = useProductStore();
 	const categoriesRef = useRef(null);
 	const featuredRef = useRef(null);
@@ -291,18 +302,31 @@ const HomePage = () => {
 								</motion.div>
 							</div>
 
-							{/* Sağ Taraf - Buton */}
+							{/* Sağ Taraf - Butonlar */}
 							<motion.div
 								initial={{ opacity: 0, scale: 0.9 }}
 								animate={{ opacity: 1, scale: 1 }}
 								transition={{ delay: 0.5 }}
-								className="flex-shrink-0 w-full lg:w-auto"
+								className="flex-shrink-0 w-full lg:w-auto flex flex-col sm:flex-row gap-3"
 							>
+								{/* App Store Butonu (iOS) */}
 								<a
-									href="https://play.google.com/store/apps/details?id=com.jupi.benimapp.benimmarketim_app&hl=tr"
+									href={APP_STORE_URL}
 									target="_blank"
 									rel="noopener noreferrer"
-									className="inline-flex items-center justify-center gap-3 bg-white text-emerald-600 font-bold px-8 py-4 sm:px-10 sm:py-5 rounded-2xl hover:bg-emerald-50 transition-all duration-300 shadow-2xl hover:shadow-emerald-500/50 hover:scale-105 w-full lg:w-auto"
+									className="inline-flex items-center justify-center gap-3 bg-white text-emerald-600 font-bold px-6 py-4 sm:px-8 sm:py-4 rounded-2xl hover:bg-emerald-50 transition-all duration-300 shadow-2xl hover:shadow-emerald-500/50 hover:scale-105 w-full sm:w-auto"
+								>
+									<Apple className="w-5 h-5 sm:w-6 sm:h-6" />
+									<span className="text-base sm:text-lg">App Store'dan İndir</span>
+									<ExternalLink className="w-4 h-4 sm:w-5 sm:h-5" />
+								</a>
+								
+								{/* Play Store Butonu (Android) */}
+								<a
+									href={PLAY_STORE_URL}
+									target="_blank"
+									rel="noopener noreferrer"
+									className="inline-flex items-center justify-center gap-3 bg-white text-emerald-600 font-bold px-6 py-4 sm:px-8 sm:py-4 rounded-2xl hover:bg-emerald-50 transition-all duration-300 shadow-2xl hover:shadow-emerald-500/50 hover:scale-105 w-full sm:w-auto"
 								>
 									<Download className="w-5 h-5 sm:w-6 sm:h-6" />
 									<span className="text-base sm:text-lg">Play Store'dan İndir</span>
