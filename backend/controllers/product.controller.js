@@ -219,11 +219,17 @@ export const toggleHiddenProduct = async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
+    // Durumu tersine çevir
     product.isHidden = !product.isHidden;
     const updatedProduct = await product.save();
 
+    // Cache'i invalidate et - güncellenmiş ürünü döndür
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
     res.json({
-      message: `Ürün ${product.isHidden ? "gizlendi" : "gösterildi"}!`,
+      message: `Ürün ${updatedProduct.isHidden ? "gizlendi" : "gösterildi"}!`,
       product: updatedProduct,
     });
   } catch (error) {
@@ -343,6 +349,11 @@ export const updateProductPrice = async (req, res) => {
 
     product.price = priceNumber; // Yeni fiyatı kaydet
     const updatedProduct = await product.save();
+
+    // Cache'i invalidate et
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
 
     res.status(200).json({ message: "Ürün fiyatı güncellendi", product: updatedProduct });
   } catch (error) {
@@ -469,9 +480,17 @@ export const toggleOutOfStock = async (req, res) => {
 
     // Tükendi durumunu tersine çevir
     product.isOutOfStock = !product.isOutOfStock;
-    await product.save();
+    const updatedProduct = await product.save();
 
-    res.status(200).json({ message: `Ürün ${product.isOutOfStock ? "tükendi" : "stokta"}`, product });
+    // Cache'i invalidate et - güncellenmiş ürünü döndür
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
+    res.status(200).json({ 
+      message: `Ürün ${updatedProduct.isOutOfStock ? "tükendi" : "stokta"}`, 
+      product: updatedProduct 
+    });
   } catch (error) {
     res.status(500).json({ message: "Sunucu hatası", error: error.message });
   }

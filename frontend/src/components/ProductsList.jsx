@@ -289,24 +289,46 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
   };
 
   const toggleOutOfStock = async (productId) => {
+    // Optimistic update - hemen UI'ı güncelle
+    const previousState = localProducts.find(p => p._id === productId);
+    if (!previousState) return;
+    
+    setLocalProducts(prevProducts =>
+      prevProducts.map(product =>
+        product._id === productId
+          ? { ...product, isOutOfStock: !product.isOutOfStock }
+          : product
+      )
+    );
+    
     try {
       const response = await axios.patch(`/products/toggle-out-of-stock/${productId}`, {}, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
       });
-      if (response.data.message) {
-        toast.success(response.data.message);
+      
+      if (response.data && response.data.product) {
+        // Backend'den gelen güncellenmiş ürünü kullan
         setLocalProducts(prevProducts =>
           prevProducts.map(product =>
             product._id === productId
-              ? { ...product, isOutOfStock: !product.isOutOfStock }
+              ? { ...product, ...response.data.product }
               : product
           )
         );
+        toast.success(response.data.message || "Stok durumu güncellendi");
+      } else {
+        toast.success(response.data?.message || "Stok durumu güncellendi");
       }
     } catch (error) {
       console.error("Tükendi durumu değiştirme hatası:", error);
+      // Hata durumunda önceki değere geri dön
+      setLocalProducts(prevProducts =>
+        prevProducts.map(product =>
+          product._id === productId ? previousState : product
+        )
+      );
       toast.error(error.response?.data?.message || "Tükendi durumu değiştirilirken hata oluştu.");
     }
   };
@@ -446,24 +468,46 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
   };
 
   const toggleProductHidden = async (productId) => {
+    // Optimistic update - hemen UI'ı güncelle
+    const previousState = localProducts.find(p => p._id === productId);
+    if (!previousState) return;
+    
+    setLocalProducts(prevProducts =>
+      prevProducts.map(product =>
+        product._id === productId
+          ? { ...product, isHidden: !product.isHidden }
+          : product
+      )
+    );
+    
     try {
       const response = await axios.patch(`/products/toggle-hidden/${productId}`, {}, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
       });
-      if (response.data.message) {
-        toast.success(response.data.message);
+      
+      if (response.data && response.data.product) {
+        // Backend'den gelen güncellenmiş ürünü kullan
         setLocalProducts(prevProducts =>
           prevProducts.map(product =>
             product._id === productId
-              ? { ...product, isHidden: !product.isHidden }
+              ? { ...product, ...response.data.product }
               : product
           )
         );
+        toast.success(response.data.message || "Ürün durumu güncellendi");
+      } else {
+        toast.success(response.data?.message || "Ürün durumu güncellendi");
       }
     } catch (error) {
       console.error("Ürün gizleme/gösterme hatası:", error);
+      // Hata durumunda önceki değere geri dön
+      setLocalProducts(prevProducts =>
+        prevProducts.map(product =>
+          product._id === productId ? previousState : product
+        )
+      );
       toast.error(error.response?.data?.message || "Ürün gizleme/gösterme sırasında hata oluştu.");
     }
   };
@@ -586,7 +630,12 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
           page,
           limit: 50,
           category: selectedCategory ? selectedCategory.replace("/", "") : undefined,
-          search: debouncedSearchTerm || undefined
+          search: debouncedSearchTerm || undefined,
+          _t: Date.now() // Cache busting için timestamp
+        },
+        headers: {
+          'Cache-Control': 'no-cache', // Cache'i bypass et
+          'Pragma': 'no-cache'
         }
       });
 
