@@ -610,7 +610,11 @@ const OrdersList = () => {
                         </div>
                         <div className="flex-1">
                           <p className="text-sm text-white font-medium">{product.name}</p>
-                          <p className="text-xs text-gray-400">{product.quantity} Adet</p>
+                          <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/20 border border-emerald-500/40 rounded-full">
+                            <span className="text-xs font-bold text-emerald-400">×</span>
+                            <span className="text-sm font-bold text-emerald-300">{product.quantity}</span>
+                            <span className="text-xs font-semibold text-emerald-400">Adet</span>
+                          </div>
                         </div>
                       </div>
                       <p className="text-sm text-emerald-400 font-bold">₺{product.price}</p>

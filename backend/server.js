@@ -17,7 +17,6 @@ import flashSaleRoutes from "./routes/flashSale.route.js";
 import photocopyRoutes from "./routes/photocopy.route.js";
 import bannerRoutes from "./routes/banner.route.js";
 import categoryRoutes from "./routes/category.route.js";
-import appVersionRoutes from "./routes/appVersion.route.js";
 import cartReminderRoutes from "./routes/cartReminder.route.js";
 import n8nRoutes from "./routes/n8n.route.js";
 import { createServer } from "http";
@@ -131,7 +130,6 @@ app.use("/api/flash-sales", flashSaleRoutes);
 app.use("/api/photocopy", photocopyRoutes);
 app.use("/api/banners", bannerRoutes);
 app.use("/api/categories", categoryRoutes);
-app.use("/api/app", appVersionRoutes);
 app.use("/api/cart-reminders", cartReminderRoutes);
 app.use("/api/n8n", n8nRoutes);
 

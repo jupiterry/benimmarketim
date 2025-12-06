@@ -32,7 +32,11 @@ const UserOrders = () => {
     const fetchUserOrders = async () => {
         try {
             const response = await axios.get("/orders-analytics/user-orders");
-            const sortedOrders = (response.data || []).sort((a, b) => 
+            // İptal edilen siparişleri filtrele (veritabanında tutulur ama görünmez)
+            const nonCancelledOrders = (response.data || []).filter(
+                order => order.status !== "İptal Edildi"
+            );
+            const sortedOrders = nonCancelledOrders.sort((a, b) => 
                 new Date(b.createdAt) - new Date(a.createdAt)
             );
             setOrders(sortedOrders);
@@ -102,7 +106,14 @@ const UserOrders = () => {
         newSocket.on("orderStatusUpdated", (data) => {
             console.log("Sipariş durumu güncellendi:", data);
             
-            // Siparişleri güncelle
+            // Eğer sipariş iptal edildiyse, listeden kaldır (veritabanında tutulur ama UI'da gizli)
+            if (data.newStatus === "İptal Edildi") {
+                setOrders(prevOrders => prevOrders.filter(order => order._id !== data.orderId));
+                toast.success("Siparişiniz iptal edildi! ❌");
+                return;
+            }
+            
+            // Diğer durumlar için siparişleri güncelle
             setOrders(prevOrders => {
                 const updatedOrders = prevOrders.map(order => 
                     order._id === data.orderId 
@@ -116,8 +127,7 @@ const UserOrders = () => {
             const statusMessages = {
                 "Hazırlanıyor": "Siparişiniz hazırlanmaya başlandı! 🍳",
                 "Yolda": "Siparişiniz yolda! 🚚",
-                "Teslim Edildi": "Siparişiniz teslim edildi! ✅",
-                "İptal Edildi": "Siparişiniz iptal edildi! ❌"
+                "Teslim Edildi": "Siparişiniz teslim edildi! ✅"
             };
             
             toast.success(statusMessages[data.newStatus] || "Sipariş durumu güncellendi!");
@@ -157,11 +167,8 @@ const UserOrders = () => {
         
         try {
             await axios.put("/orders-analytics/cancel-order", { orderId: orderToCancel._id });
-            setOrders(orders.map(order => 
-                order._id === orderToCancel._id 
-                    ? { ...order, status: "İptal Edildi" }
-                    : order
-            ));
+            // İptal edilen siparişi listeden kaldır (veritabanında tutulur ama UI'da gizli)
+            setOrders(orders.filter(order => order._id !== orderToCancel._id));
             toast.success("Siparişiniz başarıyla iptal edildi");
         } catch (error) {
             console.error("Sipariş iptal edilirken hata:", error);
@@ -237,10 +244,10 @@ const UserOrders = () => {
         );
     }
 
-    // Filtrelenmiş siparişleri grupla
+    // Filtrelenmiş siparişleri grupla (iptal edilen siparişler zaten filtrelenmiş durumda)
     const activeOrders = filteredOrders.filter(order => ["Hazırlanıyor", "Yolda"].includes(order.status));
     const completedOrders = filteredOrders.filter(order => order.status === "Teslim Edildi");
-    const cancelledOrders = filteredOrders.filter(order => order.status === "İptal Edildi");
+    // İptal edilen siparişler artık gösterilmiyor (veritabanında tutulur ama UI'da gizli)
 
     return (
         <>
@@ -389,7 +396,6 @@ const UserOrders = () => {
                                                 <option value="Hazırlanıyor">Hazırlanıyor</option>
                                                 <option value="Yolda">Yolda</option>
                                                 <option value="Teslim Edildi">Teslim Edildi</option>
-                                                <option value="İptal Edildi">İptal Edildi</option>
                                             </select>
                                         </div>
 
@@ -707,118 +713,6 @@ const UserOrders = () => {
                             </motion.div>
                         )}
 
-                        {/* İptal Edilen Siparişler */}
-                        {cancelledOrders.length > 0 && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.5 }}
-                            >
-                                <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
-                                    <div className="w-2 h-8 bg-gradient-to-b from-red-400 to-red-600 rounded-full"></div>
-                                    İptal Edilen Siparişler
-                                    <span className="bg-red-500/10 text-red-400 px-3 py-1 rounded-full text-sm font-medium">
-                                        {cancelledOrders.length}
-                                    </span>
-                                </h3>
-                                <div className="grid gap-6">
-                                    <AnimatePresence>
-                                        {cancelledOrders.map((order, index) => (
-                                            <motion.div 
-                                                key={order._id} 
-                                                className="bg-gradient-to-br from-red-500/5 to-gray-500/5 backdrop-blur-sm rounded-2xl overflow-hidden border border-red-500/20 shadow-xl hover:shadow-2xl transition-all duration-300 opacity-75"
-                                                initial={{ opacity: 0, y: 20 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                transition={{ duration: 0.5, delay: index * 0.1 }}
-                                                whileHover={{ y: -5, scale: 1.02 }}
-                                                exit={{ opacity: 0, y: -20 }}
-                                            >
-                                                {/* Sipariş Başlığı */}
-                                                <div className="border-b border-red-500/20 p-6">
-                                                    <div className="flex flex-wrap items-center gap-4 justify-between mb-4">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className={`p-2 rounded-lg ${getStatusColor(order.status)}`}>
-                                                                {getStatusIcon(order.status)}
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-sm text-gray-400">Sipariş ID</p>
-                                                                <p className="text-white font-medium">{order._id}</p>
-                                                            </div>
-                                                        </div>
-                                                        <div className={`px-4 py-2 rounded-full flex items-center gap-2 text-sm font-medium ${getStatusColor(order.status)}`}>
-                                                            {getStatusIcon(order.status)}
-                                                            {order.status}
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex flex-wrap gap-6 text-sm">
-                                                        <div>
-                                                            <p className="text-gray-400">Sipariş Tarihi</p>
-                                                            <p className="text-white">{new Date(order.createdAt).toLocaleString("tr-TR", {
-                                                                day: "2-digit",
-                                                                month: "2-digit",
-                                                                year: "numeric",
-                                                                hour: "2-digit",
-                                                                minute: "2-digit"
-                                                            })}</p>
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-gray-400">Teslimat Noktası</p>
-                                                            <p className="text-white">📍 {order.deliveryPointName || order.city || "Belirtilmemiş"}</p>
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-gray-400">Toplam Tutar</p>
-                                                            <p className="text-emerald-400 font-bold text-lg">₺{order.totalAmount}</p>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {/* Ürünler Listesi */}
-                                                <div className="p-6">
-                                                    <h3 className="text-white font-medium mb-4">Sipariş Detayı</h3>
-                                                    <div className="space-y-3">
-                                                        {order.products.map((product, index) => (
-                                                            <div key={index} className="flex items-center justify-between p-3 bg-gray-700/30 rounded-lg">
-                                                                <div className="flex items-center gap-3">
-                                                                    <div className="bg-gray-700 h-16 w-16 rounded-lg flex items-center justify-center overflow-hidden">
-                                                                        {product.image ? (
-                                                                            <img
-                                                                                src={product.image}
-                                                                                alt={product.name}
-                                                                                className="h-full w-full object-contain"
-                                                                            />
-                                                                        ) : (
-                                                                            <Package2 className="w-6 h-6 text-gray-400" />
-                                                                        )}
-                                                                    </div>
-                                                                    <div>
-                                                                        <p className="text-white font-medium">{product.name}</p>
-                                                                        <p className="text-sm text-gray-400">{product.quantity} Adet</p>
-                                                                    </div>
-                                                                </div>
-                                                                <p className="text-emerald-400 font-bold">₺{product.price}</p>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-
-                                                {/* Sipariş Notu */}
-                                                {order.note && (
-                                                    <div className="px-6 pb-6">
-                                                        <div className="p-3 bg-gray-700/30 rounded-lg">
-                                                            <div className="flex items-center gap-2 text-yellow-500 mb-2">
-                                                                <AlertCircle className="w-4 h-4" />
-                                                                <span className="text-sm font-medium">Sipariş Notu</span>
-                                                            </div>
-                                                            <p className="text-gray-300 text-sm">{order.note}</p>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </motion.div>
-                                        ))}
-                                    </AnimatePresence>
-                                </div>
-                            </motion.div>
-                        )}
                     </motion.div>
                 ) : (
                     <motion.div 

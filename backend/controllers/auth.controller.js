@@ -6,19 +6,20 @@ import jwt from "jsonwebtoken";
 import { sendToN8N } from "../services/n8n.service.js";
 
 const generateTokens = (userId) => {
+	// Access token artık çok uzun süreli (1 yıl) - kullanıcı kendisi çıkış yapana kadar geçerli
 	const accessToken = jwt.sign({ userId }, process.env.ACCESS_TOKEN_SECRET, {
-		expiresIn: "15m",
+		expiresIn: "365d", // 1 yıl
 	});
 
 	const refreshToken = jwt.sign({ userId }, process.env.REFRESH_TOKEN_SECRET, {
-		expiresIn: "7d",
+		expiresIn: "365d", // 1 yıl
 	});
 
 	return { accessToken, refreshToken };
 };
 
 const storeRefreshToken = async (userId, refreshToken) => {
-	await redis.set(`refresh_token:${userId}`, refreshToken, "EX", 7 * 24 * 60 * 60); // 7days
+	await redis.set(`refresh_token:${userId}`, refreshToken, "EX", 365 * 24 * 60 * 60); // 365 days (1 yıl)
 };
 
 const setCookies = (res, accessToken, refreshToken) => {
@@ -26,13 +27,13 @@ const setCookies = (res, accessToken, refreshToken) => {
 		httpOnly: true, // prevent XSS attacks, cross site scripting attack
 		secure: process.env.NODE_ENV === "production",
 		sameSite: "strict", // prevents CSRF attack, cross-site request forgery attack
-		maxAge: 15 * 60 * 1000, // 15 minutes
+		maxAge: 365 * 24 * 60 * 60 * 1000, // 1 yıl - kullanıcı kendisi çıkış yapana kadar geçerli
 	});
 	res.cookie("refreshToken", refreshToken, {
 		httpOnly: true, // prevent XSS attacks, cross site scripting attack
 		secure: process.env.NODE_ENV === "production",
 		sameSite: "strict", // prevents CSRF attack, cross-site request forgery attack
-		maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+		maxAge: 365 * 24 * 60 * 60 * 1000, // 1 yıl
 	});
 };
 
@@ -160,14 +161,14 @@ export const refreshToken = async (req, res) => {
 			return res.status(401).json({ message: "Invalid refresh token" });
 		}
 
-		const accessToken = jwt.sign({ userId: decoded.userId }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "15m" });
+		const accessToken = jwt.sign({ userId: decoded.userId }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "365d" }); // 1 yıl
 
 		// Cookie'yi de güncelle
 		res.cookie("accessToken", accessToken, {
 			httpOnly: true,
 			secure: process.env.NODE_ENV === "production",
 			sameSite: "strict",
-			maxAge: 15 * 60 * 1000,
+			maxAge: 365 * 24 * 60 * 60 * 1000, // 1 yıl
 		});
 
 		console.log("Token refreshed successfully"); // Debug log

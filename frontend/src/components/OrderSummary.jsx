@@ -80,6 +80,58 @@ const OrderSummary = () => {
     return now.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
   };
 
+  const handlePhoneChange = (e) => {
+    const value = e.target.value;
+    // Sadece rakam girişine izin ver
+    let numericValue = value.replace(/\D/g, '');
+    
+    // Eğer boşsa, boş bırak
+    if (numericValue.length === 0) {
+      setPhone('');
+      return;
+    }
+    
+    // İlk karakter 0 değilse, 05 ile başlat
+    if (numericValue[0] !== '0') {
+      numericValue = '05' + numericValue;
+    } else if (numericValue.length >= 2 && numericValue[1] !== '5') {
+      // İlk karakter 0 ama ikinci karakter 5 değilse, 05 yap
+      numericValue = '05' + numericValue.substring(2);
+    }
+    
+    // Maksimum 11 karakter (05XXXXXXXXX formatı)
+    if (numericValue.length <= 11) {
+      setPhone(numericValue);
+    } else {
+      // 11 karakterden fazla ise, sadece ilk 11 karakteri al
+      setPhone(numericValue.substring(0, 11));
+    }
+  };
+
+  const validatePhone = (phoneNumber) => {
+    // Boş kontrolü
+    if (!phoneNumber || phoneNumber.trim().length === 0) {
+      return { valid: false, message: "Telefon numarası boş olamaz!" };
+    }
+    
+    // 11 haneli olmalı
+    if (phoneNumber.length !== 11) {
+      return { valid: false, message: "Telefon numarası 11 haneli olmalıdır!" };
+    }
+    
+    // 05 ile başlamalı
+    if (!phoneNumber.startsWith('05')) {
+      return { valid: false, message: "Telefon numarası 05 ile başlamalıdır!" };
+    }
+    
+    // Sadece rakam içermeli
+    if (!/^\d+$/.test(phoneNumber)) {
+      return { valid: false, message: "Telefon numarası sadece rakam içermelidir!" };
+    }
+    
+    return { valid: true };
+  };
+
   const handlePayment = async () => {
     try {
       // Genel sipariş durumu kontrolü (saatler + teslimat noktaları)
@@ -98,8 +150,10 @@ const OrderSummary = () => {
         return;
       }
   
-      if (!phone.trim() || phone.length < 10) {
-        toast.error("Geçerli bir telefon numarası girin!", { id: "phoneError" });
+      // Telefon numarası validasyonu
+      const phoneValidation = validatePhone(phone);
+      if (!phoneValidation.valid) {
+        toast.error(phoneValidation.message, { id: "phoneError" });
         return;
       }
   
@@ -593,15 +647,50 @@ const OrderSummary = () => {
                   type="tel"
                   placeholder="05XX XXX XX XX"
                   maxLength={11}
-                  className="w-full rounded-xl border border-gray-600/50 bg-gray-700/50 px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-300 placeholder-gray-400"
+                  className={`w-full rounded-xl border px-4 py-3 text-white focus:outline-none focus:ring-2 transition-all duration-300 placeholder-gray-400 ${
+                    phone.length > 0 && phone.length < 11
+                      ? 'border-yellow-500/50 bg-yellow-500/10 focus:ring-yellow-500 focus:border-yellow-500'
+                      : phone.length === 11 && !phone.startsWith('05')
+                      ? 'border-red-500/50 bg-red-500/10 focus:ring-red-500 focus:border-red-500'
+                      : phone.length === 11 && phone.startsWith('05')
+                      ? 'border-emerald-500/50 bg-emerald-500/10 focus:ring-emerald-500 focus:border-emerald-500'
+                      : 'border-gray-600/50 bg-gray-700/50 focus:ring-emerald-500 focus:border-emerald-500'
+                  }`}
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={handlePhoneChange}
+                  pattern="[0-9]*"
+                  inputMode="numeric"
                 />
                 <div className="absolute inset-y-0 right-0 flex items-center gap-2 pr-3">
-                  <span className="text-xs text-gray-400">{phone.length}/11</span>
-                  <span className="text-emerald-400 text-sm">📱</span>
+                  <span className={`text-xs ${
+                    phone.length === 11 && phone.startsWith('05')
+                      ? 'text-emerald-400'
+                      : phone.length > 0
+                      ? 'text-yellow-400'
+                      : 'text-gray-400'
+                  }`}>
+                    {phone.length}/11
+                  </span>
+                  <span className={`text-sm ${
+                    phone.length === 11 && phone.startsWith('05')
+                      ? 'text-emerald-400'
+                      : phone.length > 0
+                      ? 'text-yellow-400'
+                      : 'text-gray-400'
+                  }`}>
+                    📱
+                  </span>
                 </div>
               </div>
+              {phone.length > 0 && phone.length < 11 && (
+                <p className="text-xs text-yellow-400">Telefon numarası 11 haneli olmalıdır</p>
+              )}
+              {phone.length === 11 && !phone.startsWith('05') && (
+                <p className="text-xs text-red-400">Telefon numarası 05 ile başlamalıdır</p>
+              )}
+              {phone.length === 11 && phone.startsWith('05') && (
+                <p className="text-xs text-emerald-400">✓ Geçerli telefon numarası</p>
+              )}
             </div>
 
             {/* Sipariş Notu */}

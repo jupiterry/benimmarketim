@@ -1,11 +1,10 @@
-import { BarChart, PlusCircle, ShoppingBasket, Upload, Users, Package2, MessageSquare, Settings, LayoutDashboard, Bell, AlertCircle, Image, Replace } from "lucide-react";
+import { BarChart, PlusCircle, ShoppingBasket, Upload, Users, Package2, MessageSquare, Settings, LayoutDashboard, Bell, AlertCircle, Image } from "lucide-react";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
 import { useProductStore } from "../stores/useProductStore";
 
-import AnalyticsTab from "../components/AnalyticsTab";
 import CreateProductForm from "../components/CreateProductForm";
 import ProductsList from "../components/ProductsList";
 import OrdersList from "../components/OrdersList";
@@ -15,7 +14,6 @@ import DashboardWidgets from "../components/DashboardWidgets";
 import UsersTab from "../components/UsersTab";
 import PhotocopyTab from "../components/PhotocopyTab";
 import BannerTab from "../components/BannerTab";
-import BulkTextReplaceTab from "../components/BulkTextReplaceTab";
 
 const AdminPage = () => {
   const [activeTab, setActiveTab] = useState("products");
@@ -127,12 +125,6 @@ const AdminPage = () => {
       component: <CreateProductForm />
     },
     {
-      id: "analytics",
-      label: "Analiz",
-      icon: <BarChart className="w-5 h-5" />,
-      component: <AnalyticsTab />
-    },
-    {
       id: "orders",
       label: "Siparişler",
       icon: <Package2 className="w-5 h-5" />,
@@ -180,12 +172,6 @@ const AdminPage = () => {
       </motion.div>
     },
     {
-      id: "bulk-text-replace",
-      label: "Metin Değiştir",
-      icon: <Replace className="w-5 h-5" />,
-      component: <BulkTextReplaceTab />
-    },
-    {
       id: "feedback",
       label: "Geri Bildirimler",
       icon: <MessageSquare className="w-5 h-5" />,
@@ -231,27 +217,6 @@ const AdminPage = () => {
                 </span>
               )}
             </motion.button>
-            
-            <div className="flex gap-3">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setActiveTab("products")}
-              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 text-white px-4 py-2 rounded-lg font-medium transition-all duration-300 flex items-center gap-2"
-            >
-              <ShoppingBasket className="w-4 h-4" />
-              Ürünleri Yönet
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setActiveTab("create")}
-              className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 text-white px-4 py-2 rounded-lg font-medium transition-all duration-300 flex items-center gap-2"
-            >
-              <PlusCircle className="w-4 h-4" />
-              Yeni Ürün
-            </motion.button>
-            </div>
           </div>
         </div>
 
