@@ -19,7 +19,7 @@ Bu projeye n8n entegrasyonu başarıyla eklenmiştir. Bu kılavuz, n8n'i nasıl 
 ```env
 # n8n Webhook URL'i - Sipariş bildirimleri için
 # Bu URL'ye siparişler otomatik olarak gönderilir
-N8N_WEBHOOK_URL=https://n8n.devrekbenimmarketim.com/webhook-test/39247763-73fa-48e3-a6ad-16cecffa7e7b
+N8N_WEBHOOK_URL=https://n8n.devrekbenimmarketim.com/webhook-test/e28ba3af-75a2-4d06-9436-00332405e9db
 
 # (Opsiyonel) n8n Base URL (workflow-specific webhook'lar için)
 N8N_BASE_URL=https://n8n.devrekbenimmarketim.com

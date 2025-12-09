@@ -134,16 +134,27 @@ export const testOrderNotification = async (req, res) => {
     };
     
     console.log('🧪 [Test] Test sipariş bildirimi gönderiliyor...');
+    const webhookUrl = process.env.N8N_WEBHOOK_URL;
+    
+    if (!webhookUrl) {
+      return res.status(400).json({
+        success: false,
+        message: 'N8N_WEBHOOK_URL tanımlanmamış. .env dosyasını kontrol edin.',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
     const result = await sendOrderNotification(testOrderData);
     
     res.status(200).json({
       success: result,
       message: result 
         ? 'Test sipariş bildirimi başarıyla n8n\'e gönderildi. Console log\'larını kontrol edin.' 
-        : 'Test sipariş bildirimi gönderilemedi. Console log\'larını kontrol edin.',
+        : 'Test sipariş bildirimi gönderilemedi. PM2 log\'larını kontrol edin: pm2 logs project-backend --lines 50',
       timestamp: new Date().toISOString(),
       testData: testOrderData,
-      webhookUrl: process.env.N8N_WEBHOOK_URL ? `${process.env.N8N_WEBHOOK_URL.substring(0, 30)}...` : 'TANIMLANMAMIŞ'
+      webhookUrl: webhookUrl ? `${webhookUrl.substring(0, 50)}...` : 'TANIMLANMAMIŞ',
+      hint: result ? null : 'PM2 log\'larını kontrol edin: pm2 logs project-backend --lines 100'
     });
   } catch (error) {
     console.error('❌ [Test Error] Test sipariş bildirimi gönderilirken hata:', error);

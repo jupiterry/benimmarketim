@@ -8,7 +8,7 @@ Eğer n8n'e bildirim gelmiyorsa, aşağıdaki adımları izleyin.
 
 ```bash
 # .env dosyasında şu satır olmalı:
-N8N_WEBHOOK_URL=https://n8n.devrekbenimmarketim.com/webhook-test/39247763-73fa-48e3-a6ad-16cecffa7e7b
+N8N_WEBHOOK_URL=https://n8n.devrekbenimmarketim.com/webhook-test/e28ba3af-75a2-4d06-9436-00332405e9db
 ```
 
 ### Test Endpoint'i ile Kontrol
@@ -98,7 +98,7 @@ veya
 1. `.env` dosyasını açın (root dizinde olmalı)
 2. Şu satırı ekleyin:
    ```env
-   N8N_WEBHOOK_URL=https://n8n.devrekbenimmarketim.com/webhook-test/39247763-73fa-48e3-a6ad-16cecffa7e7b
+   N8N_WEBHOOK_URL=https://n8n.devrekbenimmarketim.com/webhook-test/e28ba3af-75a2-4d06-9436-00332405e9db
    ```
 3. Backend sunucusunu **tamamen durdurun ve yeniden başlatın**
 4. `npm run dev` veya `npm start` ile yeniden başlatın
@@ -117,7 +117,7 @@ veya
 **Çözüm:**
 1. n8n URL'inin doğru olduğunu kontrol edin:
    ```bash
-   curl https://n8n.devrekbenimmarketim.com/webhook-test/39247763-73fa-48e3-a6ad-16cecffa7e7b
+   curl https://n8n.devrekbenimmarketim.com/webhook-test/e28ba3af-75a2-4d06-9436-00332405e9db
    ```
 2. n8n sunucusunun çalıştığından emin olun
 3. n8n workflow'unun aktif olduğundan emin olun
@@ -204,7 +204,7 @@ curl http://localhost:5000/api/n8n/test
 curl -X POST http://localhost:5000/api/n8n/test-order
 
 # 3. n8n URL'ine direkt test
-curl -X POST https://n8n.devrekbenimmarketim.com/webhook-test/39247763-73fa-48e3-a6ad-16cecffa7e7b \
+curl -X POST https://n8n.devrekbenimmarketim.com/webhook-test/e28ba3af-75a2-4d06-9436-00332405e9db \
   -H "Content-Type: application/json" \
   -d '{"test": "data"}'
 ```

@@ -20,7 +20,7 @@ Her yeni sipariş oluşturulduğunda, sistem otomatik olarak n8n'e webhook gönd
 `.env` dosyanızın root dizinde olduğundan emin olun ve aşağıdaki satırı ekleyin:
 
 ```env
-N8N_WEBHOOK_URL=https://n8n.devrekbenimmarketim.com/webhook-test/39247763-73fa-48e3-a6ad-16cecffa7e7b
+N8N_WEBHOOK_URL=https://n8n.devrekbenimmarketim.com/webhook-test/e28ba3af-75a2-4d06-9436-00332405e9db
 ```
 
 ### 2. Sunucuyu Yeniden Başlatın
