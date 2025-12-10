@@ -27,8 +27,8 @@ export const checkVersion = async (req, res) => {
     
     // Sürüm bilgileri (burayı yeni sürüm çıktıkça güncelleyin)
     const response = {
-      latest_version: "2.1.9",      // En son yayınlanan sürüm
-      minimum_version: "2.1.9",     // Minimum desteklenen sürüm (bundan düşükse zorunlu güncelleme)
+      latest_version: "2.0.9",      // En son yayınlanan sürüm
+      minimum_version: "2.0.9",     // Minimum desteklenen sürüm (bundan düşükse zorunlu güncelleme)
       url: platform === 'ios' ? iosUrl : androidUrl
     };
     
