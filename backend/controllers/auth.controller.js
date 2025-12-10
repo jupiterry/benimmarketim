@@ -46,7 +46,24 @@ export const signup = async (req, res) => {
 		if (userExists) {
 			return res.status(400).json({ message: "Kullanıcı zaten mevcut" });
 		}
-		const user = await User.create({ name, email, password, phone, deviceType });
+		
+		// Map deviceType to valid enum values
+		let mappedDeviceType = deviceType ? deviceType.toLowerCase() : 'unknown';
+		
+		// Map common device types to enum values
+		if (mappedDeviceType === 'android' || mappedDeviceType === 'ios') {
+			mappedDeviceType = 'mobile';
+		} else if (mappedDeviceType === 'web') {
+			mappedDeviceType = 'desktop';
+		}
+		
+		// Validate against enum
+		const validDeviceTypes = ['desktop', 'mobile', 'tablet', 'unknown'];
+		if (!validDeviceTypes.includes(mappedDeviceType)) {
+			mappedDeviceType = 'unknown';
+		}
+		
+		const user = await User.create({ name, email, password, phone, deviceType: mappedDeviceType });
 		console.log("Oluşturulan kullanıcı:", user); // Debug log
 
 		// authenticate
@@ -94,11 +111,38 @@ export const login = async (req, res) => {
 		
 		const user = await User.findOne({ email });
 
-		if (user && (await user.comparePassword(password))) {
+		if (!user) {
+			console.log("Login failed: User not found for email:", email);
+			return res.status(400).json({ message: "Geçersiz E-posta veya Şifre" });
+		}
+
+		const isPasswordValid = await user.comparePassword(password);
+		if (!isPasswordValid) {
+			console.log("Login failed: Invalid password for email:", email);
+			return res.status(400).json({ message: "Geçersiz E-posta veya Şifre" });
+		}
+
+		if (user && isPasswordValid) {
 			// Update device type if provided
+			// Map deviceType to valid enum values
 			if (deviceType) {
+				let mappedDeviceType = deviceType.toLowerCase();
+				
+				// Map common device types to enum values
+				if (mappedDeviceType === 'android' || mappedDeviceType === 'ios') {
+					mappedDeviceType = 'mobile';
+				} else if (mappedDeviceType === 'web') {
+					mappedDeviceType = 'desktop';
+				}
+				
+				// Validate against enum
+				const validDeviceTypes = ['desktop', 'mobile', 'tablet', 'unknown'];
+				if (!validDeviceTypes.includes(mappedDeviceType)) {
+					mappedDeviceType = 'unknown';
+				}
+				
 				user.lastDeviceType = user.deviceType;
-				user.deviceType = deviceType;
+				user.deviceType = mappedDeviceType;
 				await user.save();
 			}
 			
@@ -106,22 +150,44 @@ export const login = async (req, res) => {
 			await storeRefreshToken(user._id, refreshToken);
 			setCookies(res, accessToken, refreshToken);
 
-			console.log("Login successful, tokens generated"); // Debug log
+			console.log("✅ Login successful:", {
+				userId: user._id,
+				email: user.email,
+				role: user.role,
+				deviceType: user.deviceType,
+				tokensGenerated: true
+			});
 
 			res.json({
 				_id: user._id,
 				name: user.name,
 				email: user.email,
 				role: user.role,
+				phone: user.phone,
 				accessToken: accessToken, // Flutter için token'ı response'da gönder
 				refreshToken: refreshToken // Flutter için refresh token'ı da gönder
 			});
 		} else {
+			console.log("Login failed: Invalid email or password for:", email);
 			res.status(400).json({ message: "Geçersiz E-posta veya Şifre" });
 		}
 	} catch (error) {
-		console.log("Error in login controller", error.message);
-		res.status(500).json({ message: error.message });
+		console.error("Error in login controller:", error.message);
+		console.error("Error stack:", error.stack);
+		
+		// Mongoose validation error handling
+		if (error.name === 'ValidationError') {
+			const errors = Object.values(error.errors).map(err => err.message);
+			return res.status(400).json({ 
+				message: "Validation error", 
+				errors: errors 
+			});
+		}
+		
+		res.status(500).json({ 
+			message: "Sunucu hatası", 
+			error: error.message 
+		});
 	}
 };
 
