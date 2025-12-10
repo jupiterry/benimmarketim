@@ -347,9 +347,7 @@ export const getProducts = async (req, res) => {
   try {
     console.log("Get products request received with query:", req.query);
     
-    // Sayfalama için default limit: 20 (mobil uygulama için optimize)
-    // Frontend'den limit gönderilmezse 20 ürün döner
-    const { category, page = 1, limit = 20, search = "" } = req.query;
+    const { category, page = 1, limit = 9999999, search = "" } = req.query;
     let query = {};
 
     if (category) {
