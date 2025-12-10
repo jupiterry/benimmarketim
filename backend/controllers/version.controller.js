@@ -23,11 +23,11 @@ export const checkVersion = async (req, res) => {
     
     // Platform URL'leri
     const androidUrl = "https://play.google.com/store/apps/details?id=com.jupi.benimapp.benimmarketim_app";
-    const iosUrl = "https://apps.apple.com/app/id6738341165";
+    const iosUrl = "https://apps.apple.com/tr/app/benim-marketim/id6755792336?l=tr";
     
     // Sürüm bilgileri (burayı yeni sürüm çıktıkça güncelleyin)
     const response = {
-      latest_version: "2.1.0",      // En son yayınlanan sürüm
+      latest_version: "2.0.9",      // En son yayınlanan sürüm
       minimum_version: "2.0.9",     // Minimum desteklenen sürüm (bundan düşükse zorunlu güncelleme)
       url: platform === 'ios' ? iosUrl : androidUrl
     };
