@@ -31,7 +31,11 @@ export const initializeFirebase = () => {
           }),
         });
       } else {
-        console.warn('Firebase Admin SDK not initialized: Missing credentials');
+        // Firebase credentials yoksa sessizce devam et (opsiyonel özellik)
+        // Sadece ilk başlatmada bir kez log'la
+        if (!firebaseInitialized) {
+          console.log('Firebase Admin SDK: Credentials bulunamadı, push notification özelliği devre dışı.');
+        }
         return;
       }
     }
@@ -56,7 +60,7 @@ export const sendPushNotification = async (fcmToken, notification, data = {}) =>
   }
 
   if (!fcmToken) {
-    console.warn('FCM token is missing');
+    // FCM token yoksa sessizce false döndür (opsiyonel özellik)
     return false;
   }
 
@@ -181,6 +185,11 @@ export const sendBulkPushNotifications = async (fcmTokens, notification, data = 
   }
 };
 
-// Initialize Firebase on module load
-initializeFirebase();
+// Initialize Firebase on module load (opsiyonel - credentials yoksa sessizce devam eder)
+try {
+  initializeFirebase();
+} catch (error) {
+  // Firebase initialization hatası ana uygulamayı etkilemesin
+  // Sadece push notification özelliği çalışmayacak
+}
 
