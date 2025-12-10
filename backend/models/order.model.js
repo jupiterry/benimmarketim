@@ -6,7 +6,6 @@ const orderSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index: true,
     },
     products: [
       {
@@ -66,14 +65,10 @@ const orderSchema = new mongoose.Schema(
       type: String,
       enum: ["Hazırlanıyor", "Yolda", "Teslim Edildi", "İptal Edildi"],
       default: "Hazırlanıyor",
-      index: true,
     },
   },
   { timestamps: true }
 );
-
-// createdAt alanına index ekle (timestamps ile otomatik oluşur)
-orderSchema.index({ createdAt: 1 });
 
 const Order = mongoose.model("Order", orderSchema);
 

@@ -18,33 +18,6 @@ export const getAllProducts = async (req, res) => {
 
 export const getFeaturedProducts = async (req, res) => {
   try {
-    const cacheKey = 'featured_products';
-    
-    // Önce Redis'ten kontrol et
-    try {
-      const cachedData = await redis.get(cacheKey);
-      if (cachedData) {
-        console.log(`✅ [Redis Cache] Featured products cache hit`);
-        const parsedData = JSON.parse(cachedData);
-        
-        // HTTP cache headers
-        res.setHeader('Last-Modified', parsedData.lastModified);
-        res.setHeader('ETag', parsedData.etag);
-        res.setHeader('Cache-Control', 'private, max-age=300');
-        res.setHeader('X-Cache', 'HIT');
-        
-        return res.json({
-          success: true,
-          products: parsedData.products,
-          count: parsedData.count
-        });
-      }
-    } catch (cacheError) {
-      console.warn('⚠️ [Redis Cache] Cache read error:', cacheError.message);
-    }
-
-    console.log(`❌ [Redis Cache] Featured products cache miss`);
-
     // Offline Sync Support: Check If-Modified-Since header
     const ifModifiedSince = req.headers['if-modified-since'];
     if (ifModifiedSince) {
@@ -108,34 +81,17 @@ export const getFeaturedProducts = async (req, res) => {
       ? `"${new Date(latestProduct.updatedAt).getTime()}"`
       : `"${Date.now()}"`;
 
-    // Response data
-    const responseData = {
-      success: true,
-      products: allFeaturedProducts,
-      count: allFeaturedProducts.length
-    };
-
-    // Redis'e cache'le (5 dakika = 300 saniye)
-    try {
-      const cacheData = {
-        ...responseData,
-        lastModified,
-        etag
-      };
-      await redis.setex(cacheKey, 300, JSON.stringify(cacheData));
-      console.log(`✅ [Redis Cache] Featured products cached`);
-    } catch (cacheError) {
-      console.warn('⚠️ [Redis Cache] Cache write error:', cacheError.message);
-    }
-
     // Set caching headers
     res.setHeader('Last-Modified', lastModified);
     res.setHeader('ETag', etag);
     res.setHeader('Cache-Control', 'private, max-age=300'); // 5 minutes cache
-    res.setHeader('X-Cache', 'MISS');
 
     // Tutarlı response yapısı için her zaman aynı formatı döndür
-    res.json(responseData);
+    res.json({
+      success: true,
+      products: allFeaturedProducts,
+      count: allFeaturedProducts.length
+    });
   } catch (error) {
     console.error("Öne çıkan ürünler getirilirken hata:", error);
     res.status(500).json({ 
@@ -178,9 +134,6 @@ export const createProduct = async (req, res) => {
       isHidden: false, // Yeni ürün varsayılan olarak görünür
     });
 
-    // Cache'leri invalidate et
-    await invalidateAllProductCaches();
-
     res.status(201).json({
       message: "Ürün başarıyla oluşturuldu!",
       product,
@@ -210,9 +163,6 @@ export const deleteProduct = async (req, res) => {
     }
 
     await Product.findByIdAndDelete(req.params.id);
-
-    // Cache'leri invalidate et
-    await invalidateAllProductCaches();
 
     res.json({ message: "Product deleted successfully" });
   } catch (error) {
@@ -249,13 +199,10 @@ export const toggleFeaturedProduct = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
     if (product) {
-    product.isFeatured = !product.isFeatured;
-    const updatedProduct = await product.save();
-    
-    // Cache'leri invalidate et
-    await invalidateAllProductCaches();
-    
-    res.json(updatedProduct);
+      product.isFeatured = !product.isFeatured;
+      const updatedProduct = await product.save();
+      await updateFeaturedProductsCache();
+      res.json(updatedProduct);
     } else {
       res.status(404).json({ message: "Product not found" });
     }
@@ -276,9 +223,6 @@ export const toggleHiddenProduct = async (req, res) => {
     product.isHidden = !product.isHidden;
     const updatedProduct = await product.save();
 
-    // Cache'leri invalidate et
-    await invalidateAllProductCaches();
-
     // Cache'i invalidate et - güncellenmiş ürünü döndür
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
@@ -293,46 +237,6 @@ export const toggleHiddenProduct = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
-
-// Cache invalidation helper fonksiyonları
-async function invalidateProductsCache() {
-  try {
-    // Tüm products cache'lerini temizle (pattern matching ile)
-    const keys = await redis.keys('products:*');
-    if (keys.length > 0) {
-      await redis.del(...keys);
-      console.log(`✅ [Redis Cache] Invalidated ${keys.length} product cache keys`);
-    }
-  } catch (error) {
-    console.error("Error invalidating products cache:", error.message);
-  }
-}
-
-async function invalidateFeaturedProductsCache() {
-  try {
-    await redis.del('featured_products');
-    console.log('✅ [Redis Cache] Invalidated featured_products cache');
-  } catch (error) {
-    console.error("Error invalidating featured products cache:", error.message);
-  }
-}
-
-async function invalidateCategoriesCache() {
-  try {
-    await redis.del('categories:with-count');
-    console.log('✅ [Redis Cache] Invalidated categories cache');
-  } catch (error) {
-    console.error("Error invalidating categories cache:", error.message);
-  }
-}
-
-async function invalidateAllProductCaches() {
-  await Promise.all([
-    invalidateProductsCache(),
-    invalidateFeaturedProductsCache(),
-    invalidateCategoriesCache()
-  ]);
-}
 
 async function updateFeaturedProductsCache() {
   try {
@@ -357,34 +261,6 @@ export const getProducts = async (req, res) => {
     if (search) {
       query.name = { $regex: new RegExp(search, "i") }; // Case-insensitive arama
     }
-
-    // Redis Cache Key oluştur (query parametrelerine göre)
-    const cacheKey = `products:${category || 'all'}:${page}:${limit}:${search || 'no-search'}`;
-    
-    // Önce Redis'ten kontrol et
-    try {
-      const cachedData = await redis.get(cacheKey);
-      if (cachedData) {
-        console.log(`✅ [Redis Cache] Products cache hit: ${cacheKey}`);
-        const parsedData = JSON.parse(cachedData);
-        
-        // HTTP cache headers
-        res.setHeader('Last-Modified', parsedData.lastModified);
-        res.setHeader('ETag', parsedData.etag);
-        res.setHeader('Cache-Control', 'private, max-age=300');
-        res.setHeader('X-Cache', 'HIT'); // Debug için
-        
-        return res.status(200).json({
-          products: parsedData.products,
-          pagination: parsedData.pagination
-        });
-      }
-    } catch (cacheError) {
-      console.warn('⚠️ [Redis Cache] Cache read error:', cacheError.message);
-      // Cache hatası olsa bile devam et
-    }
-
-    console.log(`❌ [Redis Cache] Products cache miss: ${cacheKey}`);
 
     // Offline Sync Support: Check If-Modified-Since header
     const ifModifiedSince = req.headers['if-modified-since'];
@@ -434,8 +310,12 @@ export const getProducts = async (req, res) => {
       ? `"${new Date(latestProduct.updatedAt).getTime()}"`
       : `"${Date.now()}"`;
 
-    // Response data
-    const responseData = {
+    // Set caching headers
+    res.setHeader('Last-Modified', lastModified);
+    res.setHeader('ETag', etag);
+    res.setHeader('Cache-Control', 'private, max-age=300'); // 5 minutes cache
+    
+    res.status(200).json({ 
       products,
       pagination: {
         total,
@@ -443,29 +323,7 @@ export const getProducts = async (req, res) => {
         totalPages: Math.ceil(total / limit),
         hasMore: page * limit < total
       }
-    };
-
-    // Redis'e cache'le (5 dakika = 300 saniye)
-    try {
-      const cacheData = {
-        ...responseData,
-        lastModified,
-        etag
-      };
-      await redis.setex(cacheKey, 300, JSON.stringify(cacheData)); // 5 dakika TTL
-      console.log(`✅ [Redis Cache] Products cached: ${cacheKey}`);
-    } catch (cacheError) {
-      console.warn('⚠️ [Redis Cache] Cache write error:', cacheError.message);
-      // Cache yazma hatası olsa bile response'u döndür
-    }
-
-    // Set caching headers
-    res.setHeader('Last-Modified', lastModified);
-    res.setHeader('ETag', etag);
-    res.setHeader('Cache-Control', 'private, max-age=300'); // 5 minutes cache
-    res.setHeader('X-Cache', 'MISS'); // Debug için
-    
-    res.status(200).json(responseData);
+    });
   } catch (error) {
     console.error("Error in getProducts controller:", error.message);
     res.status(500).json({ message: "Server error", error: error.message });
@@ -491,9 +349,6 @@ export const updateProductPrice = async (req, res) => {
 
     product.price = priceNumber; // Yeni fiyatı kaydet
     const updatedProduct = await product.save();
-
-    // Cache'leri invalidate et
-    await invalidateAllProductCaches();
 
     // Cache'i invalidate et
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -605,8 +460,10 @@ export const updateProduct = async (req, res) => {
 
     const updatedProduct = await product.save();
 
-    // Cache'leri invalidate et
-    await invalidateAllProductCaches();
+    // Cache'i güncelle (featured_products varsa)
+    if (product.isFeatured) {
+      await updateFeaturedProductsCache();
+    }
 
     res.status(200).json({ message: "Ürün başarıyla güncellendi", product: updatedProduct });
   } catch (error) {
@@ -624,9 +481,6 @@ export const toggleOutOfStock = async (req, res) => {
     // Tükendi durumunu tersine çevir
     product.isOutOfStock = !product.isOutOfStock;
     const updatedProduct = await product.save();
-
-    // Cache'leri invalidate et
-    await invalidateAllProductCaches();
 
     // Cache'i invalidate et - güncellenmiş ürünü döndür
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -730,9 +584,6 @@ export const updateProductImage = async (req, res) => {
     product.image = cloudinaryResponse.secure_url;
     await product.save();
 
-    // Cache'leri invalidate et
-    await invalidateAllProductCaches();
-
     res.status(200).json({
       message: "Ürün görseli güncellendi",
       image: cloudinaryResponse.secure_url
@@ -760,9 +611,6 @@ export const updateProductDiscount = async (req, res) => {
     product.discountedPrice = discountedPrice;
     await product.save();
 
-    // Cache'leri invalidate et
-    await invalidateAllProductCaches();
-
     res.json({ message: "İndirim başarıyla uygulandı", product });
   } catch (error) {
     console.error("İndirim uygulama hatası:", error);
@@ -782,9 +630,6 @@ export const removeProductDiscount = async (req, res) => {
     product.discountedPrice = null;
     await product.save();
 
-    // Cache'leri invalidate et
-    await invalidateAllProductCaches();
-
     res.json({ message: "İndirim başarıyla kaldırıldı", product });
   } catch (error) {
     console.error("İndirim kaldırma hatası:", error);
@@ -802,9 +647,6 @@ export const bulkDeleteProducts = async (req, res) => {
     }
 
     await Product.deleteMany({ _id: { $in: productIds } });
-    
-    // Cache'leri invalidate et
-    await invalidateAllProductCaches();
     
     res.json({ message: `${productIds.length} ürün silindi`, deletedCount: productIds.length });
   } catch (error) {
@@ -825,9 +667,6 @@ export const bulkUpdateVisibility = async (req, res) => {
       { _id: { $in: productIds } },
       { $set: { isHidden } }
     );
-    
-    // Cache'leri invalidate et
-    await invalidateAllProductCaches();
     
     res.json({ 
       message: `${productIds.length} ürün ${isHidden ? 'gizlendi' : 'görünür yapıldı'}`, 
@@ -867,9 +706,6 @@ export const bulkUpdatePrice = async (req, res) => {
       await product.save();
     }
     
-    // Cache'leri invalidate et
-    await invalidateAllProductCaches();
-    
     res.json({ message: `${productIds.length} ürünün fiyatı güncellendi` });
   } catch (error) {
     console.error("Toplu fiyat güncelleme hatası:", error);
@@ -893,9 +729,6 @@ export const bulkAddFlashSale = async (req, res) => {
       product.isDiscounted = true;
       await product.save();
     }
-    
-    // Cache'leri invalidate et
-    await invalidateAllProductCaches();
     
     res.json({ 
       message: `${productIds.length} ürüne %${discountPercentage} flash sale uygulandı` 
