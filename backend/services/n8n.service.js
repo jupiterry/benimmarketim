@@ -7,16 +7,25 @@ import axios from "axios";
 
 /**
  * n8n webhook'una veri gönderir
- * @param {string} eventType - Olay tipi (order.created, user.registered, vb.)
+ * @param {string} eventType - Olay tipi (order.created, user.registered, user.logged_in, vb.)
  * @param {object} data - Gönderilecek veri
  * @returns {Promise<boolean>} - Başarılı olup olmadığı
  */
 export const sendToN8N = async (eventType, data) => {
   try {
-    const webhookUrl = process.env.N8N_WEBHOOK_URL;
+    // Event tipine göre özel webhook URL'i kontrol et
+    let webhookUrl;
+    
+    if (eventType === 'user.logged_in' && process.env.N8N_LOGIN_WEBHOOK_URL) {
+      // Login için özel webhook URL'i varsa onu kullan
+      webhookUrl = process.env.N8N_LOGIN_WEBHOOK_URL;
+    } else {
+      // Diğer event'ler için genel webhook URL'ini kullan
+      webhookUrl = process.env.N8N_WEBHOOK_URL;
+    }
     
     if (!webhookUrl) {
-      console.warn('N8N_WEBHOOK_URL tanımlanmamış. Webhook gönderilmedi.');
+      console.warn(`N8N webhook URL tanımlanmamış (${eventType}). Webhook gönderilmedi.`);
       return false;
     }
 

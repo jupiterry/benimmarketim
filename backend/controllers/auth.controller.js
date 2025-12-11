@@ -108,6 +108,22 @@ export const login = async (req, res) => {
 
 			console.log("Login successful, tokens generated"); // Debug log
 
+			// n8n'e kullanıcı girişi webhook'u gönder (asenkron, hata olsa bile ana işlemi engellemez)
+			try {
+				await sendToN8N('user.logged_in', {
+					userId: user._id.toString(),
+					name: user.name,
+					email: user.email,
+					phone: user.phone || '',
+					role: user.role,
+					deviceType: user.deviceType || '',
+					lastLoginAt: new Date().toISOString()
+				});
+			} catch (n8nError) {
+				// n8n webhook hatası ana işlemi engellemez
+				console.error('n8n webhook gönderilirken hata:', n8nError.message);
+			}
+
 			res.json({
 				_id: user._id,
 				name: user.name,

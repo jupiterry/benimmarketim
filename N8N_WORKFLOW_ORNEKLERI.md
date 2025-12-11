@@ -371,6 +371,75 @@ Toplam: {{ $json.body.order.totalAmount }} TL
 </html>
 ```
 
+## 🔔 Örnek 9: Kullanıcı Giriş Bildirimi (Telegram)
+
+Kullanıcı sisteme giriş yaptığında Telegram üzerinden bildirim gönderme.
+
+### Gelen Veri Formatı (user.logged_in):
+
+```json
+{
+  "event": "user.logged_in",
+  "timestamp": "2025-01-15T10:30:00.000Z",
+  "data": {
+    "userId": "507f191e810c19729de860ea",
+    "name": "Ahmet Yılmaz",
+    "email": "ahmet@example.com",
+    "phone": "5551234567",
+    "role": "user",
+    "deviceType": "web",
+    "lastLoginAt": "2025-01-15T10:30:00.000Z"
+  }
+}
+```
+
+### Adımlar:
+1. **Webhook** node'u
+2. **IF** node'u (Event tipini kontrol et: `user.logged_in`)
+3. **Telegram** node'u ekleyin
+
+### IF Koşulu:
+```javascript
+{{ $json.body.event }} === 'user.logged_in'
+```
+
+### Telegram Message:
+
+**Chat ID:** `YOUR_TELEGRAM_CHAT_ID` (veya bot token ile otomatik)
+
+**Message:**
+```
+🔐 Kullanıcı Girişi
+
+👤 Kullanıcı: {{ $json.body.data.name }}
+📧 Email: {{ $json.body.data.email }}
+📱 Telefon: {{ $json.body.data.phone || 'Belirtilmemiş' }}
+💻 Cihaz: {{ $json.body.data.deviceType || 'Bilinmiyor' }}
+👑 Rol: {{ $json.body.data.role }}
+🕐 Giriş Zamanı: {{ $json.body.data.lastLoginAt }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### Alternatif: Sadece Önemli Girişleri Bildir (Admin veya Mobil)
+
+**IF Koşulu:**
+```javascript
+{{ $json.body.event }} === 'user.logged_in' && 
+({{ $json.body.data.role }} === 'admin' || {{ $json.body.data.deviceType }} === 'mobile')
+```
+
+### Telegram Bot Kurulumu:
+
+1. Telegram'da [@BotFather](https://t.me/botfather) ile konuşun
+2. `/newbot` komutu ile yeni bot oluşturun
+3. Bot token'ınızı alın
+4. n8n'de Telegram node'una token'ı ekleyin
+5. Chat ID'nizi almak için botunuza `/start` gönderin ve şu URL'yi ziyaret edin:
+   ```
+   https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates
+   ```
+
 ## ✅ Kontrol Listesi
 
 Workflow'unuz hazır olana kadar:
@@ -388,7 +457,9 @@ Workflow'unuz hazır olana kadar:
 Artık n8n'e bildirimler geliyor! İstediğiniz bildirim türünü ekleyip workflow'unuzu tamamlayabilirsiniz.
 
 **Gelen veriler:**
-- ✅ Sipariş bilgileri
+- ✅ Sipariş bilgileri (order.created)
+- ✅ Kullanıcı kayıtları (user.registered)
+- ✅ Kullanıcı girişleri (user.logged_in) 🆕
 - ✅ Müşteri bilgileri
 - ✅ Ürün listesi
 - ✅ Teslimat bilgileri

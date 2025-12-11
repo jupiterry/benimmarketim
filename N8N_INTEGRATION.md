@@ -17,9 +17,14 @@ Bu projeye n8n entegrasyonu başarıyla eklenmiştir. Bu kılavuz, n8n'i nasıl 
 `.env` dosyanıza aşağıdaki değişkenleri ekleyin:
 
 ```env
-# n8n Webhook URL'i - Sipariş bildirimleri için
-# Bu URL'ye siparişler otomatik olarak gönderilir
+# n8n Webhook URL'i - Genel bildirimler için (sipariş, kayıt vb.)
+# Bu URL'ye siparişler ve diğer genel event'ler otomatik olarak gönderilir
 N8N_WEBHOOK_URL=https://n8n.devrekbenimmarketim.com/webhook-test/e28ba3af-75a2-4d06-9436-00332405e9db
+
+# (Opsiyonel) n8n Login Webhook URL'i - Kullanıcı giriş bildirimleri için
+# Eğer login bildirimleri için ayrı bir workflow kullanıyorsanız bu URL'i tanımlayın
+# Tanımlanmazsa, login bildirimleri de N8N_WEBHOOK_URL'e gönderilir
+N8N_LOGIN_WEBHOOK_URL=https://n8n.devrekbenimmarketim.com/webhook-test/login-webhook
 
 # (Opsiyonel) n8n Base URL (workflow-specific webhook'lar için)
 N8N_BASE_URL=https://n8n.devrekbenimmarketim.com
@@ -109,6 +114,28 @@ Bir kullanıcı kayıt olduğunda:
   }
 }
 ```
+
+#### 3. Kullanıcı Girişi (user.logged_in) 🔐
+
+Bir kullanıcı sisteme giriş yaptığında:
+
+```json
+{
+  "event": "user.logged_in",
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "data": {
+    "userId": "507f191e810c19729de860ea",
+    "name": "Ahmet Yılmaz",
+    "email": "ahmet@example.com",
+    "phone": "5551234567",
+    "role": "user",
+    "deviceType": "web",
+    "lastLoginAt": "2024-01-15T10:30:00.000Z"
+  }
+}
+```
+
+**Kullanım:** Bu event ile kullanıcı girişlerini Telegram, Email veya diğer platformlara bildirebilirsiniz.
 
 ### Manuel Webhook Gönderme
 
