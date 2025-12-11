@@ -347,38 +347,70 @@ export const placeOrder = async (req, res) => {
 	  console.log('🔔 [Sipariş] n8n bildirimi başlatılıyor...');
 	  try {
 		const orderData = await Order.findById(newOrder._id)
-		  .populate('user', 'name email phone')
-		  .populate('products.product', 'name price');
+		  .populate('user', 'name email phone');
+		
+		if (!orderData) {
+		  console.error('❌ [Sipariş Error] Sipariş verisi bulunamadı, n8n bildirimi gönderilemedi.');
+		  return;
+		}
 		
 		console.log('🔔 [Sipariş] Sipariş verisi alındı, bildirim hazırlanıyor...');
+		console.log('🔔 [Sipariş Debug] OrderData products:', JSON.stringify(orderData.products, null, 2));
+		
+		// Ürün verilerini güvenli şekilde hazırla
+		const products = orderData.products
+		  .filter(p => p && (p.name || p.product?.name)) // Boş olmayan ürünleri filtrele
+		  .map(p => {
+			const productName = p.name || p.product?.name || 'Bilinmeyen Ürün';
+			const productPrice = p.price || p.product?.price || 0;
+			const productQuantity = p.quantity || 1;
+			
+			return {
+			  name: productName,
+			  quantity: productQuantity,
+			  price: productPrice,
+			  total: productPrice * productQuantity
+			};
+		  });
+		
+		// Ürün listesi boşsa bildirim gönderme
+		if (products.length === 0) {
+		  console.error('❌ [Sipariş Error] Ürün listesi boş, n8n bildirimi gönderilemedi.');
+		  console.error('❌ [Sipariş Error] OrderData:', JSON.stringify(orderData, null, 2));
+		  return;
+		}
 		
 		// Sipariş bildirimi için hazırlanmış veri formatı
 		const notificationData = {
 		  orderId: newOrder._id.toString(),
 		  _id: newOrder._id,
+		  orderNumber: newOrder._id.toString(),
 		  user: {
 			id: req.user._id.toString(),
 			_id: req.user._id,
-			name: req.user.name,
-			email: req.user.email,
-			phone: req.user.phone || phone
+			name: req.user.name || orderData.user?.name || '',
+			email: req.user.email || orderData.user?.email || '',
+			phone: req.user.phone || phone || orderData.phone || ''
 		  },
-		  products: orderData.products.map(p => ({
-			name: p.name,
-			quantity: p.quantity,
-			price: p.price,
-			total: p.price * p.quantity
-		  })),
-		  totalAmount: newOrder.totalAmount,
-		  city: newOrder.city,
-		  deliveryPoint: newOrder.deliveryPoint,
-		  deliveryPointName: newOrder.deliveryPointName,
-		  status: newOrder.status,
-		  createdAt: newOrder.createdAt,
+		  products: products,
+		  totalAmount: newOrder.totalAmount || 0,
+		  city: newOrder.city || '',
+		  deliveryPoint: newOrder.deliveryPoint || '',
+		  deliveryPointName: newOrder.deliveryPointName || '',
+		  status: newOrder.status || 'Hazırlanıyor',
+		  createdAt: newOrder.createdAt || new Date(),
 		  note: newOrder.note || ''
 		};
 		
+		// Veri doğrulaması
+		if (!notificationData.user.name || !notificationData.user.phone) {
+		  console.error('❌ [Sipariş Error] Kullanıcı bilgileri eksik, n8n bildirimi gönderilemedi.');
+		  console.error('❌ [Sipariş Error] NotificationData:', JSON.stringify(notificationData, null, 2));
+		  return;
+		}
+		
 		console.log('🔔 [Sipariş] Bildirim verisi hazır, n8n\'e gönderiliyor...');
+		console.log('🔔 [Sipariş Debug] NotificationData:', JSON.stringify(notificationData, null, 2));
 		
 		// n8n'e sipariş bildirimi gönder
 		const notificationResult = await sendOrderNotification(notificationData);

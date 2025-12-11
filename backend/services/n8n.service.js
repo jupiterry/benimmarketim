@@ -80,29 +80,69 @@ export const sendOrderNotification = async (orderData) => {
       return false;
     }
 
+    // Gelen veriyi kontrol et
+    if (!orderData) {
+      console.error('❌ [n8n Error] orderData boş, bildirim gönderilemedi.');
+      return false;
+    }
+
+    // Ürün listesini kontrol et ve temizle
+    const products = (orderData.products || [])
+      .filter(p => p && p.name && p.quantity > 0 && p.price >= 0)
+      .map(p => ({
+        name: String(p.name || '').trim(),
+        quantity: Number(p.quantity || 0),
+        price: Number(p.price || 0),
+        total: Number((p.price || 0) * (p.quantity || 0))
+      }));
+
+    // Ürün listesi boşsa bildirim gönderme
+    if (products.length === 0) {
+      console.error('❌ [n8n Error] Ürün listesi boş veya geçersiz, bildirim gönderilemedi.');
+      console.error('❌ [n8n Error] OrderData:', JSON.stringify(orderData, null, 2));
+      return false;
+    }
+
+    // Kullanıcı bilgilerini kontrol et
+    const userName = String(orderData.user?.name || '').trim();
+    const userPhone = String(orderData.user?.phone || orderData.phone || '').trim();
+
+    if (!userName || !userPhone) {
+      console.error('❌ [n8n Error] Kullanıcı bilgileri eksik (name veya phone), bildirim gönderilemedi.');
+      console.error('❌ [n8n Error] User data:', JSON.stringify(orderData.user, null, 2));
+      return false;
+    }
+
     // n8n'e gönderilecek sipariş verisi formatı
     const payload = {
       event: 'order.created',
       timestamp: new Date().toISOString(),
       order: {
-        id: orderData.orderId || orderData._id?.toString(),
-        orderNumber: orderData.orderNumber || orderData._id?.toString(),
+        id: String(orderData.orderId || orderData._id?.toString() || ''),
+        orderNumber: String(orderData.orderNumber || orderData._id?.toString() || ''),
         user: {
-          id: orderData.user?.id || orderData.user?._id?.toString(),
-          name: orderData.user?.name || '',
-          email: orderData.user?.email || '',
-          phone: orderData.user?.phone || orderData.phone || ''
+          id: String(orderData.user?.id || orderData.user?._id?.toString() || ''),
+          name: userName,
+          email: String(orderData.user?.email || '').trim(),
+          phone: userPhone
         },
-        products: orderData.products || [],
-        totalAmount: orderData.totalAmount || 0,
-        city: orderData.city || '',
-        deliveryPoint: orderData.deliveryPoint || '',
-        deliveryPointName: orderData.deliveryPointName || '',
-        status: orderData.status || 'pending',
-        createdAt: orderData.createdAt || new Date().toISOString(),
-        note: orderData.note || ''
+        products: products,
+        totalAmount: Number(orderData.totalAmount || 0),
+        city: String(orderData.city || '').trim(),
+        deliveryPoint: String(orderData.deliveryPoint || '').trim(),
+        deliveryPointName: String(orderData.deliveryPointName || '').trim(),
+        status: String(orderData.status || 'Hazırlanıyor').trim(),
+        createdAt: orderData.createdAt ? new Date(orderData.createdAt).toISOString() : new Date().toISOString(),
+        note: String(orderData.note || '').trim()
       }
     };
+
+    // Final veri doğrulaması
+    if (!payload.order.id || !payload.order.user.name || !payload.order.user.phone || payload.order.products.length === 0) {
+      console.error('❌ [n8n Error] Payload doğrulaması başarısız, bildirim gönderilemedi.');
+      console.error('❌ [n8n Error] Payload:', JSON.stringify(payload, null, 2));
+      return false;
+    }
 
     console.log('📤 [n8n Debug] n8n\'e sipariş bildirimi gönderiliyor...');
     console.log('📤 [n8n Debug] Webhook URL:', webhookUrl);

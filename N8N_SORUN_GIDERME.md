@@ -123,7 +123,34 @@ veya
 3. n8n workflow'unun aktif olduğundan emin olun
 4. Firewall/proxy ayarlarını kontrol edin
 
-### Sorun 3: Timeout Hatası
+### Sorun 3: Boş Veri Gönderiliyor (Telegram'da Placeholder'lar Görünüyor)
+
+**Belirtiler:**
+- Telegram'da bildirim geliyor ama veriler boş görünüyor
+- Müşteri adı, telefon, ürün bilgileri boş
+- n8n workflow'unda veri mapping'i çalışmıyor
+
+**Olası Nedenler:**
+1. Sipariş verisi populate edilirken hata oluşuyor
+2. Ürün listesi boş veya eksik veri içeriyor
+3. Kullanıcı bilgileri eksik
+
+**Çözüm:**
+1. Backend console log'larını kontrol edin:
+   ```
+   🔔 [Sipariş Debug] OrderData products: ...
+   🔔 [Sipariş Debug] NotificationData: ...
+   ```
+2. Eğer "Ürün listesi boş" veya "Kullanıcı bilgileri eksik" hatası görüyorsanız:
+   - Sipariş veritabanında ürünlerin doğru kaydedildiğini kontrol edin
+   - Kullanıcı bilgilerinin (name, phone) eksik olmadığını kontrol edin
+3. n8n workflow'unuzda veri mapping'ini kontrol edin:
+   - `{{ $json.body.order.user.name }}` formatını kullandığınızdan emin olun
+   - `{{ $json.body.order.products }}` array'ini doğru şekilde işlediğinizden emin olun
+
+**Not:** Sistem artık boş veri göndermeyi engelleyecek şekilde güncellendi. Eğer veri eksikse, bildirim gönderilmeyecek ve console'da hata mesajı görünecektir.
+
+### Sorun 4: Timeout Hatası
 
 **Belirtiler:**
 - Console'da: `❌ [n8n Error] timeout of 10000ms exceeded`
