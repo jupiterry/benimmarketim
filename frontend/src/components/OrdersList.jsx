@@ -202,7 +202,7 @@ const OrdersList = () => {
     // Socket.IO bağlantısı
     const socket = io('https://www.devrekbenimmarketim.com', {
       withCredentials: true,
-      transports: ['polling', 'websocket']
+      transports: ['websocket'] // Polling sorunları için sadece websocket zorla
     });
 
     socket.on('connect', () => {
