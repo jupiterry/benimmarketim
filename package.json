@@ -32,6 +32,7 @@
 		"react-infinite-scroll-component": "^6.1.0",
 		"react-slick": "^0.30.3",
 		"slick-carousel": "^1.8.1",
+		"node-cron": "^3.0.3",
 		"socket.io": "^4.8.1",
 		"socket.io-client": "^4.8.1",
 		"@socket.io/redis-adapter": "^8.3.0",
