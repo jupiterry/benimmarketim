@@ -84,15 +84,15 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
 
-// Socket.IO yapılandırması - Basit ve güvenilir
+// Socket.IO yapılandırması - Sağlam ve Güvenilir
 const io = new Server(httpServer, {
   cors: {
-    origin: true, // Tüm origin'lere izin ver (güvenlik için daha sonra kısıtlanabilir)
+    origin: corsOptions.origin, // Express ile aynı origin listesini kullan
     methods: ["GET", "POST"],
     credentials: true
   },
   allowEIO3: true,
-  transports: ['polling', 'websocket'] // Polling ve Websocket ikisini de destekle
+  transports: ['websocket', 'polling'] // Websocket öncelikli, polling destekli
 });
 
 // Global socket.io erişimi için

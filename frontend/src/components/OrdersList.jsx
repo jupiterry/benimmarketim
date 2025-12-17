@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import axios from "../lib/axios";
 import { Search, Package2, ChevronLeft, ChevronRight, RefreshCw, Printer, Filter, X } from "lucide-react";
 import toast from "react-hot-toast";
-import io from "socket.io-client";
+import socketService from "../lib/socket.js";
 
 const OrdersList = () => {
   const [orderAnalyticsData, setOrderAnalyticsData] = useState(null);
@@ -196,35 +196,45 @@ const OrdersList = () => {
   };
 
   // İlk yükleme ve Socket.IO bağlantısı
+import socketService from "../lib/socket.js";
+// ... (keep imports)
+
+// ... (inside component)
+
+  // İlk yükleme ve Socket.IO bağlantısı
   useEffect(() => {
     fetchOrderAnalyticsData();
 
-    // Socket.IO bağlantısı
-    const socket = io('https://www.devrekbenimmarketim.com', {
-      withCredentials: true,
-      transports: ['websocket'] // Polling sorunları için sadece websocket zorla
-    });
+    // Socket servisi üzerinden bağlantı
+    const socket = socketService.connect();
 
-    socket.on('connect', () => {
-      console.log('Socket.IO bağlantısı başarılı');
-      socket.emit('joinAdminRoom');
-    });
+    // Odaya katıl
+    if (socket.connected) {
+        socket.emit('joinAdminRoom');
+    } else {
+        socket.on('connect', () => {
+            socket.emit('joinAdminRoom');
+        });
+    }
 
-    socket.on('newOrder', (data) => {
+    // Yeni sipariş dinleyicisi
+    const handleNewOrder = (data) => {
       console.log('Yeni sipariş bildirimi alındı:', data);
       fetchOrderAnalyticsData(); // Siparişleri yenile
       toast.success('Yeni sipariş geldi!', {
         icon: '🛍️',
         duration: 4000
       });
-    });
+    };
 
-    socket.on('connect_error', (error) => {
-      console.error('Socket.IO bağlantı hatası:', error);
-    });
+    socket.on('newOrder', handleNewOrder);
 
     return () => {
-      socket.disconnect();
+      socket.off('newOrder', handleNewOrder);
+      // Admin sayfasından çıkınca bağlantıyı tamamen koparmıyoruz, 
+      // servis singleton olduğu için açık kalabilir veya 
+      // socketService.disconnect() çağrılabilir.
+      // Performans için listener'ı kaldırmak yeterli.
     };
   }, []);
 
