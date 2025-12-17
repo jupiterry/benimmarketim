@@ -19,6 +19,39 @@ const OrdersList = () => {
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const ordersPerPage = 6;
 
+  // Özel ürün ekleme state'leri
+  const [showAddItemModal, setShowAddItemModal] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState(null);
+  const [customItemAmount, setCustomItemAmount] = useState("");
+  const [customItemName, setCustomItemName] = useState("");
+
+  const handleOpenAddItemModal = (orderId) => {
+    setSelectedOrderId(orderId);
+    setCustomItemAmount("");
+    setCustomItemName("");
+    setShowAddItemModal(true);
+  };
+
+  const handleAddCustomItem = async (e) => {
+    e.preventDefault();
+    if (!selectedOrderId || !customItemAmount) return;
+
+    try {
+      await axios.put("/orders-analytics/add-item", {
+        orderId: selectedOrderId,
+        amount: customItemAmount,
+        name: customItemName
+      });
+      
+      toast.success("Ürün başarıyla eklendi");
+      setShowAddItemModal(false);
+      fetchOrderAnalyticsData(); // Listeyi yenile
+    } catch (error) {
+      console.error("Ürün eklenirken hata:", error);
+      toast.error(error.response?.data?.message || "Ürün eklenirken hata oluştu");
+    }
+  };
+
   const handlePrint = (order) => {
     try {
       const printWindow = window.open('', '_blank', 'width=400,height=700');
@@ -311,38 +344,7 @@ const OrdersList = () => {
     currentPage * ordersPerPage
   );
 
-  // Özel ürün ekleme state'leri
-  const [showAddItemModal, setShowAddItemModal] = useState(false);
-  const [selectedOrderId, setSelectedOrderId] = useState(null);
-  const [customItemAmount, setCustomItemAmount] = useState("");
-  const [customItemName, setCustomItemName] = useState("");
 
-  const handleOpenAddItemModal = (orderId) => {
-    setSelectedOrderId(orderId);
-    setCustomItemAmount("");
-    setCustomItemName("");
-    setShowAddItemModal(true);
-  };
-
-  const handleAddCustomItem = async (e) => {
-    e.preventDefault();
-    if (!selectedOrderId || !customItemAmount) return;
-
-    try {
-      await axios.put("/orders-analytics/add-item", {
-        orderId: selectedOrderId,
-        amount: customItemAmount,
-        name: customItemName
-      });
-      
-      toast.success("Ürün başarıyla eklendi");
-      setShowAddItemModal(false);
-      fetchOrderAnalyticsData(); // Listeyi yenile
-    } catch (error) {
-      console.error("Ürün eklenirken hata:", error);
-      toast.error(error.response?.data?.message || "Ürün eklenirken hata oluştu");
-    }
-  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pt-24">
