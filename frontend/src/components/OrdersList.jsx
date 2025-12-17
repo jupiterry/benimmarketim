@@ -311,9 +311,42 @@ const OrdersList = () => {
     currentPage * ordersPerPage
   );
 
+  // Özel ürün ekleme state'leri
+  const [showAddItemModal, setShowAddItemModal] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState(null);
+  const [customItemAmount, setCustomItemAmount] = useState("");
+  const [customItemName, setCustomItemName] = useState("");
+
+  const handleOpenAddItemModal = (orderId) => {
+    setSelectedOrderId(orderId);
+    setCustomItemAmount("");
+    setCustomItemName("");
+    setShowAddItemModal(true);
+  };
+
+  const handleAddCustomItem = async (e) => {
+    e.preventDefault();
+    if (!selectedOrderId || !customItemAmount) return;
+
+    try {
+      await axios.put("/orders-analytics/add-item", {
+        orderId: selectedOrderId,
+        amount: customItemAmount,
+        name: customItemName
+      });
+      
+      toast.success("Ürün başarıyla eklendi");
+      setShowAddItemModal(false);
+      fetchOrderAnalyticsData(); // Listeyi yenile
+    } catch (error) {
+      console.error("Ürün eklenirken hata:", error);
+      toast.error(error.response?.data?.message || "Ürün eklenirken hata oluştu");
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pt-24">
-      {/* Filtreler ve Arama */}
+      {/* Filtreler ve Arama - (Mevcut kodlar... burası değişmedi) */}
       <div className="bg-gray-800 p-6 rounded-lg mb-6">
         <div className="flex flex-col md:flex-row gap-4 items-center justify-between mb-6">
           <div className="flex-1 w-full md:w-auto">
@@ -534,13 +567,22 @@ const OrdersList = () => {
                     <h3 className="text-lg font-bold text-white">{order.user.name}</h3>
                     <p className="text-sm text-gray-400">ID: {order.orderId}</p>
                   </div>
-                  <button
-                    onClick={() => handlePrint(order)}
-                    className="px-3 py-1.5 rounded-full bg-gray-600 hover:bg-gray-500 text-white text-sm flex items-center gap-1.5 transition-colors"
-                    title="Fişi yazdır"
-                  >
-                    <Printer size={14}/> Yazdır
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                        onClick={() => handleOpenAddItemModal(order.orderId)}
+                        className="px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-sm flex items-center gap-1.5 transition-colors"
+                        title="Ürün/Tutar Ekle"
+                    >
+                        <span className="text-lg font-bold">+</span>
+                    </button>
+                    <button
+                        onClick={() => handlePrint(order)}
+                        className="px-3 py-1.5 rounded-full bg-gray-600 hover:bg-gray-500 text-white text-sm flex items-center gap-1.5 transition-colors"
+                        title="Fişi yazdır"
+                    >
+                        <Printer size={14}/> Yazdır
+                    </button>
+                  </div>
                 </div>
                 <div className="w-full">
                   <label className="text-xs text-gray-400 mb-1 block">Sipariş Durumu:</label>
@@ -655,6 +697,66 @@ const OrdersList = () => {
           >
             <ChevronRight size={20} />
           </button>
+        </div>
+      )}
+
+      {/* Add Item Modal */}
+      {showAddItemModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-sm border border-gray-700 shadow-xl">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-white">Siparişe Ürün Ekle</h3>
+              <button 
+                onClick={() => setShowAddItemModal(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleAddCustomItem} className="space-y-4">
+              <div>
+                <label className="block text-gray-400 text-sm mb-1">Tutar (TL) *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  required
+                  value={customItemAmount}
+                  onChange={(e) => setCustomItemAmount(e.target.value)}
+                  className="w-full bg-gray-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="0.00"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-gray-400 text-sm mb-1">Ürün Adı (Opsiyonel)</label>
+                <input
+                  type="text"
+                  value={customItemName}
+                  onChange={(e) => setCustomItemName(e.target.value)}
+                  className="w-full bg-gray-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="Özel Ekleme"
+                />
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowAddItemModal(false)}
+                  className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold transition-colors"
+                >
+                  Ekle
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

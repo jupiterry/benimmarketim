@@ -6,6 +6,7 @@ import {
   updateOrderStatus,
   getUserOrders,
   cancelOrder,
+  addCustomItemToOrder,
 } from "../controllers/ordersAnalytics.controller.js";
 
 const router = express.Router();
@@ -38,5 +39,8 @@ router.get("/user-orders", protectRoute, getUserOrders);
 
 // Sipariş iptal etme endpoint'i
 router.put("/cancel-order", protectRoute, cancelOrder);
+
+// Siparişe özel ürün ekleme endpoint'i
+router.put("/add-item", protectRoute, adminRoute, addCustomItemToOrder);
 
 export default router;

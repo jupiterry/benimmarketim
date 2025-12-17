@@ -210,3 +210,59 @@ export const cancelOrder = async (req, res) => {
     res.status(500).json({ message: "Server hatası", error: error.message });
   }
 };
+
+// Siparişe özel ürün/tutar ekleme fonksiyonu
+export const addCustomItemToOrder = async (req, res) => {
+  try {
+    const { orderId, amount, name } = req.body;
+
+    if (!orderId || !amount) {
+      return res.status(400).json({ message: "Sipariş ID ve tutar zorunludur!" });
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ message: "Sipariş bulunamadı!" });
+    }
+
+    // "Diğer" veya "Özel Ürün" adında genel bir ürün bul veya oluştur
+    // Bu ürün veritabanında "isHidden: true" olarak işaretlenmeli ki katalogda çıkmasın
+    // Ama kodda dinamik olarak oluşturuyoruz
+    let customProduct = await import("../models/product.model.js").then(m => m.default.findOne({ name: "Özel Ekleme", isHidden: true }));
+    
+    if (!customProduct) {
+        const Product = (await import("../models/product.model.js")).default;
+        customProduct = await Product.create({
+            name: "Özel Ekleme",
+            price: 0, // Fiyatı sipariş anında belirlenecek (aslında quantity * price mantığıyla değil, direkt tutar ekleyeceğiz)
+            description: "Yönetici tarafından eklenen özel ürün/tutar",
+            category: "Diğer",
+            image: "", 
+            isHidden: true,
+            order: 9999
+        });
+    }
+
+    const newItem = {
+      product: customProduct._id,
+      name: name || "Özel Ekleme",
+      quantity: 1, // Adet her zaman 1
+      price: parseFloat(amount), // Fiyat girilen tutar
+      image: customProduct.image
+    };
+
+    // Siparişe ekle
+    order.products.push(newItem);
+    
+    // Toplam tutarı güncelle
+    order.totalAmount += parseFloat(amount);
+    
+    await order.save();
+
+    res.json({ message: "Ürün siparişe başarıyla eklendi!", order });
+
+  } catch (error) {
+    console.error("Siparişe ürün eklenirken hata:", error.message);
+    res.status(500).json({ message: "Server hatası", error: error.message });
+  }
+};
