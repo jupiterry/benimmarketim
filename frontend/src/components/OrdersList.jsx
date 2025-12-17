@@ -196,12 +196,7 @@ const OrdersList = () => {
   };
 
   // İlk yükleme ve Socket.IO bağlantısı
-import socketService from "../lib/socket.js";
-// ... (keep imports)
 
-// ... (inside component)
-
-  // İlk yükleme ve Socket.IO bağlantısı
   useEffect(() => {
     fetchOrderAnalyticsData();
 
