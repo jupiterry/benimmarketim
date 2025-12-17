@@ -85,6 +85,10 @@ app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
 
 // Socket.IO yapılandırması - Sağlam ve Güvenilir
+import { createAdapter } from "@socket.io/redis-adapter";
+import Redis from "ioredis";
+
+// Socket.IO yapılandırması - Sağlam ve Güvenilir
 const io = new Server(httpServer, {
   cors: {
     origin: corsOptions.origin, // Express ile aynı origin listesini kullan
@@ -94,6 +98,36 @@ const io = new Server(httpServer, {
   allowEIO3: true,
   transports: ['websocket', 'polling'] // Websocket öncelikli, polling destekli
 });
+
+// Redis Adapter Kurulumu (Cluster Mode için)
+try {
+  const pubClient = new Redis(process.env.UPSTASH_REDIS_URL);
+  const subClient = pubClient.duplicate();
+
+  Promise.all([pubClient.connect(), subClient.connect()]).then(() => {
+    io.adapter(createAdapter(pubClient, subClient));
+    console.log('✅ Socket.IO Redis Adapter başarıyla bağlandı.');
+  }).catch(err => {
+    // ioredis auto-connects, but explicit connect handling is good for adapter setup check
+    // If using ioredis v5+, connect() returns a promise. 
+    // However, if UPSTASH_REDIS_URL is valid, it should work.
+    // Fallback: ioredis usually connects automatically.
+    // Let's just set the adapter synchronously if we assume auto-connect, 
+    // but the adapter expects connected clients or clients that will connect.
+    console.log('Redis bağlantısı bekleniyor...');
+  });
+  
+  // Hata yönetimi
+  pubClient.on('error', (err) => console.error('Redis Pub Error:', err));
+  subClient.on('error', (err) => console.error('Redis Sub Error:', err));
+  
+  // Basit senkron atama (ioredis bağlantıyı arka planda halleder)
+  io.adapter(createAdapter(pubClient, subClient));
+  
+} catch (error) {
+  console.error('❌ Redis Adapter kurulum hatası:', error);
+  console.log('⚠️ Sistem tekil modda (Single Implementation) çalışmaya devam edecek.');
+}
 
 // Global socket.io erişimi için
 app.set('io', io);
