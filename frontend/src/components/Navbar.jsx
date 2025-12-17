@@ -4,7 +4,7 @@ import { useUserStore } from "../stores/useUserStore";
 import { useCartStore } from "../stores/useCartStore";
 import SearchBar from "./SearchBar";
 import { useState, useEffect } from "react";
-import { io } from 'socket.io-client';
+import socketService from "../lib/socket.js";
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 
@@ -64,44 +64,24 @@ const OrderNotification = () => {
             console.log('Admin bağlantısı başlatılıyor...');
           
             
-            // Basit Socket.IO konfigürasyonu
-            const getSocketURL = () => {
-                if (import.meta.env.DEV) {
-                    return 'http://localhost:5000';
-                }
-                return 'https://www.devrekbenimmarketim.com';
-            };
+            // Socket servisi üzerinden bağlantı
+            const socket = socketService.connect();
+
+            // Listener'ları temizle (önceki bağlantıdan kalma varsa)
+            socket.removeAllListeners("newOrder");
             
-            const socket = io(getSocketURL(), {
-                withCredentials: true,
-                transports: ['polling'], // Sadece polling - daha güvenilir
-                reconnectionDelay: 2000,
-                reconnectionAttempts: 3,
-                timeout: 5000,
-                forceNew: true
-            });
-
-            socket.io.on("error", (error) => {
-                console.error('Socket.IO altyapı hatası:', error);
-            });
-
-            socket.io.on("reconnect_attempt", (attempt) => {
-                console.log('Yeniden bağlanma denemesi:', attempt);
-            });
-
-            socket.on('connect', () => {
-                console.log('Socket.IO bağlantısı başarılı! Socket ID:', socket.id);
+            // Bağlantı eventleri zaten serviste loglanıyor, burada sadece oda katılımı önemli
+            if (socket.connected) {
                 socket.emit('joinAdminRoom');
                 console.log('Admin odası katılım isteği gönderildi');
-            });
+            } else {
+                socket.on('connect', () => {
+                    socket.emit('joinAdminRoom');
+                    console.log('Admin odası katılım isteği gönderildi');
+                });
+            }
 
-            socket.on('connect_error', (error) => {
-                console.error('Socket.IO bağlantı hatası:', error.message);
-            });
 
-            socket.on('disconnect', (reason) => {
-                console.log('Socket.IO bağlantısı kesildi:', reason);
-            });
 
             socket.on('newOrder', (data) => {
                 console.log('Yeni sipariş bildirimi alındı:', data);
@@ -179,9 +159,9 @@ const OrderNotification = () => {
             });
 
             return () => {
-                if (socket) {
-                    socket.disconnect();
-                }
+                socket.off('newOrder');
+                // Navbar unmount olduğunda (logout vb.) bağlantıyı kesebiliriz
+                socketService.disconnect();
             };
         }
     }, [user]);

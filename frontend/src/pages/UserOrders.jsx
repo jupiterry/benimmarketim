@@ -4,7 +4,7 @@ import { Package2, Truck, CheckCircle2, Clock, XCircle, RefreshCw, AlertCircle, 
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
 import CancelOrderModal from "../components/CancelOrderModal";
-import { io } from "socket.io-client";
+import socketService from "../lib/socket.js";
 import { isWithinOrderHours, getOrderHoursStatus } from "../lib/orderHours";
 import { useSettingsStore } from "../stores/useSettingsStore";
 
@@ -99,14 +99,14 @@ const UserOrders = () => {
         fetchSettings(); // Ayarları yükle
         
         // Socket.IO bağlantısı
-        const newSocket = io(import.meta.env.DEV ? "http://localhost:5000" : "https://www.devrekbenimmarketim.com");
+        const newSocket = socketService.connect();
         setSocket(newSocket);
         
         // Sipariş durumu güncellemelerini dinle
-        newSocket.on("orderStatusUpdated", (data) => {
+        const handleStatusUpdate = (data) => {
             console.log("Sipariş durumu güncellendi:", data);
             
-            // Eğer sipariş iptal edildiyse, listeden kaldır (veritabanında tutulur ama UI'da gizli)
+            // Eğer sipariş iptal edildiyse, listeden kaldır
             if (data.newStatus === "İptal Edildi") {
                 setOrders(prevOrders => prevOrders.filter(order => order._id !== data.orderId));
                 toast.success("Siparişiniz iptal edildi! ❌");
@@ -131,19 +131,13 @@ const UserOrders = () => {
             };
             
             toast.success(statusMessages[data.newStatus] || "Sipariş durumu güncellendi!");
-        });
-        
-        // Bağlantı durumu
-        newSocket.on("connect", () => {
-            console.log("Socket.IO bağlandı");
-        });
-        
-        newSocket.on("disconnect", () => {
-            console.log("Socket.IO bağlantısı kesildi");
-        });
+        };
+
+        newSocket.on("orderStatusUpdated", handleStatusUpdate);
         
         return () => {
-            newSocket.close();
+            newSocket.off("orderStatusUpdated", handleStatusUpdate);
+            // newSocket.close(); // Singleton olduğu için kapatmıyoruz, sadece listener kaldırıyoruz
         };
     }, []);
 
