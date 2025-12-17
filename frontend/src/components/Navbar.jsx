@@ -70,15 +70,17 @@ const OrderNotification = () => {
             // Listener'ları temizle (önceki bağlantıdan kalma varsa)
             socket.removeAllListeners("newOrder");
             
-            // Bağlantı eventleri zaten serviste loglanıyor, burada sadece oda katılımı önemli
-            if (socket.connected) {
+            const handleConnect = () => {
+                console.log('Socket bağlandı/yenilendi, admin odasına katılınıyor...');
                 socket.emit('joinAdminRoom');
-                console.log('Admin odası katılım isteği gönderildi');
-            } else {
-                socket.on('connect', () => {
-                    socket.emit('joinAdminRoom');
-                    console.log('Admin odası katılım isteği gönderildi');
-                });
+            };
+
+            // Her bağlantı/yeniden bağlantı durumunda odaya tekrar katıl
+            socket.on('connect', handleConnect);
+
+            // Eğer zaten bağlıysa hemen katıl
+            if (socket.connected) {
+                handleConnect();
             }
 
 
@@ -160,6 +162,7 @@ const OrderNotification = () => {
 
             return () => {
                 socket.off('newOrder');
+                socket.off('connect', handleConnect);
                 // Navbar unmount olduğunda (logout vb.) bağlantıyı kesebiliriz
                 socketService.disconnect();
             };

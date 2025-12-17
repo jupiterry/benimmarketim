@@ -87,6 +87,20 @@ export const updateOrderStatus = async (req, res) => {
     order.status = status;
     await order.save();
 
+    // Socket.IO ile kullanıcıya bildirim gönder
+    try {
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('orderStatusUpdated', {
+                orderId: order._id,
+                newStatus: status,
+                message: `Sipariş durumu güncellendi: ${status}`
+            });
+        }
+    } catch (socketError) {
+        console.error('Socket.IO bildirimi gönderilirken hata:', socketError);
+    }
+
     res.json({ message: "Sipariş durumu başarıyla güncellendi!", order });
   } catch (error) {
     console.error("Sipariş durumu güncellenirken hata:", error.message);
