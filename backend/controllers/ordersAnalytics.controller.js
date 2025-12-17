@@ -33,10 +33,10 @@ export const getOrderAnalyticsData = async () => {
       acc[userId].orders.push({
         orderId: order._id,
         products: order.products.map((p) => ({
-          name: p.product?.name || "Bilinmeyen Ürün",
+          name: p.name || p.product?.name || "Bilinmeyen Ürün",
           quantity: p.quantity,
-          price: p.product?.price || 0,
-          image: p.product?.image || null,
+          price: p.price ?? p.product?.price ?? 0,
+          image: p.image || p.product?.image || null,
         })),
         totalAmount: order.totalAmount,
         status: order.status,

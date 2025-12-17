@@ -92,7 +92,7 @@ const io = new Server(httpServer, {
     credentials: true
   },
   allowEIO3: true,
-  transports: ['polling'] // Sadece polling kullan - daha güvenilir
+  transports: ['polling', 'websocket'] // Polling ve Websocket ikisini de destekle
 });
 
 // Global socket.io erişimi için
