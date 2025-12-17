@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import CategoryItem from "../components/CategoryItem";
 import { useProductStore } from "../stores/useProductStore";
 import FeaturedProducts from "../components/FeaturedProducts";
-import { motion } from "framer-motion";
-import { ShoppingCart, Sparkles, TrendingUp, Clock, Gift, Smartphone, Download, Apple, X, ExternalLink } from "lucide-react";
-import { detectDeviceType } from "../lib/deviceDetection";
+import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
+import { ShoppingCart, Sparkles, TrendingUp, Clock, Gift, Smartphone, Download, Apple, ExternalLink, ChevronRight, Star, Zap, Truck, Shield, ArrowRight } from "lucide-react";
 
 const categories = [
 	{ href: "/kahve", name: "Benim Kahvem", imageUrl: "/kahve.png" },
@@ -29,41 +28,184 @@ const categories = [
 ];
 
 const announcements = [
-	{
-		title: "Süper Fırsat!",
-		description: "Seçili ürünlerde %50'ye varan indirimler",
-		icon: <Gift className="w-6 h-6 text-emerald-400" />,
-		color: "from-purple-600 to-blue-600"
-	},
-	{
-		title: "Yeni Üyelere Özel",
-		description: "250₺ Üzerine İlk Siparişinizde Altıncezve Oralet Hediye",
-		icon: <Sparkles className="w-6 h-6 text-yellow-400" />,
-		color: "from-orange-600 to-red-600"
-	},
-	{
-		title: "Hızlı Teslimat",
-		description: "45 dakika içinde kapınızda",
-		icon: <Clock className="w-6 h-6 text-emerald-400" />,
-		color: "from-emerald-600 to-teal-600"
-	}
+	"🎉 Süper Fırsat! Seçili ürünlerde %50'ye varan indirimler",
+	"✨ Yeni Üyelere Özel: 250₺ Üzeri Alışverişte Altıncezve Oralet Hediye",
+	"🚀 45 Dakikada Kapınızda! Hızlı Teslimat Garantisi",
+	"📱 Mobil Uygulamamızı İndirin - Özel Fırsatları Kaçırmayın!",
+	"💳 Kredi Kartına 3 Taksit İmkanı"
 ];
 
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.jupi.benimapp.benimmarketim_app&hl=tr";
 const APP_STORE_URL = "https://apps.apple.com/tr/app/benim-marketim/id6755792336?l=tr";
 
-const HomePage = () => {
-	const [isIOS, setIsIOS] = useState(false);
+// Floating Product Component
+const FloatingProduct = ({ emoji, delay, x, y, duration = 6 }) => (
+	<motion.div
+		className="absolute text-4xl sm:text-5xl md:text-6xl select-none pointer-events-none"
+		style={{ left: `${x}%`, top: `${y}%` }}
+		animate={{
+			y: [0, -20, 0],
+			rotate: [0, 10, -10, 0],
+			scale: [1, 1.1, 1],
+		}}
+		transition={{
+			duration,
+			delay,
+			repeat: Infinity,
+			ease: "easeInOut"
+		}}
+	>
+		{emoji}
+	</motion.div>
+);
+
+// Animated Counter Component
+const AnimatedCounter = ({ target, suffix = "", prefix = "", duration = 2 }) => {
+	const [count, setCount] = useState(0);
+	const [isVisible, setIsVisible] = useState(false);
+	const ref = useRef(null);
 
 	useEffect(() => {
-		// iOS kontrolü
-		const userAgent = navigator.userAgent.toLowerCase();
-		const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
-		setIsIOS(isIOSDevice);
-	}, []);
+		const observer = new IntersectionObserver(
+			([entry]) => {
+				if (entry.isIntersecting && !isVisible) {
+					setIsVisible(true);
+				}
+			},
+			{ threshold: 0.5 }
+		);
+
+		if (ref.current) observer.observe(ref.current);
+		return () => observer.disconnect();
+	}, [isVisible]);
+
+	useEffect(() => {
+		if (!isVisible) return;
+
+		let start = 0;
+		const end = parseInt(target);
+		const incrementTime = (duration * 1000) / end;
+		const step = Math.ceil(end / 60);
+
+		const timer = setInterval(() => {
+			start += step;
+			if (start >= end) {
+				setCount(end);
+				clearInterval(timer);
+			} else {
+				setCount(start);
+			}
+		}, incrementTime * step);
+
+		return () => clearInterval(timer);
+	}, [isVisible, target, duration]);
+
+	return (
+		<span ref={ref} className="tabular-nums">
+			{prefix}{count}{suffix}
+		</span>
+	);
+};
+
+// Typewriter Component
+const Typewriter = ({ texts, speed = 100, deleteSpeed = 50, pauseTime = 2000 }) => {
+	const [displayText, setDisplayText] = useState("");
+	const [textIndex, setTextIndex] = useState(0);
+	const [isDeleting, setIsDeleting] = useState(false);
+
+	useEffect(() => {
+		const currentText = texts[textIndex];
+
+		const timeout = setTimeout(() => {
+			if (!isDeleting) {
+				if (displayText.length < currentText.length) {
+					setDisplayText(currentText.slice(0, displayText.length + 1));
+				} else {
+					setTimeout(() => setIsDeleting(true), pauseTime);
+				}
+			} else {
+				if (displayText.length > 0) {
+					setDisplayText(displayText.slice(0, -1));
+				} else {
+					setIsDeleting(false);
+					setTextIndex((prev) => (prev + 1) % texts.length);
+				}
+			}
+		}, isDeleting ? deleteSpeed : speed);
+
+		return () => clearTimeout(timeout);
+	}, [displayText, isDeleting, textIndex, texts, speed, deleteSpeed, pauseTime]);
+
+	return (
+		<span className="inline-block">
+			{displayText}
+			<motion.span
+				animate={{ opacity: [1, 0] }}
+				transition={{ duration: 0.5, repeat: Infinity }}
+				className="inline-block w-[3px] h-[1em] bg-emerald-400 ml-1 align-middle"
+			/>
+		</span>
+	);
+};
+
+// Scroll Progress Bar
+const ScrollProgressBar = () => {
+	const { scrollYProgress } = useScroll();
+	
+	return (
+		<motion.div
+			className="fixed top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 origin-left z-[100]"
+			style={{ scaleX: scrollYProgress }}
+		/>
+	);
+};
+
+// Marquee Announcement Bar
+const MarqueeBar = () => {
+	return (
+		<div className="fixed top-0 left-0 right-0 z-[99] bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 text-white py-2 overflow-hidden">
+			<motion.div
+				className="flex whitespace-nowrap"
+				animate={{ x: [0, -2000] }}
+				transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+			>
+				{[...announcements, ...announcements, ...announcements].map((text, i) => (
+					<span key={i} className="mx-8 text-sm font-medium flex items-center gap-2">
+						{text}
+						<span className="text-emerald-300">•</span>
+					</span>
+				))}
+			</motion.div>
+		</div>
+	);
+};
+
+// Feature Card
+const FeatureCard = ({ icon: Icon, title, description, color, delay }) => (
+	<motion.div
+		initial={{ opacity: 0, y: 30 }}
+		whileInView={{ opacity: 1, y: 0 }}
+		viewport={{ once: true }}
+		transition={{ delay, duration: 0.5 }}
+		whileHover={{ y: -8, scale: 1.02 }}
+		className="group relative overflow-hidden rounded-2xl p-6 bg-white/5 backdrop-blur-xl border border-white/10 hover:border-emerald-500/50 transition-all duration-300"
+	>
+		<div className={`absolute inset-0 bg-gradient-to-br ${color} opacity-0 group-hover:opacity-10 transition-opacity duration-300`} />
+		<div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center mb-4 shadow-lg`}>
+			<Icon className="w-7 h-7 text-white" />
+		</div>
+		<h3 className="text-lg font-bold text-white mb-2">{title}</h3>
+		<p className="text-gray-400 text-sm leading-relaxed">{description}</p>
+	</motion.div>
+);
+
+const HomePage = () => {
 	const { fetchFeaturedProducts, products, isLoading } = useProductStore();
 	const categoriesRef = useRef(null);
 	const featuredRef = useRef(null);
+	const { scrollY } = useScroll();
+	const heroOpacity = useTransform(scrollY, [0, 400], [1, 0]);
+	const heroScale = useTransform(scrollY, [0, 400], [1, 0.95]);
 
 	useEffect(() => {
 		fetchFeaturedProducts();
@@ -81,9 +223,7 @@ const HomePage = () => {
 		hidden: { opacity: 0 },
 		show: {
 			opacity: 1,
-			transition: {
-				staggerChildren: 0.1
-			}
+			transition: { staggerChildren: 0.05 }
 		}
 	};
 
@@ -93,286 +233,332 @@ const HomePage = () => {
 	};
 
 	return (
-		<div className='relative min-h-screen text-white pt-24'>
-			{/* Hero Section - Muhteşem Tasarım */}
-			<div className="relative min-h-[100vh] sm:h-[800px] overflow-hidden">
-				{/* Arka Plan Gradient */}
-				<div className="absolute inset-0 bg-gradient-to-br from-emerald-900 via-emerald-700 to-teal-800"></div>
-				<div className="absolute inset-0 bg-gradient-to-t from-gray-900/50 via-transparent to-transparent"></div>
+		<div className="relative min-h-screen text-white">
+			{/* Scroll Progress Bar */}
+			<ScrollProgressBar />
+
+			{/* Hero Section */}
+			<motion.div 
+				style={{ opacity: heroOpacity, scale: heroScale }}
+				className="relative min-h-screen overflow-hidden pt-24"
+			>
+				{/* Animated Background */}
+				<div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-emerald-900/40 to-gray-900" />
+				
+				{/* Grid Pattern */}
+				<div className="absolute inset-0 bg-[linear-gradient(rgba(16,185,129,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(16,185,129,0.03)_1px,transparent_1px)] bg-[size:100px_100px]" />
 				
 				{/* Floating Shapes */}
-				<div className="absolute top-20 left-10 w-32 h-32 bg-emerald-500/20 rounded-full blur-xl animate-pulse"></div>
-				<div className="absolute top-40 right-20 w-24 h-24 bg-teal-500/20 rounded-full blur-xl animate-pulse delay-1000"></div>
-				<div className="absolute bottom-40 left-20 w-40 h-40 bg-green-500/20 rounded-full blur-xl animate-pulse delay-2000"></div>
+				<div className="absolute top-20 left-10 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl animate-pulse" />
+				<div className="absolute top-60 right-20 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl animate-pulse delay-1000" />
+				<div className="absolute bottom-40 left-1/4 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl animate-pulse delay-2000" />
 				
-				<motion.div 
-					className="relative z-10 min-h-full flex flex-col items-center justify-center text-center px-4 sm:px-6 lg:px-8 py-8 sm:py-16"
-					initial={{ opacity: 0, y: 30 }}
-					animate={{ opacity: 1, y: 0 }}
-					transition={{ duration: 0.8 }}
-				>
-					{/* Ana Başlık */}
+				{/* Floating Products */}
+				<div className="absolute inset-0 overflow-hidden pointer-events-none">
+					<FloatingProduct emoji="🍎" delay={0} x={5} y={20} duration={5} />
+					<FloatingProduct emoji="🥛" delay={0.5} x={90} y={25} duration={6} />
+					<FloatingProduct emoji="🍞" delay={1} x={15} y={70} duration={5.5} />
+					<FloatingProduct emoji="🧀" delay={1.5} x={85} y={65} duration={6.5} />
+					<FloatingProduct emoji="🥬" delay={2} x={8} y={45} duration={5} />
+					<FloatingProduct emoji="☕" delay={2.5} x={92} y={45} duration={6} />
+					<FloatingProduct emoji="🍫" delay={3} x={20} y={85} duration={5.5} />
+					<FloatingProduct emoji="🥤" delay={3.5} x={80} y={80} duration={6} />
+				</div>
+				
+				<div className="relative z-10 min-h-screen flex flex-col items-center justify-center text-center px-4 sm:px-6 lg:px-8 pt-16 pb-8">
+					{/* Badge */}
 					<motion.div
-						className="mb-8"
-						initial={{ opacity: 0, scale: 0.8 }}
-						animate={{ opacity: 1, scale: 1 }}
-						transition={{ duration: 0.8, delay: 0.2 }}
+						initial={{ opacity: 0, y: -20 }}
+						animate={{ opacity: 1, y: 0 }}
+						transition={{ delay: 0.2 }}
+						className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 rounded-full px-4 py-2 mb-8"
 					>
-						<div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mb-8">
-							<div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-r from-emerald-400 to-teal-500 rounded-full flex items-center justify-center shadow-2xl">
-								<ShoppingCart className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
-							</div>
-							<h1 className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-bold bg-gradient-to-r from-emerald-400 via-teal-400 to-green-400 bg-clip-text text-transparent text-center leading-tight">
+						<Zap className="w-4 h-4 text-emerald-400" />
+						<span className="text-emerald-400 text-sm font-medium">Devrek'in En Hızlı Marketi</span>
+					</motion.div>
+
+					{/* Main Title */}
+					<motion.div
+						initial={{ opacity: 0, scale: 0.9 }}
+						animate={{ opacity: 1, scale: 1 }}
+						transition={{ duration: 0.8, delay: 0.3 }}
+						className="mb-6"
+					>
+						<div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-4">
+							<motion.div 
+								className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-3xl flex items-center justify-center shadow-2xl shadow-emerald-500/30"
+								animate={{ rotate: [0, 5, -5, 0] }}
+								transition={{ duration: 4, repeat: Infinity }}
+							>
+								<ShoppingCart className="w-10 h-10 sm:w-12 sm:h-12 text-white" />
+							</motion.div>
+							<h1 className="text-5xl sm:text-7xl md:text-8xl font-black bg-gradient-to-r from-white via-emerald-200 to-teal-200 bg-clip-text text-transparent">
 								Benim Marketim
 							</h1>
-							<div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-r from-teal-500 to-green-500 rounded-full flex items-center justify-center shadow-2xl">
-								<span className="text-3xl sm:text-4xl">🛍️</span>
-							</div>
 						</div>
 					</motion.div>
 
-					{/* Alt Başlık */}
-					<motion.p 
-						className="text-lg sm:text-xl md:text-2xl text-emerald-100 mb-8 sm:mb-12 max-w-3xl leading-relaxed"
+					{/* Typewriter Subtitle */}
+					<motion.div
+						initial={{ opacity: 0 }}
+						animate={{ opacity: 1 }}
+						transition={{ delay: 0.6 }}
+						className="text-xl sm:text-2xl md:text-3xl text-gray-300 mb-8 h-12"
+					>
+						<Typewriter
+							texts={[
+								"Hızlı Teslimat, Uygun Fiyatlar! 🚀",
+								"3000+ Ürün Çeşidi! 📦",
+								"45 Dakikada Kapınızda! ⏱️",
+								"Kaliteli Ürünler, Güvenli Alışveriş! ✨"
+							]}
+							speed={80}
+							deleteSpeed={40}
+							pauseTime={2500}
+						/>
+					</motion.div>
+
+					{/* CTA Buttons */}
+					<motion.div 
+						className="flex flex-col sm:flex-row gap-4 mb-12"
 						initial={{ opacity: 0, y: 20 }}
 						animate={{ opacity: 1, y: 0 }}
-						transition={{ delay: 0.4, duration: 0.8 }}
-					>
-						Alışverişin en kolay ve hızlı yolu! ✨<br />
-						<span className="text-emerald-300">Kaliteli ürünler, uygun fiyatlar, hızlı teslimat</span> 🚀
-					</motion.p>
-
-					{/* CTA Butonları */}
-					<motion.div 
-						className="flex flex-col sm:flex-row gap-4 sm:gap-6 mb-8 sm:mb-12"
-						initial={{ opacity: 0, y: 30 }}
-						animate={{ opacity: 1, y: 0 }}
-						transition={{ delay: 0.6, duration: 0.8 }}
+						transition={{ delay: 0.8 }}
 					>
 						<motion.button 
 							onClick={scrollToCategories}
-							whileHover={{ scale: 1.05, boxShadow: "0 20px 40px rgba(16, 185, 129, 0.4)" }}
+							whileHover={{ scale: 1.05, boxShadow: "0 25px 50px rgba(16, 185, 129, 0.4)" }}
 							whileTap={{ scale: 0.95 }}
-							className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-2xl font-bold text-base sm:text-lg flex items-center justify-center gap-2 sm:gap-3 shadow-2xl transition-all duration-300 w-full sm:w-auto"
+							className="group relative bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-8 py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 shadow-2xl overflow-hidden"
 						>
-							<motion.div
-								whileHover={{ rotate: 360 }}
-								transition={{ duration: 0.5 }}
-							>
-								<ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6" />
-							</motion.div>
-							Alışverişe Başla
-							<span className="text-xl sm:text-2xl">🛒</span>
+							<span className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-teal-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+							<ShoppingCart className="w-6 h-6 relative z-10" />
+							<span className="relative z-10">Alışverişe Başla</span>
+							<ArrowRight className="w-5 h-5 relative z-10 group-hover:translate-x-1 transition-transform" />
 						</motion.button>
 						
 						<motion.button 
 							onClick={scrollToFeatured}
-							whileHover={{ scale: 1.05, boxShadow: "0 20px 40px rgba(251, 191, 36, 0.4)" }}
+							whileHover={{ scale: 1.05 }}
 							whileTap={{ scale: 0.95 }}
-							className="bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-400 hover:to-orange-500 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-2xl font-bold text-base sm:text-lg flex items-center justify-center gap-2 sm:gap-3 shadow-2xl transition-all duration-300 w-full sm:w-auto"
+							className="group bg-white/10 backdrop-blur-xl border border-white/20 hover:bg-white/20 text-white px-8 py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all"
 						>
-							<Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
-							Öne Çıkanlar
-							<span className="text-xl sm:text-2xl">⭐</span>
+							<Sparkles className="w-6 h-6 text-yellow-400" />
+							Öne Çıkanları Gör
+							<Star className="w-5 h-5 text-yellow-400 group-hover:rotate-12 transition-transform" />
 						</motion.button>
 					</motion.div>
 
-					{/* Özel Fırsatlar - Hero Section İçinde */}
+					{/* Animated Stats */}
 					<motion.div 
-						className="mt-8 sm:mt-16"
+						className="grid grid-cols-3 gap-8 max-w-3xl"
 						initial={{ opacity: 0, y: 30 }}
 						animate={{ opacity: 1, y: 0 }}
-						transition={{ delay: 0.8, duration: 0.8 }}
+						transition={{ delay: 1 }}
 					>
-						<h3 className="text-xl sm:text-2xl md:text-3xl font-bold text-center mb-6 sm:mb-8 bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">
-							🎉 Özel Fırsatlar
-						</h3>
-						<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 max-w-4xl mx-auto">
-							{announcements.map((announcement, index) => (
-								<motion.div
-									key={index}
-									className={`relative overflow-hidden rounded-2xl p-4 sm:p-6 bg-gradient-to-br ${announcement.color} shadow-2xl border border-white/20`}
-									initial={{ opacity: 0, y: 30 }}
-									animate={{ opacity: 1, y: 0 }}
-									transition={{ delay: 1.0 + index * 0.2 }}
-									whileHover={{ scale: 1.05, y: -5 }}
-								>
-									<div className="absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 bg-white/10 rounded-full -translate-y-12 sm:-translate-y-16 translate-x-12 sm:translate-x-16"></div>
-									<div className="relative z-10">
-										<div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-											{announcement.icon}
-											<h4 className="text-base sm:text-lg font-bold text-white">{announcement.title}</h4>
-										</div>
-										<p className="text-white/90 leading-relaxed text-xs sm:text-sm">{announcement.description}</p>
-									</div>
-								</motion.div>
-							))}
-						</div>
-					</motion.div>
-
-					{/* İstatistikler */}
-					<motion.div 
-						className="grid grid-cols-3 gap-4 sm:gap-8 max-w-2xl mt-8 sm:mt-12"
-						initial={{ opacity: 0, y: 30 }}
-						animate={{ opacity: 1, y: 0 }}
-						transition={{ delay: 0.8, duration: 0.8 }}
-					>
-						<div className="text-center">
-							<div className="text-2xl sm:text-3xl font-bold text-emerald-400">3000+</div>
-							<div className="text-emerald-200 text-xs sm:text-sm">Ürün Çeşidi</div>
-						</div>
-						<div className="text-center">
-							<div className="text-2xl sm:text-3xl font-bold text-teal-400">45dk</div>
-							<div className="text-teal-200 text-xs sm:text-sm">Hızlı Teslimat</div>
-						</div>
-						<div className="text-center">
-							<div className="text-2xl sm:text-3xl font-bold text-green-400">24/7</div>
-							<div className="text-green-200 text-xs sm:text-sm">Müşteri Hizmeti</div>
-						</div>
-					</motion.div>
-				</motion.div>
-			</div>
-
-			{/* Mobil Uygulama Banner */}
-			<motion.div
-				initial={{ opacity: 0, y: 30 }}
-				animate={{ opacity: 1, y: 0 }}
-				transition={{ delay: 0.3, duration: 0.8 }}
-				className="relative bg-gradient-to-br from-emerald-500 via-teal-500 to-emerald-600 py-10 sm:py-14 overflow-hidden"
-			>
-				{/* Arka Plan Dekorasyonları */}
-				<div className="absolute inset-0 opacity-10">
-					<div className="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl"></div>
-					<div className="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl"></div>
-				</div>
-
-				<div className="container mx-auto px-4 sm:px-6 relative z-10">
-					<div className="max-w-6xl mx-auto">
-						<div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-12">
-							{/* Sol Taraf - İçerik */}
-							<div className="flex-1 text-center lg:text-left w-full">
-								<motion.div
-									initial={{ opacity: 0, y: 20 }}
-									animate={{ opacity: 1, y: 0 }}
-									transition={{ delay: 0.4 }}
-									className="mb-6"
-								>
-									<div className="inline-flex items-center gap-3 mb-4">
-										<div className="w-14 h-14 sm:w-16 sm:h-16 bg-white/25 backdrop-blur-md rounded-2xl flex items-center justify-center shadow-lg">
-											<Smartphone className="w-7 h-7 sm:w-8 sm:h-8 text-white" />
-										</div>
-										<h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight">
-											Mobil Uygulamamız Çıktı!
-										</h2>
-									</div>
-								</motion.div>
-								
-								<motion.p
-									initial={{ opacity: 0, y: 20 }}
-									animate={{ opacity: 1, y: 0 }}
-									transition={{ delay: 0.5 }}
-									className="text-white/95 text-base sm:text-lg lg:text-xl mb-6 leading-relaxed max-w-2xl mx-auto lg:mx-0"
-								>
-									Artık <span className="font-bold text-white">Benim Marketim</span> mobil uygulamasından 
-									sipariş verebilirsiniz! Daha hızlı, daha kolay ve daha pratik alışveriş deneyimi.
-								</motion.p>
-								
-								<motion.div
-									initial={{ opacity: 0, y: 20 }}
-									animate={{ opacity: 1, y: 0 }}
-									transition={{ delay: 0.6 }}
-									className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 max-w-xl mx-auto lg:mx-0"
-								>
-									<div className="flex flex-col items-center lg:items-start gap-1.5 bg-white/10 backdrop-blur-sm rounded-lg p-3 border border-white/20">
-										<span className="text-2xl">⚡</span>
-										<span className="text-white text-xs sm:text-sm font-medium">Daha Hızlı</span>
-									</div>
-									<div className="flex flex-col items-center lg:items-start gap-1.5 bg-white/10 backdrop-blur-sm rounded-lg p-3 border border-white/20">
-										<span className="text-2xl">🔔</span>
-										<span className="text-white text-xs sm:text-sm font-medium">Anlık Bildirimler</span>
-									</div>
-									<div className="flex flex-col items-center lg:items-start gap-1.5 bg-white/10 backdrop-blur-sm rounded-lg p-3 border border-white/20">
-										<span className="text-2xl">💳</span>
-										<span className="text-white text-xs sm:text-sm font-medium">Kolay Ödeme</span>
-									</div>
-									<div className="flex flex-col items-center lg:items-start gap-1.5 bg-white/10 backdrop-blur-sm rounded-lg p-3 border border-white/20">
-										<span className="text-2xl">📦</span>
-										<span className="text-white text-xs sm:text-sm font-medium">Sipariş Takibi</span>
-									</div>
-								</motion.div>
+						<div className="text-center group">
+							<div className="text-3xl sm:text-4xl md:text-5xl font-black bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
+								<AnimatedCounter target="3000" suffix="+" duration={2} />
 							</div>
-
-							{/* Sağ Taraf - Butonlar */}
-							<motion.div
-								initial={{ opacity: 0, scale: 0.9 }}
-								animate={{ opacity: 1, scale: 1 }}
-								transition={{ delay: 0.5 }}
-								className="flex-shrink-0 w-full lg:w-auto flex flex-col sm:flex-row gap-3"
-							>
-								{/* App Store Butonu (iOS) */}
-								<a
-									href={APP_STORE_URL}
-									target="_blank"
-									rel="noopener noreferrer"
-									className="inline-flex items-center justify-center gap-3 bg-white text-emerald-600 font-bold px-6 py-4 sm:px-8 sm:py-4 rounded-2xl hover:bg-emerald-50 transition-all duration-300 shadow-2xl hover:shadow-emerald-500/50 hover:scale-105 w-full sm:w-auto"
-								>
-									<Apple className="w-5 h-5 sm:w-6 sm:h-6" />
-									<span className="text-base sm:text-lg">App Store'dan İndir</span>
-									<ExternalLink className="w-4 h-4 sm:w-5 sm:h-5" />
-								</a>
-								
-								{/* Play Store Butonu (Android) */}
-								<a
-									href={PLAY_STORE_URL}
-									target="_blank"
-									rel="noopener noreferrer"
-									className="inline-flex items-center justify-center gap-3 bg-white text-emerald-600 font-bold px-6 py-4 sm:px-8 sm:py-4 rounded-2xl hover:bg-emerald-50 transition-all duration-300 shadow-2xl hover:shadow-emerald-500/50 hover:scale-105 w-full sm:w-auto"
-								>
-									<Download className="w-5 h-5 sm:w-6 sm:h-6" />
-									<span className="text-base sm:text-lg">Play Store'dan İndir</span>
-									<ExternalLink className="w-4 h-4 sm:w-5 sm:h-5" />
-								</a>
-							</motion.div>
+							<div className="text-gray-400 text-sm sm:text-base mt-1 group-hover:text-emerald-400 transition-colors">Ürün Çeşidi</div>
 						</div>
-					</div>
-				</div>
+						<div className="text-center group">
+							<div className="text-3xl sm:text-4xl md:text-5xl font-black bg-gradient-to-r from-teal-400 to-cyan-400 bg-clip-text text-transparent">
+								<AnimatedCounter target="45" suffix="dk" duration={1.5} />
+							</div>
+							<div className="text-gray-400 text-sm sm:text-base mt-1 group-hover:text-teal-400 transition-colors">Hızlı Teslimat</div>
+						</div>
+						<div className="text-center group">
+							<div className="text-3xl sm:text-4xl md:text-5xl font-black bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+								<AnimatedCounter target="24" suffix="/7" duration={1} />
+							</div>
+							<div className="text-gray-400 text-sm sm:text-base mt-1 group-hover:text-cyan-400 transition-colors">Müşteri Hizmeti</div>
+						</div>
+					</motion.div>
 
-				{/* Alt Dekoratif Çizgi */}
-				<div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-white/40 to-transparent"></div>
+					{/* Scroll Indicator */}
+					<motion.div
+						initial={{ opacity: 0 }}
+						animate={{ opacity: 1 }}
+						transition={{ delay: 1.5 }}
+						className="absolute bottom-8 left-1/2 -translate-x-1/2"
+					>
+						<motion.div
+							animate={{ y: [0, 10, 0] }}
+							transition={{ duration: 1.5, repeat: Infinity }}
+							className="flex flex-col items-center gap-2 text-gray-500"
+						>
+							<span className="text-xs uppercase tracking-widest">Keşfet</span>
+							<div className="w-6 h-10 rounded-full border-2 border-gray-600 flex items-start justify-center p-2">
+								<motion.div
+									animate={{ y: [0, 12, 0] }}
+									transition={{ duration: 1.5, repeat: Infinity }}
+									className="w-1.5 h-1.5 bg-emerald-400 rounded-full"
+								/>
+							</div>
+						</motion.div>
+					</motion.div>
+				</div>
 			</motion.div>
 
-			{/* Kategoriler */}
-			<div ref={categoriesRef} className="py-16 bg-gray-900">
+			{/* Features Section */}
+			<section className="relative py-20 bg-gray-900">
 				<div className="container mx-auto px-4">
-					<motion.h2 
-						className="text-2xl sm:text-3xl md:text-4xl font-bold text-center mb-8 sm:mb-12 bg-gradient-to-r from-emerald-400 to-teal-500 bg-clip-text text-transparent"
+					<motion.div
 						initial={{ opacity: 0, y: 20 }}
-						animate={{ opacity: 1, y: 0 }}
-						transition={{ delay: 0.2 }}
+						whileInView={{ opacity: 1, y: 0 }}
+						viewport={{ once: true }}
+						className="text-center mb-12"
 					>
-						🛍️ Kategoriler
-					</motion.h2>
+						<h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+							Neden <span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">Benim Marketim?</span>
+						</h2>
+						<p className="text-gray-400 max-w-2xl mx-auto">Size en iyi alışveriş deneyimini sunmak için buradayız</p>
+					</motion.div>
+
+					<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+						<FeatureCard
+							icon={Truck}
+							title="Hızlı Teslimat"
+							description="45 dakika içinde siparişiniz kapınızda. Gecikmez, bekletmez!"
+							color="from-emerald-500 to-teal-600"
+							delay={0}
+						/>
+						<FeatureCard
+							icon={Shield}
+							title="Güvenli Alışveriş"
+							description="256-bit SSL şifreleme ile güvenli ödeme. Verileriniz bizimle güvende."
+							color="from-blue-500 to-indigo-600"
+							delay={0.1}
+						/>
+						<FeatureCard
+							icon={Gift}
+							title="Özel Kampanyalar"
+							description="Her hafta yeni indirimler ve özel fırsatlar. Kaçırmayın!"
+							color="from-purple-500 to-pink-600"
+							delay={0.2}
+						/>
+						<FeatureCard
+							icon={Star}
+							title="Kaliteli Ürünler"
+							description="Sadece en kaliteli ve taze ürünleri sizin için seçiyoruz."
+							color="from-amber-500 to-orange-600"
+							delay={0.3}
+						/>
+					</div>
+				</div>
+			</section>
+
+			{/* Mobile App Banner */}
+			<motion.section
+				initial={{ opacity: 0 }}
+				whileInView={{ opacity: 1 }}
+				viewport={{ once: true }}
+				className="relative bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700 py-16 overflow-hidden"
+			>
+				<div className="absolute inset-0 opacity-20">
+					<div className="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl" />
+					<div className="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl" />
+				</div>
+
+				<div className="container mx-auto px-4 relative z-10">
+					<div className="max-w-4xl mx-auto text-center">
+						<motion.div
+							initial={{ opacity: 0, y: 20 }}
+							whileInView={{ opacity: 1, y: 0 }}
+							viewport={{ once: true }}
+							className="inline-flex items-center gap-3 mb-6"
+						>
+							<div className="w-16 h-16 bg-white/20 backdrop-blur-xl rounded-2xl flex items-center justify-center">
+								<Smartphone className="w-8 h-8 text-white" />
+							</div>
+							<h2 className="text-3xl sm:text-4xl font-bold text-white">
+								Mobil Uygulamamızı İndirin!
+							</h2>
+						</motion.div>
+						
+						<motion.p
+							initial={{ opacity: 0 }}
+							whileInView={{ opacity: 1 }}
+							viewport={{ once: true }}
+							transition={{ delay: 0.2 }}
+							className="text-white/90 text-lg mb-8 max-w-2xl mx-auto"
+						>
+							Daha hızlı sipariş, anlık bildirimler ve özel indirimler için mobil uygulamamızı indirin!
+						</motion.p>
+
+						<motion.div
+							initial={{ opacity: 0, y: 20 }}
+							whileInView={{ opacity: 1, y: 0 }}
+							viewport={{ once: true }}
+							transition={{ delay: 0.3 }}
+							className="flex flex-col sm:flex-row gap-4 justify-center"
+						>
+							<a
+								href={APP_STORE_URL}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="inline-flex items-center justify-center gap-3 bg-white text-emerald-600 font-bold px-8 py-4 rounded-2xl hover:bg-emerald-50 transition-all duration-300 shadow-2xl hover:scale-105"
+							>
+								<Apple className="w-6 h-6" />
+								<span>App Store</span>
+								<ExternalLink className="w-4 h-4" />
+							</a>
+							
+							<a
+								href={PLAY_STORE_URL}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="inline-flex items-center justify-center gap-3 bg-white text-emerald-600 font-bold px-8 py-4 rounded-2xl hover:bg-emerald-50 transition-all duration-300 shadow-2xl hover:scale-105"
+							>
+								<Download className="w-6 h-6" />
+								<span>Play Store</span>
+								<ExternalLink className="w-4 h-4" />
+							</a>
+						</motion.div>
+					</div>
+				</div>
+			</motion.section>
+
+			{/* Categories Section */}
+			<section ref={categoriesRef} className="py-20 bg-gray-900">
+				<div className="container mx-auto px-4">
+					<motion.div
+						initial={{ opacity: 0, y: 20 }}
+						whileInView={{ opacity: 1, y: 0 }}
+						viewport={{ once: true }}
+						className="text-center mb-12"
+					>
+						<h2 className="text-3xl sm:text-4xl font-bold mb-4">
+							<span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
+								🛍️ Kategoriler
+							</span>
+						</h2>
+						<p className="text-gray-400">İstediğiniz kategoriye tıklayarak alışverişe başlayın</p>
+					</motion.div>
+					
 					<motion.div 
-						className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 md:gap-6"
+						className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6"
 						variants={container}
 						initial="hidden"
-						animate="show"
+						whileInView="show"
+						viewport={{ once: true }}
 					>
-						{categories.map((category, index) => (
+						{categories.map((category) => (
 							<motion.div key={category.href} variants={item}>
 								<CategoryItem category={category} />
 							</motion.div>
 						))}
 					</motion.div>
 				</div>
-			</div>
+			</section>
 
-			{/* Öne Çıkan Ürünler - En Aşağıya Taşındı */}
-			<div ref={featuredRef} className="py-16 bg-gray-900">
+			{/* Featured Products */}
+			<section ref={featuredRef} className="py-20 bg-gray-900">
 				<div className="container mx-auto px-4">
 					<FeaturedProducts featuredProducts={products?.filter(product => !product.isHidden).slice(0, 8) || []} />
 				</div>
-			</div>
+			</section>
 		</div>
 	);
 };

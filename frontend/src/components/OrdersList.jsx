@@ -1,9 +1,315 @@
 import { useEffect, useState } from "react";
 import axios from "../lib/axios";
-import { Search, Package2, ChevronLeft, ChevronRight, RefreshCw, Printer, Filter, X } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { 
+  Search, Package2, ChevronLeft, ChevronRight, RefreshCw, Printer, Filter, X, 
+  Clock, Truck, CheckCircle2, XCircle, MapPin, Phone, Mail, User, Calendar,
+  TrendingUp, ShoppingBag, AlertTriangle
+} from "lucide-react";
 import toast from "react-hot-toast";
 import socketService from "../lib/socket.js";
 
+// Skeleton Loading Component
+const SkeletonCard = () => (
+  <div className="glass rounded-2xl p-5 space-y-4">
+    <div className="flex justify-between items-start">
+      <div className="space-y-2">
+        <div className="skeleton h-5 w-32 rounded-lg"></div>
+        <div className="skeleton h-4 w-24 rounded-lg"></div>
+      </div>
+      <div className="skeleton h-8 w-20 rounded-full"></div>
+    </div>
+    <div className="skeleton h-20 w-full rounded-xl"></div>
+    <div className="space-y-2">
+      <div className="skeleton h-16 w-full rounded-xl"></div>
+      <div className="skeleton h-16 w-full rounded-xl"></div>
+    </div>
+  </div>
+);
+
+// Modern Stat Card Component
+const StatCard = ({ icon: Icon, title, value, color, delay = 0 }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.5, delay }}
+    className={`stat-card glass rounded-2xl p-5 relative overflow-hidden group cursor-default`}
+  >
+    <div className={`absolute inset-0 bg-gradient-to-br ${color} opacity-20 group-hover:opacity-30 transition-opacity duration-300`}></div>
+    <div className="relative z-10">
+      <div className="flex items-center justify-between mb-3">
+        <div className={`p-3 rounded-xl bg-gradient-to-br ${color}`}>
+          <Icon className="w-5 h-5 text-white" />
+        </div>
+        <TrendingUp className="w-4 h-4 text-gray-500 group-hover:text-emerald-400 transition-colors" />
+      </div>
+      <p className="text-gray-400 text-sm font-medium mb-1">{title}</p>
+      <motion.p 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="text-3xl font-bold text-white"
+      >
+        {value}
+      </motion.p>
+    </div>
+    <div className={`absolute -bottom-8 -right-8 w-24 h-24 rounded-full bg-gradient-to-br ${color} opacity-10 blur-xl group-hover:opacity-20 transition-opacity`}></div>
+  </motion.div>
+);
+
+// Status Timeline Component
+const StatusTimeline = ({ status }) => {
+  const statuses = [
+    { key: "Hazırlanıyor", icon: Clock, label: "Hazırlanıyor" },
+    { key: "Yolda", icon: Truck, label: "Yolda" },
+    { key: "Teslim Edildi", icon: CheckCircle2, label: "Teslim Edildi" }
+  ];
+  
+  const isCancelled = status === "İptal Edildi";
+  const currentIndex = statuses.findIndex(s => s.key === status);
+
+  if (isCancelled) {
+    return (
+      <div className="flex items-center gap-2 px-4 py-2 bg-red-500/20 border border-red-500/30 rounded-xl">
+        <XCircle className="w-5 h-5 text-red-400" />
+        <span className="text-red-400 font-medium">İptal Edildi</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1 w-full">
+      {statuses.map((s, index) => {
+        const isActive = index <= currentIndex;
+        const isCurrent = index === currentIndex;
+        const Icon = s.icon;
+        
+        return (
+          <div key={s.key} className="flex items-center flex-1">
+            <motion.div 
+              initial={{ scale: 0.8 }}
+              animate={{ scale: isCurrent ? 1.1 : 1 }}
+              className={`timeline-dot flex items-center justify-center w-8 h-8 rounded-full ${
+                isActive 
+                  ? isCurrent 
+                    ? 'bg-emerald-500 active' 
+                    : 'bg-emerald-600/50' 
+                  : 'bg-gray-700'
+              }`}
+            >
+              <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-gray-500'}`} />
+            </motion.div>
+            {index < statuses.length - 1 && (
+              <div className={`flex-1 h-1 mx-1 rounded-full ${
+                index < currentIndex ? 'bg-emerald-500' : 'bg-gray-700'
+              }`}></div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+// Order Card Component
+const OrderCard = ({ order, index, onStatusUpdate, onPrint, onAddItem }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  const getCardGradient = () => {
+    switch (order.status) {
+      case "Yolda": return "from-amber-500/10 to-orange-500/10 border-amber-500/30";
+      case "Teslim Edildi": return "from-blue-500/10 to-indigo-500/10 border-blue-500/30";
+      case "İptal Edildi": return "from-red-500/10 to-pink-500/10 border-red-500/30";
+      default: return "from-emerald-500/10 to-teal-500/10 border-emerald-500/30";
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ duration: 0.3, delay: index * 0.05 }}
+      layout
+      className={`order-card glass rounded-2xl p-5 border bg-gradient-to-br ${getCardGradient()}`}
+    >
+      {/* Header */}
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <User className="w-4 h-4 text-emerald-400" />
+            <h3 className="text-lg font-bold text-white">{order.user.name}</h3>
+          </div>
+          <p className="text-xs text-gray-500 font-mono">#{order.orderId.slice(-8).toUpperCase()}</p>
+        </div>
+        <div className="flex gap-2">
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => onAddItem(order.orderId)}
+            className="p-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 transition-colors"
+            title="Ürün Ekle"
+          >
+            <span className="text-lg font-bold">+</span>
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => onPrint(order)}
+            className="p-2 rounded-xl bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 transition-colors"
+            title="Yazdır"
+          >
+            <Printer className="w-4 h-4" />
+          </motion.button>
+        </div>
+      </div>
+
+      {/* Status Timeline */}
+      <div className="mb-4">
+        <StatusTimeline status={order.status} />
+      </div>
+
+      {/* Status Selector */}
+      <div className="mb-4">
+        <select
+          className={`modern-select w-full px-4 py-3 rounded-xl font-semibold transition-all cursor-pointer ${
+            order.status === "Teslim Edildi"
+              ? "bg-blue-500/30 text-blue-300 border border-blue-500/40"
+              : order.status === "Yolda"
+              ? "bg-amber-500/30 text-amber-300 border border-amber-500/40"
+              : order.status === "İptal Edildi"
+              ? "bg-red-500/30 text-red-300 border border-red-500/40"
+              : "bg-emerald-500/30 text-emerald-300 border border-emerald-500/40"
+          }`}
+          value={order.status}
+          onChange={(e) => onStatusUpdate(order.orderId, e.target.value)}
+        >
+          <option value="Hazırlanıyor">📦 Hazırlanıyor</option>
+          <option value="Yolda">🚚 Yolda</option>
+          <option value="Teslim Edildi">✅ Teslim Edildi</option>
+          <option value="İptal Edildi">❌ İptal Edildi</option>
+        </select>
+      </div>
+
+      {/* Customer Info */}
+      <motion.div 
+        className="glass-dark rounded-xl p-3 mb-4 space-y-2"
+        initial={false}
+      >
+        <div className="flex items-center gap-2 text-sm text-gray-400">
+          <Mail className="w-4 h-4 text-gray-500" />
+          <span className="truncate">{order.user.email}</span>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-gray-400">
+          <Phone className="w-4 h-4 text-gray-500" />
+          <span>{order.user.phone || "Belirtilmemiş"}</span>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-gray-400">
+          <MapPin className="w-4 h-4 text-gray-500" />
+          <span className="truncate">{order.deliveryPointName || order.city || "Belirtilmemiş"}</span>
+        </div>
+      </motion.div>
+
+      {/* Order Summary */}
+      <div className="flex items-center justify-between mb-4 px-3 py-2 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+        <div className="flex items-center gap-2">
+          <ShoppingBag className="w-5 h-5 text-emerald-400" />
+          <span className="text-gray-400 text-sm">{order.products.length} ürün</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-2xl font-bold text-emerald-400">₺{order.totalAmount.toFixed(2)}</span>
+        </div>
+      </div>
+
+      {/* Date */}
+      <div className="flex items-center gap-2 text-xs text-gray-500 mb-4">
+        <Calendar className="w-3 h-3" />
+        {new Date(order.createdAt).toLocaleString("tr-TR", {
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit"
+        })}
+      </div>
+
+      {/* Products Toggle */}
+      <motion.button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full py-2 text-sm text-gray-400 hover:text-white transition-colors flex items-center justify-center gap-2"
+      >
+        <Package2 className="w-4 h-4" />
+        {isExpanded ? "Ürünleri Gizle" : "Ürünleri Göster"}
+        <motion.span
+          animate={{ rotate: isExpanded ? 180 : 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          ▼
+        </motion.span>
+      </motion.button>
+
+      {/* Products List */}
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="overflow-hidden"
+          >
+            <div className="pt-4 space-y-2">
+              {order.products.map((product, idx) => (
+                <motion.div
+                  key={idx}
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: idx * 0.05 }}
+                  className="flex items-center gap-3 p-3 glass-dark rounded-xl"
+                >
+                  <div className="w-12 h-12 rounded-lg bg-gray-700/50 flex items-center justify-center overflow-hidden flex-shrink-0">
+                    {product.image ? (
+                      <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <Package2 className="w-5 h-5 text-gray-500" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{product.name}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs rounded-full font-medium">
+                        x{product.quantity}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-sm font-bold text-emerald-400">₺{product.price}</p>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Order Note */}
+      {order.note && (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl"
+        >
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs text-amber-400/70 font-medium mb-1">Müşteri Notu</p>
+              <p className="text-sm text-amber-200">{order.note}</p>
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </motion.div>
+  );
+};
+
+// Main Component
 const OrdersList = () => {
   const [orderAnalyticsData, setOrderAnalyticsData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -19,7 +325,7 @@ const OrdersList = () => {
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const ordersPerPage = 6;
 
-  // Özel ürün ekleme state'leri
+  // Custom item modal states
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [customItemAmount, setCustomItemAmount] = useState("");
@@ -45,7 +351,7 @@ const OrdersList = () => {
       
       toast.success("Ürün başarıyla eklendi");
       setShowAddItemModal(false);
-      fetchOrderAnalyticsData(); // Listeyi yenile
+      fetchOrderAnalyticsData();
     } catch (error) {
       console.error("Ürün eklenirken hata:", error);
       toast.error(error.response?.data?.message || "Ürün eklenirken hata oluştu");
@@ -59,7 +365,7 @@ const OrdersList = () => {
   
       const css = `
         <style>
-          @page { size: 76mm 127mm; margin: 0; } /* 3x5 inch */
+          @page { size: 76mm 127mm; margin: 0; }
           html, body {
             width: 76mm;
             height: 127mm;
@@ -79,7 +385,7 @@ const OrdersList = () => {
             height: 127mm;
             box-sizing: border-box;
             padding: 6mm;
-            overflow: hidden; /* Taşma olmasın */
+            overflow: hidden;
           }
           .header { text-align: center; margin-bottom: 6px; }
           .title { font-size: 14px; font-weight: bold; }
@@ -176,7 +482,6 @@ const OrdersList = () => {
   const fetchOrderAnalyticsData = async () => {
     try {
       const response = await axios.get("/orders-analytics");
-      console.log("Admin sipariş verileri:", response.data);
       const sortedUsersOrders = response.data.orderAnalyticsData?.usersOrders?.map(userOrder => ({
         ...userOrder,
         orders: userOrder.orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
@@ -195,15 +500,11 @@ const OrdersList = () => {
     }
   };
 
-  // İlk yükleme ve Socket.IO bağlantısı
-
   useEffect(() => {
     fetchOrderAnalyticsData();
 
-    // Socket servisi üzerinden bağlantı
     const socket = socketService.connect();
 
-    // Odaya katıl
     if (socket.connected) {
         socket.emit('joinAdminRoom');
     } else {
@@ -212,10 +513,9 @@ const OrdersList = () => {
         });
     }
 
-    // Yeni sipariş dinleyicisi
     const handleNewOrder = (data) => {
       console.log('Yeni sipariş bildirimi alındı:', data);
-      fetchOrderAnalyticsData(); // Siparişleri yenile
+      fetchOrderAnalyticsData();
       toast.success('Yeni sipariş geldi!', {
         icon: '🛍️',
         duration: 4000
@@ -226,20 +526,15 @@ const OrdersList = () => {
 
     return () => {
       socket.off('newOrder', handleNewOrder);
-      // Admin sayfasından çıkınca bağlantıyı tamamen koparmıyoruz, 
-      // servis singleton olduğu için açık kalabilir veya 
-      // socketService.disconnect() çağrılabilir.
-      // Performans için listener'ı kaldırmak yeterli.
     };
   }, []);
 
-  // Otomatik yenileme
   useEffect(() => {
     let interval;
     if (autoRefresh) {
       interval = setInterval(() => {
         fetchOrderAnalyticsData();
-      }, 30000); // Her 30 saniyede bir yenile
+      }, 30000);
     }
     return () => clearInterval(interval);
   }, [autoRefresh]);
@@ -318,24 +613,49 @@ const OrdersList = () => {
     setCurrentPage(1);
   };
 
+  // Loading State
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="glass rounded-2xl p-5 space-y-3">
+              <div className="skeleton h-10 w-10 rounded-xl"></div>
+              <div className="skeleton h-4 w-20 rounded-lg"></div>
+              <div className="skeleton h-8 w-16 rounded-lg"></div>
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {[...Array(6)].map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
       </div>
     );
   }
 
+  // Empty State
   if (!orderAnalyticsData || !orderAnalyticsData.usersOrders || orderAnalyticsData.usersOrders.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] text-white">
-        <div className="text-6xl mb-4">��</div>
-        <div className="text-xl">Henüz sipariş bulunmamaktadır.</div>
-      </div>
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col items-center justify-center min-h-[400px] glass rounded-2xl"
+      >
+        <motion.div
+          animate={{ y: [0, -10, 0] }}
+          transition={{ duration: 2, repeat: Infinity }}
+          className="text-7xl mb-6"
+        >
+          📦
+        </motion.div>
+        <h3 className="text-2xl font-bold text-white mb-2">Henüz sipariş yok</h3>
+        <p className="text-gray-400">Yeni siparişler burada görünecek</p>
+      </motion.div>
     );
   }
 
-  // Filtrelenmiş siparişleri sayfalama
   const filteredOrders = orderAnalyticsData.usersOrders.flatMap(userOrder =>
     filterOrders(userOrder.orders).map(order => ({
       ...order,
@@ -349,58 +669,118 @@ const OrdersList = () => {
     currentPage * ordersPerPage
   );
 
-
+  const stats = {
+    total: filteredOrders.length,
+    preparing: filteredOrders.filter(o => o.status === "Hazırlanıyor").length,
+    onWay: filteredOrders.filter(o => o.status === "Yolda").length,
+    delivered: filteredOrders.filter(o => o.status === "Teslim Edildi").length,
+    cancelled: filteredOrders.filter(o => o.status === "İptal Edildi").length
+  };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pt-24">
-      {/* Filtreler ve Arama - (Mevcut kodlar... burası değişmedi) */}
-      <div className="bg-gray-800 p-6 rounded-lg mb-6">
-        <div className="flex flex-col md:flex-row gap-4 items-center justify-between mb-6">
-          <div className="flex-1 w-full md:w-auto">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <input
-                type="text"
-                placeholder="Sipariş ID veya ürün ara..."
-                className="w-full pl-10 pr-4 py-2 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
+    <div className="space-y-6">
+      {/* Header */}
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col md:flex-row md:items-center justify-between gap-4"
+      >
+        <div>
+          <h2 className="text-2xl font-bold text-white">Sipariş Yönetimi</h2>
+          <p className="text-gray-400 text-sm mt-1">
+            Son güncelleme: {lastRefresh.toLocaleTimeString('tr-TR')}
+          </p>
+        </div>
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setAutoRefresh(!autoRefresh)}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
+            autoRefresh 
+              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+              : 'bg-gray-700/50 text-gray-400 border border-gray-600/30'
+          }`}
+        >
+          <RefreshCw className={`w-4 h-4 ${autoRefresh ? 'animate-spin' : ''}`} style={{ animationDuration: '3s' }} />
+          <span className="text-sm font-medium">{autoRefresh ? 'Otomatik Yenileme Açık' : 'Otomatik Yenileme Kapalı'}</span>
+        </motion.button>
+      </motion.div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <StatCard 
+          icon={Package2} 
+          title="Toplam Sipariş" 
+          value={stats.total} 
+          color="from-violet-500 to-purple-600"
+          delay={0}
+        />
+        <StatCard 
+          icon={Clock} 
+          title="Hazırlanıyor" 
+          value={stats.preparing} 
+          color="from-emerald-500 to-teal-600"
+          delay={0.1}
+        />
+        <StatCard 
+          icon={Truck} 
+          title="Yolda" 
+          value={stats.onWay} 
+          color="from-amber-500 to-orange-600"
+          delay={0.2}
+        />
+        <StatCard 
+          icon={CheckCircle2} 
+          title="Teslim Edildi" 
+          value={stats.delivered} 
+          color="from-blue-500 to-indigo-600"
+          delay={0.3}
+        />
+        <StatCard 
+          icon={XCircle} 
+          title="İptal Edildi" 
+          value={stats.cancelled} 
+          color="from-red-500 to-rose-600"
+          delay={0.4}
+        />
+      </div>
+
+      {/* Filters */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="glass rounded-2xl p-5"
+      >
+        <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center">
+          {/* Search */}
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Sipariş ID, ürün veya müşteri ara..."
+              className="w-full pl-12 pr-4 py-3 bg-gray-800/50 border border-gray-700/50 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-transparent transition-all"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
-          <div className="flex gap-2 w-full md:w-auto items-center flex-wrap">
-            <button
-              onClick={() => setAutoRefresh(!autoRefresh)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                autoRefresh 
-                  ? 'bg-emerald-500 hover:bg-emerald-600 text-white' 
-                  : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
-              }`}
-              title={autoRefresh ? "Otomatik yenileme açık" : "Otomatik yenileme kapalı"}
-            >
-              <RefreshCw 
-                className={`w-5 h-5 ${autoRefresh ? 'animate-spin' : ''}`} 
-              />
-              <span className="hidden sm:inline">
-                {autoRefresh ? "Otomatik" : "Manuel"}
-              </span>
-            </button>
-            <div className="text-sm text-gray-400 hidden lg:block">
-              Son: {lastRefresh.toLocaleTimeString()}
-            </div>
+
+          {/* Quick Filters */}
+          <div className="flex flex-wrap gap-2">
             <select
-              className="bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="modern-select bg-gray-800/50 border border-gray-700/50 text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
               <option value="all">📦 Tüm Durumlar</option>
-              <option value="Hazırlanıyor">📦 Hazırlanıyor</option>
+              <option value="Hazırlanıyor">⏳ Hazırlanıyor</option>
               <option value="Yolda">🚚 Yolda</option>
               <option value="Teslim Edildi">✅ Teslim Edildi</option>
               <option value="İptal Edildi">❌ İptal Edildi</option>
             </select>
+
             <select
-              className="bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="modern-select bg-gray-800/50 border border-gray-700/50 text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
             >
@@ -410,362 +790,278 @@ const OrdersList = () => {
               <option value="lastWeek">📅 Son 7 Gün</option>
               <option value="lastMonth">📅 Son 30 Gün</option>
             </select>
-            <button
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              className={`flex items-center gap-2 px-4 py-3 rounded-xl transition-all ${
                 showAdvancedFilters 
-                  ? 'bg-emerald-500 text-white' 
-                  : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                  : 'bg-gray-800/50 border border-gray-700/50 text-gray-400 hover:text-white'
               }`}
             >
-              <Filter className="w-5 h-5" />
+              <Filter className="w-4 h-4" />
               <span className="hidden sm:inline">Gelişmiş</span>
-            </button>
+            </motion.button>
           </div>
         </div>
 
-        {/* Gelişmiş Filtreler */}
-        {showAdvancedFilters && (
-          <div className="bg-gray-700/50 rounded-lg p-4 space-y-4 animate-slideDown">
-            <div className="flex items-center justify-between">
-              <h3 className="text-white font-semibold flex items-center gap-2">
-                <Filter className="w-5 h-5" />
-                Gelişmiş Filtreler
-              </h3>
-              <button
-                onClick={clearFilters}
-                className="text-sm text-gray-400 hover:text-white flex items-center gap-1"
-              >
-                <X className="w-4 h-4" />
-                Temizle
-              </button>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="text-sm text-gray-400 mb-1 block">Teslimat Noktası</label>
-                <select
-                  className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  value={deliveryPointFilter}
-                  onChange={(e) => setDeliveryPointFilter(e.target.value)}
-                >
-                  <option value="all">Tümü</option>
-                  <option value="girlsDorm">Kız KYK Yurdu</option>
-                  <option value="boysDorm">Erkek KYK Yurdu</option>
-                </select>
-              </div>
-              
-              <div>
-                <label className="text-sm text-gray-400 mb-1 block">Minimum Tutar (₺)</label>
-                <input
-                  type="number"
-                  placeholder="0"
-                  className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  value={minAmount}
-                  onChange={(e) => setMinAmount(e.target.value)}
-                />
-              </div>
-              
-              <div>
-                <label className="text-sm text-gray-400 mb-1 block">Maximum Tutar (₺)</label>
-                <input
-                  type="number"
-                  placeholder="∞"
-                  className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  value={maxAmount}
-                  onChange={(e) => setMaxAmount(e.target.value)}
-                />
-              </div>
-            </div>
-
-            {/* Aktif Filtre Bilgisi */}
-            <div className="flex flex-wrap gap-2">
-              {deliveryPointFilter !== "all" && (
-                <span className="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-sm flex items-center gap-1">
-                  📍 {deliveryPointFilter === "girlsDorm" ? "Kız Yurdu" : "Erkek Yurdu"}
-                  <button onClick={() => setDeliveryPointFilter("all")} className="hover:text-white">
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              )}
-              {minAmount && (
-                <span className="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-sm flex items-center gap-1">
-                  Min: ₺{minAmount}
-                  <button onClick={() => setMinAmount("")} className="hover:text-white">
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              )}
-              {maxAmount && (
-                <span className="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-sm flex items-center gap-1">
-                  Max: ₺{maxAmount}
-                  <button onClick={() => setMaxAmount("")} className="hover:text-white">
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Sipariş İstatistikleri */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-gray-700 p-4 rounded-lg">
-            <div className="text-gray-400">Toplam Sipariş</div>
-            <div className="text-2xl font-bold text-white">{filteredOrders.length}</div>
-          </div>
-          <div className="bg-gray-700 p-4 rounded-lg">
-            <div className="text-gray-400">Hazırlanan</div>
-            <div className="text-2xl font-bold text-emerald-400">
-              {filteredOrders.filter(order => order.status === "Hazırlanıyor").length}
-            </div>
-          </div>
-          <div className="bg-gray-700 p-4 rounded-lg">
-            <div className="text-gray-400">Yolda</div>
-            <div className="text-2xl font-bold text-yellow-400">
-              {filteredOrders.filter(order => order.status === "Yolda").length}
-            </div>
-          </div>
-          <div className="bg-gray-700 p-4 rounded-lg">
-            <div className="text-gray-400">Teslim Edilen</div>
-            <div className="text-2xl font-bold text-blue-400">
-              {filteredOrders.filter(order => order.status === "Teslim Edildi").length}
-            </div>
-          </div>
-          <div className="bg-gray-700 p-4 rounded-lg">
-            <div className="text-gray-400">İptal Edilen</div>
-            <div className="text-2xl font-bold text-red-400">
-              {filteredOrders.filter(order => order.status === "İptal Edildi").length}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Siparişler Listesi */}
-      <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 auto-rows-auto">
-        {currentOrders.map((order, index) => {
-          // Son 3 siparişin rengini belirle
-          const isRecent = index < 3;
-          let bgColorClass = "bg-gray-800";
-          
-          // Eğer sipariş durumu "Yolda", "Teslim Edildi" veya "İptal Edildi" ise
-          if (order.status === "Yolda") {
-            bgColorClass = "bg-yellow-500/20";
-          } else if (order.status === "Teslim Edildi") {
-            bgColorClass = "bg-blue-500/20";
-          } else if (order.status === "İptal Edildi") {
-            bgColorClass = "bg-red-500/20";
-          } else if (isRecent) {
-            // Son 3 sipariş için renklendirme (iptal edilmemiş siparişler için)
-            if (index === 0) bgColorClass = "bg-emerald-500/20"; // En son gelen
-            else if (index === 1) bgColorClass = "bg-yellow-500/20"; // İkinci son
-            else if (index === 2) bgColorClass = "bg-red-500/20"; // Üçüncü son
-          }
-
-          return (
-            <div 
-              key={order.orderId} 
-              className={`${bgColorClass} p-4 rounded-lg shadow-lg transform transition-all duration-200 hover:scale-[1.01]`}
+        {/* Advanced Filters */}
+        <AnimatePresence>
+          {showAdvancedFilters && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="overflow-hidden"
             >
-              {/* Başlık ve Durum */}
-              <div className="flex flex-col gap-3 mb-3">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="text-lg font-bold text-white">{order.user.name}</h3>
-                    <p className="text-sm text-gray-400">ID: {order.orderId}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                        onClick={() => handleOpenAddItemModal(order.orderId)}
-                        className="px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-sm flex items-center gap-1.5 transition-colors"
-                        title="Ürün/Tutar Ekle"
-                    >
-                        <span className="text-lg font-bold">+</span>
-                    </button>
-                    <button
-                        onClick={() => handlePrint(order)}
-                        className="px-3 py-1.5 rounded-full bg-gray-600 hover:bg-gray-500 text-white text-sm flex items-center gap-1.5 transition-colors"
-                        title="Fişi yazdır"
-                    >
-                        <Printer size={14}/> Yazdır
-                    </button>
-                  </div>
-                </div>
-                <div className="w-full">
-                  <label className="text-xs text-gray-400 mb-1 block">Sipariş Durumu:</label>
-                  <select
-                    className={`w-full text-sm px-4 py-2 rounded-lg font-semibold transition-colors ${
-                      order.status === "Teslim Edildi"
-                        ? "bg-blue-500 text-white"
-                        : order.status === "Yolda"
-                        ? "bg-yellow-500 text-gray-900"
-                        : order.status === "İptal Edildi"
-                        ? "bg-red-500 text-white"
-                        : "bg-emerald-500 text-white"
-                    }`}
-                    value={order.status}
-                    onChange={(e) => updateOrderStatus(order.orderId, e.target.value)}
+              <div className="pt-4 mt-4 border-t border-gray-700/50">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-white font-semibold flex items-center gap-2">
+                    <Filter className="w-4 h-4 text-emerald-400" />
+                    Gelişmiş Filtreler
+                  </h3>
+                  <button
+                    onClick={clearFilters}
+                    className="text-sm text-gray-400 hover:text-red-400 flex items-center gap-1 transition-colors"
                   >
-                    <option value="Hazırlanıyor">📦 Hazırlanıyor</option>
-                    <option value="Yolda">🚚 Yolda</option>
-                    <option value="Teslim Edildi">✅ Teslim Edildi</option>
-                    <option value="İptal Edildi">❌ İptal Edildi</option>
-                  </select>
+                    <X className="w-4 h-4" />
+                    Temizle
+                  </button>
                 </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-sm text-gray-400 mb-2 block">Teslimat Noktası</label>
+                    <select
+                      className="modern-select w-full bg-gray-800/50 border border-gray-700/50 text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                      value={deliveryPointFilter}
+                      onChange={(e) => setDeliveryPointFilter(e.target.value)}
+                    >
+                      <option value="all">Tümü</option>
+                      <option value="girlsDorm">Kız KYK Yurdu</option>
+                      <option value="boysDorm">Erkek KYK Yurdu</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="text-sm text-gray-400 mb-2 block">Minimum Tutar (₺)</label>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      className="w-full bg-gray-800/50 border border-gray-700/50 text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                      value={minAmount}
+                      onChange={(e) => setMinAmount(e.target.value)}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="text-sm text-gray-400 mb-2 block">Maximum Tutar (₺)</label>
+                    <input
+                      type="number"
+                      placeholder="∞"
+                      className="w-full bg-gray-800/50 border border-gray-700/50 text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                      value={maxAmount}
+                      onChange={(e) => setMaxAmount(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Active Filters Tags */}
+                {(deliveryPointFilter !== "all" || minAmount || maxAmount) && (
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    {deliveryPointFilter !== "all" && (
+                      <span className="status-badge bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-sm flex items-center gap-1 border border-emerald-500/30">
+                        📍 {deliveryPointFilter === "girlsDorm" ? "Kız Yurdu" : "Erkek Yurdu"}
+                        <button onClick={() => setDeliveryPointFilter("all")} className="hover:text-white ml-1">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+                    {minAmount && (
+                      <span className="status-badge bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-sm flex items-center gap-1 border border-emerald-500/30">
+                        Min: ₺{minAmount}
+                        <button onClick={() => setMinAmount("")} className="hover:text-white ml-1">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+                    {maxAmount && (
+                      <span className="status-badge bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-sm flex items-center gap-1 border border-emerald-500/30">
+                        Max: ₺{maxAmount}
+                        <button onClick={() => setMaxAmount("")} className="hover:text-white ml-1">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
 
-              {/* Müşteri Bilgileri */}
-              <div className="bg-gray-700/50 p-2 rounded-lg mb-3">
-                <div className="text-sm text-gray-400 space-y-1">
-                  <p>📧 {order.user.email}</p>
-                  <p>📱 {order.user.phone || "Telefon belirtilmemiş"}</p>
-                  <p>📍 {order.deliveryPointName || order.city || "Adres belirtilmemiş"}</p>
-                </div>
-              </div>
+      {/* Orders Grid */}
+      <motion.div 
+        layout
+        className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
+      >
+        <AnimatePresence mode="popLayout">
+          {currentOrders.map((order, index) => (
+            <OrderCard
+              key={order.orderId}
+              order={order}
+              index={index}
+              onStatusUpdate={updateOrderStatus}
+              onPrint={handlePrint}
+              onAddItem={handleOpenAddItemModal}
+            />
+          ))}
+        </AnimatePresence>
+      </motion.div>
 
-              {/* Sipariş Detayları */}
-              <div className="bg-gray-700/50 p-2 rounded-lg mb-3">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-emerald-400 font-bold text-lg">₺{order.totalAmount}</span>
-                  <span className="text-sm text-gray-400">
-                    📅 {new Date(order.createdAt).toLocaleString("tr-TR", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit"
-                    })}
-                  </span>
-                </div>
-              </div>
-
-              {/* Ürünler */}
-              <div className="flex-grow">
-                <div className="text-sm font-semibold text-white mb-2">Ürünler</div>
-                <div className="space-y-2">
-                  {order.products.map((product, index) => (
-                    <div key={index} className="bg-gray-700/50 p-2 rounded-lg flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="bg-gray-700 h-14 w-14 rounded-lg flex items-center justify-center overflow-hidden">
-                          {product.image ? (
-                            <img
-                              src={product.image}
-                              alt={product.name}
-                              className="h-full w-full object-contain"
-                            />
-                          ) : (
-                            <Package2 className="w-6 h-6 text-gray-400" />
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm text-white font-medium">{product.name}</p>
-                          <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/20 border border-emerald-500/40 rounded-full">
-                            <span className="text-xs font-bold text-emerald-400">×</span>
-                            <span className="text-sm font-bold text-emerald-300">{product.quantity}</span>
-                            <span className="text-xs font-semibold text-emerald-400">Adet</span>
-                          </div>
-                        </div>
-                      </div>
-                      <p className="text-sm text-emerald-400 font-bold">₺{product.price}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Sipariş Notu */}
-              {order.note && (
-                <div className="mt-3 bg-gray-700/50 p-2 rounded-lg">
-                  <p className="text-xs text-gray-400">Not:</p>
-                  <p className="text-sm text-gray-300">{order.note}</p>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Sayfalama */}
+      {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex justify-center items-center mt-6 gap-2">
-          <button
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex justify-center items-center gap-2 pt-4"
+        >
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
             disabled={currentPage === 1}
-            className="p-2 bg-gray-700 rounded-lg text-white disabled:opacity-50 hover:bg-gray-600 transition-colors"
+            className="p-3 glass rounded-xl text-white disabled:opacity-30 hover:bg-gray-700/50 transition-all disabled:cursor-not-allowed"
           >
-            <ChevronLeft size={20} />
-          </button>
-          <span className="text-white px-4">
-            Sayfa {currentPage} / {totalPages}
-          </span>
-          <button
+            <ChevronLeft className="w-5 h-5" />
+          </motion.button>
+          
+          <div className="flex items-center gap-1">
+            {[...Array(Math.min(5, totalPages))].map((_, i) => {
+              let pageNum;
+              if (totalPages <= 5) {
+                pageNum = i + 1;
+              } else if (currentPage <= 3) {
+                pageNum = i + 1;
+              } else if (currentPage >= totalPages - 2) {
+                pageNum = totalPages - 4 + i;
+              } else {
+                pageNum = currentPage - 2 + i;
+              }
+              
+              return (
+                <motion.button
+                  key={i}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={`w-10 h-10 rounded-xl font-medium transition-all ${
+                    currentPage === pageNum
+                      ? 'bg-emerald-500 text-white'
+                      : 'glass text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {pageNum}
+                </motion.button>
+              );
+            })}
+          </div>
+
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
             disabled={currentPage === totalPages}
-            className="p-2 bg-gray-700 rounded-lg text-white disabled:opacity-50 hover:bg-gray-600 transition-colors"
+            className="p-3 glass rounded-xl text-white disabled:opacity-30 hover:bg-gray-700/50 transition-all disabled:cursor-not-allowed"
           >
-            <ChevronRight size={20} />
-          </button>
-        </div>
+            <ChevronRight className="w-5 h-5" />
+          </motion.button>
+        </motion.div>
       )}
 
       {/* Add Item Modal */}
-      {showAddItemModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-sm border border-gray-700 shadow-xl">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-white">Siparişe Ürün Ekle</h3>
-              <button 
-                onClick={() => setShowAddItemModal(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                <X size={24} />
-              </button>
-            </div>
-            
-            <form onSubmit={handleAddCustomItem} className="space-y-4">
-              <div>
-                <label className="block text-gray-400 text-sm mb-1">Tutar (TL) *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  required
-                  value={customItemAmount}
-                  onChange={(e) => setCustomItemAmount(e.target.value)}
-                  className="w-full bg-gray-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  placeholder="0.00"
-                />
+      <AnimatePresence>
+        {showAddItemModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => setShowAddItemModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="glass rounded-2xl p-6 w-full max-w-sm border border-gray-700/50"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-white">Siparişe Ürün Ekle</h3>
+                <motion.button 
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setShowAddItemModal(false)}
+                  className="p-2 rounded-lg hover:bg-gray-700/50 text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </motion.button>
               </div>
               
-              <div>
-                <label className="block text-gray-400 text-sm mb-1">Ürün Adı (Opsiyonel)</label>
-                <input
-                  type="text"
-                  value={customItemName}
-                  onChange={(e) => setCustomItemName(e.target.value)}
-                  className="w-full bg-gray-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  placeholder="Özel Ekleme"
-                />
-              </div>
+              <form onSubmit={handleAddCustomItem} className="space-y-4">
+                <div>
+                  <label className="block text-gray-400 text-sm mb-2">Tutar (TL) *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    required
+                    value={customItemAmount}
+                    onChange={(e) => setCustomItemAmount(e.target.value)}
+                    className="w-full bg-gray-800/50 border border-gray-700/50 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                    placeholder="0.00"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-gray-400 text-sm mb-2">Ürün Adı (Opsiyonel)</label>
+                  <input
+                    type="text"
+                    value={customItemName}
+                    onChange={(e) => setCustomItemName(e.target.value)}
+                    className="w-full bg-gray-800/50 border border-gray-700/50 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                    placeholder="Özel Ekleme"
+                  />
+                </div>
 
-              <div className="flex gap-3 mt-6">
-                <button
-                  type="button"
-                  onClick={() => setShowAddItemModal(false)}
-                  className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
-                >
-                  İptal
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold transition-colors"
-                >
-                  Ekle
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+                <div className="flex gap-3 pt-2">
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setShowAddItemModal(false)}
+                    className="flex-1 px-4 py-3 bg-gray-700/50 hover:bg-gray-600/50 text-white rounded-xl transition-colors"
+                  >
+                    İptal
+                  </motion.button>
+                  <motion.button
+                    type="submit"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="flex-1 px-4 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-xl font-semibold transition-all"
+                  >
+                    Ekle
+                  </motion.button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
