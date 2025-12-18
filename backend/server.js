@@ -101,7 +101,7 @@ const io = new Server(httpServer, {
 
 // Redis Adapter Kurulumu (Cluster Mode için)
 try {
-  const pubClient = new Redis(process.env.REDIS_URL);
+  const pubClient = new Redis(process.env.UPSTASH_REDIS_URL);
   const subClient = pubClient.duplicate();
 
   Promise.all([pubClient.connect(), subClient.connect()]).then(() => {
