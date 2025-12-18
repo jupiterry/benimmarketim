@@ -106,9 +106,12 @@ const setupRedisAdapter = () => {
     
     const pubClient = new Redis(redisUrl, {
       maxRetriesPerRequest: 3,
-      retryDelayOnFailover: 100,
-      enableReadyCheck: false,
-      lazyConnect: true
+      retryStrategy: (times) => {
+        if (times > 3) return null;
+        return Math.min(times * 100, 3000);
+      },
+      enableOfflineQueue: true,
+      connectTimeout: 10000
     });
     
     const subClient = pubClient.duplicate();
