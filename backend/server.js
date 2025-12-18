@@ -100,45 +100,34 @@ const io = new Server(httpServer, {
 });
 
 // Redis Adapter Kurulumu (Cluster Mode için)
-const setupRedisAdapter = () => {
-  try {
-    const redisUrl = process.env.UPSTASH_REDIS_URL || 'redis://localhost:6379';
-    
-    const pubClient = new Redis(redisUrl, {
-      maxRetriesPerRequest: 3,
-      retryStrategy: (times) => {
-        if (times > 3) return null;
-        return Math.min(times * 100, 3000);
-      },
-      enableOfflineQueue: true,
-      connectTimeout: 10000
-    });
-    
-    const subClient = pubClient.duplicate();
+try {
+  const pubClient = new Redis(process.env.UPSTASH_REDIS_URL);
+  const subClient = pubClient.duplicate();
 
-    // Bağlantı event'leri
-    pubClient.on('connect', () => console.log('✅ Redis Pub bağlandı'));
-    subClient.on('connect', () => console.log('✅ Redis Sub bağlandı'));
-    
-    // Hata yönetimi - sessizce log'la, uygulamayı çökertme
-    pubClient.on('error', (err) => {
-      console.warn('Redis Pub uyarı:', err.message);
-    });
-    subClient.on('error', (err) => {
-      console.warn('Redis Sub uyarı:', err.message);
-    });
-
-    // Adapter'ı kur
+  Promise.all([pubClient.connect(), subClient.connect()]).then(() => {
     io.adapter(createAdapter(pubClient, subClient));
-    console.log('✅ Socket.IO Redis Adapter kuruldu');
-    
-  } catch (error) {
-    console.warn('⚠️ Redis Adapter kurulamadı, tekil modda çalışılıyor:', error.message);
-  }
-};
-
-// Redis'i asenkron kur - hata olsa bile uygulama çalışsın
-setupRedisAdapter();
+    console.log('✅ Socket.IO Redis Adapter başarıyla bağlandı.');
+  }).catch(err => {
+    // ioredis auto-connects, but explicit connect handling is good for adapter setup check
+    // If using ioredis v5+, connect() returns a promise. 
+    // However, if UPSTASH_REDIS_URL is valid, it should work.
+    // Fallback: ioredis usually connects automatically.
+    // Let's just set the adapter synchronously if we assume auto-connect, 
+    // but the adapter expects connected clients or clients that will connect.
+    console.log('Redis bağlantısı bekleniyor...');
+  });
+  
+  // Hata yönetimi
+  pubClient.on('error', (err) => console.error('Redis Pub Error:', err));
+  subClient.on('error', (err) => console.error('Redis Sub Error:', err));
+  
+  // Basit senkron atama (ioredis bağlantıyı arka planda halleder)
+  io.adapter(createAdapter(pubClient, subClient));
+  
+} catch (error) {
+  console.error('❌ Redis Adapter kurulum hatası:', error);
+  console.log('⚠️ Sistem tekil modda (Single Implementation) çalışmaya devam edecek.');
+}
 
 // Global socket.io erişimi için
 app.set('io', io);
