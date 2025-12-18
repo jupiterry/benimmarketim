@@ -19,7 +19,12 @@ const generateTokens = (userId) => {
 };
 
 const storeRefreshToken = async (userId, refreshToken) => {
-	await redis.set(`refresh_token:${userId}`, refreshToken, "EX", 365 * 24 * 60 * 60); // 365 days (1 yıl)
+	try {
+		await redis.set(`refresh_token:${userId}`, refreshToken, "EX", 365 * 24 * 60 * 60); // 365 days (1 yıl)
+	} catch (error) {
+		// Redis başarısız olsa bile login devam etsin
+		console.warn('Redis refresh token kaydedilemedi:', error.message);
+	}
 };
 
 const setCookies = (res, accessToken, refreshToken) => {
@@ -145,8 +150,13 @@ export const logout = async (req, res) => {
 	try {
 		const refreshToken = req.cookies.refreshToken;
 		if (refreshToken) {
-			const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
-			await redis.del(`refresh_token:${decoded.userId}`);
+			try {
+				const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+				await redis.del(`refresh_token:${decoded.userId}`);
+			} catch (redisError) {
+				// Redis hatası logout'u engellemez
+				console.warn('Redis token silinemedi:', redisError.message);
+			}
 		}
 
 		res.clearCookie("accessToken");
@@ -171,10 +181,15 @@ export const refreshToken = async (req, res) => {
 		console.log("Refresh token request received"); // Debug log
 
 		const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
-		const storedToken = await redis.get(`refresh_token:${decoded.userId}`);
-
-		if (storedToken !== refreshToken) {
-			return res.status(401).json({ message: "Invalid refresh token" });
+		
+		// Redis token doğrulaması - Redis başarısız olursa JWT yeterli
+		try {
+			const storedToken = await redis.get(`refresh_token:${decoded.userId}`);
+			if (storedToken && storedToken !== refreshToken) {
+				return res.status(401).json({ message: "Invalid refresh token" });
+			}
+		} catch (redisError) {
+			console.warn('Redis token doğrulaması başarısız, JWT ile devam ediliyor:', redisError.message);
 		}
 
 		const accessToken = jwt.sign({ userId: decoded.userId }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "365d" }); // 1 yıl
@@ -239,7 +254,11 @@ export const deleteMyAccount = async (req, res) => {
 		await Feedback.deleteMany({ user: userId });
 		
 		// Redis'teki refresh token'ı sil
-		await redis.del(`refresh_token:${userId}`);
+		try {
+			await redis.del(`refresh_token:${userId}`);
+		} catch (redisError) {
+			console.warn('Redis token silinemedi:', redisError.message);
+		}
 		
 		// Kullanıcıyı sil
 		await User.findByIdAndDelete(userId);
