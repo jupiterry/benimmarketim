@@ -169,11 +169,30 @@ app.use("/api/cart-reminders", cartReminderRoutes);
 app.use("/api/n8n", n8nRoutes);
 app.use("/api", versionRoutes);
 
+import fs from "fs";
+
 if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path.join(__dirname, "/frontend/dist")));
-  app.get("*", (req, res) => {
-    res.sendFile(path.resolve(__dirname, "frontend", "dist", "index.html"));
-  });
+  const currentDir = path.resolve(__dirname);
+  const frontendDir = path.join(currentDir, "frontend/dist");
+  const siblingFrontendDir = path.join(currentDir, "../frontend/dist");
+
+  // Check which directory exists
+  let staticDir;
+  if (fs.existsSync(frontendDir)) {
+    staticDir = frontendDir;
+  } else if (fs.existsSync(siblingFrontendDir)) {
+    staticDir = siblingFrontendDir;
+  }
+
+  if (staticDir) {
+    console.log(`Serving static files from: ${staticDir}`);
+    app.use(express.static(staticDir));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(staticDir, "index.html"));
+    });
+  } else {
+    console.error("Critical: Frontend build directory not found! Checked:", frontendDir, "and", siblingFrontendDir);
+  }
 }
 
 httpServer.listen(PORT, () => {

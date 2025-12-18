@@ -39,7 +39,7 @@ export const sendToN8N = async (eventType, data) => {
       headers: {
         'Content-Type': 'application/json',
       },
-      timeout: 5000, // 5 saniye timeout
+      timeout: 15000, // 15 saniye timeout
     });
 
     if (response.status === 200 || response.status === 201) {

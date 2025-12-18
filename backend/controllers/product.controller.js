@@ -3,6 +3,7 @@ import cloudinary from "../lib/cloudinary.js";
 import Product from "../models/product.model.js";
 import { Parser } from 'json2csv';
 import { detectBrand } from '../services/brandDetection.js';
+import mongoose from "mongoose";
 
 export const getAllProducts = async (req, res) => {
   try {
@@ -853,6 +854,10 @@ export const getSimilarProducts = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
 
     // Get the current product
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Geçersiz ürün ID" });
+    }
+
     const currentProduct = await Product.findById(id);
     if (!currentProduct) {
       return res.status(404).json({ success: false, message: "Ürün bulunamadı" });
