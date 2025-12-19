@@ -607,7 +607,12 @@ const OrderSummary = () => {
           {coupon && isCouponApplied && (
               <dl className="flex items-center justify-between gap-4 p-3 bg-purple-500/10 rounded-xl border border-purple-500/20">
                 <dt className="text-base font-medium text-purple-300">🎟️ Kupon ({coupon.code})</dt>
-                <dd className="text-base font-semibold text-purple-400">-{coupon.discountPercentage}%</dd>
+                <dd className="text-base font-semibold text-purple-400">
+                  {coupon.discountType === 'fixed' 
+                    ? `-₺${coupon.discountAmount || coupon.calculatedDiscount || 0}`
+                    : `-${coupon.discountPercentage || 0}%`
+                  }
+                </dd>
             </dl>
           )}
             

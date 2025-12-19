@@ -717,11 +717,82 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
 
   return (
     <motion.div
-      className="bg-gray-800/30 shadow-2xl rounded-2xl overflow-hidden max-w-full mx-auto border border-gray-700/50"
+      className="space-y-6"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8 }}
     >
+      {/* İstatistik Kartları */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-gradient-to-br from-emerald-500/20 to-teal-500/20 backdrop-blur-xl p-5 rounded-2xl border border-emerald-500/30"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 rounded-xl bg-emerald-500/20">
+              <Package className="w-5 h-5 text-emerald-400" />
+            </div>
+            <span className="text-emerald-400 text-xs font-semibold bg-emerald-500/10 px-2 py-1 rounded-full">Toplam</span>
+          </div>
+          <p className="text-gray-400 text-xs mb-1">Ürün Sayısı</p>
+          <p className="text-2xl font-bold text-white">{localProducts.length || products.length}</p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-gradient-to-br from-blue-500/20 to-indigo-500/20 backdrop-blur-xl p-5 rounded-2xl border border-blue-500/30"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 rounded-xl bg-blue-500/20">
+              <DollarSign className="w-5 h-5 text-blue-400" />
+            </div>
+            <span className="text-blue-400 text-xs font-semibold bg-blue-500/10 px-2 py-1 rounded-full">Değer</span>
+          </div>
+          <p className="text-gray-400 text-xs mb-1">Toplam Stok Değeri</p>
+          <p className="text-2xl font-bold text-white">
+            ₺{localProducts.reduce((sum, p) => sum + (p.price * (p.stock || 0)), 0).toLocaleString('tr-TR', {maximumFractionDigits: 0})}
+          </p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="bg-gradient-to-br from-amber-500/20 to-orange-500/20 backdrop-blur-xl p-5 rounded-2xl border border-amber-500/30"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 rounded-xl bg-amber-500/20">
+              <Zap className="w-5 h-5 text-amber-400" />
+            </div>
+            <span className="text-amber-400 text-xs font-semibold bg-amber-500/10 px-2 py-1 rounded-full">Flash</span>
+          </div>
+          <p className="text-gray-400 text-xs mb-1">Aktif Flash Sale</p>
+          <p className="text-2xl font-bold text-white">{flashSales.filter(s => new Date(s.endDate) > new Date()).length}</p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="bg-gradient-to-br from-red-500/20 to-pink-500/20 backdrop-blur-xl p-5 rounded-2xl border border-red-500/30"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 rounded-xl bg-red-500/20">
+              <AlertTriangle className="w-5 h-5 text-red-400" />
+            </div>
+            <span className="text-red-400 text-xs font-semibold bg-red-500/10 px-2 py-1 rounded-full">Uyarı</span>
+          </div>
+          <p className="text-gray-400 text-xs mb-1">Düşük Stok</p>
+          <p className="text-2xl font-bold text-white">{localProducts.filter(p => (p.stock || 0) < 5 && (p.stock || 0) > 0).length}</p>
+        </motion.div>
+      </div>
+
+      {/* Ana Ürün Listesi Kartı */}
+      <div className="bg-gray-800/30 shadow-2xl rounded-2xl overflow-hidden border border-gray-700/50">
       {/* Gelişmiş Filtreleme Paneli */}
       <div className="p-6 bg-gray-900/50 space-y-4 backdrop-blur-xl border-b border-gray-700/50">
         {/* Üst Arama ve Filtre Butonları */}
@@ -1445,6 +1516,7 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
           </div>
         )}
       </AnimatePresence>
+      </div>
     </motion.div>
   );
 };

@@ -4,6 +4,7 @@ import Order from "../models/order.model.js";
 import Feedback from "../models/feedback.model.js";
 import jwt from "jsonwebtoken";
 import { sendToN8N } from "../services/n8n.service.js";
+import { processReferralSignup } from "./referral.controller.js";
 
 const generateTokens = (userId) => {
 	// Access token artık çok uzun süreli (1 yıl) - kullanıcı kendisi çıkış yapana kadar geçerli
@@ -38,9 +39,9 @@ const setCookies = (res, accessToken, refreshToken) => {
 };
 
 export const signup = async (req, res) => {
-	const { email, password, name, phone, deviceType } = req.body;
+	const { email, password, name, phone, deviceType, referralCode } = req.body;
 	try {
-		console.log("Kayıt isteği alındı:", { email, name, phone, deviceType }); // Debug log
+		console.log("Kayıt isteği alındı:", { email, name, phone, deviceType, referralCode }); // Debug log
 		const userExists = await User.findOne({ email });
 
 		if (userExists) {
@@ -48,6 +49,19 @@ export const signup = async (req, res) => {
 		}
 		const user = await User.create({ name, email, password, phone, deviceType });
 		console.log("Oluşturulan kullanıcı:", user); // Debug log
+
+		// Referral kodu işleme
+		let referralResult = null;
+		if (referralCode) {
+			try {
+				referralResult = await processReferralSignup(referralCode, user._id);
+				if (referralResult.success) {
+					console.log("Referral işlemi başarılı:", referralResult);
+				}
+			} catch (refError) {
+				console.error("Referral işlemi hatası:", refError);
+			}
+		}
 
 		// authenticate
 		const { accessToken, refreshToken } = generateTokens(user._id);
@@ -65,7 +79,9 @@ export const signup = async (req, res) => {
 				role: user.role,
 				deviceType: user.deviceType || '',
 				createdAt: user.createdAt,
-				registeredAt: new Date().toISOString()
+				registeredAt: new Date().toISOString(),
+				referralCode: referralCode || null,
+				referralApplied: referralResult?.success || false
 			});
 		} catch (n8nError) {
 			// n8n webhook hatası ana işlemi engellemez
@@ -79,7 +95,8 @@ export const signup = async (req, res) => {
 			role: user.role,
 			phone: user.phone,
 			accessToken: accessToken, // Flutter için token'ı response'da gönder
-			refreshToken: refreshToken // Flutter için refresh token'ı da gönder
+			refreshToken: refreshToken, // Flutter için refresh token'ı da gönder
+			referralCoupon: referralResult?.couponCode || null // Referral kuponu
 		});
 	} catch (error) {
 		console.log("Error in signup controller", error.message);
@@ -95,12 +112,14 @@ export const login = async (req, res) => {
 		const user = await User.findOne({ email });
 
 		if (user && (await user.comparePassword(password))) {
-			// Update device type if provided
+			// Update device type and last login time
+			user.lastDeviceType = user.deviceType;
 			if (deviceType) {
-				user.lastDeviceType = user.deviceType;
 				user.deviceType = deviceType;
-				await user.save();
 			}
+			user.lastLoginAt = new Date();
+			user.lastActive = new Date();
+			await user.save();
 			
 			const { accessToken, refreshToken } = generateTokens(user._id);
 			await storeRefreshToken(user._id, refreshToken);

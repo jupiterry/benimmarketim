@@ -31,6 +31,7 @@ import AboutPage from "./pages/AboutPage";
 import FAQPage from "./pages/FAQPage";
 import KVKKPage from "./pages/KVKKPage";
 import AccountDeletionPage from "./pages/AccountDeletionPage";
+import ReferralPage from "./pages/ReferralPage";
 import ScrollToTop from "./components/ScrollToTop";
 import AppDownloadModal from "./components/AppDownloadModal";
 
@@ -127,6 +128,16 @@ function App() {
               }
             />
             <Route path="/hesap-silme" element={<AccountDeletionPage />} />
+            {/* Referral Page - Temporarily Disabled
+            <Route
+              path="/referral"
+              element={
+                <ProtectedRoute>
+                  <ReferralPage />
+                </ProtectedRoute>
+              }
+            />
+            */}
           </Routes>
         </div>
 

@@ -19,8 +19,11 @@ export const useCartStore = create((set, get) => ({
 	},
 	applyCoupon: async (code) => {
 		try {
-			const response = await axios.post("/coupons/validate", { code });
-			set({ coupon: response.data, isCouponApplied: true });
+			const { subtotal } = get();
+			const response = await axios.post("/coupons/validate", { code, orderAmount: subtotal });
+			// API returns { success: true, coupon: { code, discountType, discountPercentage, ... } }
+			const couponData = response.data.coupon || response.data;
+			set({ coupon: couponData, isCouponApplied: true });
 			get().calculateTotals();
 			toast.success("Kupon başarıyla uygulandı");
 		} catch (error) {
@@ -99,12 +102,35 @@ export const useCartStore = create((set, get) => ({
 	calculateTotals: () => {
 		const { cart, coupon } = get();
 		const currentCart = Array.isArray(cart) ? cart : [];
-		const subtotal = currentCart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+		const subtotal = currentCart.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 0), 0);
 		let total = subtotal;
 
 		if (coupon) {
-			const discount = subtotal * (coupon.discountPercentage / 100);
+			let discount = 0;
+			
+			// API'den gelen kupon yapısını kontrol et
+			const discountType = coupon.discountType || 'percentage';
+			const discountPercentage = coupon.discountPercentage || 0;
+			const discountAmount = coupon.discountAmount || coupon.calculatedDiscount || 0;
+			const maximumDiscount = coupon.maximumDiscount;
+			
+			if (discountType === 'percentage' && discountPercentage > 0) {
+				discount = subtotal * (discountPercentage / 100);
+				// Maksimum indirim kontrolü
+				if (maximumDiscount && discount > maximumDiscount) {
+					discount = maximumDiscount;
+				}
+			} else if (discountType === 'fixed' && discountAmount > 0) {
+				discount = discountAmount;
+			} else if (discountPercentage > 0) {
+				// Eski format desteği
+				discount = subtotal * (discountPercentage / 100);
+			}
+			
 			total = subtotal - discount;
+			
+			// Total negatif olamaz
+			if (total < 0) total = 0;
 		}
 
 		set({ subtotal, total });

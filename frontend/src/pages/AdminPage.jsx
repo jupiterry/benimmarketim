@@ -21,6 +21,9 @@ import DashboardWidgets from "../components/DashboardWidgets";
 import UsersTab from "../components/UsersTab";
 import PhotocopyTab from "../components/PhotocopyTab";
 import BannerTab from "../components/BannerTab";
+import CouponsTab from "../components/CouponsTab";
+import ReferralsTab from "../components/ReferralsTab";
+import { Tag, Gift } from "lucide-react";
 
 // Sidebar Menu Item Component
 const SidebarItem = ({ icon: Icon, label, active, onClick, badge, collapsed }) => (
@@ -267,6 +270,8 @@ const AdminPage = () => {
     { id: "products", label: "Ürünler", icon: ShoppingBasket },
     { id: "create", label: "Ürün Ekle", icon: PlusCircle },
     { id: "users", label: "Kullanıcılar", icon: Users },
+    { id: "coupons", label: "Kuponlar", icon: Tag },
+    { id: "referrals", label: "Referral", icon: Gift },
     { id: "feedback", label: "Geri Bildirimler", icon: MessageSquare },
     { id: "photocopy", label: "Fotokopi", icon: FileText },
     { id: "banners", label: "Banner'lar", icon: Image },
@@ -309,6 +314,10 @@ const AdminPage = () => {
         return <BannerTab />;
       case "bulk-upload":
         return <BulkUploadSection onUpload={handleBulkUpload} />;
+      case "coupons":
+        return <CouponsTab />;
+      case "referrals":
+        return <ReferralsTab />;
       case "settings":
         return <SettingsTab />;
       default:

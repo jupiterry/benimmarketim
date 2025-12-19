@@ -449,7 +449,9 @@ const HomePage = () => {
 				</div>
 			</section>
 
-			{/* Mobile App Banner */}
+			{/* Referral Promo Section - Temporarily Disabled
+			   To re-enable, uncomment this section */}
+			
 			<motion.section
 				initial={{ opacity: 0 }}
 				whileInView={{ opacity: 1 }}

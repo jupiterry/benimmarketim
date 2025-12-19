@@ -48,8 +48,17 @@ export const createFlashSale = async (req, res) => {
       return res.status(400).json({ message: "İndirim oranı 1-99 arasında olmalı" });
     }
 
-    if (new Date(startDate) >= new Date(endDate)) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const now = new Date();
+
+    if (start >= end) {
       return res.status(400).json({ message: "Bitiş tarihi başlangıç tarihinden sonra olmalı" });
+    }
+
+    // Başlangıç tarihi geçmiş olamaz (yeni kampanyalar için)
+    if (start < new Date(now.getTime() - 60000)) { // 1 dakika tolerans
+      return res.status(400).json({ message: "Başlangıç tarihi geçmiş olamaz" });
     }
 
     // Ürünü kontrol et
@@ -58,25 +67,41 @@ export const createFlashSale = async (req, res) => {
       return res.status(404).json({ message: "Ürün bulunamadı" });
     }
 
+    // Bu ürün için aktif flash sale var mı kontrol et
+    const existingActiveSale = await FlashSale.findOne({
+      product: productId,
+      isActive: true,
+      endDate: { $gt: now }
+    });
+
+    if (existingActiveSale) {
+      return res.status(400).json({ 
+        message: "Bu ürün için zaten aktif bir flash sale var. Önce mevcut kampanyayı kapatın.",
+        existingSale: existingActiveSale
+      });
+    }
+
     // Flash sale oluştur
     const flashSale = new FlashSale({
       product: productId,
       discountPercentage,
-      startDate,
-      endDate,
+      startDate: start,
+      endDate: end,
       name: name || `${product.name} - Flash Sale`
     });
 
     await flashSale.save();
 
-    // Ürüne indirimi uygula
-    const discountedPrice = product.price * (1 - discountPercentage / 100);
-    product.discountedPrice = discountedPrice;
-    product.isDiscounted = true;
-    await product.save();
+    // Eğer kampanya şu an aktifse ürüne indirimi uygula
+    if (start <= now && end > now) {
+      const discountedPrice = product.price * (1 - discountPercentage / 100);
+      product.discountedPrice = parseFloat(discountedPrice.toFixed(2));
+      product.isDiscounted = true;
+      await product.save();
+    }
 
     res.status(201).json({ 
-      message: "Flash sale oluşturuldu", 
+      message: "Flash sale başarıyla oluşturuldu", 
       flashSale: await flashSale.populate("product")
     });
   } catch (error) {

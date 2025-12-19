@@ -19,14 +19,17 @@ export const getAllUsers = async (req, res) => {
       // lastActive ve createdAt için güvenli dönüşüm
       const lastActive = user.lastActive ? new Date(user.lastActive) : null;
       const createdAt = user.createdAt ? new Date(user.createdAt) : null;
+      const lastLoginAt = user.lastLoginAt ? new Date(user.lastLoginAt) : null;
 
       return {
         ...user,
         lastActive: lastActive ? lastActive.toISOString() : null,
         createdAt: createdAt ? createdAt.toISOString() : null,
+        lastLoginAt: lastLoginAt ? lastLoginAt.toISOString() : null,
         // Ek olarak timestamp'leri de ekle
         lastActiveTimestamp: lastActive ? lastActive.getTime() : null,
         createdAtTimestamp: createdAt ? createdAt.getTime() : null,
+        lastLoginAtTimestamp: lastLoginAt ? lastLoginAt.getTime() : null,
         // Sepet öğelerini düzenle
         cartItems: user.cartItems?.map(item => ({
           product: {

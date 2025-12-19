@@ -35,6 +35,10 @@ const userSchema = new mongoose.Schema(
 			type: Date,
 			default: Date.now
 		},
+		lastLoginAt: {
+			type: Date,
+			default: null
+		},
 		cartItems: [
 			{
 				quantity: {

@@ -20,6 +20,7 @@ import categoryRoutes from "./routes/category.route.js";
 import cartReminderRoutes from "./routes/cartReminder.route.js";
 import n8nRoutes from "./routes/n8n.route.js";
 import versionRoutes from "./routes/version.route.js";
+import referralRoutes from "./routes/referral.route.js";
 import { createServer } from "http";
 import { Server } from "socket.io";
 
@@ -168,6 +169,7 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/cart-reminders", cartReminderRoutes);
 app.use("/api/n8n", n8nRoutes);
 app.use("/api", versionRoutes);
+app.use("/api/referrals", referralRoutes);
 
 import fs from "fs";
 

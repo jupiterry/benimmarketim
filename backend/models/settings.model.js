@@ -105,6 +105,29 @@ const settingsSchema = new mongoose.Schema(
           max: 59
         }
       }
+    },
+    // Uygulama Versiyon Ayarları (Tek versiyon hem Android hem iOS için)
+    appVersion: {
+      latestVersion: {
+        type: String,
+        default: "2.1.0"
+      },
+      minimumVersion: {
+        type: String,
+        default: "2.1.0"
+      },
+      forceUpdate: {
+        type: Boolean,
+        default: false
+      },
+      androidStoreUrl: {
+        type: String,
+        default: "https://play.google.com/store/apps/details?id=com.jupi.benimapp.benimmarketim_app"
+      },
+      iosStoreUrl: {
+        type: String,
+        default: "https://apps.apple.com/tr/app/benim-marketim/id6755792336?l=tr"
+      }
     }
   },
   { timestamps: true }
