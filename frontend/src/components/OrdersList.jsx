@@ -210,13 +210,50 @@ const OrderCard = ({ order, index, onStatusUpdate, onPrint, onAddItem }) => {
       </motion.div>
 
       {/* Order Summary */}
-      <div className="flex items-center justify-between mb-4 px-3 py-2 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
-        <div className="flex items-center gap-2">
-          <ShoppingBag className="w-5 h-5 text-emerald-400" />
-          <span className="text-gray-400 text-sm">{order.products.length} ürün</span>
+      <div className="space-y-2 mb-4">
+        {/* Ürün Sayısı ve Toplam Adet */}
+        <div className="flex items-center justify-between px-3 py-2 bg-gray-700/30 rounded-xl">
+          <div className="flex items-center gap-2">
+            <ShoppingBag className="w-5 h-5 text-gray-400" />
+            <span className="text-gray-300 text-sm font-medium">
+              {order.products.length} farklı ürün
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 text-sm font-bold rounded-full">
+              Toplam {order.products.reduce((sum, p) => sum + (p.quantity || 1), 0)} adet
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-2xl font-bold text-emerald-400">₺{order.totalAmount.toFixed(2)}</span>
+
+        {/* Kupon Bilgisi */}
+        {order.couponCode && (
+          <div className="flex items-center justify-between px-3 py-2 bg-purple-500/10 rounded-xl border border-purple-500/30">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🎟️</span>
+              <span className="text-purple-300 text-sm font-medium">Kupon: {order.couponCode}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {order.discountPercentage > 0 && (
+                <span className="text-purple-400 text-xs">%{order.discountPercentage}</span>
+              )}
+              <span className="text-purple-400 font-bold">-₺{(order.couponDiscount || 0).toFixed(2)}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Fiyat Özeti */}
+        <div className="px-3 py-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+          {order.couponCode && order.subtotalAmount > 0 && (
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-gray-400 text-sm">Ara Toplam:</span>
+              <span className="text-gray-400 text-sm line-through">₺{order.subtotalAmount.toFixed(2)}</span>
+            </div>
+          )}
+          <div className="flex items-center justify-between">
+            <span className="text-white font-medium">Toplam Tutar:</span>
+            <span className="text-2xl font-bold text-emerald-400">₺{order.totalAmount.toFixed(2)}</span>
+          </div>
         </div>
       </div>
 
@@ -266,22 +303,20 @@ const OrderCard = ({ order, index, onStatusUpdate, onPrint, onAddItem }) => {
                   transition={{ delay: idx * 0.05 }}
                   className="flex items-center gap-3 p-3 glass-dark rounded-xl"
                 >
-                  <div className="w-12 h-12 rounded-lg bg-gray-700/50 flex items-center justify-center overflow-hidden flex-shrink-0">
-                    {product.image ? (
-                      <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <Package2 className="w-5 h-5 text-gray-500" />
-                    )}
+                  {/* Adet Badge - Sol tarafta belirgin */}
+                  <div className="flex-shrink-0 w-10 h-10 bg-emerald-500/30 border-2 border-emerald-500 rounded-lg flex items-center justify-center">
+                    <span className="text-emerald-400 font-bold text-lg">{product.quantity}</span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-white truncate">{product.name}</p>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs rounded-full font-medium">
-                        x{product.quantity}
-                      </span>
+                      <span className="text-gray-400 text-xs">Birim: ₺{product.price}</span>
                     </div>
                   </div>
-                  <p className="text-sm font-bold text-emerald-400">₺{product.price}</p>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-sm font-bold text-emerald-400">₺{(product.price * product.quantity).toFixed(2)}</p>
+                    <p className="text-xs text-gray-500">{product.quantity} adet</p>
+                  </div>
                 </motion.div>
               ))}
             </div>
@@ -446,6 +481,10 @@ const OrdersList = () => {
               <div class="row"><div>Telefon</div><div>${order.user.phone || '-'}</div></div>
               <div class="row"><div>Adres</div><div style="max-width: 170px; text-align:right;">${order.user.address || '-'}</div></div>
               <div class="items">${itemsHtml}</div>
+              ${order.couponCode ? `
+                <div class="row"><div>Ara Toplam</div><div>₺${(order.subtotalAmount || order.totalAmount).toFixed(2)}</div></div>
+                <div class="row" style="color: #9333ea;"><div>🎟️ Kupon (${order.couponCode})</div><div>-₺${(order.couponDiscount || 0).toFixed(2)}</div></div>
+              ` : ''}
               <div class="totals row"><div>Toplam</div><div>₺${(order.totalAmount).toFixed(2)}</div></div>
               ${noteHtml}
             </div>

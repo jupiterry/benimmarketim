@@ -198,7 +198,12 @@ const OrderSummary = () => {
       phone: phone,
       note: note,
         deliveryPoint: selectedDeliveryPoint,
-        deliveryPointName: deliveryPointName
+        deliveryPointName: deliveryPointName,
+      // Kupon bilgileri
+      couponCode: isCouponApplied && coupon ? coupon.code : null,
+      couponDiscount: isCouponApplied && coupon ? (coupon.calculatedDiscount || (subtotal * (coupon.discountPercentage || 0) / 100)) : 0,
+      subtotalAmount: subtotal,
+      discountPercentage: isCouponApplied && coupon ? (coupon.discountPercentage || 0) : 0
     });
     
       console.log("Sipariş yanıtı:", res.data);

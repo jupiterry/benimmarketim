@@ -226,9 +226,9 @@ export const placeOrder = async (req, res) => {
 		return res.status(400).json({ error: await getOrderHoursMessage() });
 	  }
   
-	  const { products, city, phone, note, deliveryPoint, deliveryPointName } = req.body;
+	  const { products, city, phone, note, deliveryPoint, deliveryPointName, couponCode, couponDiscount, subtotalAmount, discountPercentage } = req.body;
   
-	  console.log("Sipariş oluşturma isteği:", { products: products?.length, city, phone, deliveryPoint, deliveryPointName });
+	  console.log("Sipariş oluşturma isteği:", { products: products?.length, city, phone, deliveryPoint, deliveryPointName, couponCode, couponDiscount });
 
 	  // Sepet boş mu kontrolü
 	  if (!products || products.length === 0) {
@@ -290,15 +290,23 @@ export const placeOrder = async (req, res) => {
 	  }
   
 	  // Yeni sipariş oluştur
+	  // Kupon uygulandıysa indirimli tutar, uygulanmadıysa normal tutar
+	  const finalTotalAmount = couponDiscount > 0 ? (totalAmount - couponDiscount) : totalAmount;
+	  
 	  const orderData = {
 		user: req.user._id,
 		products: orderProducts,
-		totalAmount,
+		totalAmount: finalTotalAmount,
+		subtotalAmount: subtotalAmount || totalAmount, // İndirim öncesi ara toplam
 		city,
 		phone,
 		note: note || "",
 		deliveryPoint,
-		deliveryPointName: deliveryPointName || ""
+		deliveryPointName: deliveryPointName || "",
+		// Kupon bilgileri
+		couponCode: couponCode || null,
+		couponDiscount: couponDiscount || 0,
+		discountPercentage: discountPercentage || 0
 	  };
 
 	  console.log("Oluşturulacak sipariş verisi:", orderData);

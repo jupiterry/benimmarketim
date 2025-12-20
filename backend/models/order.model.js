@@ -66,6 +66,23 @@ const orderSchema = new mongoose.Schema(
       enum: ["Hazırlanıyor", "Yolda", "Teslim Edildi", "İptal Edildi"],
       default: "Hazırlanıyor",
     },
+    // Kupon bilgileri
+    couponCode: {
+      type: String,
+      default: null,
+    },
+    couponDiscount: {
+      type: Number,
+      default: 0,
+    },
+    subtotalAmount: {
+      type: Number,
+      default: 0, // İndirim öncesi ara toplam
+    },
+    discountPercentage: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true }
 );
