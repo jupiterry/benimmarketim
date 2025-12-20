@@ -372,11 +372,22 @@ const AdminPage = () => {
                 <p className="text-gray-500 text-xs">Yönetici Paneli</p>
               </motion.div>
             )}
+            {/* Desktop: Collapse Button / Mobile: Close Button */}
             <button 
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="hidden lg:flex p-2 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white transition-colors"
+              onClick={() => {
+                if (window.innerWidth < 1024) {
+                  setMobileMenuOpen(false);
+                } else {
+                  setSidebarCollapsed(!sidebarCollapsed);
+                }
+              }}
+              className="p-2 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white transition-colors"
             >
-              <Menu className="w-5 h-5" />
+              {mobileMenuOpen && window.innerWidth < 1024 ? (
+                <X className="w-5 h-5" />
+              ) : (
+                <Menu className="w-5 h-5" />
+              )}
             </button>
           </div>
         </div>
