@@ -1,6 +1,14 @@
 import mongoose from "mongoose";
 import crypto from "crypto";
 
+/**
+ * Referral Model - Zincir Sistemi (Chain Growth)
+ * 
+ * Her kullanıcı sadece 1 kişiyi başarılı şekilde davet edebilir.
+ * Başarılı davet sonrası referral kodu devre dışı olur.
+ * Davet edilen kişi kendi kodunu kullanabilir.
+ * A → B → C → D şeklinde organik büyüme sağlanır.
+ */
 const referralSchema = new mongoose.Schema(
   {
     // Referans veren kullanıcı
@@ -14,6 +22,11 @@ const referralSchema = new mongoose.Schema(
       type: String,
       unique: true,
       uppercase: true
+    },
+    // Maksimum davet hakkı (1 = her kullanıcı sadece 1 kişi davet edebilir)
+    maxReferrals: {
+      type: Number,
+      default: 1
     },
     // Referans edilen kullanıcılar
     referredUsers: [{
@@ -50,9 +63,16 @@ const referralSchema = new mongoose.Schema(
       type: Number,
       default: 0
     },
+    // Aktiflik durumu - maxReferrals'a ulaşınca false olur
     isActive: {
       type: Boolean,
       default: true
+    },
+    // Kodun neden devre dışı olduğu
+    deactivationReason: {
+      type: String,
+      enum: ["limit_reached", "manual", "expired", null],
+      default: null
     }
   },
   {

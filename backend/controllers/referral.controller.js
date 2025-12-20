@@ -55,18 +55,34 @@ export const checkReferralCode = async (req, res) => {
     }
 
     const referral = await Referral.findOne({ 
-      referralCode: code.toUpperCase().trim(),
-      isActive: true 
+      referralCode: code.toUpperCase().trim()
     }).populate("referrer", "name");
 
     if (!referral) {
       return res.status(404).json({ success: false, message: "Geçersiz referral kodu" });
     }
 
+    // Kod hala aktif mi kontrol et
+    if (!referral.isActive) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Bu referral kodu artık kullanılamaz (limit doldu)" 
+      });
+    }
+
+    // Kalan davet hakkı
+    const remainingSlots = referral.maxReferrals - referral.successfulReferrals;
+    if (remainingSlots <= 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Bu referral kodunun davet hakkı dolmuş" 
+      });
+    }
+
     res.json({
       success: true,
       referrerName: referral.referrer.name,
-      message: `${referral.referrer.name} sizi davet etti! İlk siparişinizde %15 indirim kazanın.`
+      message: `${referral.referrer.name} sizi davet etti! İlk siparişinizde %5 indirim kazanın.`
     });
   } catch (error) {
     console.error("Referral kodu kontrol edilirken hata:", error);
@@ -75,6 +91,7 @@ export const checkReferralCode = async (req, res) => {
 };
 
 // Referral ile kullanıcı kaydı (signup sırasında çağrılır)
+// Zincir Sistemi: Her kullanıcı sadece 1 kişi davet edebilir
 export const processReferralSignup = async (referralCode, newUserId) => {
   try {
     if (!referralCode) return { success: false };
@@ -84,11 +101,16 @@ export const processReferralSignup = async (referralCode, newUserId) => {
       isActive: true 
     });
 
-    if (!referral) return { success: false, message: "Geçersiz referral kodu" };
+    if (!referral) return { success: false, message: "Geçersiz veya kullanılmış referral kodu" };
 
     // Kendini referans edemez
     if (referral.referrer.toString() === newUserId.toString()) {
       return { success: false, message: "Kendinizi referans olarak ekleyemezsiniz" };
+    }
+
+    // Limit kontrolü - her kullanıcı sadece maxReferrals kadar kişi davet edebilir
+    if (referral.successfulReferrals >= referral.maxReferrals) {
+      return { success: false, message: "Bu referral kodunun davet hakkı dolmuş" };
     }
 
     // Zaten referans edilmiş mi kontrol et
@@ -108,18 +130,18 @@ export const processReferralSignup = async (referralCode, newUserId) => {
     referral.totalReferrals += 1;
     await referral.save();
 
-    // Yeni kullanıcıya indirim kuponu oluştur (%15 ilk sipariş)
+    // Yeni kullanıcıya indirim kuponu oluştur (%5 ilk sipariş)
     const couponCode = `HOSGELDIN${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
     const expirationDate = new Date();
     expirationDate.setDate(expirationDate.getDate() + 7); // 7 gün geçerli
 
     const coupon = new Coupon({
       code: couponCode,
-      description: "Hoş geldin! İlk siparişinde %15 indirim",
+      description: "Hoş geldin! İlk siparişinde %5 indirim",
       discountType: "percentage",
-      discountPercentage: 15,
+      discountPercentage: 5,
       minimumOrderAmount: 50,
-      maximumDiscount: 100,
+      maximumDiscount: 50,
       usageLimit: 1,
       userUsageLimit: 1,
       expirationDate,
@@ -133,7 +155,7 @@ export const processReferralSignup = async (referralCode, newUserId) => {
     return { 
       success: true, 
       couponCode,
-      message: "Referral kaydı başarılı! İlk siparişinizde kullanabileceğiniz kupon kodu oluşturuldu."
+      message: "Referral kaydı başarılı! İlk siparişinizde %5 indirim kazandınız."
     };
   } catch (error) {
     console.error("Referral signup işlenirken hata:", error);
@@ -142,6 +164,7 @@ export const processReferralSignup = async (referralCode, newUserId) => {
 };
 
 // Referral kullanıcısının ilk siparişi (order oluşturulduğunda çağrılır)
+// Başarılı referral sonrası referrer'ın kodu devre dışı olur
 export const processReferralFirstOrder = async (userId) => {
   try {
     // Bu kullanıcıyı referans eden birisi var mı bul
@@ -161,20 +184,19 @@ export const processReferralFirstOrder = async (userId) => {
       referredUser.status = "completed";
       referredUser.firstOrderAt = new Date();
       referral.successfulReferrals += 1;
-      await referral.save();
-
-      // Referans veren kişiye ödül kuponu oluştur
+      
+      // Referans veren kişiye ödül kuponu oluştur (%5 indirim)
       const rewardCode = `TESEKKUR${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
       const expirationDate = new Date();
       expirationDate.setDate(expirationDate.getDate() + 30); // 30 gün geçerli
 
       const rewardCoupon = new Coupon({
         code: rewardCode,
-        description: "Arkadaşını getirdiğin için teşekkürler! %10 indirim",
+        description: "Arkadaşını getirdiğin için teşekkürler! %5 indirim",
         discountType: "percentage",
-        discountPercentage: 10,
-        minimumOrderAmount: 100,
-        maximumDiscount: 50,
+        discountPercentage: 5,
+        minimumOrderAmount: 50,
+        maximumDiscount: 25,
         usageLimit: 1,
         userUsageLimit: 1,
         expirationDate,
@@ -188,12 +210,21 @@ export const processReferralFirstOrder = async (userId) => {
       // Referans durumunu rewarded yap
       referredUser.status = "rewarded";
       referredUser.rewardGivenAt = new Date();
+      
+      // ⚠️ ZİNCİR SİSTEMİ: Limit'e ulaşıldıysa kodu devre dışı bırak
+      if (referral.successfulReferrals >= referral.maxReferrals) {
+        referral.isActive = false;
+        referral.deactivationReason = "limit_reached";
+        console.log(`🔒 Referral kodu devre dışı: ${referral.referralCode} (limit doldu)`);
+      }
+      
       await referral.save();
 
       return { 
         success: true, 
         referrerId: referral.referrer,
-        rewardCouponCode: rewardCode
+        rewardCouponCode: rewardCode,
+        codeDeactivated: referral.successfulReferrals >= referral.maxReferrals
       };
     }
 

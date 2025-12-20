@@ -2,6 +2,7 @@ import Product from "../models/product.model.js";
 import Order from "../models/order.model.js";
 import Settings from "../models/settings.model.js";
 import { sendOrderNotification } from "../services/n8n.service.js";
+import { processReferralFirstOrder } from "./referral.controller.js";
 
 // Saat kontrolü için global bir önbellek tanımlayalım
 global.orderHoursCache = {
@@ -342,6 +343,20 @@ export const placeOrder = async (req, res) => {
 	  // Kullanıcının sepetini temizle
 	  req.user.cartItems = [];
 	  await req.user.save();
+
+	  // Referral: İlk sipariş kontrolü - referans eden kişiye ödül ver
+	  try {
+		const userOrderCount = await Order.countDocuments({ user: req.user._id });
+		if (userOrderCount === 1) {
+		  // Bu kullanıcının ilk siparişi, referral ödülünü işle
+		  const referralResult = await processReferralFirstOrder(req.user._id);
+		  if (referralResult.success) {
+			console.log('🎁 Referral ödülü verildi! Referrer ID:', referralResult.referrerId, 'Kupon:', referralResult.rewardCouponCode);
+		  }
+		}
+	  } catch (refError) {
+		console.error('Referral işlemi sırasında hata (ana işlem etkilenmez):', refError);
+	  }
   
 	  // n8n'e sipariş bildirimi gönder (asenkron, hata olsa bile ana işlemi engellemez)
 	  console.log('🔔 [Sipariş] n8n bildirimi başlatılıyor...');

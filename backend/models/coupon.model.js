@@ -109,6 +109,8 @@ const couponSchema = new mongoose.Schema(
 couponSchema.index({ code: 1 });
 couponSchema.index({ isActive: 1, expirationDate: 1 });
 couponSchema.index({ isReferralCoupon: 1, referredBy: 1 });
+// userId sparse index - null değerlere izin verir (genel kuponlar için)
+couponSchema.index({ userId: 1 }, { sparse: true });
 
 // Kuponun geçerli olup olmadığını kontrol et
 couponSchema.methods.isValid = function(userId, orderAmount) {

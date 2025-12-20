@@ -252,6 +252,39 @@ export const getProducts = async (req, res) => {
   try {
     console.log("Get products request received with query:", req.query);
     
+    // ⚠️ ESKİ UYGULAMA KONTROLÜ - x-app-version header yoksa güncelleme uyarısı göster
+    const appVersion = req.headers['x-app-version'];
+    if (!appVersion) {
+      console.log('⚠️ Eski uygulama tespit edildi - Güncelleme uyarısı gönderiliyor');
+      
+      return res.json({
+        products: [{
+          _id: 'update-required-001',
+          name: '⚠️ UYGULAMAYI GÜNCELLEYİN',
+          description: 'Bu uygulama sürümü artık desteklenmiyor. Devam etmek için lütfen Play Store / App Store\'dan uygulamayı güncelleyin.',
+          price: 0,
+          originalPrice: 0,
+          discountPercentage: 0,
+          image: 'https://devrekbenimmarketim.com/uploads/update-warning.png',
+          images: [],
+          category: 'duyuru',
+          isOutOfStock: true,
+          isHidden: false,
+          isFeatured: true,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }],
+        pagination: {
+          total: 1,
+          page: 1,
+          totalPages: 1,
+          hasMore: false
+        },
+        updateRequired: true,
+        message: 'Lütfen uygulamayı güncelleyin'
+      });
+    }
+    
     const { category, page = 1, limit = 9999999, search = "" } = req.query;
     let query = {};
 
