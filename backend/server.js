@@ -151,10 +151,6 @@ const PORT = process.env.PORT || 5000;
 
 const __dirname = path.resolve();
 
-// Version Check Middleware - Eski uygulamalara güncelleme uyarısı döndürür
-import { versionCheckMiddleware } from "./middleware/version.middleware.js";
-app.use("/api", versionCheckMiddleware);
-
 // Routes
 app.use("/api/orders-analytics", ordersAnalyticsRoutes);
 app.use("/api/auth", authRoutes);
