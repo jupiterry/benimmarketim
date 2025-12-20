@@ -252,10 +252,27 @@ export const getProducts = async (req, res) => {
   try {
     console.log("Get products request received with query:", req.query);
     
-    // ⚠️ ESKİ UYGULAMA KONTROLÜ - x-app-version header yoksa güncelleme uyarısı göster
+    // ⚠️ ESKİ UYGULAMA KONTROLÜ - x-app-version header kontrolü
     const appVersion = req.headers['x-app-version'];
-    if (!appVersion) {
-      console.log('⚠️ Eski uygulama tespit edildi - Güncelleme uyarısı gönderiliyor');
+    const MIN_VERSION = '2.1.1'; // Minimum desteklenen versiyon
+    
+    // Versiyon karşılaştırma fonksiyonu
+    const compareVersions = (v1, v2) => {
+      const parts1 = v1.split('.').map(Number);
+      const parts2 = v2.split('.').map(Number);
+      
+      for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+        const p1 = parts1[i] || 0;
+        const p2 = parts2[i] || 0;
+        if (p1 > p2) return 1;
+        if (p1 < p2) return -1;
+      }
+      return 0;
+    };
+    
+    // Header yoksa veya versiyon eski ise güncelleme uyarısı göster
+    if (!appVersion || compareVersions(appVersion, MIN_VERSION) < 0) {
+      console.log(`⚠️ Eski uygulama tespit edildi (v${appVersion || 'yok'}) - Güncelleme uyarısı gönderiliyor`);
       
       return res.json({
         products: [{
@@ -281,7 +298,8 @@ export const getProducts = async (req, res) => {
           hasMore: false
         },
         updateRequired: true,
-        message: 'Lütfen uygulamayı güncelleyin'
+        message: 'Lütfen uygulamayı güncelleyin',
+        minVersion: MIN_VERSION
       });
     }
     
