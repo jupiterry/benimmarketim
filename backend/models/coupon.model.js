@@ -126,6 +126,14 @@ couponSchema.methods.isValid = function(userId, orderAmount) {
     return { valid: false, message: "Bu kuponun süresi dolmuş" };
   }
   
+  // Kullanıcıya özel kupon kontrolü
+  // Eğer kuponun userId alanı doluysa, sadece o kullanıcı kullanabilir
+  if (this.userId && userId) {
+    if (this.userId.toString() !== userId.toString()) {
+      return { valid: false, message: "Bu kupon size özel değil" };
+    }
+  }
+  
   // Kullanım limiti kontrolü
   if (this.usageLimit !== null && this.usageCount >= this.usageLimit) {
     return { valid: false, message: "Bu kupon kullanım limitine ulaşmış" };
