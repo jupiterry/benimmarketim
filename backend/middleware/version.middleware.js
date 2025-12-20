@@ -11,7 +11,7 @@
 import express from 'express';
 
 // Minimum desteklenen versiyon (bu versiyonun altındakiler güncelleme uyarısı alır)
-const MINIMUM_SUPPORTED_VERSION = '2.1.1';
+const MINIMUM_SUPPORTED_VERSION = '2.0.0';
 
 // Versiyon karşılaştırma fonksiyonu
 // Örnek: '2.1.1' vs '2.0.0' => 1 (ilk büyük)
