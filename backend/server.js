@@ -27,6 +27,7 @@ import { Server } from "socket.io";
 import { connectDB } from "./lib/db.js";
 import { refreshOrderHoursCache } from "./controllers/cart.controller.js";
 import { startCartReminderJob } from "./jobs/cartReminder.job.js";
+import { versionCheckMiddleware, checkVersionEndpoint } from "./middleware/version.middleware.js";
 
 dotenv.config();
 
@@ -55,7 +56,9 @@ const corsOptions = {
     "Cache-Control",
     "Pragma",
     "If-Modified-Since",
-    "If-None-Match"
+    "If-None-Match",
+    "x-app-version",
+    "x-app-platform"
   ],
   exposedHeaders: ['Access-Control-Allow-Origin', 'Set-Cookie'],
   optionsSuccessStatus: 200,
@@ -150,6 +153,13 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 5000;
 
 const __dirname = path.resolve();
+
+// Version Check Middleware - Eski sürümlere güncelleme uyarısı
+// Bu middleware tüm API isteklerinden ÖNCE çalışır
+app.use("/api", versionCheckMiddleware);
+
+// Version Check Endpoint - Uygulama versiyonu kontrolü
+app.get("/api/version/check", checkVersionEndpoint);
 
 // Routes
 app.use("/api/orders-analytics", ordersAnalyticsRoutes);
