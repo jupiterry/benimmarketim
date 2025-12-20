@@ -307,6 +307,14 @@ const OrderCard = ({ order, index, onStatusUpdate, onPrint, onAddItem }) => {
                   <div className="flex-shrink-0 w-10 h-10 bg-emerald-500/30 border-2 border-emerald-500 rounded-lg flex items-center justify-center">
                     <span className="text-emerald-400 font-bold text-lg">{product.quantity}</span>
                   </div>
+                  {/* Ürün Görseli */}
+                  <div className="w-12 h-12 rounded-lg bg-gray-700/50 flex items-center justify-center overflow-hidden flex-shrink-0">
+                    {product.image ? (
+                      <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <Package2 className="w-5 h-5 text-gray-500" />
+                    )}
+                  </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-white truncate">{product.name}</p>
                     <div className="flex items-center gap-2 mt-1">
