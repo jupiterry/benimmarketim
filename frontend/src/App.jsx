@@ -128,7 +128,6 @@ function App() {
               }
             />
             <Route path="/hesap-silme" element={<AccountDeletionPage />} />
-            {/* Referral Page - Temporarily Disabled
             <Route
               path="/referral"
               element={
@@ -137,7 +136,6 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            */}
           </Routes>
         </div>
 

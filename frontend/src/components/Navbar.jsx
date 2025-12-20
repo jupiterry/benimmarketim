@@ -106,14 +106,24 @@ const UserMenu = ({ user, onLogout, onClose }) => {
       
       <div className="p-2">
         {!isAdmin && (
-          <Link
-            to="/fotokopi"
-            onClick={onClose}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
-          >
-            <FileText className="w-4 h-4" />
-            <span>Fotokopi Talebi</span>
-          </Link>
+          <>
+            <Link
+              to="/fotokopi"
+              onClick={onClose}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <FileText className="w-4 h-4" />
+              <span>Fotokopi Talebi</span>
+            </Link>
+            <Link
+              to="/referral"
+              onClick={onClose}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 transition-colors"
+            >
+              <Gift className="w-4 h-4" />
+              <span>Arkadaşını Getir</span>
+            </Link>
+          </>
         )}
         {isAdmin && (
           <Link

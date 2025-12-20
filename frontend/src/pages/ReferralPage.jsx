@@ -62,7 +62,7 @@ const ReferralPage = () => {
       try {
         await navigator.share({
           title: "Benim Marketim'e Davet",
-          text: `Benim Marketim'e katıl ve ilk siparişinde %15 indirim kazan! Referral kodum: ${referralData.code}`,
+          text: `Benim Marketim'e katıl ve ilk siparişinde %5 indirim kazan! Referral kodum: ${referralData.code}`,
           url: referralData.link
         });
       } catch (error) {
@@ -159,8 +159,8 @@ const ReferralPage = () => {
           <div className="grid md:grid-cols-3 gap-6">
             {[
               { icon: Share2, title: "Kodunu Paylaş", desc: "Arkadaşlarınla referral kodunu paylaş" },
-              { icon: Users, title: "Kayıt Olsun", desc: "Arkadaşın %15 indirim ile başlasın" },
-              { icon: Gift, title: "Ödül Kazan", desc: "İlk siparişinde sen %10 indirim kazan" }
+              { icon: Users, title: "Kayıt Olsun", desc: "Arkadaşın %5 indirim ile başlasın" },
+              { icon: Gift, title: "Ödül Kazan", desc: "İlk siparişinde sen %5 indirim kazan" }
             ].map((item, index) => (
               <div key={index} className="flex items-start gap-4">
                 <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -172,6 +172,22 @@ const ReferralPage = () => {
                 </div>
               </div>
             ))}
+          </div>
+          
+          {/* Tek Kullanım Bilgisi */}
+          <div className="mt-6 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 bg-amber-500/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Clock className="w-4 h-4 text-amber-400" />
+              </div>
+              <div>
+                <p className="text-amber-400 font-semibold text-sm">⚡ Tek Seferlik Davet Hakkı</p>
+                <p className="text-gray-400 text-sm mt-1">
+                  Her kullanıcı <span className="text-white font-medium">sadece 1 kişiyi</span> başarılı şekilde davet edebilir. 
+                  Başarılı davet sonrası kodun kullanılamaz olur, ama davet ettiğin kişi kendi kodunu paylaşabilir!
+                </p>
+              </div>
+            </div>
           </div>
         </motion.div>
 

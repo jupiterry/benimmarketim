@@ -1,10 +1,13 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { UserPlus, Mail, Lock, User, ArrowRight, Loader, Phone, ShoppingCart, Sparkles, Eye, EyeOff, Check, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { UserPlus, Mail, Lock, User, ArrowRight, Loader, Phone, ShoppingCart, Sparkles, Eye, EyeOff, Check, X, Gift } from "lucide-react";
 import { motion } from "framer-motion";
 import { useUserStore } from "../stores/useUserStore";
+import axios from "../lib/axios";
+import toast from "react-hot-toast";
 
 const SignUpPage = () => {
+	const [searchParams] = useSearchParams();
 	const [formData, setFormData] = useState({
 		name: "",
 		email: "",
@@ -14,12 +17,62 @@ const SignUpPage = () => {
 	});
 	const [showPassword, setShowPassword] = useState(false);
 	const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+	const [referralCode, setReferralCode] = useState("");
+	const [referralValid, setReferralValid] = useState(null);
+	const [referralMessage, setReferralMessage] = useState("");
+	const [checkingReferral, setCheckingReferral] = useState(false);
 
 	const { signup, loading } = useUserStore();
 
+	// URL'den referral kodu al
+	useEffect(() => {
+		const refCode = searchParams.get('ref');
+		if (refCode) {
+			setReferralCode(refCode.toUpperCase());
+			checkReferralCode(refCode.toUpperCase());
+		}
+	}, [searchParams]);
+
+	// Referral kodu kontrolü
+	const checkReferralCode = async (code) => {
+		if (!code || code.length < 4) {
+			setReferralValid(null);
+			setReferralMessage("");
+			return;
+		}
+		
+		setCheckingReferral(true);
+		try {
+			const response = await axios.get(`/referrals/check/${code}`);
+			if (response.data.success) {
+				setReferralValid(true);
+				setReferralMessage(response.data.message || `${response.data.referrerName} sizi davet etti!`);
+			}
+		} catch (error) {
+			setReferralValid(false);
+			setReferralMessage("Geçersiz referral kodu");
+		} finally {
+			setCheckingReferral(false);
+		}
+	};
+
+	const handleReferralCodeChange = (e) => {
+		const code = e.target.value.toUpperCase();
+		setReferralCode(code);
+		
+		// Debounce check
+		if (code.length >= 6) {
+			checkReferralCode(code);
+		} else {
+			setReferralValid(null);
+			setReferralMessage("");
+		}
+	};
+
 	const handleSubmit = (e) => {
 		e.preventDefault();
-		signup(formData);
+		// Referral kodu ile signup
+		signup({ ...formData, referralCode: referralValid ? referralCode : undefined });
 	};
 
 	// Password strength check
@@ -343,12 +396,12 @@ const SignUpPage = () => {
 										className={`text-xs mt-1.5 ${referralValid ? 'text-emerald-400' : 'text-red-400'}`}
 									>
 										{referralValid && '🎁 '}{referralMessage}
-										{referralValid && ' - İlk siparişte %15 indirim!'}
+										{referralValid && ' - İlk siparişte %5 indirim!'}
 									</motion.p>
 								)}
 								{!referralCode && (
 									<p className="text-xs text-gray-500 mt-1.5">
-										Arkadaşınızdan aldığınız davet kodunu girin ve ilk siparişinizde %15 indirim kazanın!
+										Arkadaşınızdan aldığınız davet kodunu girin ve ilk siparişinizde %5 indirim kazanın!
 									</p>
 								)}
 							</div>

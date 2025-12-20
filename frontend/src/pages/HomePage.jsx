@@ -449,9 +449,99 @@ const HomePage = () => {
 				</div>
 			</section>
 
-			{/* Referral Promo Section - Temporarily Disabled
-			   To re-enable, uncomment this section */}
-			
+			{/* Referral Promo Section */}
+			<motion.section
+				initial={{ opacity: 0 }}
+				whileInView={{ opacity: 1 }}
+				viewport={{ once: true }}
+				className="relative py-20 bg-gradient-to-br from-purple-900/30 via-gray-900 to-pink-900/30 overflow-hidden"
+			>
+				{/* Background Effects */}
+				<div className="absolute inset-0">
+					<div className="absolute top-20 left-20 w-72 h-72 bg-purple-500/20 rounded-full blur-3xl animate-pulse" />
+					<div className="absolute bottom-20 right-20 w-80 h-80 bg-pink-500/20 rounded-full blur-3xl animate-pulse delay-1000" />
+				</div>
+				
+				<div className="container mx-auto px-4 relative z-10">
+					<div className="max-w-4xl mx-auto text-center">
+						<motion.div
+							initial={{ opacity: 0, scale: 0.9 }}
+							whileInView={{ opacity: 1, scale: 1 }}
+							viewport={{ once: true }}
+							className="mb-6"
+						>
+							<div className="inline-flex items-center gap-3 bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-full px-6 py-3 mb-6">
+								<Gift className="w-6 h-6 text-purple-400" />
+								<span className="text-purple-300 font-semibold">Arkadaşını Getir, Kazan!</span>
+								<Gift className="w-6 h-6 text-pink-400" />
+							</div>
+							
+							<h2 className="text-3xl sm:text-5xl font-bold text-white mb-4">
+								Arkadaşını Davet Et, 
+								<span className="bg-gradient-to-r from-purple-400 via-pink-400 to-rose-400 bg-clip-text text-transparent"> %5 İndirim</span> Kazan!
+							</h2>
+							
+							<p className="text-gray-400 text-lg max-w-2xl mx-auto mb-8">
+								Referral kodunu arkadaşlarınla paylaş! Onlar <span className="text-purple-400 font-semibold">%5 indirim</span> ile ilk siparişlerini versin, 
+								sen de <span className="text-pink-400 font-semibold">%5 indirim kuponu</span> kazan!
+							</p>
+						</motion.div>
+
+						{/* How it works */}
+						<motion.div
+							initial={{ opacity: 0, y: 30 }}
+							whileInView={{ opacity: 1, y: 0 }}
+							viewport={{ once: true }}
+							transition={{ delay: 0.2 }}
+							className="grid md:grid-cols-3 gap-6 mb-10"
+						>
+							{[
+								{ step: 1, icon: "📤", title: "Kodunu Paylaş", desc: "Profilindeki davet kodunu arkadaşlarına gönder" },
+								{ step: 2, icon: "🎁", title: "Arkadaşın Kazansın", desc: "İlk siparişlerinde %5 indirim ile başlasınlar" },
+								{ step: 3, icon: "💰", title: "Sen Kazan", desc: "Başarılı davette %5 indirim kuponu al" }
+							].map((item, index) => (
+								<motion.div
+									key={index}
+									whileHover={{ y: -5, scale: 1.02 }}
+									className="relative bg-white/5 backdrop-blur-lg rounded-2xl p-6 border border-white/10 hover:border-purple-500/50 transition-all"
+								>
+									<div className="absolute -top-3 -left-3 w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg">
+										{item.step}
+									</div>
+									<div className="text-4xl mb-4">{item.icon}</div>
+									<h3 className="text-white font-bold text-lg mb-2">{item.title}</h3>
+									<p className="text-gray-400 text-sm">{item.desc}</p>
+								</motion.div>
+							))}
+						</motion.div>
+
+						{/* CTA */}
+						<motion.div
+							initial={{ opacity: 0, y: 20 }}
+							whileInView={{ opacity: 1, y: 0 }}
+							viewport={{ once: true }}
+							transition={{ delay: 0.4 }}
+							className="flex flex-col sm:flex-row gap-4 justify-center"
+						>
+							<a
+								href="/referral"
+								className="inline-flex items-center justify-center gap-3 bg-gradient-to-r from-purple-500 to-pink-600 text-white font-bold px-8 py-4 rounded-2xl hover:from-purple-400 hover:to-pink-500 transition-all duration-300 shadow-2xl hover:scale-105"
+							>
+								<Gift className="w-5 h-5" />
+								<span>Davet Kodumu Gör</span>
+								<ArrowRight className="w-5 h-5" />
+							</a>
+							<a
+								href="/signup"
+								className="inline-flex items-center justify-center gap-3 bg-white/10 backdrop-blur-xl border border-white/20 hover:bg-white/20 text-white font-bold px-8 py-4 rounded-2xl transition-all duration-300 hover:scale-105"
+							>
+								<Sparkles className="w-5 h-5 text-yellow-400" />
+								<span>Hemen Üye Ol</span>
+							</a>
+						</motion.div>
+					</div>
+				</div>
+			</motion.section>
 			<motion.section
 				initial={{ opacity: 0 }}
 				whileInView={{ opacity: 1 }}

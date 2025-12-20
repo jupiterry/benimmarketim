@@ -59,7 +59,7 @@ const GiftCouponCard = () => {
 			</div>
 
 			<AnimatePresence mode="wait">
-				{isCouponApplied ? (
+				{isCouponApplied && coupon ? (
 					<motion.div
 						key="applied"
 						initial={{ opacity: 0, y: -10 }}

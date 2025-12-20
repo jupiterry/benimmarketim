@@ -14,7 +14,7 @@ export const useUserStore = create(
 
       toggleSound: () => set((state) => ({ soundEnabled: !state.soundEnabled })),
 
-      signup: async ({ name, email, password, confirmPassword, phone }) => {
+      signup: async ({ name, email, password, confirmPassword, phone, referralCode }) => {
         set({ loading: true });
 
         if (password !== confirmPassword) {
@@ -24,13 +24,19 @@ export const useUserStore = create(
 
         try {
           const deviceType = detectDeviceType();
-          console.log("Gönderilen kayıt verileri:", { name, email, password, phone, deviceType });
-          const res = await axios.post("/auth/signup", { name, email, password, phone, deviceType });
+          console.log("Gönderilen kayıt verileri:", { name, email, password, phone, deviceType, referralCode });
+          const res = await axios.post("/auth/signup", { name, email, password, phone, deviceType, referralCode });
           console.log("Backend'den dönen yanıt:", res.data);
           
           const userData = { ...res.data, phone };
           set({ user: userData, loading: false });
-          toast.success("Kayıt başarılı!");
+          
+          // Referral kuponu varsa özel mesaj göster
+          if (res.data.referralCoupon) {
+            toast.success(`Kayıt başarılı! 🎁 Hoş geldin kuponu: ${res.data.referralCoupon}`, { duration: 5000 });
+          } else {
+            toast.success("Kayıt başarılı!");
+          }
         } catch (error) {
           console.error("Kayıt hatası:", error.response?.data || error);
           set({ loading: false });
