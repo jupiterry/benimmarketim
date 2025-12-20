@@ -252,9 +252,11 @@ export const getProducts = async (req, res) => {
   try {
     console.log("Get products request received with query:", req.query);
     
-    // ⚠️ ESKİ UYGULAMA KONTROLÜ - x-app-version header kontrolü
+    // ⚠️ ESKİ UYGULAMA KONTROLÜ
+    // Eski uygulamalar x-app-version header'ı göndermiyor
+    // Yeni uygulamalar (2.1.2+) header gönderecek
     const appVersion = req.headers['x-app-version'];
-    const MIN_VERSION = '2.1.1'; // Minimum desteklenen versiyon
+    const MIN_VERSION = '2.1.2'; // Minimum desteklenen versiyon
     
     // Versiyon karşılaştırma fonksiyonu
     const compareVersions = (v1, v2) => {
@@ -270,9 +272,10 @@ export const getProducts = async (req, res) => {
       return 0;
     };
     
-    // Header yoksa veya versiyon eski ise güncelleme uyarısı göster
-    if (!appVersion || compareVersions(appVersion, MIN_VERSION) < 0) {
-      console.log(`⚠️ Eski uygulama tespit edildi (v${appVersion || 'yok'}) - Güncelleme uyarısı gönderiliyor`);
+    // Header YOKSA = Eski uygulama → Güncelleme uyarısı
+    // Header VARSA ve versiyon >= MIN_VERSION → Normal çalış
+    if (!appVersion) {
+      console.log('⚠️ Eski uygulama tespit edildi (x-app-version header yok) - Güncelleme uyarısı gönderiliyor');
       
       return res.json({
         products: [{
@@ -302,6 +305,9 @@ export const getProducts = async (req, res) => {
         minVersion: MIN_VERSION
       });
     }
+    
+    // Header var ama versiyon eski (bu durumda normal çalışsın, çünkü en azından yeni uygulama)
+    console.log(`📱 App versiyon: ${appVersion}`);
     
     const { category, page = 1, limit = 9999999, search = "" } = req.query;
     let query = {};
