@@ -28,10 +28,11 @@ const compareVersions = (current, minimum) => {
 
 // Güncelleme mesajı oluşturucu
 const createUpdateResponse = (endpoint) => {
+  // Gerçek bir güncelleme banner resmi URL'si 
+  const updateBannerImage = "https://res.cloudinary.com/benimmarketim/image/upload/v1734655000/update-banner.png";
+  
   const baseUpdateMessage = {
     _updateRequired: true,
-    title: "🔄 Güncelleme Gerekli",
-    message: "Daha iyi bir deneyim için lütfen uygulamanızı güncelleyin!",
     updateUrl: {
       ios: "https://apps.apple.com/tr/app/benim-marketim/id6755792336",
       android: "https://play.google.com/store/apps/details?id=com.jupi.benimapp.benimmarketim_app"
@@ -39,42 +40,44 @@ const createUpdateResponse = (endpoint) => {
   };
 
   // Endpoint'e göre özelleştirilmiş fake response'lar
+  // ⚠️ DİKKAT: Flutter app'in beklediği EXACT format
   const fakeResponses = {
-    // Ürünler için
-    '/products': {
-      success: true,
-      products: [{
-        _id: "update_required",
-        name: "🔄 Güncelleme Gerekli",
-        description: "Uygulamanızı güncelleyin ve alışverişe devam edin!",
+    // Ürünler için - ARRAY olarak döndür (products wrapper yok!)
+    '/products': [
+      {
+        _id: "update_required_001",
+        name: "⚠️ UYGULAMANIZ ESKİ KALDI",
+        description: "Devam etmek için lütfen App Store veya Play Store'dan uygulamanızı güncelleyin. Yeni özellikler ve güvenlik güncellemeleri sizi bekliyor!",
         price: 0,
-        image: "/update-banner.png",
-        category: "system",
+        image: updateBannerImage,
+        thumbnail: updateBannerImage,
+        category: "Güncelleme",
         isOutOfStock: false,
         isFeatured: true,
+        isHidden: false,
         ...baseUpdateMessage
-      }]
-    },
+      }
+    ],
     
-    // Kategoriler için
-    '/categories': {
-      success: true,
-      categories: [{
+    // Kategoriler için - ARRAY
+    '/categories': [
+      {
         _id: "update_required",
-        name: "Güncelleme Gerekli",
-        image: "/update-banner.png",
+        name: "⚠️ Güncelleme Gerekli",
+        image: updateBannerImage,
+        order: 0,
         ...baseUpdateMessage
-      }]
-    },
+      }
+    ],
     
-    // Banner'lar için (en etkili!)
+    // Banner'lar için - banners array
     '/banners': {
       success: true,
       banners: [{
         _id: "update_banner",
-        title: "🔄 Uygulamanızı Güncelleyin!",
-        subtitle: "Yeni özellikler sizi bekliyor",
-        image: "/update-banner.png",
+        title: "⚠️ UYGULAMANIZI GÜNCELLEYİN!",
+        subtitle: "Yeni özellikler ve güvenlik güncellemeleri mevcut",
+        image: updateBannerImage,
         linkUrl: "https://apps.apple.com/tr/app/benim-marketim/id6755792336",
         isActive: true,
         order: 0,
@@ -82,7 +85,7 @@ const createUpdateResponse = (endpoint) => {
       }]
     },
     
-    // Siparişler için
+    // Siparişler için - orders array
     '/orders': {
       success: true,
       orders: [],
@@ -90,44 +93,36 @@ const createUpdateResponse = (endpoint) => {
       ...baseUpdateMessage
     },
     
-    // Sepet için
-    '/cart': {
-      success: true,
-      cart: [],
-      message: "Alışverişe devam etmek için uygulamanızı güncelleyin.",
-      ...baseUpdateMessage
-    },
+    // Sepet için - ARRAY
+    '/cart': [],
     
     // Profil için
     '/auth/profile': {
-      success: true,
-      ...baseUpdateMessage,
-      // Kullanıcı login olmuş gibi görünsün ama güncelleme uyarısı gelsin
+      _id: "update_required",
       name: "Güncelleme Gerekli",
-      email: "",
-      role: "customer"
+      email: "update@required.com",
+      role: "customer",
+      ...baseUpdateMessage
     },
 
     // Settings için
     '/settings': {
       success: true,
-      ...baseUpdateMessage,
       minimumOrderAmount: 0,
       deliveryFee: 0,
       orderStartHour: 0,
+      orderStartMinute: 0,
       orderEndHour: 24,
+      orderEndMinute: 0,
       deliveryPoints: {
-        girlsDorm: { enabled: false },
-        boysDorm: { enabled: false }
-      }
+        girlsDorm: { enabled: false, name: "Güncelleme Gerekli" },
+        boysDorm: { enabled: false, name: "Güncelleme Gerekli" }
+      },
+      ...baseUpdateMessage
     },
 
-    // Default - genel mesaj
-    'default': {
-      success: true,
-      data: [],
-      ...baseUpdateMessage
-    }
+    // Default - boş array
+    'default': []
   };
 
   // En uygun response'u bul
