@@ -36,7 +36,7 @@ export const getBestCustomers = async (req, res) => {
         }
       },
       {
-        $sort: { totalSpent: -1 }
+        $sort: { orderCount: -1, totalSpent: -1 }
       },
       {
         $limit: limit

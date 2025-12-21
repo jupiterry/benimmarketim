@@ -458,10 +458,10 @@ const UsersTab = ({ users, loading, error, onRefresh }) => {
         ) : bestCustomers.length === 0 ? (
           <p className="text-gray-500 text-center py-6">Henüz veri yok</p>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {bestCustomers.slice(0, 3).map((c, i) => (
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">
+            {bestCustomers.slice(0, 5).map((c, i) => (
               <div key={c.userId} className="bg-white/5 rounded-xl p-4 border border-white/5 relative">
-                {i < 3 && <div className="absolute top-2 right-2 text-2xl">{['🥇', '🥈', '🥉'][i]}</div>}
+                {i < 5 && <div className="absolute top-2 right-2 text-2xl">{['🥇', '🥈', '🥉', '4️⃣', '5️⃣'][i]}</div>}
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold">{c.name?.charAt(0).toUpperCase()}</div>
                   <div className="min-w-0"><p className="text-white font-medium truncate">{c.name}</p><p className="text-gray-500 text-xs truncate">{c.email}</p></div>
