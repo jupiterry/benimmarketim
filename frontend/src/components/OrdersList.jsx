@@ -723,12 +723,16 @@ const OrdersList = () => {
     const firstOrderId = sortedByDate.length > 0 ? sortedByDate[0].orderId : null;
     const totalOrders = userOrder.orders.length;
     
-    return filterOrders(userOrder.orders).map(order => ({
+    // Önce user bilgisini ekle
+    const ordersWithUser = userOrder.orders.map(order => ({
       ...order,
       user: userOrder.user,
       isFirstOrder: order.orderId === firstOrderId,
       userOrderCount: totalOrders
     }));
+    
+    // Sonra filtrele
+    return filterOrders(ordersWithUser);
   }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   const totalPages = Math.ceil(filteredOrders.length / ordersPerPage);
