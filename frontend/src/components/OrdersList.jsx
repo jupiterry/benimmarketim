@@ -622,11 +622,11 @@ const OrdersList = () => {
   const filterOrders = (orders) => {
     return orders.filter((order) => {
       const matchesSearch = 
-        order.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        order.products.some(product => 
-          product.name.toLowerCase().includes(searchTerm.toLowerCase())
+        (order.orderId || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.products?.some(product => 
+          (product.name || '').toLowerCase().includes(searchTerm.toLowerCase())
         ) ||
-        order.user.name.toLowerCase().includes(searchTerm.toLowerCase());
+        (order.user?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesStatus = 
         statusFilter === "all" || order.status === statusFilter;
