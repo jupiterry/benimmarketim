@@ -495,6 +495,10 @@ const OrdersList = () => {
               ` : ''}
               <div class="totals row"><div>Toplam</div><div>₺${(order.totalAmount).toFixed(2)}</div></div>
               ${noteHtml}
+              <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #000; text-align: center;">
+                <div style="font-size: 11px; font-weight: bold;">Bizi tercih ettiğiniz için teşekkür ederiz! ❤️</div>
+                <div style="font-size: 10px; margin-top: 4px; color: #666;">📲 Uygulamayı güncellemeyi unutmayın!</div>
+              </div>
             </div>
             <script>
               window.onload = function(){
