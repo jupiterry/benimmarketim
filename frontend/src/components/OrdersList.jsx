@@ -138,6 +138,11 @@ const OrderCard = ({ order, index, onStatusUpdate, onPrint, onAddItem }) => {
           <div className="flex items-center gap-2 mb-1">
             <User className="w-4 h-4 text-emerald-400" />
             <h3 className="text-lg font-bold text-white">{order.user.name}</h3>
+            {order.isFirstOrder && (
+              <span className="px-2 py-0.5 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-xs font-bold rounded-full animate-pulse shadow-lg shadow-pink-500/30">
+                🎉 İlk Sipariş
+              </span>
+            )}
           </div>
           <p className="text-xs text-gray-500 font-mono">#{order.orderId.slice(-8).toUpperCase()}</p>
         </div>
@@ -707,12 +712,17 @@ const OrdersList = () => {
     );
   }
 
-  const filteredOrders = orderAnalyticsData.usersOrders.flatMap(userOrder =>
-    filterOrders(userOrder.orders).map(order => ({
+  const filteredOrders = orderAnalyticsData.usersOrders.flatMap(userOrder => {
+    // Kullanıcının en eski siparişini bul (ilk sipariş)
+    const sortedByDate = [...userOrder.orders].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    const firstOrderId = sortedByDate.length > 0 ? sortedByDate[0].orderId : null;
+    
+    return filterOrders(userOrder.orders).map(order => ({
       ...order,
-      user: userOrder.user
-    }))
-  ).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      user: userOrder.user,
+      isFirstOrder: order.orderId === firstOrderId
+    }));
+  }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   const totalPages = Math.ceil(filteredOrders.length / ordersPerPage);
   const currentOrders = filteredOrders.slice(
