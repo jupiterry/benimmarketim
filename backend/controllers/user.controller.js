@@ -25,7 +25,7 @@ export const getBestCustomers = async (req, res) => {
     const bestCustomers = await Order.aggregate([
       {
         $match: {
-          status: { $in: ["completed", "processing", "shipped"] } // İptal edilmemiş siparişler
+          status: { $in: ["Hazırlanıyor", "Yolda", "Teslim Edildi"] } // İptal edilmemiş siparişler
         }
       },
       {
