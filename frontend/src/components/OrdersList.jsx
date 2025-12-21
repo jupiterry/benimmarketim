@@ -144,7 +144,12 @@ const OrderCard = ({ order, index, onStatusUpdate, onPrint, onAddItem }) => {
               </span>
             )}
           </div>
-          <p className="text-xs text-gray-500 font-mono">#{order.orderId.slice(-8).toUpperCase()}</p>
+          <div className="flex items-center gap-3 mt-1">
+            <p className="text-xs text-gray-500 font-mono">Sipariş: #{order.orderId.slice(-8).toUpperCase()}</p>
+            <span className="text-xs text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full">
+              📦 {order.userOrderCount || '?'} sipariş
+            </span>
+          </div>
         </div>
         <div className="flex gap-2">
           <motion.button
@@ -716,11 +721,13 @@ const OrdersList = () => {
     // Kullanıcının en eski siparişini bul (ilk sipariş)
     const sortedByDate = [...userOrder.orders].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
     const firstOrderId = sortedByDate.length > 0 ? sortedByDate[0].orderId : null;
+    const totalOrders = userOrder.orders.length;
     
     return filterOrders(userOrder.orders).map(order => ({
       ...order,
       user: userOrder.user,
-      isFirstOrder: order.orderId === firstOrderId
+      isFirstOrder: order.orderId === firstOrderId,
+      userOrderCount: totalOrders
     }));
   }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
