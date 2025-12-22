@@ -351,13 +351,12 @@ const AdminPage = () => {
       <motion.aside
         initial={false}
         animate={{ 
-          width: sidebarCollapsed ? 80 : 280,
-          x: mobileMenuOpen ? 0 : (window.innerWidth < 1024 ? -280 : 0)
+          width: sidebarCollapsed ? 80 : 280
         }}
         className={`
           fixed lg:relative h-[calc(100vh-64px)] lg:h-screen z-40 lg:z-auto
           bg-[#0d1321]/95 backdrop-blur-xl border-r border-white/5
-          flex flex-col top-16 lg:top-0
+          flex flex-col top-16 lg:top-0 transition-transform duration-300
           ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
       >
