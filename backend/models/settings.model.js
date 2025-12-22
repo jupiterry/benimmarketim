@@ -128,12 +128,6 @@ const settingsSchema = new mongoose.Schema(
         type: String,
         default: "https://apps.apple.com/tr/app/benim-marketim/id6755792336?l=tr"
       }
-    },
-    // Sezonsal Tema Ayarları
-    theme: {
-      type: String,
-      enum: ["normal", "newyear", "ramadan", "eid"],
-      default: "normal"
     }
   },
   { timestamps: true }

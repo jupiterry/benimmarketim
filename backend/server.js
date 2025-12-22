@@ -21,7 +21,6 @@ import cartReminderRoutes from "./routes/cartReminder.route.js";
 import n8nRoutes from "./routes/n8n.route.js";
 import versionRoutes from "./routes/version.route.js";
 import referralRoutes from "./routes/referral.route.js";
-import sitemapRoutes from "./routes/sitemap.route.js";
 import { createServer } from "http";
 import { Server } from "socket.io";
 
@@ -172,10 +171,91 @@ app.use("/api/n8n", n8nRoutes);
 app.use("/api", versionRoutes);
 app.use("/api/referrals", referralRoutes);
 
-// SEO Routes (sitemap.xml ve robots.txt)
-app.use("/", sitemapRoutes);
-
 import fs from "fs";
+import Product from "./models/product.model.js";
+
+// ============ SEO ENDPOINTS ============
+
+// robots.txt endpoint
+app.get('/robots.txt', (req, res) => {
+  const robotsTxt = `User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin
+Disallow: /panel
+
+# Sitemap
+Sitemap: https://devrekbenimmarketim.com/sitemap.xml
+
+# Crawl-delay
+Crawl-delay: 1
+`;
+  res.setHeader('Content-Type', 'text/plain');
+  res.send(robotsTxt);
+});
+
+// sitemap.xml endpoint
+app.get('/sitemap.xml', async (req, res) => {
+  try {
+    const baseUrl = 'https://devrekbenimmarketim.com';
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Statik sayfalar
+    const staticPages = [
+      { url: '/', priority: '1.0', changefreq: 'daily' },
+      { url: '/hakkimizda', priority: '0.7', changefreq: 'monthly' },
+      { url: '/iletisim', priority: '0.7', changefreq: 'monthly' },
+      { url: '/sss', priority: '0.6', changefreq: 'monthly' },
+      { url: '/gizlilik', priority: '0.5', changefreq: 'yearly' },
+      { url: '/kullanim-kosullari', priority: '0.5', changefreq: 'yearly' },
+      { url: '/kvkk', priority: '0.5', changefreq: 'yearly' },
+      { url: '/mesafeli-satis', priority: '0.5', changefreq: 'yearly' },
+      { url: '/iade-politikasi', priority: '0.5', changefreq: 'yearly' },
+      { url: '/cerez-politikasi', priority: '0.5', changefreq: 'yearly' },
+    ];
+    
+    // Kategori sayfaları
+    const categories = [
+      'kahve', 'yiyecekler', 'kahvalti', 'icecekler', 'sut-urunleri',
+      'atistirma', 'kisisel-bakim', 'temizlik', 'su', 'ev-gerecleri',
+      'dondurulmus', 'baharat', 'dondurma'
+    ];
+    
+    const categoryPages = categories.map(cat => ({
+      url: `/${cat}`,
+      priority: '0.8',
+      changefreq: 'daily'
+    }));
+    
+    // Tüm sayfaları birleştir
+    const allPages = [...staticPages, ...categoryPages];
+    
+    // XML oluştur
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+`;
+    
+    for (const page of allPages) {
+      xml += `  <url>
+    <loc>${baseUrl}${page.url}</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>${page.changefreq}</changefreq>
+    <priority>${page.priority}</priority>
+  </url>
+`;
+    }
+    
+    xml += `</urlset>`;
+    
+    res.setHeader('Content-Type', 'application/xml');
+    res.send(xml);
+  } catch (error) {
+    console.error('Sitemap oluşturulurken hata:', error);
+    res.status(500).send('Sitemap oluşturulamadı');
+  }
+});
+
+// ============ END SEO ENDPOINTS ============
 
 if (process.env.NODE_ENV === "production") {
   const currentDir = path.resolve(__dirname);

@@ -23,6 +23,7 @@ import PhotocopyTab from "../components/PhotocopyTab";
 import BannerTab from "../components/BannerTab";
 import CouponsTab from "../components/CouponsTab";
 import ReferralsTab from "../components/ReferralsTab";
+import AdvancedAnalyticsTab from "../components/AdvancedAnalyticsTab";
 import { Tag, Gift } from "lucide-react";
 
 // Sidebar Menu Item Component
@@ -266,6 +267,7 @@ const AdminPage = () => {
 
   const menuItems = useMemo(() => [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { id: "analytics", label: "Gelişmiş Analiz", icon: BarChart },
     { id: "orders", label: "Siparişler", icon: Package2, badge: 0 },
     { id: "products", label: "Ürünler", icon: ShoppingBasket },
     { id: "create", label: "Ürün Ekle", icon: PlusCircle },
@@ -283,6 +285,8 @@ const AdminPage = () => {
     switch (activeTab) {
       case "dashboard":
         return <DashboardWidgets />;
+      case "analytics":
+        return <AdvancedAnalyticsTab />;
       case "orders":
         return <OrdersList />;
       case "products":
