@@ -332,33 +332,106 @@ const AdminPage = () => {
   const activeMenuItem = menuItems.find(item => item.id === activeTab);
 
   return (
-    <div className="min-h-screen bg-[#0a0f1a] flex pt-16 lg:pt-0">
-      {/* Mobile Menu Overlay */}
+    <div className="min-h-screen bg-[#0a0f1a] flex pt-16 lg:pt-0 pb-20 lg:pb-0">
+      {/* Mobile Bottom Sheet Menu */}
       <AnimatePresence>
         {mobileMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
-            style={{ top: '64px' }}
-            onClick={() => setMobileMenuOpen(false)}
-          />
+          <>
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[60] lg:hidden"
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            {/* Bottom Sheet */}
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="fixed bottom-0 left-0 right-0 bg-[#0d1321] rounded-t-3xl z-[70] lg:hidden max-h-[70vh] overflow-hidden"
+            >
+              <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                <h2 className="text-white font-bold text-lg">Menü</h2>
+                <button 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="p-2 rounded-xl bg-red-500/20 text-red-400"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-4 grid grid-cols-3 gap-3 overflow-y-auto max-h-[55vh]">
+                {menuItems.map((item) => (
+                  <motion.button
+                    key={item.id}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      setActiveTab(item.id);
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl border ${
+                      activeTab === item.id
+                        ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
+                        : 'bg-white/5 border-white/10 text-gray-400'
+                    }`}
+                  >
+                    <item.icon className="w-6 h-6" />
+                    <span className="text-xs font-medium text-center">{item.label}</span>
+                  </motion.button>
+                ))}
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
 
-      {/* Sidebar */}
+      {/* Mobile Bottom Tab Bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-[#0d1321]/95 backdrop-blur-xl border-t border-white/10 z-50 lg:hidden safe-area-bottom">
+        <div className="flex items-center justify-around py-2 px-2">
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`flex flex-col items-center gap-1 p-2 rounded-xl ${activeTab === 'dashboard' ? 'text-emerald-400' : 'text-gray-500'}`}
+          >
+            <LayoutDashboard className="w-5 h-5" />
+            <span className="text-[10px]">Ana</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('orders')}
+            className={`flex flex-col items-center gap-1 p-2 rounded-xl ${activeTab === 'orders' ? 'text-emerald-400' : 'text-gray-500'}`}
+          >
+            <Package2 className="w-5 h-5" />
+            <span className="text-[10px]">Siparişler</span>
+          </button>
+          <button
+            onClick={() => setMobileMenuOpen(true)}
+            className="flex flex-col items-center gap-1 p-3 rounded-2xl bg-emerald-500 text-white -mt-4 shadow-lg shadow-emerald-500/30"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+          <button
+            onClick={() => setActiveTab('products')}
+            className={`flex flex-col items-center gap-1 p-2 rounded-xl ${activeTab === 'products' ? 'text-emerald-400' : 'text-gray-500'}`}
+          >
+            <ShoppingBasket className="w-5 h-5" />
+            <span className="text-[10px]">Ürünler</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('users')}
+            className={`flex flex-col items-center gap-1 p-2 rounded-xl ${activeTab === 'users' ? 'text-emerald-400' : 'text-gray-500'}`}
+          >
+            <Users className="w-5 h-5" />
+            <span className="text-[10px]">Kullanıcı</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Desktop Sidebar - Only visible on lg+ */}
       <motion.aside
         initial={false}
-        animate={{ 
-          width: sidebarCollapsed ? 80 : 280
-        }}
-        className={`
-          fixed lg:relative h-[calc(100vh-64px)] lg:h-screen z-40 lg:z-auto
-          bg-[#0d1321]/95 backdrop-blur-xl border-r border-white/5
-          flex flex-col top-16 lg:top-0 transition-transform duration-300
-          ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-        `}
+        animate={{ width: sidebarCollapsed ? 80 : 280 }}
+        className="hidden lg:flex fixed lg:relative h-screen z-40 bg-[#0d1321]/95 backdrop-blur-xl border-r border-white/5 flex-col"
       >
         {/* Logo Section */}
         <div className="p-4 border-b border-white/5">
