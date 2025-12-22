@@ -564,6 +564,11 @@ const OrdersList = () => {
   useEffect(() => {
     fetchOrderAnalyticsData();
 
+    // Browser Notification izni iste
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
     const socket = socketService.connect();
 
     if (socket.connected) {
@@ -577,10 +582,90 @@ const OrdersList = () => {
     const handleNewOrder = (data) => {
       console.log('Yeni sipariş bildirimi alındı:', data);
       fetchOrderAnalyticsData();
-      toast.success('Yeni sipariş geldi!', {
-        icon: '🛍️',
-        duration: 4000
-      });
+      
+      const order = data.order;
+      const customerName = order?.customerName || 'Müşteri';
+      const totalAmount = order?.totalAmount?.toFixed(2) || '0';
+      const firstProduct = order?.products?.[0]?.name || 'Ürün';
+      const productCount = order?.products?.length || 0;
+      
+      // 🔊 Ses çal
+      try {
+        const selectedSound = localStorage.getItem('notificationSound') || 'ringtone';
+        const audio = new Audio(`/${selectedSound}.mp3`);
+        audio.volume = 0.7;
+        audio.play().catch(e => console.log('Ses çalınamadı:', e));
+      } catch (e) {
+        console.log('Ses hatası:', e);
+      }
+      
+      // 📳 Titreşim (mobil)
+      if ('vibrate' in navigator) {
+        navigator.vibrate([200, 100, 200]);
+      }
+      
+      // 🔔 Browser Notification (sekme arkaplandayken)
+      if ('Notification' in window && Notification.permission === 'granted') {
+        const notification = new Notification('🛍️ Yeni Sipariş!', {
+          body: `${customerName} - ₺${totalAmount}\n${productCount > 1 ? `${firstProduct} +${productCount - 1} ürün` : firstProduct}`,
+          icon: '/favicon.ico',
+          badge: '/favicon.ico',
+          tag: 'new-order',
+          requireInteraction: true,
+          vibrate: [200, 100, 200]
+        });
+        
+        notification.onclick = () => {
+          window.focus();
+          notification.close();
+        };
+        
+        // 10 saniye sonra otomatik kapat
+        setTimeout(() => notification.close(), 10000);
+      }
+      
+      // � Detaylı Toast
+      toast.custom((t) => (
+        <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-gradient-to-r from-emerald-900/95 to-teal-900/95 backdrop-blur-xl shadow-2xl rounded-2xl pointer-events-auto border border-emerald-500/30`}>
+          <div className="p-4">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0">
+                <div className="w-12 h-12 bg-emerald-500/20 rounded-xl flex items-center justify-center">
+                  <span className="text-2xl">�🛍️</span>
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-sm font-bold text-white">Yeni Sipariş!</p>
+                  <span className="text-xs text-gray-400">şimdi</span>
+                </div>
+                <p className="text-white font-semibold">{customerName}</p>
+                <p className="text-emerald-400 font-bold text-lg">₺{totalAmount}</p>
+                <p className="text-gray-400 text-sm truncate">
+                  {productCount > 1 ? `${firstProduct} +${productCount - 1} ürün` : firstProduct}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-3">
+              <button
+                onClick={() => toast.dismiss(t.id)}
+                className="flex-1 px-3 py-2 bg-white/10 hover:bg-white/20 text-white text-sm rounded-xl transition-colors"
+              >
+                Kapat
+              </button>
+              <button
+                onClick={() => {
+                  toast.dismiss(t.id);
+                  setStatusFilter('Hazırlanıyor');
+                }}
+                className="flex-1 px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-xl transition-colors"
+              >
+                Siparişe Git
+              </button>
+            </div>
+          </div>
+        </div>
+      ), { duration: 8000, position: 'top-right' });
     };
 
     socket.on('newOrder', handleNewOrder);
@@ -777,6 +862,63 @@ const OrdersList = () => {
           <span className="text-sm font-medium">{autoRefresh ? 'Otomatik Yenileme Açık' : 'Otomatik Yenileme Kapalı'}</span>
         </motion.button>
       </motion.div>
+
+      {/* Mini Daily Stats Bar */}
+      {(() => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayOrders = filteredOrders.filter(o => {
+          const orderDate = new Date(o.createdAt);
+          return orderDate >= today;
+        });
+        const todayRevenue = todayOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+        const avgOrderValue = todayOrders.length > 0 ? todayRevenue / todayOrders.length : 0;
+        const pendingOrders = todayOrders.filter(o => o.status === 'Hazırlanıyor').length;
+        
+        return (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-cyan-500/10 backdrop-blur rounded-2xl p-4 border border-emerald-500/20"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+                <span className="text-emerald-400 font-semibold text-sm">BUGÜN</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-6">
+                <div className="flex items-center gap-2">
+                  <ShoppingBag className="w-4 h-4 text-blue-400" />
+                  <span className="text-white font-bold">{todayOrders.length}</span>
+                  <span className="text-gray-400 text-sm">sipariş</span>
+                </div>
+                <div className="hidden sm:block w-px h-5 bg-gray-700" />
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-emerald-400" />
+                  <span className="text-white font-bold">₺{todayRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</span>
+                  <span className="text-gray-400 text-sm">ciro</span>
+                </div>
+                <div className="hidden sm:block w-px h-5 bg-gray-700" />
+                <div className="flex items-center gap-2">
+                  <Package2 className="w-4 h-4 text-purple-400" />
+                  <span className="text-white font-bold">₺{avgOrderValue.toFixed(0)}</span>
+                  <span className="text-gray-400 text-sm">ort.</span>
+                </div>
+                {pendingOrders > 0 && (
+                  <>
+                    <div className="hidden sm:block w-px h-5 bg-gray-700" />
+                    <div className="flex items-center gap-2 bg-yellow-500/20 px-3 py-1 rounded-full">
+                      <Clock className="w-4 h-4 text-yellow-400" />
+                      <span className="text-yellow-400 font-bold">{pendingOrders}</span>
+                      <span className="text-yellow-400/70 text-sm">bekliyor</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        );
+      })()}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
