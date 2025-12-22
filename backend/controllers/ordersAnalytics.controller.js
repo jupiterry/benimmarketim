@@ -162,10 +162,12 @@ function getDatesInRange(startDate, endDate) {
   return dates;
 }
 
-// Kullanıcının kendi siparişlerini getiren fonksiyon
+// Kullanıcının siparişlerini getiren fonksiyon (admin için userId query desteği)
 export const getUserOrders = async (req, res) => {
   try {
-    const userId = req.user._id;
+    // Admin userId query parametresi gönderebilir, yoksa kendi userId'sini kullan
+    const userId = req.query.userId || req.user._id;
+    
     const orders = await Order.find({ user: userId })
       .populate({
         path: 'products.product',
@@ -175,13 +177,17 @@ export const getUserOrders = async (req, res) => {
 
     const formattedOrders = orders.map(order => ({
       _id: order._id,
+      orderId: order._id,
       products: order.products.map(p => ({
         name: p.product?.name || p.name || "Bilinmeyen Ürün",
         quantity: p.quantity,
         price: p.product?.price || p.price || 0,
-        image: p.product?.image || null,
+        image: p.product?.image || p.image || null,
       })),
       totalAmount: order.totalAmount,
+      subtotalAmount: order.subtotalAmount || order.totalAmount,
+      couponCode: order.couponCode || null,
+      couponDiscount: order.couponDiscount || 0,
       status: order.status,
       note: order.note,
       city: order.city,
@@ -191,7 +197,7 @@ export const getUserOrders = async (req, res) => {
       createdAt: order.createdAt,
     }));
 
-    res.json(formattedOrders);
+    res.json({ orders: formattedOrders });
   } catch (error) {
     console.error("Kullanıcı siparişleri alınırken hata:", error.message);
     res.status(500).json({ message: "Server hatası", error: error.message });
