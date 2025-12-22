@@ -432,14 +432,14 @@ const AdminPage = () => {
       </motion.aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-[calc(100vh-64px)] lg:min-h-screen overflow-hidden">
         {/* Top Header */}
-        <header className="sticky top-0 z-30 bg-[#0a0f1a]/80 backdrop-blur-xl border-b border-white/5 px-4 lg:px-6 py-3">
+        <header className="sticky top-0 z-30 bg-[#0a0f1a]/95 backdrop-blur-xl border-b border-white/5 px-4 lg:px-6 py-3">
           <div className="flex items-center gap-4">
             {/* Mobile Menu Toggle */}
             <button
-              onClick={() => setMobileMenuOpen(true)}
-              className="lg:hidden p-2 rounded-xl bg-white/5 text-gray-400 hover:text-white transition-colors"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="lg:hidden p-3 rounded-xl bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors border border-emerald-500/30"
             >
               <Menu className="w-5 h-5" />
             </button>
