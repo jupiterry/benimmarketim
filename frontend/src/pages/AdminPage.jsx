@@ -377,22 +377,19 @@ const AdminPage = () => {
                 <p className="text-gray-500 text-xs">Yönetici Paneli</p>
               </motion.div>
             )}
-            {/* Desktop: Collapse Button / Mobile: Close Button */}
+            {/* Mobile: Close Button */}
             <button 
-              onClick={() => {
-                if (window.innerWidth < 1024) {
-                  setMobileMenuOpen(false);
-                } else {
-                  setSidebarCollapsed(!sidebarCollapsed);
-                }
-              }}
-              className="p-2 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white transition-colors"
+              onClick={() => setMobileMenuOpen(false)}
+              className="lg:hidden p-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 transition-colors"
             >
-              {mobileMenuOpen && window.innerWidth < 1024 ? (
-                <X className="w-5 h-5" />
-              ) : (
-                <Menu className="w-5 h-5" />
-              )}
+              <X className="w-5 h-5" />
+            </button>
+            {/* Desktop: Collapse Button */}
+            <button 
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="hidden lg:block p-2 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white transition-colors"
+            >
+              <Menu className="w-5 h-5" />
             </button>
           </div>
         </div>
