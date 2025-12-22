@@ -55,6 +55,35 @@ const StatCard = ({ icon: Icon, label, value, trend, color, delay = 0 }) => (
 const UserDetailModal = ({ user, onClose, orders }) => {
   if (!user) return null;
   
+  // Kullanıcı istatistiklerini hesapla
+  const userStats = useMemo(() => {
+    if (!orders || orders.length === 0) {
+      return { totalSpent: 0, orderCount: 0, avgOrderValue: 0, favoriteProducts: [], deliveredCount: 0 };
+    }
+    
+    const totalSpent = orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+    const orderCount = orders.length;
+    const avgOrderValue = orderCount > 0 ? totalSpent / orderCount : 0;
+    const deliveredCount = orders.filter(o => o.status === 'Teslim Edildi' || o.status === 'delivered').length;
+    
+    // Favori ürünleri hesapla
+    const productCounts = {};
+    orders.forEach(order => {
+      order.products?.forEach(product => {
+        const name = product.name;
+        if (!productCounts[name]) {
+          productCounts[name] = { name, count: 0, totalSpent: 0 };
+        }
+        productCounts[name].count += product.quantity;
+        productCounts[name].totalSpent += (product.price || 0) * product.quantity;
+      });
+    });
+    
+    const favoriteProducts = Object.values(productCounts).sort((a, b) => b.count - a.count).slice(0, 5);
+    
+    return { totalSpent, orderCount, avgOrderValue, favoriteProducts, deliveredCount };
+  }, [orders]);
+  
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -67,7 +96,7 @@ const UserDetailModal = ({ user, onClose, orders }) => {
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-3xl p-6 max-w-2xl w-full max-h-[85vh] overflow-y-auto border border-white/10 shadow-2xl"
+        className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-3xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-white/10 shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -88,6 +117,30 @@ const UserDetailModal = ({ user, onClose, orders }) => {
           <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
             <X className="w-5 h-5 text-gray-400" />
           </button>
+        </div>
+
+        {/* User Stats Summary */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          <div className="bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-xl p-4 border border-emerald-500/30">
+            <DollarSign className="w-5 h-5 text-emerald-400 mb-2" />
+            <p className="text-gray-400 text-xs">Toplam Harcama</p>
+            <p className="text-white font-bold text-xl">₺{userStats.totalSpent.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</p>
+          </div>
+          <div className="bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-xl p-4 border border-blue-500/30">
+            <ShoppingBag className="w-5 h-5 text-blue-400 mb-2" />
+            <p className="text-gray-400 text-xs">Toplam Sipariş</p>
+            <p className="text-white font-bold text-xl">{userStats.orderCount}</p>
+          </div>
+          <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-xl p-4 border border-purple-500/30">
+            <TrendingUp className="w-5 h-5 text-purple-400 mb-2" />
+            <p className="text-gray-400 text-xs">Ortalama Sepet</p>
+            <p className="text-white font-bold text-xl">₺{userStats.avgOrderValue.toFixed(0)}</p>
+          </div>
+          <div className="bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-xl p-4 border border-yellow-500/30">
+            <Award className="w-5 h-5 text-yellow-400 mb-2" />
+            <p className="text-gray-400 text-xs">Başarı Oranı</p>
+            <p className="text-white font-bold text-xl">{userStats.orderCount > 0 ? Math.round((userStats.deliveredCount / userStats.orderCount) * 100) : 0}%</p>
+          </div>
         </div>
 
         {/* Info Grid */}
@@ -119,7 +172,7 @@ const UserDetailModal = ({ user, onClose, orders }) => {
             {user.lastLoginAt ? (
               <>
                 <p className="text-white font-bold text-lg">{new Date(user.lastLoginAt).toLocaleDateString('tr-TR')}</p>
-                <p className="text-gray-400 text-sm">{new Date(user.lastLoginAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
+                <p className="text-gray-400 text-sm">{new Date(user.lastLoginAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</p>
               </>
             ) : (
               <p className="text-gray-500">Henüz giriş yapmadı</p>
@@ -133,7 +186,7 @@ const UserDetailModal = ({ user, onClose, orders }) => {
             {user.lastActive ? (
               <>
                 <p className="text-white font-bold text-lg">{new Date(user.lastActive).toLocaleDateString('tr-TR')}</p>
-                <p className="text-gray-400 text-sm">{new Date(user.lastActive).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
+                <p className="text-gray-400 text-sm">{new Date(user.lastActive).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</p>
               </>
             ) : (
               <p className="text-gray-500">-</p>
@@ -141,23 +194,61 @@ const UserDetailModal = ({ user, onClose, orders }) => {
           </div>
         </div>
 
+        {/* Favorite Products */}
+        {userStats.favoriteProducts.length > 0 && (
+          <div className="bg-gradient-to-br from-yellow-500/10 to-amber-500/10 rounded-xl p-4 border border-yellow-500/20 mb-6">
+            <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
+              <Star className="w-4 h-4 text-yellow-400" /> Favori Ürünler
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {userStats.favoriteProducts.map((product, i) => (
+                <div key={i} className="flex items-center gap-3 bg-white/5 rounded-xl p-3">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm ${
+                    i === 0 ? 'bg-gradient-to-br from-yellow-400 to-amber-500' :
+                    i === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-400' :
+                    i === 2 ? 'bg-gradient-to-br from-amber-600 to-amber-700' : 'bg-gray-700'
+                  }`}>
+                    {i + 1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm font-medium truncate">{product.name}</p>
+                    <p className="text-gray-400 text-xs">{product.count} adet • ₺{product.totalSpent.toFixed(0)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Orders Section */}
         <div className="bg-white/5 rounded-xl p-4 border border-white/5">
-          <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-            <Package className="w-4 h-4 text-emerald-400" /> Sipariş Geçmişi
+          <h3 className="text-white font-semibold mb-3 flex items-center justify-between">
+            <span className="flex items-center gap-2"><Package className="w-4 h-4 text-emerald-400" /> Sipariş Geçmişi</span>
+            <span className="text-gray-500 text-sm">{orders?.length || 0} sipariş</span>
           </h3>
           {orders && orders.length > 0 ? (
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {orders.slice(0, 5).map((order, i) => (
-                <div key={i} className="flex items-center justify-between bg-white/5 rounded-lg p-3">
-                  <div>
-                    <p className="text-white text-sm font-medium">#{order._id?.slice(-6)}</p>
-                    <p className="text-gray-500 text-xs">{new Date(order.createdAt).toLocaleDateString('tr-TR')}</p>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {orders.map((order, i) => (
+                <div key={i} className="flex items-center justify-between bg-white/5 rounded-lg p-3 hover:bg-white/10 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-2 h-2 rounded-full ${
+                      order.status === 'Teslim Edildi' || order.status === 'delivered' ? 'bg-emerald-400' :
+                      order.status === 'İptal Edildi' || order.status === 'cancelled' ? 'bg-red-400' :
+                      order.status === 'Yolda' ? 'bg-blue-400' : 'bg-yellow-400'
+                    }`} />
+                    <div>
+                      <p className="text-white text-sm font-medium">#{order._id?.slice(-6) || order.orderId?.slice(-6)}</p>
+                      <p className="text-gray-500 text-xs">{new Date(order.createdAt).toLocaleDateString('tr-TR')} • {order.products?.length || 0} ürün</p>
+                    </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-emerald-400 font-bold">₺{order.totalAmount?.toFixed(2)}</p>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${order.status === 'delivered' ? 'bg-green-500/20 text-green-400' : order.status === 'cancelled' ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
-                      {order.status === 'delivered' ? 'Teslim Edildi' : order.status === 'cancelled' ? 'İptal' : 'Beklemede'}
+                    <p className="text-emerald-400 font-bold">₺{(order.totalAmount || 0).toFixed(2)}</p>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      order.status === 'Teslim Edildi' || order.status === 'delivered' ? 'bg-green-500/20 text-green-400' : 
+                      order.status === 'İptal Edildi' || order.status === 'cancelled' ? 'bg-red-500/20 text-red-400' : 
+                      order.status === 'Yolda' ? 'bg-blue-500/20 text-blue-400' : 'bg-yellow-500/20 text-yellow-400'
+                    }`}>
+                      {order.status || 'Beklemede'}
                     </span>
                   </div>
                 </div>
