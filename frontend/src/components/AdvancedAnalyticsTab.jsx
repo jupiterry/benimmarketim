@@ -327,34 +327,61 @@ const AdvancedAnalyticsTab = () => {
       {/* Daily Sales Chart */}
       {analytics.salesByDay && analytics.salesByDay.length > 0 && (
         <div className="glass rounded-2xl p-6">
-          <div className="flex items-center gap-2 mb-6">
-            <Calendar className="w-5 h-5 text-cyan-400" />
-            <h3 className="text-lg font-semibold text-white">Günlük Satış Trendi</h3>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-cyan-400" />
+              <h3 className="text-lg font-semibold text-white">Günlük Satış Trendi</h3>
+            </div>
+            <div className="text-sm text-gray-400">
+              Toplam: ₺{analytics.salesByDay.reduce((sum, d) => sum + d.amount, 0).toLocaleString('tr-TR')}
+            </div>
           </div>
-          <div className="flex items-end justify-between gap-2 h-48">
-            {analytics.salesByDay.map((day, idx) => {
-              const maxAmount = Math.max(...analytics.salesByDay.map(d => d.amount), 1);
-              const height = (day.amount / maxAmount) * 100;
-              return (
-                <div key={day.date} className="flex-1 flex flex-col items-center group">
-                  <div className="relative w-full">
-                    <motion.div
-                      initial={{ height: 0 }}
-                      animate={{ height: `${height}%` }}
-                      transition={{ duration: 0.5, delay: idx * 0.05 }}
-                      className="w-full bg-gradient-to-t from-emerald-500 to-teal-400 rounded-t group-hover:opacity-80"
-                      style={{ minHeight: day.amount > 0 ? '8px' : '2px' }}
-                    />
-                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                      ₺{day.amount.toFixed(0)}
+          
+          {/* Chart Container */}
+          <div className="relative">
+            {/* Y-axis labels */}
+            <div className="absolute left-0 top-0 bottom-8 w-12 flex flex-col justify-between text-xs text-gray-500">
+              <span>₺{Math.max(...analytics.salesByDay.map(d => d.amount)).toLocaleString('tr-TR', { maximumFractionDigits: 0 })}</span>
+              <span>₺{(Math.max(...analytics.salesByDay.map(d => d.amount)) / 2).toLocaleString('tr-TR', { maximumFractionDigits: 0 })}</span>
+              <span>₺0</span>
+            </div>
+            
+            {/* Bars Container */}
+            <div className="ml-14 flex items-end gap-1 h-52">
+              {analytics.salesByDay.map((day, idx) => {
+                const maxAmount = Math.max(...analytics.salesByDay.map(d => d.amount));
+                const heightPercent = maxAmount > 0 ? (day.amount / maxAmount) * 100 : 0;
+                
+                return (
+                  <div key={day.date || idx} className="flex-1 flex flex-col items-center group h-full justify-end">
+                    {/* Bar */}
+                    <div className="w-full relative flex items-end justify-center" style={{ height: '100%' }}>
+                      <motion.div
+                        initial={{ height: 0 }}
+                        animate={{ height: `${Math.max(heightPercent, 2)}%` }}
+                        transition={{ duration: 0.6, delay: idx * 0.03, ease: "easeOut" }}
+                        className={`w-full max-w-8 rounded-t-md ${
+                          day.amount > 0 
+                            ? 'bg-gradient-to-t from-emerald-600 via-emerald-500 to-teal-400' 
+                            : 'bg-gray-700/30'
+                        } group-hover:from-emerald-500 group-hover:to-cyan-300 transition-all cursor-pointer`}
+                      />
+                      
+                      {/* Tooltip */}
+                      <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-gray-800/95 backdrop-blur text-white text-xs px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20 shadow-xl border border-white/10">
+                        <div className="font-bold text-emerald-400">₺{day.amount.toLocaleString('tr-TR')}</div>
+                        <div className="text-gray-400">{new Date(day.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}</div>
+                      </div>
                     </div>
+                    
+                    {/* Date Label */}
+                    <span className="text-[9px] text-gray-500 mt-2 whitespace-nowrap">
+                      {new Date(day.date).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' })}
+                    </span>
                   </div>
-                  <span className="text-[9px] text-gray-500 mt-1 -rotate-45 origin-center">
-                    {new Date(day.date).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' })}
-                  </span>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
       )}

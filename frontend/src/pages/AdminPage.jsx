@@ -332,7 +332,7 @@ const AdminPage = () => {
   const activeMenuItem = menuItems.find(item => item.id === activeTab);
 
   return (
-    <div className="min-h-screen bg-[#0a0f1a] flex">
+    <div className="min-h-screen bg-[#0a0f1a] flex pt-16 lg:pt-0">
       {/* Mobile Menu Overlay */}
       <AnimatePresence>
         {mobileMenuOpen && (
@@ -341,6 +341,7 @@ const AdminPage = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+            style={{ top: '64px' }}
             onClick={() => setMobileMenuOpen(false)}
           />
         )}
@@ -354,9 +355,9 @@ const AdminPage = () => {
           x: mobileMenuOpen ? 0 : (window.innerWidth < 1024 ? -280 : 0)
         }}
         className={`
-          fixed lg:relative h-screen z-50 
+          fixed lg:relative h-[calc(100vh-64px)] lg:h-screen z-40 lg:z-auto
           bg-[#0d1321]/95 backdrop-blur-xl border-r border-white/5
-          flex flex-col
+          flex flex-col top-16 lg:top-0
           ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
       >
