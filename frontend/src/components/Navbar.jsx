@@ -2,11 +2,86 @@ import { ShoppingCart, UserPlus, LogIn, LogOut, Lock, Package, Menu, X, Bell, Fi
 import { Link, useNavigate } from "react-router-dom";
 import { useUserStore } from "../stores/useUserStore";
 import { useCartStore } from "../stores/useCartStore";
+import { useSettingsStore } from "../stores/useSettingsStore";
 import SearchBar from "./SearchBar";
 import { useState, useEffect, useRef } from "react";
 import socketService from "../lib/socket.js";
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
+
+// Snowflake Component for New Year Theme
+const Snowflakes = () => {
+  const snowflakes = Array.from({ length: 30 }, (_, i) => ({
+    id: i,
+    left: `${Math.random() * 100}%`,
+    animationDelay: `${Math.random() * 5}s`,
+    animationDuration: `${5 + Math.random() * 10}s`,
+    opacity: Math.random() * 0.7 + 0.3,
+    size: Math.random() * 10 + 5
+  }));
+
+  return (
+    <div className="fixed inset-0 pointer-events-none z-[9999] overflow-hidden">
+      {snowflakes.map((flake) => (
+        <div
+          key={flake.id}
+          className="absolute text-white animate-fall"
+          style={{
+            left: flake.left,
+            top: '-20px',
+            opacity: flake.opacity,
+            fontSize: `${flake.size}px`,
+            animationDelay: flake.animationDelay,
+            animationDuration: flake.animationDuration,
+          }}
+        >
+          ❄
+        </div>
+      ))}
+      <style>{`
+        @keyframes fall {
+          0% { transform: translateY(-20px) rotate(0deg); }
+          100% { transform: translateY(100vh) rotate(360deg); }
+        }
+        .animate-fall {
+          animation: fall linear infinite;
+        }
+      `}</style>
+    </div>
+  );
+};
+
+// Crescent Moon Component for Ramadan Theme
+const RamadanDecorations = () => {
+  return (
+    <div className="fixed top-20 right-10 pointer-events-none z-[9998]">
+      <motion.div
+        animate={{ y: [0, -10, 0], rotate: [0, 5, 0] }}
+        transition={{ duration: 4, repeat: Infinity }}
+        className="text-6xl"
+      >
+        🌙
+      </motion.div>
+      <div className="absolute -top-4 -left-8 text-2xl opacity-70">⭐</div>
+      <div className="absolute top-8 -right-4 text-lg opacity-50">✨</div>
+    </div>
+  );
+};
+
+// Eid Decorations Component
+const EidDecorations = () => {
+  return (
+    <div className="fixed top-20 right-10 pointer-events-none z-[9998]">
+      <motion.div
+        animate={{ scale: [1, 1.1, 1], rotate: [0, 10, -10, 0] }}
+        transition={{ duration: 2, repeat: Infinity }}
+        className="text-5xl"
+      >
+        🎉
+      </motion.div>
+    </div>
+  );
+};
 
 // Cart Preview Component
 const CartPreview = ({ cart, onClose }) => {
@@ -353,11 +428,26 @@ const Navbar = () => {
   const { user, logout } = useUserStore();
   const isAdmin = user?.role === "admin";
   const { cart } = useCartStore();
+  const { settings } = useSettingsStore();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showCartPreview, setShowCartPreview] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const cartRef = useRef(null);
   const userRef = useRef(null);
+  
+  // Tema dekorasyonlarını göster
+  const renderThemeDecorations = () => {
+    switch (settings?.theme) {
+      case 'newyear':
+        return <Snowflakes />;
+      case 'ramadan':
+        return <RamadanDecorations />;
+      case 'eid':
+        return <EidDecorations />;
+      default:
+        return null;
+    }
+  };
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -394,7 +484,9 @@ const Navbar = () => {
   }, [isMenuOpen]);
 
   return (
-    <header className="fixed top-0 left-0 w-full bg-gray-900/80 backdrop-blur-xl shadow-2xl border-b border-white/10 z-50">
+    <>
+      {renderThemeDecorations()}
+      <header className="fixed top-0 left-0 w-full bg-gray-900/80 backdrop-blur-xl shadow-2xl border-b border-white/10 z-50">
       <div className="container mx-auto py-3 px-4">
         <div className="flex items-center justify-between gap-4">
           {/* Logo */}
@@ -634,6 +726,7 @@ const Navbar = () => {
         </AnimatePresence>
       </div>
     </header>
+    </>
   );
 };
 

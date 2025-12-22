@@ -21,6 +21,7 @@ import cartReminderRoutes from "./routes/cartReminder.route.js";
 import n8nRoutes from "./routes/n8n.route.js";
 import versionRoutes from "./routes/version.route.js";
 import referralRoutes from "./routes/referral.route.js";
+import sitemapRoutes from "./routes/sitemap.route.js";
 import { createServer } from "http";
 import { Server } from "socket.io";
 
@@ -170,6 +171,9 @@ app.use("/api/cart-reminders", cartReminderRoutes);
 app.use("/api/n8n", n8nRoutes);
 app.use("/api", versionRoutes);
 app.use("/api/referrals", referralRoutes);
+
+// SEO Routes (sitemap.xml ve robots.txt)
+app.use("/", sitemapRoutes);
 
 import fs from "fs";
 

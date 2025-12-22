@@ -3,7 +3,7 @@ import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Clock, ShoppingBasket, MapPin, ToggleLeft, ToggleRight, Smartphone, 
-  AlertTriangle, Save, RefreshCw, ChevronDown, Globe, Download, ExternalLink
+  AlertTriangle, Save, RefreshCw, ChevronDown, Globe, Download, ExternalLink, Palette
 } from "lucide-react";
 import { useSettingsStore } from "../stores/useSettingsStore";
 import axios from "../lib/axios";
@@ -86,7 +86,8 @@ const SettingsTab = () => {
       forceUpdate: false,
       androidStoreUrl: "https://play.google.com/store/apps/details?id=com.jupi.benimapp.benimmarketim_app",
       iosStoreUrl: "https://apps.apple.com/tr/app/benim-marketim/id6755792336?l=tr"
-    }
+    },
+    theme: "normal"
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -104,7 +105,8 @@ const SettingsTab = () => {
         ...prev,
         ...storeSettings,
         deliveryPoints: storeSettings.deliveryPoints || prev.deliveryPoints,
-        appVersion: storeSettings.appVersion || prev.appVersion
+        appVersion: storeSettings.appVersion || prev.appVersion,
+        theme: storeSettings.theme || prev.theme
       }));
     }
   }, [storeSettings]);
@@ -503,6 +505,84 @@ const SettingsTab = () => {
                 </a>
               </div>
             </div>
+          </div>
+        </SettingsSection>
+
+        {/* Sezonsal Tema Ayarları */}
+        <SettingsSection icon={Palette} title="Sezonsal Tema" color="from-pink-500/10 to-rose-500/10" defaultOpen={true}>
+          <div className="space-y-4">
+            <p className="text-gray-400 text-sm">Site genelinde görünecek tema dekorasyonlarını seçin.</p>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {/* Normal Tema */}
+              <button
+                type="button"
+                onClick={() => setSettings(prev => ({ ...prev, theme: "normal" }))}
+                className={`p-4 rounded-xl border-2 transition-all ${
+                  settings.theme === "normal" 
+                    ? "border-emerald-500 bg-emerald-500/10" 
+                    : "border-white/10 bg-white/5 hover:border-white/30"
+                }`}
+              >
+                <div className="text-3xl mb-2">🌿</div>
+                <div className="text-white font-semibold text-sm">Normal</div>
+                <div className="text-gray-400 text-xs">Varsayılan tema</div>
+              </button>
+
+              {/* Yılbaşı Teması */}
+              <button
+                type="button"
+                onClick={() => setSettings(prev => ({ ...prev, theme: "newyear" }))}
+                className={`p-4 rounded-xl border-2 transition-all ${
+                  settings.theme === "newyear" 
+                    ? "border-red-500 bg-red-500/10" 
+                    : "border-white/10 bg-white/5 hover:border-white/30"
+                }`}
+              >
+                <div className="text-3xl mb-2">🎄</div>
+                <div className="text-white font-semibold text-sm">Yılbaşı</div>
+                <div className="text-gray-400 text-xs">Kar taneleri</div>
+              </button>
+
+              {/* Ramazan Teması */}
+              <button
+                type="button"
+                onClick={() => setSettings(prev => ({ ...prev, theme: "ramadan" }))}
+                className={`p-4 rounded-xl border-2 transition-all ${
+                  settings.theme === "ramadan" 
+                    ? "border-purple-500 bg-purple-500/10" 
+                    : "border-white/10 bg-white/5 hover:border-white/30"
+                }`}
+              >
+                <div className="text-3xl mb-2">🌙</div>
+                <div className="text-white font-semibold text-sm">Ramazan</div>
+                <div className="text-gray-400 text-xs">Hilal & yıldızlar</div>
+              </button>
+
+              {/* Bayram Teması */}
+              <button
+                type="button"
+                onClick={() => setSettings(prev => ({ ...prev, theme: "eid" }))}
+                className={`p-4 rounded-xl border-2 transition-all ${
+                  settings.theme === "eid" 
+                    ? "border-yellow-500 bg-yellow-500/10" 
+                    : "border-white/10 bg-white/5 hover:border-white/30"
+                }`}
+              >
+                <div className="text-3xl mb-2">🎉</div>
+                <div className="text-white font-semibold text-sm">Bayram</div>
+                <div className="text-gray-400 text-xs">Şenlik</div>
+              </button>
+            </div>
+
+            {settings.theme !== "normal" && (
+              <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                <p className="text-amber-400 text-sm flex items-center gap-2">
+                  <Palette className="w-4 h-4" />
+                  Aktif tema: {settings.theme === "newyear" ? "🎄 Yılbaşı" : settings.theme === "ramadan" ? "🌙 Ramazan" : "🎉 Bayram"}
+                </p>
+              </div>
+            )}
           </div>
         </SettingsSection>
         
