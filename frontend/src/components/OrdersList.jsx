@@ -111,7 +111,7 @@ const StatusTimeline = ({ status }) => {
 };
 
 // Order Card Component
-const OrderCard = ({ order, index, onStatusUpdate, onPrint, onAddItem }) => {
+const OrderCard = ({ order, index, onStatusUpdate, onPrint, onAddItem, onDelete }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   
   const getCardGradient = () => {
@@ -169,6 +169,15 @@ const OrderCard = ({ order, index, onStatusUpdate, onPrint, onAddItem }) => {
             title="Yazdır"
           >
             <Printer className="w-4 h-4" />
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => onDelete(order.orderId)}
+            className="p-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 transition-colors"
+            title="Siparişi Sil"
+          >
+            <X className="w-4 h-4" />
           </motion.button>
         </div>
       </div>
@@ -704,6 +713,30 @@ const OrdersList = () => {
     }
   };
 
+  const handleDeleteOrder = async (orderId) => {
+    if (!window.confirm("Bu siparişi kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz!")) {
+      return;
+    }
+    
+    try {
+      await axios.delete(`/orders-analytics/delete-order/${orderId}`);
+      
+      // State'ten siparişi kaldır
+      setOrderAnalyticsData((prevData) => ({
+        ...prevData,
+        usersOrders: prevData.usersOrders.map((userOrder) => ({
+          ...userOrder,
+          orders: userOrder.orders.filter((order) => order.orderId !== orderId),
+        })).filter(userOrder => userOrder.orders.length > 0),
+      }));
+      
+      toast.success("Sipariş başarıyla silindi!");
+    } catch (error) {
+      console.error("Sipariş silinirken hata:", error);
+      toast.error(error.response?.data?.message || "Sipariş silinirken hata oluştu");
+    }
+  };
+
   const filterOrders = (orders) => {
     return orders.filter((order) => {
       const matchesSearch = 
@@ -1132,6 +1165,7 @@ const OrdersList = () => {
               onStatusUpdate={updateOrderStatus}
               onPrint={handlePrint}
               onAddItem={handleOpenAddItemModal}
+              onDelete={handleDeleteOrder}
             />
           ))}
         </AnimatePresence>

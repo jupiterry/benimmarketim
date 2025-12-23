@@ -290,3 +290,30 @@ export const addCustomItemToOrder = async (req, res) => {
     res.status(500).json({ message: "Server hatası", error: error.message });
   }
 };
+
+// Sipariş silme fonksiyonu (Admin only) - Veritabanından kalıcı olarak siler
+export const deleteOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    if (!orderId) {
+      return res.status(400).json({ message: "Sipariş ID gerekli!" });
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ message: "Sipariş bulunamadı!" });
+    }
+
+    await Order.findByIdAndDelete(orderId);
+
+    res.json({ 
+      success: true,
+      message: "Sipariş başarıyla silindi!",
+      deletedOrderId: orderId 
+    });
+  } catch (error) {
+    console.error("Sipariş silinirken hata:", error.message);
+    res.status(500).json({ message: "Server hatası", error: error.message });
+  }
+};

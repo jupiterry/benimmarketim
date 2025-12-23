@@ -7,6 +7,7 @@ import {
   getUserOrders,
   cancelOrder,
   addCustomItemToOrder,
+  deleteOrder,
 } from "../controllers/ordersAnalytics.controller.js";
 
 const router = express.Router();
@@ -42,5 +43,8 @@ router.put("/cancel-order", protectRoute, cancelOrder);
 
 // Siparişe özel ürün ekleme endpoint'i
 router.put("/add-item", protectRoute, adminRoute, addCustomItemToOrder);
+
+// Admin sipariş silme endpoint'i
+router.delete("/delete-order/:orderId", protectRoute, adminRoute, deleteOrder);
 
 export default router;
