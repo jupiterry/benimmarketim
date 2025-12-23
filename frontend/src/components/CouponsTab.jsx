@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import axios from "../lib/axios";
+import { useConfirm } from "./ConfirmModal";
 
 // Stat Card Component
 const StatCard = ({ icon: Icon, title, value, color, subtext }) => (
@@ -351,8 +352,17 @@ const CouponsTab = () => {
     }
   };
 
+  const { confirm } = useConfirm();
+
   const handleDelete = async (couponId) => {
-    if (!window.confirm("Bu kuponu silmek istediğinize emin misiniz?")) return;
+    const confirmed = await confirm({
+      title: 'Kuponu Sil',
+      message: 'Bu kuponu silmek istediğinize emin misiniz?',
+      confirmText: 'Evet, Sil',
+      cancelText: 'İptal',
+      type: 'danger'
+    });
+    if (!confirmed) return;
     
     try {
       await axios.delete(`/coupons/${couponId}`);

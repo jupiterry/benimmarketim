@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Plus, Edit, Trash2, Image as ImageIcon, X, Save, Loader } from "lucide-react";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
+import { useConfirm } from "./ConfirmModal";
 
 const BannerTab = () => {
   const [banners, setBanners] = useState([]);
@@ -77,10 +78,17 @@ const BannerTab = () => {
     setShowForm(true);
   };
 
+  const { confirm } = useConfirm();
+
   const handleDelete = async (id) => {
-    if (!window.confirm("Bu banner'ı silmek istediğinize emin misiniz?")) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Banner Sil',
+      message: 'Bu banner\'ı silmek istediğinize emin misiniz?',
+      confirmText: 'Evet, Sil',
+      cancelText: 'İptal',
+      type: 'danger'
+    });
+    if (!confirmed) return;
 
     try {
       const response = await axios.delete(`/banners/${id}`);

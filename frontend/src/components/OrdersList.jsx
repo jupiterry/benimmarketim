@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import socketService from "../lib/socket.js";
+import { useConfirm } from "./ConfirmModal";
 
 // Skeleton Loading Component
 const SkeletonCard = () => (
@@ -713,10 +714,18 @@ const OrdersList = () => {
     }
   };
 
+  const { confirm } = useConfirm();
+
   const handleDeleteOrder = async (orderId) => {
-    if (!window.confirm("Bu siparişi kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz!")) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Siparişi Sil',
+      message: 'Bu siparişi kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz!',
+      confirmText: 'Evet, Sil',
+      cancelText: 'İptal',
+      type: 'danger'
+    });
+    
+    if (!confirmed) return;
     
     try {
       await axios.delete(`/orders-analytics/delete-order/${orderId}`);

@@ -34,6 +34,7 @@ import AccountDeletionPage from "./pages/AccountDeletionPage";
 import ReferralPage from "./pages/ReferralPage";
 import ScrollToTop from "./components/ScrollToTop";
 import AppDownloadModal from "./components/AppDownloadModal";
+import { ConfirmProvider } from "./components/ConfirmModal";
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useUserStore();
@@ -65,6 +66,7 @@ function App() {
 
   return (
     <HelmetProvider>
+      <ConfirmProvider>
       <div className="min-h-screen bg-gray-900 text-white relative overflow-hidden flex flex-col">
         <ScrollToTop />
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -143,6 +145,7 @@ function App() {
         <Toaster />
         <AppDownloadModal />
       </div>
+      </ConfirmProvider>
     </HelmetProvider>
   );
 }

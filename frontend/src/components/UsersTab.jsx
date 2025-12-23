@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
+import { useConfirm } from "./ConfirmModal";
 
 // Device helpers
 const getDeviceIcon = (type) => {
@@ -465,8 +466,17 @@ const UsersTab = ({ users, loading, error, onRefresh }) => {
     }
   };
 
+  const { confirm } = useConfirm();
+
   const handleDeleteUser = async (user) => {
-    if (!window.confirm(`"${user.name}" silinsin mi?`)) return;
+    const confirmed = await confirm({
+      title: 'Kullanıcıyı Sil',
+      message: `"${user.name}" adlı kullanıcıyı silmek istediğinize emin misiniz?`,
+      confirmText: 'Evet, Sil',
+      cancelText: 'İptal',
+      type: 'danger'
+    });
+    if (!confirmed) return;
     try {
       await axios.delete(`/users/${user._id}`);
       toast.success("Kullanıcı silindi");
@@ -475,7 +485,14 @@ const UsersTab = ({ users, loading, error, onRefresh }) => {
   };
 
   const handleBulkDelete = async () => {
-    if (!window.confirm(`${selectedUsers.length} kullanıcı silinsin mi?`)) return;
+    const confirmed = await confirm({
+      title: 'Toplu Silme',
+      message: `${selectedUsers.length} kullanıcıyı silmek istediğinize emin misiniz?`,
+      confirmText: 'Evet, Hepsini Sil',
+      cancelText: 'İptal',
+      type: 'danger'
+    });
+    if (!confirmed) return;
     for (const id of selectedUsers) {
       try { await axios.delete(`/users/${id}`); } catch {}
     }
