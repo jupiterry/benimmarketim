@@ -465,6 +465,18 @@ const ChatTab = () => {
                 <div>
                   <h3 className="text-white font-medium">{selectedChat.user?.name}</h3>
                   <p className="text-sm text-gray-400">{selectedChat.user?.email}</p>
+                  {/* Online durumu ve platform/versiyon bilgisi */}
+                  {onlineUsers[selectedChat._id]?.isOnline ? (
+                    <p className="text-xs text-green-400 flex items-center gap-1 mt-0.5">
+                      <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                      📱 {onlineUsers[selectedChat._id]?.platform === 'ios' ? 'iOS' : 'Android'} v{onlineUsers[selectedChat._id]?.appVersion || '?'}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                      <span className="w-2 h-2 bg-gray-500 rounded-full"></span>
+                      Çevrimdışı
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2">
