@@ -111,7 +111,7 @@ export const getChatMessages = async (req, res) => {
     const { chatId } = req.params;
     const { page = 1, limit = 50 } = req.query;
     const userId = req.user._id;
-    const isAdmin = req.user.isAdmin;
+    const isAdmin = req.user.role === "admin";
 
     const chat = await Chat.findById(chatId);
     if (!chat) {
@@ -149,7 +149,7 @@ export const sendMessage = async (req, res) => {
     const { chatId } = req.params;
     const { content, type = "text", fileUrl, fileName } = req.body;
     const userId = req.user._id;
-    const isAdmin = req.user.isAdmin;
+    const isAdmin = req.user.role === "admin";
 
     const chat = await Chat.findById(chatId);
     if (!chat) {
@@ -225,7 +225,7 @@ export const markAsRead = async (req, res) => {
   try {
     const { chatId } = req.params;
     const userId = req.user._id;
-    const isAdmin = req.user.isAdmin;
+    const isAdmin = req.user.role === "admin";
 
     const chat = await Chat.findById(chatId);
     if (!chat) {
