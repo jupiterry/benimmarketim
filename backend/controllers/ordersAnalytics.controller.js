@@ -49,6 +49,8 @@ export const getOrderAnalyticsData = async () => {
         deliveryPoint: order.deliveryPoint,
         deliveryPointName: order.deliveryPointName,
         createdAt: order.createdAt,
+        // Cihaz bilgisi
+        device: order.device || null,
       });
 
       return acc;
