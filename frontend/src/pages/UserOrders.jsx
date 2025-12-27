@@ -32,8 +32,10 @@ const UserOrders = () => {
     const fetchUserOrders = async () => {
         try {
             const response = await axios.get("/orders-analytics/user-orders");
+            // API {orders: [...]} veya [...] formatında döndürebilir
+            const ordersData = response.data?.orders || (Array.isArray(response.data) ? response.data : []);
             // İptal edilen siparişleri filtrele (veritabanında tutulur ama görünmez)
-            const nonCancelledOrders = (response.data || []).filter(
+            const nonCancelledOrders = ordersData.filter(
                 order => order.status !== "İptal Edildi"
             );
             const sortedOrders = nonCancelledOrders.sort((a, b) => 
