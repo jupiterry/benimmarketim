@@ -3,14 +3,32 @@ import axios from "../lib/axios";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   MessageCircle, Send, X, User, Clock, Minimize2,
-  Maximize2, Volume2, VolumeX, Search
+  Maximize2, Volume2, VolumeX, Search, Bell
 } from "lucide-react";
 import toast from "react-hot-toast";
 import socketService from "../lib/socket.js";
 
-// Bildirim sesi
-const notificationSound = new Audio("/notification.mp3");
-notificationSound.volume = 0.5;
+// Bildirim sesini çalmak için helper fonksiyon
+const playNotificationSound = () => {
+  try {
+    const audio = new Audio("/notification.mp3");
+    audio.volume = 0.7;
+    const playPromise = audio.play();
+    
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          console.log("🔔 Bildirim sesi çalındı");
+        })
+        .catch((error) => {
+          console.warn("Bildirim sesi çalınamadı:", error);
+          // Tarayıcı ses çalmayı engelliyorsa, kullanıcıya görsel bildirim ver
+        });
+    }
+  } catch (error) {
+    console.warn("Bildirim sesi hatası:", error);
+  }
+};
 
 // Mini Message Bubble
 const MiniMessageBubble = ({ message, isOwn }) => {
@@ -132,7 +150,7 @@ const FloatingChatWidget = () => {
       if (data.message.sender === "user") {
         // Ses çal
         if (soundEnabled) {
-          notificationSound.play().catch(() => {});
+          playNotificationSound();
         }
         
         // Bildirim göster
@@ -194,7 +212,7 @@ const FloatingChatWidget = () => {
     // Yeni sohbet
     const handleNewChat = (data) => {
       if (soundEnabled) {
-        notificationSound.play().catch(() => {});
+        playNotificationSound();
       }
       toast.success("Yeni destek talebi!");
       fetchChats();
@@ -311,7 +329,17 @@ const FloatingChatWidget = () => {
               </div>
               <div className="flex items-center gap-1">
                 <button
-                  onClick={() => setSoundEnabled(!soundEnabled)}
+                  onClick={() => {
+                    const newState = !soundEnabled;
+                    setSoundEnabled(newState);
+                    if (newState) {
+                      // Ses açıldığında test sesi çal
+                      playNotificationSound();
+                      toast.success("Bildirim sesleri açık", { duration: 2000 });
+                    } else {
+                      toast("Bildirim sesleri kapalı", { duration: 2000 });
+                    }
+                  }}
                   className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
                   title={soundEnabled ? "Sesi kapat" : "Sesi aç"}
                 >
