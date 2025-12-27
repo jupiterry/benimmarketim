@@ -160,6 +160,14 @@ const OrderCard = ({ order, index, onStatusUpdate, onPrint, onAddItem, onDelete,
             <span className="text-xs text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full">
               📦 {order.userOrderCount || '?'} sipariş
             </span>
+            {/* Device bilgisi */}
+            {order.device && (
+              <span className="text-xs text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+                {order.device.platform === 'ios' ? '🍎' : order.device.platform === 'android' ? '🤖' : '💻'}
+                {order.device.platform === 'ios' ? 'iOS' : order.device.platform === 'android' ? 'Android' : 'Web'}
+                {order.device.appVersion && ` v${order.device.appVersion}`}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex gap-2">
