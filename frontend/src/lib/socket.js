@@ -44,6 +44,57 @@ class SocketService {
     return this.socket;
   }
 
+  // Admin odasına katıl
+  joinAdminRoom() {
+    const socket = this.getSocket();
+    if (socket) {
+      socket.emit('joinAdminRoom');
+      console.log('🔔 Admin odasına katılındı');
+    }
+  }
+
+  // Sohbet odasına katıl
+  joinChat(chatId) {
+    const socket = this.getSocket();
+    if (socket && chatId) {
+      socket.emit('joinChat', { chatId });
+      console.log('💬 Sohbet odasına katılındı:', chatId);
+    }
+  }
+
+  // Sohbet odasından ayrıl
+  leaveChat(chatId) {
+    const socket = this.getSocket();
+    if (socket && chatId) {
+      socket.emit('leaveChat', { chatId });
+      console.log('👋 Sohbet odasından ayrılındı:', chatId);
+    }
+  }
+
+  // Olay dinleyicisi ekle
+  on(event, callback) {
+    const socket = this.getSocket();
+    if (socket) {
+      socket.on(event, callback);
+    }
+  }
+
+  // Olay dinleyicisini kaldır
+  off(event, callback) {
+    const socket = this.getSocket();
+    if (socket) {
+      socket.off(event, callback);
+    }
+  }
+
+  // Olay gönder
+  emit(event, data) {
+    const socket = this.getSocket();
+    if (socket) {
+      socket.emit(event, data);
+    }
+  }
+
   disconnect() {
     if (this.socket) {
       this.socket.disconnect();
@@ -54,3 +105,4 @@ class SocketService {
 
 const socketService = new SocketService();
 export default socketService;
+
