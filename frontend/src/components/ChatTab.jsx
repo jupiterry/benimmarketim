@@ -620,40 +620,41 @@ const ChatTab = () => {
                     </div>
                   )}
                   
-                  {/* Hızlı Yanıt Butonları */}
-                  <div className="flex flex-wrap gap-1.5">
-                    {quickReplies.slice(0, 8).map((text, i) => (
-                      <button
+                  {/* Hızlı Yanıt Butonları - Grid Layout */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto custom-scrollbar">
+                    {quickReplies.map((text, i) => (
+                      <motion.button
                         key={i}
                         type="button"
+                        whileHover={{ scale: 1.02, y: -1 }}
+                        whileTap={{ scale: 0.98 }}
                         onClick={() => setNewMessage(text)}
-                        className="px-2.5 py-1 text-xs bg-gradient-to-r from-gray-700/40 to-gray-600/40 hover:from-emerald-500/20 hover:to-teal-500/20 text-gray-300 hover:text-emerald-400 rounded-lg transition-all duration-200 border border-gray-600/30 hover:border-emerald-500/30 whitespace-nowrap"
+                        className="px-3 py-2 text-xs bg-gradient-to-r from-gray-800/60 to-gray-700/60 hover:from-emerald-500/30 hover:to-teal-500/30 text-gray-300 hover:text-emerald-300 rounded-xl transition-all duration-300 border border-gray-600/40 hover:border-emerald-500/50 text-left shadow-sm hover:shadow-emerald-500/10"
                       >
-                        {text.length > 30 ? text.slice(0, 30) + '...' : text}
-                      </button>
+                        <span className="block truncate">{text}</span>
+                      </motion.button>
                     ))}
-                    {quickReplies.length > 8 && (
-                      <span className="px-2.5 py-1 text-xs text-gray-500">+{quickReplies.length - 8} daha</span>
-                    )}
                   </div>
                 </div>
-                {/* Mesaj Giriş */}
-                <form onSubmit={handleSendMessage} className="p-4">
-                  <div className="flex items-center gap-2">
-                    <input
-                      ref={inputRef}
-                      type="text"
-                      value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
-                      placeholder="Mesajınızı yazın..."
-                      className="flex-1 bg-gray-800/50 border border-gray-700/50 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                    />
+                {/* Mesaj Giriş - Modern */}
+                <form onSubmit={handleSendMessage} className="p-4 bg-gradient-to-r from-gray-900/50 to-gray-800/50">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 relative">
+                      <input
+                        ref={inputRef}
+                        type="text"
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        placeholder="✨ Mesajınızı yazın..."
+                        className="w-full bg-gray-800/70 border-2 border-gray-600/50 text-white rounded-2xl px-5 py-3.5 focus:outline-none focus:border-emerald-500/70 focus:ring-4 focus:ring-emerald-500/20 transition-all duration-300 placeholder-gray-500"
+                      />
+                    </div>
                     <motion.button
                       type="submit"
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
+                      whileHover={{ scale: 1.08, rotate: 5 }}
+                      whileTap={{ scale: 0.92 }}
                       disabled={!newMessage.trim() || isSending}
-                      className="p-3 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl text-white disabled:opacity-50"
+                      className="p-4 bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 rounded-2xl text-white disabled:opacity-40 shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/50 transition-all duration-300"
                     >
                       <Send className="w-5 h-5" />
                     </motion.button>
