@@ -75,14 +75,36 @@ export const createChat = async (req, res) => {
 // Admin için tüm sohbetleri getir
 export const getChats = async (req, res) => {
   try {
-    const { status = "active" } = req.query;
+    const { status = "active", userId, search } = req.query;
 
-    const chats = await Chat.find({ status })
-      .populate("user", "name email")
+    // Query oluştur
+    const query = { 
+      status,
+      isDeleted: { $ne: true } // Silinmemiş sohbetleri getir
+    };
+
+    // Kullanıcıya göre filtrele
+    if (userId) {
+      query.user = userId;
+    }
+
+    const chats = await Chat.find(query)
+      .populate("user", "name email phone")
       .populate("order", "_id totalAmount status createdAt")
       .sort({ lastMessageAt: -1 });
 
-    res.json({ success: true, chats });
+    // Arama varsa filtrele (kullanıcı adı veya email)
+    let filteredChats = chats;
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filteredChats = chats.filter(chat => 
+        chat.user?.name?.toLowerCase().includes(searchLower) ||
+        chat.user?.email?.toLowerCase().includes(searchLower) ||
+        chat.user?.phone?.includes(search)
+      );
+    }
+
+    res.json({ success: true, chats: filteredChats });
   } catch (error) {
     console.error("Sohbetler alınırken hata:", error.message);
     res.status(500).json({ message: "Server hatası", error: error.message });
@@ -309,7 +331,7 @@ export const closeChat = async (req, res) => {
 export const getUnreadCount = async (req, res) => {
   try {
     const result = await Chat.aggregate([
-      { $match: { status: "active" } },
+      { $match: { status: "active", isDeleted: { $ne: true } } },
       { $group: { _id: null, totalUnread: { $sum: "$unreadCount" } } }
     ]);
 
@@ -318,6 +340,28 @@ export const getUnreadCount = async (req, res) => {
     res.json({ success: true, unreadCount: totalUnread });
   } catch (error) {
     console.error("Okunmamış sayısı alınırken hata:", error.message);
+    res.status(500).json({ message: "Server hatası", error: error.message });
+  }
+};
+
+// Sohbeti sil (soft delete)
+export const deleteChat = async (req, res) => {
+  try {
+    const { chatId } = req.params;
+
+    const chat = await Chat.findById(chatId);
+    if (!chat) {
+      return res.status(404).json({ message: "Sohbet bulunamadı!" });
+    }
+
+    // Soft delete - veritabanından silmiyoruz, sadece işaretliyoruz
+    chat.isDeleted = true;
+    chat.deletedAt = new Date();
+    await chat.save();
+
+    res.json({ success: true, message: "Sohbet silindi (arşivlendi)" });
+  } catch (error) {
+    console.error("Sohbet silinirken hata:", error.message);
     res.status(500).json({ message: "Server hatası", error: error.message });
   }
 };

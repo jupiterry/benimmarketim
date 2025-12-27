@@ -43,6 +43,14 @@ const chatSchema = new mongoose.Schema(
       enum: ["user", "admin"],
       default: "user",
     },
+    isDeleted: {
+      type: Boolean,
+      default: false, // Soft delete - silinen sohbetler hala veritabanında kalır
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );

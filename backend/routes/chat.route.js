@@ -9,6 +9,7 @@ import {
   markAsRead,
   closeChat,
   getUnreadCount,
+  deleteChat,
 } from "../controllers/chat.controller.js";
 
 const router = express.Router();
@@ -36,5 +37,8 @@ router.put("/:chatId/read", protectRoute, markAsRead);
 
 // Admin: Sohbeti kapat
 router.put("/:chatId/close", protectRoute, adminRoute, closeChat);
+
+// Admin: Sohbeti sil (soft delete)
+router.delete("/:chatId", protectRoute, adminRoute, deleteChat);
 
 export default router;

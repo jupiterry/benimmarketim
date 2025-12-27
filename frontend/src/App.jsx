@@ -35,6 +35,7 @@ import ReferralPage from "./pages/ReferralPage";
 import ScrollToTop from "./components/ScrollToTop";
 import AppDownloadModal from "./components/AppDownloadModal";
 import { ConfirmProvider } from "./components/ConfirmModal";
+import FloatingChatWidget from "./components/FloatingChatWidget";
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useUserStore();
@@ -143,6 +144,7 @@ function App() {
 
         <Footer />
         <Toaster />
+        {user?.role === "admin" && <FloatingChatWidget />}
         <AppDownloadModal />
       </div>
       </ConfirmProvider>
