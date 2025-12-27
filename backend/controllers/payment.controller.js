@@ -5,9 +5,9 @@ import { sendOrderNotification } from "../services/n8n.service.js";
 // Sipariş oluşturma fonksiyonu
 export const createOrder = async (req, res) => {
   try {
-    const { products, city, phone, note, deliveryPoint, deliveryPointName, couponCode, discountAmount } = req.body;
+    const { products, city, phone, note, deliveryPoint, deliveryPointName, couponCode, discountAmount, device } = req.body;
 
-    console.log("Sipariş oluşturma isteği:", { products, city, phone, deliveryPoint, deliveryPointName });
+    console.log("Sipariş oluşturma isteği:", { products, city, phone, deliveryPoint, deliveryPointName, device });
 
     // Geçerli ürünlerin olup olmadığını kontrol et
     if (!Array.isArray(products) || products.length === 0) {
@@ -27,6 +27,32 @@ export const createOrder = async (req, res) => {
     // Teslimat noktası kontrolü
     if (!deliveryPoint) {
       return res.status(400).json({ message: "Lütfen teslimat noktası seçiniz" });
+    }
+
+    // Cihaz bilgisini algıla
+    let deviceInfo = {
+      platform: 'unknown',
+      model: '',
+      appVersion: ''
+    };
+    
+    // Request body'den gelen device bilgisi
+    if (device) {
+      deviceInfo = {
+        platform: device.platform || 'unknown',
+        model: device.model || '',
+        appVersion: device.appVersion || ''
+      };
+    } else {
+      // User-Agent'tan platform algıla (fallback)
+      const userAgent = req.headers['user-agent'] || '';
+      if (userAgent.includes('iPhone') || userAgent.includes('iPad')) {
+        deviceInfo.platform = 'ios';
+      } else if (userAgent.includes('Android')) {
+        deviceInfo.platform = 'android';
+      } else if (userAgent.includes('Mozilla') || userAgent.includes('Chrome') || userAgent.includes('Safari')) {
+        deviceInfo.platform = 'web';
+      }
     }
 
     let totalAmount = 0;
@@ -73,7 +99,8 @@ export const createOrder = async (req, res) => {
       deliveryPoint,
       deliveryPointName: deliveryPointName || "",
       couponCode: couponCode || null, // Kupon kodu
-      couponDiscount: discountAmount || 0 // İndirim miktarı
+      couponDiscount: discountAmount || 0, // İndirim miktarı
+      device: deviceInfo // Cihaz bilgisi
     };
 
     console.log("Oluşturulacak sipariş verisi:", orderData);

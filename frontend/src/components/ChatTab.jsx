@@ -10,7 +10,7 @@ import toast from "react-hot-toast";
 import socketService from "../lib/socket.js";
 
 // Chat List Item Component
-const ChatListItem = ({ chat, isSelected, onClick, isTyping }) => {
+const ChatListItem = ({ chat, isSelected, onClick, isTyping, isOnline }) => {
   const getTimeAgo = (date) => {
     const now = new Date();
     const diff = now - new Date(date);
@@ -36,12 +36,29 @@ const ChatListItem = ({ chat, isSelected, onClick, isTyping }) => {
       }`}
     >
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center flex-shrink-0">
-          <User className="w-5 h-5 text-white" />
+        {/* Avatar with online indicator */}
+        <div className="relative flex-shrink-0">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+            <User className="w-5 h-5 text-white" />
+          </div>
+          {/* Online indicator */}
+          <div 
+            className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-gray-800 ${
+              isOnline ? 'bg-green-500' : 'bg-gray-500'
+            }`}
+            title={isOnline ? 'Sohbette' : 'Çevrimdışı'}
+          />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between mb-1">
-            <h4 className="text-white font-medium truncate">{chat.user?.name || "Misafir"}</h4>
+            <div className="flex items-center gap-2">
+              <h4 className="text-white font-medium truncate">{chat.user?.name || "Misafir"}</h4>
+              {isOnline && (
+                <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 text-xs rounded animate-pulse">
+                  Sohbette
+                </span>
+              )}
+            </div>
             <span className="text-xs text-gray-500">{getTimeAgo(chat.lastMessageAt)}</span>
           </div>
           <div className="flex items-center gap-2">
@@ -135,6 +152,7 @@ const ChatTab = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("active");
   const [typingUsers, setTypingUsers] = useState({});
+  const [onlineUsers, setOnlineUsers] = useState({}); // Sohbette aktif kullanıcılar
   const [showMobileChat, setShowMobileChat] = useState(false);
   
   const messagesEndRef = useRef(null);
@@ -277,12 +295,26 @@ const ChatTab = () => {
       setTypingUsers(prev => ({ ...prev, [chatId]: false }));
     });
 
+    // Kullanıcı sohbete girdi
+    socket.on("userInChat", ({ chatId, userId, userName }) => {
+      console.log(`🟢 Kullanıcı sohbette: ${userName || userId} - Chat: ${chatId}`);
+      setOnlineUsers(prev => ({ ...prev, [chatId]: { isOnline: true, userName } }));
+    });
+
+    // Kullanıcı sohbetten çıktı
+    socket.on("userLeftChat", ({ chatId, userId }) => {
+      console.log(`⚪ Kullanıcı çıktı: ${userId} - Chat: ${chatId}`);
+      setOnlineUsers(prev => ({ ...prev, [chatId]: { isOnline: false } }));
+    });
+
     return () => {
       socket.off("newChat");
       socket.off("chatUpdate");
       socket.off("newMessage");
       socket.off("userTyping");
       socket.off("userStopTyping");
+      socket.off("userInChat");
+      socket.off("userLeftChat");
     };
   }, [selectedChat]);
 
@@ -394,6 +426,7 @@ const ChatTab = () => {
                   chat={chat}
                   isSelected={selectedChat?._id === chat._id}
                   isTyping={typingUsers[chat._id]}
+                  isOnline={onlineUsers[chat._id]?.isOnline || false}
                   onClick={() => {
                     setSelectedChat(chat);
                     setShowMobileChat(true);

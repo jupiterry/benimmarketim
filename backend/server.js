@@ -154,6 +154,20 @@ io.on('connection', (socket) => {
     console.log(`Socket ${socket.id} sohbet odasından ayrıldı: chat_${chatId}`);
   });
 
+  // Kullanıcı sohbete girdi - Admin'e bildir
+  socket.on('userInChat', ({ chatId, userId, userName }) => {
+    // Admin odasına bildir
+    socket.to('adminRoom').emit('userInChat', { chatId, userId, userName });
+    console.log(`Kullanıcı sohbete girdi: ${userName || userId} - Chat: ${chatId}`);
+  });
+
+  // Kullanıcı sohbetten çıktı - Admin'e bildir
+  socket.on('userLeftChat', ({ chatId, userId }) => {
+    // Admin odasına bildir
+    socket.to('adminRoom').emit('userLeftChat', { chatId, userId });
+    console.log(`Kullanıcı sohbetten çıktı: ${userId} - Chat: ${chatId}`);
+  });
+
   // Yazıyor göstergesi
   socket.on('typing', ({ chatId, sender }) => {
     socket.to(`chat_${chatId}`).emit('userTyping', { chatId, sender });

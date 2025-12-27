@@ -83,6 +83,22 @@ const orderSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    // Cihaz bilgileri
+    device: {
+      platform: {
+        type: String,
+        enum: ['android', 'ios', 'web', 'unknown'],
+        default: 'unknown',
+      },
+      model: {
+        type: String,
+        default: '',
+      },
+      appVersion: {
+        type: String,
+        default: '',
+      },
+    },
   },
   { timestamps: true }
 );
