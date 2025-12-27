@@ -24,7 +24,8 @@ import BannerTab from "../components/BannerTab";
 import CouponsTab from "../components/CouponsTab";
 import ReferralsTab from "../components/ReferralsTab";
 import AdvancedAnalyticsTab from "../components/AdvancedAnalyticsTab";
-import { Tag, Gift } from "lucide-react";
+import ChatTab from "../components/ChatTab";
+import { Tag, Gift, MessageCircle } from "lucide-react";
 
 // Sidebar Menu Item Component
 const SidebarItem = ({ icon: Icon, label, active, onClick, badge, collapsed }) => (
@@ -269,6 +270,7 @@ const AdminPage = () => {
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "analytics", label: "Gelişmiş Analiz", icon: BarChart },
     { id: "orders", label: "Siparişler", icon: Package2, badge: 0 },
+    { id: "chat", label: "Canlı Sohbet", icon: MessageCircle },
     { id: "products", label: "Ürünler", icon: ShoppingBasket },
     { id: "create", label: "Ürün Ekle", icon: PlusCircle },
     { id: "users", label: "Kullanıcılar", icon: Users },
@@ -289,6 +291,8 @@ const AdminPage = () => {
         return <AdvancedAnalyticsTab />;
       case "orders":
         return <OrdersList />;
+      case "chat":
+        return <ChatTab />;
       case "products":
         return (
           <ProductsList

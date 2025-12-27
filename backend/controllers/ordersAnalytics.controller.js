@@ -317,3 +317,173 @@ export const deleteOrder = async (req, res) => {
     res.status(500).json({ message: "Server hatası", error: error.message });
   }
 };
+
+// Siparişten ürün silme fonksiyonu (Admin only)
+export const removeItemFromOrder = async (req, res) => {
+  try {
+    const { orderId, productIndex } = req.body;
+
+    if (!orderId || productIndex === undefined) {
+      return res.status(400).json({ message: "Sipariş ID ve ürün index'i gerekli!" });
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ message: "Sipariş bulunamadı!" });
+    }
+
+    if (productIndex < 0 || productIndex >= order.products.length) {
+      return res.status(400).json({ message: "Geçersiz ürün index'i!" });
+    }
+
+    // Silinecek ürünün tutarını hesapla
+    const removedProduct = order.products[productIndex];
+    const removedAmount = removedProduct.price * removedProduct.quantity;
+
+    // Ürünü diziden kaldır
+    order.products.splice(productIndex, 1);
+
+    // Eğer sipariş boş kalırsa engelle
+    if (order.products.length === 0) {
+      return res.status(400).json({ message: "Siparişte en az bir ürün olmalı! Siparişi tamamen silmek için 'Sipariş Sil' seçeneğini kullanın." });
+    }
+
+    // Toplam tutarı güncelle
+    order.totalAmount = Math.max(0, order.totalAmount - removedAmount);
+    
+    // Eğer subtotalAmount varsa onu da güncelle
+    if (order.subtotalAmount) {
+      order.subtotalAmount = Math.max(0, order.subtotalAmount - removedAmount);
+    }
+
+    await order.save();
+
+    res.json({ 
+      success: true,
+      message: "Ürün siparişten başarıyla silindi!", 
+      order,
+      removedProduct: removedProduct.name
+    });
+  } catch (error) {
+    console.error("Siparişten ürün silinirken hata:", error.message);
+    res.status(500).json({ message: "Server hatası", error: error.message });
+  }
+};
+
+// Siparişteki ürün miktarını güncelleme fonksiyonu (Admin only)
+export const updateItemQuantity = async (req, res) => {
+  try {
+    const { orderId, productIndex, newQuantity } = req.body;
+
+    if (!orderId || productIndex === undefined || newQuantity === undefined) {
+      return res.status(400).json({ message: "Sipariş ID, ürün index'i ve yeni miktar gerekli!" });
+    }
+
+    if (newQuantity < 1) {
+      return res.status(400).json({ message: "Miktar en az 1 olmalı! Ürünü kaldırmak için silme işlemini kullanın." });
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ message: "Sipariş bulunamadı!" });
+    }
+
+    if (productIndex < 0 || productIndex >= order.products.length) {
+      return res.status(400).json({ message: "Geçersiz ürün index'i!" });
+    }
+
+    const product = order.products[productIndex];
+    const oldQuantity = product.quantity;
+    const priceDifference = product.price * (newQuantity - oldQuantity);
+
+    // Miktarı güncelle
+    order.products[productIndex].quantity = newQuantity;
+
+    // Toplam tutarı güncelle
+    order.totalAmount = Math.max(0, order.totalAmount + priceDifference);
+    
+    // Eğer subtotalAmount varsa onu da güncelle
+    if (order.subtotalAmount) {
+      order.subtotalAmount = Math.max(0, order.subtotalAmount + priceDifference);
+    }
+
+    await order.save();
+
+    res.json({ 
+      success: true,
+      message: "Ürün miktarı başarıyla güncellendi!", 
+      order,
+      updatedProduct: product.name,
+      oldQuantity,
+      newQuantity
+    });
+  } catch (error) {
+    console.error("Ürün miktarı güncellenirken hata:", error.message);
+    res.status(500).json({ message: "Server hatası", error: error.message });
+  }
+};
+
+// Siparişe katalog ürünü ekleme fonksiyonu (Admin only)
+export const addProductToOrder = async (req, res) => {
+  try {
+    const { orderId, productId, quantity = 1 } = req.body;
+
+    if (!orderId || !productId) {
+      return res.status(400).json({ message: "Sipariş ID ve ürün ID gerekli!" });
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ message: "Sipariş bulunamadı!" });
+    }
+
+    // Ürünü veritabanından bul
+    const Product = (await import("../models/product.model.js")).default;
+    const product = await Product.findById(productId);
+    
+    if (!product) {
+      return res.status(404).json({ message: "Ürün bulunamadı!" });
+    }
+
+    // Ürün zaten siparişte var mı kontrol et
+    const existingProductIndex = order.products.findIndex(
+      p => p.product && p.product.toString() === productId
+    );
+
+    if (existingProductIndex !== -1) {
+      // Mevcut ürünün miktarını artır
+      order.products[existingProductIndex].quantity += quantity;
+    } else {
+      // Yeni ürün ekle
+      order.products.push({
+        product: product._id,
+        name: product.name,
+        quantity: quantity,
+        price: product.price,
+        image: product.image
+      });
+    }
+
+    // Toplam tutarı güncelle
+    const addedAmount = product.price * quantity;
+    order.totalAmount += addedAmount;
+    
+    // Eğer subtotalAmount varsa onu da güncelle
+    if (order.subtotalAmount) {
+      order.subtotalAmount += addedAmount;
+    }
+
+    await order.save();
+
+    res.json({ 
+      success: true,
+      message: `${product.name} siparişe başarıyla eklendi!`, 
+      order,
+      addedProduct: product.name,
+      addedQuantity: quantity
+    });
+  } catch (error) {
+    console.error("Siparişe ürün eklenirken hata:", error.message);
+    res.status(500).json({ message: "Server hatası", error: error.message });
+  }
+};

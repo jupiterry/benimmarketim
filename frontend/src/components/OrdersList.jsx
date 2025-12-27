@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
   Search, Package2, ChevronLeft, ChevronRight, RefreshCw, Printer, Filter, X, 
   Clock, Truck, CheckCircle2, XCircle, MapPin, Phone, Mail, User, Calendar,
-  TrendingUp, ShoppingBag, AlertTriangle
+  TrendingUp, ShoppingBag, AlertTriangle, Trash2, Plus, Minus, Edit3
 } from "lucide-react";
 import toast from "react-hot-toast";
 import socketService from "../lib/socket.js";
@@ -57,8 +57,8 @@ const StatCard = ({ icon: Icon, title, value, color, delay = 0 }) => (
   </motion.div>
 );
 
-// Status Timeline Component
-const StatusTimeline = ({ status }) => {
+// Status Timeline Component - Clickable
+const StatusTimeline = ({ status, orderId, onStatusUpdate }) => {
   const statuses = [
     { key: "Hazırlanıyor", icon: Clock, label: "Hazırlanıyor" },
     { key: "Yolda", icon: Truck, label: "Yolda" },
@@ -77,6 +77,12 @@ const StatusTimeline = ({ status }) => {
     );
   }
 
+  const handleStatusClick = (statusKey) => {
+    if (onStatusUpdate && orderId) {
+      onStatusUpdate(orderId, statusKey);
+    }
+  };
+
   return (
     <div className="flex items-center gap-1 w-full">
       {statuses.map((s, index) => {
@@ -86,19 +92,23 @@ const StatusTimeline = ({ status }) => {
         
         return (
           <div key={s.key} className="flex items-center flex-1">
-            <motion.div 
+            <motion.button 
               initial={{ scale: 0.8 }}
               animate={{ scale: isCurrent ? 1.1 : 1 }}
-              className={`timeline-dot flex items-center justify-center w-8 h-8 rounded-full ${
+              whileHover={{ scale: 1.15 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => handleStatusClick(s.key)}
+              title={`${s.label} olarak işaretle`}
+              className={`timeline-dot flex items-center justify-center w-8 h-8 rounded-full cursor-pointer transition-all ${
                 isActive 
                   ? isCurrent 
-                    ? 'bg-emerald-500 active' 
-                    : 'bg-emerald-600/50' 
-                  : 'bg-gray-700'
+                    ? 'bg-emerald-500 active ring-2 ring-emerald-400/50' 
+                    : 'bg-emerald-600/50 hover:bg-emerald-500/70' 
+                  : 'bg-gray-700 hover:bg-gray-600'
               }`}
             >
               <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-gray-500'}`} />
-            </motion.div>
+            </motion.button>
             {index < statuses.length - 1 && (
               <div className={`flex-1 h-1 mx-1 rounded-full ${
                 index < currentIndex ? 'bg-emerald-500' : 'bg-gray-700'
@@ -112,7 +122,7 @@ const StatusTimeline = ({ status }) => {
 };
 
 // Order Card Component
-const OrderCard = ({ order, index, onStatusUpdate, onPrint, onAddItem, onDelete }) => {
+const OrderCard = ({ order, index, onStatusUpdate, onPrint, onAddItem, onDelete, onRemoveItem, onUpdateQuantity }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   
   const getCardGradient = () => {
@@ -185,7 +195,7 @@ const OrderCard = ({ order, index, onStatusUpdate, onPrint, onAddItem, onDelete 
 
       {/* Status Timeline */}
       <div className="mb-4">
-        <StatusTimeline status={order.status} />
+        <StatusTimeline status={order.status} orderId={order.orderId} onStatusUpdate={onStatusUpdate} />
       </div>
 
       {/* Status Selector */}
@@ -193,20 +203,21 @@ const OrderCard = ({ order, index, onStatusUpdate, onPrint, onAddItem, onDelete 
         <select
           className={`modern-select w-full px-4 py-3 rounded-xl font-semibold transition-all cursor-pointer ${
             order.status === "Teslim Edildi"
-              ? "bg-blue-500/30 text-blue-300 border border-blue-500/40"
+              ? "bg-blue-900/80 text-blue-300 border border-blue-500/40"
               : order.status === "Yolda"
-              ? "bg-amber-500/30 text-amber-300 border border-amber-500/40"
+              ? "bg-amber-900/80 text-amber-300 border border-amber-500/40"
               : order.status === "İptal Edildi"
-              ? "bg-red-500/30 text-red-300 border border-red-500/40"
-              : "bg-emerald-500/30 text-emerald-300 border border-emerald-500/40"
+              ? "bg-red-900/80 text-red-300 border border-red-500/40"
+              : "bg-emerald-900/80 text-emerald-300 border border-emerald-500/40"
           }`}
           value={order.status}
           onChange={(e) => onStatusUpdate(order.orderId, e.target.value)}
+          style={{ backgroundColor: 'rgb(17, 24, 39)' }}
         >
-          <option value="Hazırlanıyor">📦 Hazırlanıyor</option>
-          <option value="Yolda">🚚 Yolda</option>
-          <option value="Teslim Edildi">✅ Teslim Edildi</option>
-          <option value="İptal Edildi">❌ İptal Edildi</option>
+          <option value="Hazırlanıyor" style={{ backgroundColor: 'rgb(17, 24, 39)', color: '#6ee7b7' }}>📦 Hazırlanıyor</option>
+          <option value="Yolda" style={{ backgroundColor: 'rgb(17, 24, 39)', color: '#fcd34d' }}>🚚 Yolda</option>
+          <option value="Teslim Edildi" style={{ backgroundColor: 'rgb(17, 24, 39)', color: '#93c5fd' }}>✅ Teslim Edildi</option>
+          <option value="İptal Edildi" style={{ backgroundColor: 'rgb(17, 24, 39)', color: '#fca5a5' }}>❌ İptal Edildi</option>
         </select>
       </div>
 
@@ -321,11 +332,36 @@ const OrderCard = ({ order, index, onStatusUpdate, onPrint, onAddItem, onDelete 
                   initial={{ x: -20, opacity: 0 }}
                   animate={{ x: 0, opacity: 1 }}
                   transition={{ delay: idx * 0.05 }}
-                  className="flex items-center gap-3 p-3 glass-dark rounded-xl"
+                  className="flex items-center gap-3 p-3 glass-dark rounded-xl group"
                 >
-                  {/* Adet Badge - Sol tarafta belirgin */}
-                  <div className="flex-shrink-0 w-10 h-10 bg-emerald-500/30 border-2 border-emerald-500 rounded-lg flex items-center justify-center">
-                    <span className="text-emerald-400 font-bold text-lg">{product.quantity}</span>
+                  {/* Miktar Kontrolleri */}
+                  <div className="flex flex-col items-center gap-1">
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => onUpdateQuantity(order.orderId, idx, product.quantity + 1)}
+                      className="w-6 h-6 bg-emerald-500/30 hover:bg-emerald-500/50 rounded flex items-center justify-center text-emerald-400 transition-colors"
+                      title="Miktarı Artır"
+                    >
+                      <Plus className="w-3 h-3" />
+                    </motion.button>
+                    <div className="w-8 h-8 bg-emerald-500/30 border-2 border-emerald-500 rounded-lg flex items-center justify-center">
+                      <span className="text-emerald-400 font-bold text-sm">{product.quantity}</span>
+                    </div>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => onUpdateQuantity(order.orderId, idx, product.quantity - 1)}
+                      disabled={product.quantity <= 1}
+                      className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+                        product.quantity <= 1 
+                          ? 'bg-gray-700/30 text-gray-600 cursor-not-allowed' 
+                          : 'bg-amber-500/30 hover:bg-amber-500/50 text-amber-400'
+                      }`}
+                      title={product.quantity <= 1 ? "Minimum miktar: 1" : "Miktarı Azalt"}
+                    >
+                      <Minus className="w-3 h-3" />
+                    </motion.button>
                   </div>
                   {/* Ürün Görseli */}
                   <div className="w-12 h-12 rounded-lg bg-gray-700/50 flex items-center justify-center overflow-hidden flex-shrink-0">
@@ -341,10 +377,20 @@ const OrderCard = ({ order, index, onStatusUpdate, onPrint, onAddItem, onDelete 
                       <span className="text-gray-400 text-xs">Birim: ₺{product.price}</span>
                     </div>
                   </div>
-                  <div className="text-right flex-shrink-0">
+                  <div className="text-right flex-shrink-0 mr-2">
                     <p className="text-sm font-bold text-emerald-400">₺{(product.price * product.quantity).toFixed(2)}</p>
                     <p className="text-xs text-gray-500">{product.quantity} adet</p>
                   </div>
+                  {/* Silme Butonu */}
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => onRemoveItem(order.orderId, idx, product.name)}
+                    className="p-2 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-400 opacity-60 group-hover:opacity-100 transition-all"
+                    title="Ürünü Sil"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </motion.button>
                 </motion.div>
               ))}
             </div>
@@ -393,12 +439,62 @@ const OrdersList = () => {
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [customItemAmount, setCustomItemAmount] = useState("");
   const [customItemName, setCustomItemName] = useState("");
+  
+  // Product selection states
+  const [addItemTab, setAddItemTab] = useState("catalog"); // "catalog" veya "manual"
+  const [productList, setProductList] = useState([]);
+  const [productSearch, setProductSearch] = useState("");
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [productQuantity, setProductQuantity] = useState(1);
+  const [loadingProducts, setLoadingProducts] = useState(false);
 
-  const handleOpenAddItemModal = (orderId) => {
+  const handleOpenAddItemModal = async (orderId) => {
     setSelectedOrderId(orderId);
     setCustomItemAmount("");
     setCustomItemName("");
+    setAddItemTab("catalog");
+    setProductSearch("");
+    setSelectedProduct(null);
+    setProductQuantity(1);
     setShowAddItemModal(true);
+    
+    // Ürün listesini çek
+    await fetchProducts();
+  };
+
+  const fetchProducts = async () => {
+    setLoadingProducts(true);
+    try {
+      const response = await axios.get("/products");
+      setProductList(response.data.products || []);
+    } catch (error) {
+      console.error("Ürünler yüklenirken hata:", error);
+      toast.error("Ürünler yüklenemedi");
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
+  const handleAddProductFromCatalog = async () => {
+    if (!selectedOrderId || !selectedProduct) {
+      toast.error("Lütfen bir ürün seçin");
+      return;
+    }
+
+    try {
+      await axios.put("/orders-analytics/add-product", {
+        orderId: selectedOrderId,
+        productId: selectedProduct._id,
+        quantity: productQuantity
+      });
+      
+      toast.success(`${selectedProduct.name} siparişe eklendi`);
+      setShowAddItemModal(false);
+      fetchOrderAnalyticsData();
+    } catch (error) {
+      console.error("Ürün eklenirken hata:", error);
+      toast.error(error.response?.data?.message || "Ürün eklenirken hata oluştu");
+    }
   };
 
   const handleAddCustomItem = async (e) => {
@@ -420,6 +516,13 @@ const OrdersList = () => {
       toast.error(error.response?.data?.message || "Ürün eklenirken hata oluştu");
     }
   };
+
+  // Filtrelenmiş ürün listesi
+  const filteredProducts = productList.filter(product => 
+    product.name?.toLowerCase().includes(productSearch.toLowerCase()) ||
+    product.category?.toLowerCase().includes(productSearch.toLowerCase())
+  );
+
 
   const handlePrint = (order) => {
     try {
@@ -745,6 +848,80 @@ const OrdersList = () => {
       toast.error(error.response?.data?.message || "Sipariş silinirken hata oluştu");
     }
   };
+
+  // Siparişten ürün silme handler'ı
+  const handleRemoveItem = async (orderId, productIndex, productName) => {
+    const confirmed = await confirm({
+      title: 'Ürünü Sil',
+      message: `"${productName}" ürününü siparişten silmek istediğinize emin misiniz?`,
+      confirmText: 'Evet, Sil',
+      cancelText: 'İptal',
+      type: 'warning'
+    });
+    
+    if (!confirmed) return;
+    
+    try {
+      await axios.delete("/orders-analytics/remove-item", {
+        data: { orderId, productIndex }
+      });
+      
+      toast.success(`${productName} siparişten silindi`);
+      fetchOrderAnalyticsData();
+    } catch (error) {
+      console.error("Ürün silinirken hata:", error);
+      toast.error(error.response?.data?.message || "Ürün silinirken hata oluştu");
+    }
+  };
+
+  // Ürün miktarını güncelleme handler'ı
+  const handleUpdateQuantity = async (orderId, productIndex, newQuantity) => {
+    if (newQuantity < 1) {
+      toast.error("Miktar en az 1 olmalı!");
+      return;
+    }
+    
+    try {
+      await axios.put("/orders-analytics/update-item-quantity", {
+        orderId,
+        productIndex,
+        newQuantity
+      });
+      
+      // Optimistic update - state'i hemen güncelle
+      setOrderAnalyticsData((prevData) => ({
+        ...prevData,
+        usersOrders: prevData.usersOrders.map((userOrder) => ({
+          ...userOrder,
+          orders: userOrder.orders.map((order) => {
+            if (order.orderId === orderId) {
+              const updatedProducts = [...order.products];
+              const oldQuantity = updatedProducts[productIndex].quantity;
+              const priceDiff = updatedProducts[productIndex].price * (newQuantity - oldQuantity);
+              updatedProducts[productIndex] = {
+                ...updatedProducts[productIndex],
+                quantity: newQuantity
+              };
+              return {
+                ...order,
+                products: updatedProducts,
+                totalAmount: order.totalAmount + priceDiff
+              };
+            }
+            return order;
+          }),
+        })),
+      }));
+      
+      toast.success("Miktar güncellendi");
+    } catch (error) {
+      console.error("Miktar güncellenirken hata:", error);
+      toast.error(error.response?.data?.message || "Miktar güncellenirken hata oluştu");
+      // Hata durumunda veriyi yeniden çek
+      fetchOrderAnalyticsData();
+    }
+  };
+
 
   const filterOrders = (orders) => {
     return orders.filter((order) => {
@@ -1175,6 +1352,8 @@ const OrdersList = () => {
               onPrint={handlePrint}
               onAddItem={handleOpenAddItemModal}
               onDelete={handleDeleteOrder}
+              onRemoveItem={handleRemoveItem}
+              onUpdateQuantity={handleUpdateQuantity}
             />
           ))}
         </AnimatePresence>
@@ -1255,9 +1434,9 @@ const OrdersList = () => {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass rounded-2xl p-6 w-full max-w-sm border border-gray-700/50"
+              className="glass rounded-2xl p-6 w-full max-w-md border border-gray-700/50"
             >
-              <div className="flex justify-between items-center mb-6">
+              <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-bold text-white">Siparişe Ürün Ekle</h3>
                 <motion.button 
                   whileHover={{ scale: 1.1 }}
@@ -1268,53 +1447,192 @@ const OrdersList = () => {
                   <X className="w-5 h-5" />
                 </motion.button>
               </div>
-              
-              <form onSubmit={handleAddCustomItem} className="space-y-4">
-                <div>
-                  <label className="block text-gray-400 text-sm mb-2">Tutar (TL) *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    required
-                    value={customItemAmount}
-                    onChange={(e) => setCustomItemAmount(e.target.value)}
-                    className="w-full bg-gray-800/50 border border-gray-700/50 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                    placeholder="0.00"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-gray-400 text-sm mb-2">Ürün Adı (Opsiyonel)</label>
-                  <input
-                    type="text"
-                    value={customItemName}
-                    onChange={(e) => setCustomItemName(e.target.value)}
-                    className="w-full bg-gray-800/50 border border-gray-700/50 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                    placeholder="Özel Ekleme"
-                  />
-                </div>
 
-                <div className="flex gap-3 pt-2">
-                  <motion.button
-                    type="button"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setShowAddItemModal(false)}
-                    className="flex-1 px-4 py-3 bg-gray-700/50 hover:bg-gray-600/50 text-white rounded-xl transition-colors"
-                  >
-                    İptal
-                  </motion.button>
-                  <motion.button
-                    type="submit"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="flex-1 px-4 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-xl font-semibold transition-all"
-                  >
-                    Ekle
-                  </motion.button>
+              {/* Tab Buttons */}
+              <div className="flex gap-2 mb-4">
+                <button
+                  onClick={() => setAddItemTab("catalog")}
+                  className={`flex-1 py-2 px-4 rounded-xl text-sm font-medium transition-all ${
+                    addItemTab === "catalog"
+                      ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                      : "bg-gray-700/30 text-gray-400 hover:text-white"
+                  }`}
+                >
+                  📦 Katalogdan Seç
+                </button>
+                <button
+                  onClick={() => setAddItemTab("manual")}
+                  className={`flex-1 py-2 px-4 rounded-xl text-sm font-medium transition-all ${
+                    addItemTab === "manual"
+                      ? "bg-purple-500/20 text-purple-400 border border-purple-500/30"
+                      : "bg-gray-700/30 text-gray-400 hover:text-white"
+                  }`}
+                >
+                  ✏️ Manuel Ekle
+                </button>
+              </div>
+
+              {/* Catalog Tab */}
+              {addItemTab === "catalog" && (
+                <div className="space-y-4">
+                  {/* Search */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                    <input
+                      type="text"
+                      placeholder="Ürün ara..."
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      className="w-full bg-gray-800/50 border border-gray-700/50 text-white rounded-xl pl-10 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                    />
+                  </div>
+
+                  {/* Product List */}
+                  <div className="max-h-64 overflow-y-auto space-y-2 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+                    {loadingProducts ? (
+                      <div className="text-center py-8 text-gray-400">
+                        <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
+                        Ürünler yükleniyor...
+                      </div>
+                    ) : filteredProducts.length === 0 ? (
+                      <div className="text-center py-8 text-gray-400">
+                        Ürün bulunamadı
+                      </div>
+                    ) : (
+                      filteredProducts.slice(0, 20).map((product) => (
+                        <motion.div
+                          key={product._id}
+                          whileHover={{ scale: 1.01 }}
+                          onClick={() => setSelectedProduct(product)}
+                          className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all ${
+                            selectedProduct?._id === product._id
+                              ? "bg-emerald-500/20 border border-emerald-500/40"
+                              : "bg-gray-800/30 hover:bg-gray-700/50 border border-transparent"
+                          }`}
+                        >
+                          <div className="w-10 h-10 rounded-lg bg-gray-700/50 flex items-center justify-center overflow-hidden flex-shrink-0">
+                            {product.image ? (
+                              <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <Package2 className="w-4 h-4 text-gray-500" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-white truncate">{product.name}</p>
+                            <p className="text-xs text-gray-400">{product.category}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-bold text-emerald-400">₺{product.price}</p>
+                          </div>
+                        </motion.div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Selected Product & Quantity */}
+                  {selectedProduct && (
+                    <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-white font-medium">{selectedProduct.name}</span>
+                        <span className="text-emerald-400 font-bold">₺{(selectedProduct.price * productQuantity).toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm text-gray-400">Adet:</span>
+                        <div className="flex items-center gap-2">
+                          <motion.button
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => setProductQuantity(Math.max(1, productQuantity - 1))}
+                            className="w-8 h-8 bg-gray-700/50 hover:bg-gray-600 rounded-lg flex items-center justify-center text-white"
+                          >
+                            <Minus className="w-4 h-4" />
+                          </motion.button>
+                          <span className="w-8 text-center text-white font-bold">{productQuantity}</span>
+                          <motion.button
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => setProductQuantity(productQuantity + 1)}
+                            className="w-8 h-8 bg-gray-700/50 hover:bg-gray-600 rounded-lg flex items-center justify-center text-white"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </motion.button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex gap-3 pt-2">
+                    <motion.button
+                      type="button"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => setShowAddItemModal(false)}
+                      className="flex-1 px-4 py-3 bg-gray-700/50 hover:bg-gray-600/50 text-white rounded-xl transition-colors"
+                    >
+                      İptal
+                    </motion.button>
+                    <motion.button
+                      type="button"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={handleAddProductFromCatalog}
+                      disabled={!selectedProduct}
+                      className="flex-1 px-4 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Ekle
+                    </motion.button>
+                  </div>
                 </div>
-              </form>
+              )}
+
+              {/* Manual Tab */}
+              {addItemTab === "manual" && (
+                <form onSubmit={handleAddCustomItem} className="space-y-4">
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-2">Tutar (TL) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      required
+                      value={customItemAmount}
+                      onChange={(e) => setCustomItemAmount(e.target.value)}
+                      className="w-full bg-gray-800/50 border border-gray-700/50 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-gray-400 text-sm mb-2">Ürün Adı (Opsiyonel)</label>
+                    <input
+                      type="text"
+                      value={customItemName}
+                      onChange={(e) => setCustomItemName(e.target.value)}
+                      className="w-full bg-gray-800/50 border border-gray-700/50 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                      placeholder="Özel Ekleme"
+                    />
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <motion.button
+                      type="button"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => setShowAddItemModal(false)}
+                      className="flex-1 px-4 py-3 bg-gray-700/50 hover:bg-gray-600/50 text-white rounded-xl transition-colors"
+                    >
+                      İptal
+                    </motion.button>
+                    <motion.button
+                      type="submit"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white rounded-xl font-semibold transition-all"
+                    >
+                      Ekle
+                    </motion.button>
+                  </div>
+                </form>
+              )}
             </motion.div>
           </motion.div>
         )}

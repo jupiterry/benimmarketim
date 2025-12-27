@@ -21,6 +21,7 @@ import cartReminderRoutes from "./routes/cartReminder.route.js";
 import n8nRoutes from "./routes/n8n.route.js";
 import versionRoutes from "./routes/version.route.js";
 import referralRoutes from "./routes/referral.route.js";
+import chatRoutes from "./routes/chat.route.js";
 import { createServer } from "http";
 import { Server } from "socket.io";
 
@@ -142,6 +143,32 @@ io.on('connection', (socket) => {
     console.log('Admin odaya katıldı');
   });
 
+  // ========== CANLI SOHBET EVENT'LERİ ==========
+  
+  // Sohbet odasına katıl
+  socket.on('joinChat', (chatId) => {
+    socket.join(`chat_${chatId}`);
+    console.log(`Socket ${socket.id} sohbet odasına katıldı: chat_${chatId}`);
+  });
+
+  // Sohbet odasından ayrıl
+  socket.on('leaveChat', (chatId) => {
+    socket.leave(`chat_${chatId}`);
+    console.log(`Socket ${socket.id} sohbet odasından ayrıldı: chat_${chatId}`);
+  });
+
+  // Yazıyor göstergesi
+  socket.on('typing', ({ chatId, sender }) => {
+    socket.to(`chat_${chatId}`).emit('userTyping', { chatId, sender });
+  });
+
+  // Yazmayı bıraktı
+  socket.on('stopTyping', ({ chatId, sender }) => {
+    socket.to(`chat_${chatId}`).emit('userStopTyping', { chatId, sender });
+  });
+
+  // ========== CANLI SOHBET EVENT'LERİ SONU ==========
+
   socket.on('disconnect', () => {
     console.log('Kullanıcı ayrıldı');
   });
@@ -170,6 +197,7 @@ app.use("/api/cart-reminders", cartReminderRoutes);
 app.use("/api/n8n", n8nRoutes);
 app.use("/api", versionRoutes);
 app.use("/api/referrals", referralRoutes);
+app.use("/api/chat", chatRoutes);
 
 import fs from "fs";
 import Product from "./models/product.model.js";
