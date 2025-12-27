@@ -232,10 +232,14 @@ const ChatTab = () => {
   //   scrollToBottom();
   // }, [messages]);
 
-  // Socket.IO bağlantısı
+  // StatusFilter değiştiğinde sohbetleri yeniden yükle
   useEffect(() => {
     fetchChats();
+    setSelectedChat(null); // Filtre değiştiğinde seçili sohbeti sıfırla
+  }, [statusFilter]);
 
+  // Socket.IO bağlantısı
+  useEffect(() => {
     const socket = socketService.connect();
     socket.emit("joinAdminRoom");
 

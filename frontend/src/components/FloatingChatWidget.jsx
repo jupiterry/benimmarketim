@@ -140,16 +140,36 @@ const FloatingChatWidget = () => {
     }
   }, [fetchChats]);
 
-  // Socket olaylarını dinle
+  // Socket connection - sadece bir kez çalışır
   useEffect(() => {
     socketService.connect();
     socketService.joinAdminRoom();
+    fetchChats();
+    
+    // Cleanup
+    return () => {
+      // Component unmount olduğunda disconnect etme - diğer componentler kullanıyor olabilir
+    };
+  }, []); // Boş bağımlılık - sadece mount'ta çalışır
 
+  // Socket event listeners - ref kullanarak stale closure problemini çöz
+  const soundEnabledRef = useRef(soundEnabled);
+  const selectedChatRef = useRef(selectedChat);
+  const chatsRef = useRef(chats);
+  
+  useEffect(() => {
+    soundEnabledRef.current = soundEnabled;
+    selectedChatRef.current = selectedChat;
+    chatsRef.current = chats;
+  }, [soundEnabled, selectedChat, chats]);
+
+  // Socket olaylarını dinle - sadece bir kez bağlanır
+  useEffect(() => {
     // Yeni mesaj
     const handleNewMessage = (data) => {
       if (data.message.sender === "user") {
         // Ses çal
-        if (soundEnabled) {
+        if (soundEnabledRef.current) {
           playNotificationSound();
         }
         
@@ -173,7 +193,7 @@ const FloatingChatWidget = () => {
               onClick={() => {
                 toast.dismiss(t.id);
                 setIsOpen(true);
-                const chat = chats.find(c => c._id === data.message.chat);
+                const chat = chatsRef.current.find(c => c._id === data.message.chat);
                 if (chat) {
                   setSelectedChat(chat);
                   fetchMessages(chat._id);
@@ -188,7 +208,7 @@ const FloatingChatWidget = () => {
       }
 
       // Mesaj listesini güncelle
-      if (selectedChat && data.message.chat === selectedChat._id) {
+      if (selectedChatRef.current && data.message.chat === selectedChatRef.current._id) {
         setMessages(prev => [...prev, data.message]);
       }
       fetchChats();
@@ -210,8 +230,8 @@ const FloatingChatWidget = () => {
     };
 
     // Yeni sohbet
-    const handleNewChat = (data) => {
-      if (soundEnabled) {
+    const handleNewChat = () => {
+      if (soundEnabledRef.current) {
         playNotificationSound();
       }
       toast.success("Yeni destek talebi!");
@@ -223,15 +243,13 @@ const FloatingChatWidget = () => {
     socketService.on("stopTyping", handleStopTyping);
     socketService.on("newChat", handleNewChat);
 
-    fetchChats();
-
     return () => {
       socketService.off("newMessage", handleNewMessage);
       socketService.off("typing", handleTyping);
       socketService.off("stopTyping", handleStopTyping);
       socketService.off("newChat", handleNewChat);
     };
-  }, [soundEnabled, selectedChat, fetchChats, fetchMessages, chats]);
+  }, [fetchChats, fetchMessages]); // Sadece stable fonksiyonlar
 
   // Mesaj gönder
   const sendMessage = async () => {

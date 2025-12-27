@@ -219,39 +219,69 @@ const OrderNotification = () => {
                 };
                 setNotifications(prev => [notification, ...prev]);
                 
+                // Fullscreen flash effect
+                const flashOverlay = document.createElement('div');
+                flashOverlay.className = 'fixed inset-0 z-[99999] pointer-events-none';
+                flashOverlay.innerHTML = `
+                  <div class="absolute inset-0 bg-emerald-500 animate-ping opacity-30"></div>
+                  <div class="absolute inset-0 flex items-center justify-center">
+                    <div class="text-white text-6xl font-bold animate-bounce">🛒 YENİ SİPARİŞ!</div>
+                  </div>
+                `;
+                document.body.appendChild(flashOverlay);
+                setTimeout(() => {
+                  flashOverlay.remove();
+                }, 2000);
+
+                // Browser title notification
+                const originalTitle = document.title;
+                let titleInterval = setInterval(() => {
+                  document.title = document.title === originalTitle 
+                    ? `🔔 YENİ SİPARİŞ! ₺${data.order.totalAmount}` 
+                    : originalTitle;
+                }, 1000);
+                setTimeout(() => {
+                  clearInterval(titleInterval);
+                  document.title = originalTitle;
+                }, 30000);
+                
                 toast.custom((t) => (
-                    <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-gray-800 shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}>
-                        <div className="flex-1 w-0 p-4">
+                    <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-lg w-full bg-gradient-to-r from-emerald-900 to-teal-900 shadow-2xl rounded-2xl pointer-events-auto border-2 border-emerald-500 animate-pulse`}>
+                        <div className="flex-1 w-0 p-6">
                             <div className="flex items-start">
                                 <div className="flex-shrink-0 pt-0.5">
-                                    <div className="h-10 w-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                                        <Package className="h-6 w-6 text-emerald-500" />
+                                    <div className="h-16 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-teal-600 flex items-center justify-center animate-bounce">
+                                        <Package className="h-8 w-8 text-white" />
                                     </div>
                                 </div>
-                                <div className="ml-3 flex-1">
-                                    <p className="text-sm font-medium text-white flex items-center justify-between">
-                                        <span>Yeni Sipariş!</span>
-                                        <span className="text-xs text-gray-400">
-                                            {new Date(data.order.createdAt).toLocaleTimeString()}
-                                        </span>
+                                <div className="ml-4 flex-1">
+                                    <p className="text-xl font-bold text-white flex items-center gap-2">
+                                        <span className="text-2xl">🎉</span>
+                                        Yeni Sipariş Geldi!
                                     </p>
-                                    <div className="mt-1 text-sm text-gray-400 space-y-1">
-                                        <p className="font-medium text-emerald-400">{data.order.customerName}</p>
+                                    <div className="mt-2 text-base text-gray-200 space-y-1">
+                                        <p className="font-semibold text-emerald-300 text-lg">{data.order.customerName}</p>
                                         <div className="flex items-center justify-between">
-                                            <p>{data.order.city}</p>
-                                            <p className="font-medium">₺{data.order.totalAmount.toLocaleString()}</p>
+                                            <p className="text-gray-300">{data.order.city}</p>
+                                            <p className="font-bold text-2xl text-emerald-400">₺{data.order.totalAmount?.toLocaleString()}</p>
                                         </div>
+                                        <p className="text-xs text-gray-400">
+                                            {new Date(data.order.createdAt).toLocaleString('tr-TR')}
+                                        </p>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <div className="flex border-l border-gray-700">
-                            <button onClick={() => toast.dismiss(t.id)} className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-emerald-400 hover:text-emerald-500 focus:outline-none">
-                                Kapat
+                        <div className="flex border-t border-emerald-700">
+                            <button 
+                              onClick={() => toast.dismiss(t.id)} 
+                              className="w-full py-4 flex items-center justify-center text-lg font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-b-2xl transition-colors"
+                            >
+                                ✓ Tamam
                             </button>
                         </div>
                     </div>
-                ), { duration: Infinity, position: 'top-right' });
+                ), { duration: Infinity, position: 'top-center' });
             });
 
             return () => {
