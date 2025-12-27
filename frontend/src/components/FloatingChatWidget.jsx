@@ -271,7 +271,7 @@ const FloatingChatWidget = () => {
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={() => setIsOpen(true)}
-            className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-full shadow-lg flex items-center justify-center z-50 hover:shadow-emerald-500/30"
+            className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-full shadow-lg flex items-center justify-center z-[9999] hover:shadow-emerald-500/30"
           >
             <MessageCircle className="w-6 h-6 text-white" />
             {totalUnread > 0 && (
@@ -292,7 +292,7 @@ const FloatingChatWidget = () => {
             initial={{ opacity: 0, y: 50, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 50, scale: 0.9 }}
-            className={`fixed z-50 bg-gray-800 rounded-2xl shadow-2xl border border-gray-700 overflow-hidden flex flex-col ${
+            className={`fixed z-[9999] bg-gray-800 rounded-2xl shadow-2xl border border-gray-700 overflow-hidden flex flex-col ${
               isMaximized
                 ? "inset-4"
                 : "bottom-6 right-6 w-96 h-[500px]"
