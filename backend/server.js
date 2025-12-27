@@ -101,34 +101,31 @@ const io = new Server(httpServer, {
   transports: ['websocket', 'polling'] // Websocket öncelikli, polling destekli
 });
 
-// Redis Adapter Kurulumu (Cluster Mode için)
+// Redis Adapter Kurulumu (PM2 Cluster Mode için)
+// Bu sayede tüm worker'lar aynı oda bilgisini paylaşır
 try {
-  const pubClient = new Redis(process.env.UPSTASH_REDIS_URL);
-  const subClient = pubClient.duplicate();
+  const redisUrl = process.env.UPSTASH_REDIS_URL;
+  
+  if (redisUrl) {
+    const pubClient = new Redis(redisUrl);
+    const subClient = pubClient.duplicate();
 
-  Promise.all([pubClient.connect(), subClient.connect()]).then(() => {
+    // ioredis otomatik bağlanır, connect() çağırmaya gerek yok
+    pubClient.on('connect', () => console.log('✅ Redis Pub Client bağlandı'));
+    subClient.on('connect', () => console.log('✅ Redis Sub Client bağlandı'));
+    
+    pubClient.on('error', (err) => console.error('Redis Pub Error:', err.message));
+    subClient.on('error', (err) => console.error('Redis Sub Error:', err.message));
+
+    // Adapter'ı ayarla - PM2 cluster mode'da tüm instance'lar mesajları paylaşır
     io.adapter(createAdapter(pubClient, subClient));
-    console.log('✅ Socket.IO Redis Adapter başarıyla bağlandı.');
-  }).catch(err => {
-    // ioredis auto-connects, but explicit connect handling is good for adapter setup check
-    // If using ioredis v5+, connect() returns a promise. 
-    // However, if UPSTASH_REDIS_URL is valid, it should work.
-    // Fallback: ioredis usually connects automatically.
-    // Let's just set the adapter synchronously if we assume auto-connect, 
-    // but the adapter expects connected clients or clients that will connect.
-    console.log('Redis bağlantısı bekleniyor...');
-  });
-  
-  // Hata yönetimi
-  pubClient.on('error', (err) => console.error('Redis Pub Error:', err));
-  subClient.on('error', (err) => console.error('Redis Sub Error:', err));
-  
-  // Basit senkron atama (ioredis bağlantıyı arka planda halleder)
-  io.adapter(createAdapter(pubClient, subClient));
-  
+    console.log('✅ Socket.IO Redis Adapter kuruldu (PM2 Cluster Mode Destekli)');
+  } else {
+    console.warn('⚠️ UPSTASH_REDIS_URL tanımlanmamış, Redis adapter kullanılamıyor');
+  }
 } catch (error) {
-  console.error('❌ Redis Adapter kurulum hatası:', error);
-  console.log('⚠️ Sistem tekil modda (Single Implementation) çalışmaya devam edecek.');
+  console.error('❌ Redis Adapter kurulum hatası:', error.message);
+  console.log('⚠️ Sistem tekil modda (Single Instance) çalışıyor.');
 }
 
 // Global socket.io erişimi için

@@ -227,9 +227,10 @@ const ChatTab = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  // Scroll to bottom - sadece istendiğinde çağrılır
+  // useEffect(() => {
+  //   scrollToBottom();
+  // }, [messages]);
 
   // Socket.IO bağlantısı
   useEffect(() => {
@@ -256,7 +257,14 @@ const ChatTab = () => {
     // Yeni mesaj
     socket.on("newMessage", (data) => {
       if (selectedChat?._id === data.chatId) {
-        setMessages(prev => [...prev, data.message]);
+        // Admin'in kendi gönderdiği mesajları tekrar ekleme (zaten API ile eklendi)
+        if (data.message.sender !== "admin") {
+          setMessages(prev => {
+            // Aynı mesaj zaten varsa ekleme
+            if (prev.some(m => m._id === data.message._id)) return prev;
+            return [...prev, data.message];
+          });
+        }
       }
     });
 
