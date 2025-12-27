@@ -155,10 +155,10 @@ io.on('connection', (socket) => {
   });
 
   // Kullanıcı sohbete girdi - Admin'e bildir
-  socket.on('userInChat', ({ chatId, userId, userName }) => {
+  socket.on('userInChat', ({ chatId, userId, userName, platform, appVersion }) => {
     // Admin odasına bildir
-    socket.to('adminRoom').emit('userInChat', { chatId, userId, userName });
-    console.log(`Kullanıcı sohbete girdi: ${userName || userId} - Chat: ${chatId}`);
+    socket.to('adminRoom').emit('userInChat', { chatId, userId, userName, platform, appVersion });
+    console.log(`Kullanıcı sohbete girdi: ${userName || userId} - Chat: ${chatId} - ${platform} v${appVersion}`);
   });
 
   // Kullanıcı sohbetten çıktı - Admin'e bildir
