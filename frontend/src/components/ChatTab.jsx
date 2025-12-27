@@ -9,7 +9,7 @@ import {
 import toast from "react-hot-toast";
 import socketService from "../lib/socket.js";
 
-// Chat List Item Component
+// Chat List Item Component - Premium Design
 const ChatListItem = ({ chat, isSelected, onClick, isTyping, onlineInfo }) => {
   const getTimeAgo = (date) => {
     const now = new Date();
@@ -28,59 +28,84 @@ const ChatListItem = ({ chat, isSelected, onClick, isTyping, onlineInfo }) => {
 
   return (
     <motion.div
-      whileHover={{ scale: 1.01 }}
-      whileTap={{ scale: 0.99 }}
+      whileHover={{ scale: 1.02, x: 4 }}
+      whileTap={{ scale: 0.98 }}
       onClick={onClick}
-      className={`p-4 cursor-pointer transition-all border-b border-gray-700/30 ${
+      className={`relative m-2 p-4 cursor-pointer rounded-2xl transition-all duration-300 ${
         isSelected
-          ? "bg-emerald-500/20 border-l-4 border-l-emerald-500"
-          : "hover:bg-gray-700/30"
+          ? "bg-gradient-to-r from-emerald-500/20 via-teal-500/15 to-cyan-500/20 border border-emerald-500/50 shadow-lg shadow-emerald-500/20"
+          : "bg-gray-800/40 hover:bg-gray-700/50 border border-transparent hover:border-gray-600/50"
       }`}
     >
-      <div className="flex items-start gap-3">
-        {/* Avatar with online indicator */}
+      {/* Selection indicator line */}
+      {isSelected && (
+        <motion.div
+          layoutId="activeChat"
+          className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-emerald-400 to-teal-500 rounded-full"
+        />
+      )}
+      
+      <div className="flex items-center gap-4">
+        {/* Avatar with glow effect */}
         <div className="relative flex-shrink-0">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
-            <User className="w-5 h-5 text-white" />
+          <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-500 flex items-center justify-center shadow-lg ${isOnline ? 'shadow-emerald-500/40' : 'shadow-gray-700/30'}`}>
+            <span className="text-white font-bold text-lg">
+              {(chat.user?.name || "M")[0].toUpperCase()}
+            </span>
           </div>
-          {/* Online indicator */}
-          <div 
-            className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-gray-800 ${
-              isOnline ? 'bg-green-500' : 'bg-gray-500'
-            }`}
-            title={isOnline ? 'Sohbette' : 'Çevrimdışı'}
-          />
+          {/* Online indicator - neon glow */}
+          <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-gray-800 flex items-center justify-center ${
+            isOnline ? 'bg-green-400 shadow-lg shadow-green-400/50' : 'bg-gray-500'
+          }`}>
+            {isOnline && <span className="animate-ping absolute w-3 h-3 rounded-full bg-green-400 opacity-75"></span>}
+          </div>
         </div>
+        
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center justify-between mb-1.5">
             <div className="flex items-center gap-2">
-              <h4 className="text-white font-medium truncate">{chat.user?.name || "Misafir"}</h4>
-              {isOnline && (
-                <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 text-xs rounded animate-pulse flex items-center gap-1">
-                  📱 {onlineInfo?.platform === 'ios' ? 'iOS' : 'Android'} v{onlineInfo?.appVersion || '?'}
+              <h4 className="text-white font-semibold truncate">{chat.user?.name || "Misafir"}</h4>
+              {chat.type === "order" && (
+                <span className="px-2 py-0.5 bg-gradient-to-r from-purple-500/30 to-pink-500/30 text-purple-300 text-[10px] font-bold rounded-full uppercase tracking-wide">
+                  📦 Sipariş
                 </span>
               )}
             </div>
-            <span className="text-xs text-gray-500">{getTimeAgo(chat.lastMessageAt)}</span>
+            <span className="text-[11px] text-gray-500 font-medium">{getTimeAgo(chat.lastMessageAt)}</span>
           </div>
-          <div className="flex items-center gap-2">
-            {chat.type === "order" && (
-              <span className="px-1.5 py-0.5 bg-purple-500/20 text-purple-400 text-xs rounded">
-                Sipariş
+          
+          {/* Online info badge */}
+          {isOnline && (
+            <div className="flex items-center gap-1 mb-1">
+              <span className="px-2 py-0.5 bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-400 text-[10px] rounded-full flex items-center gap-1 border border-green-500/30">
+                <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
+                {onlineInfo?.platform === 'ios' ? '🍎 iOS' : '🤖 Android'} v{onlineInfo?.appVersion || '?'}
               </span>
+            </div>
+          )}
+          
+          <p className="text-sm text-gray-400 truncate">
+            {isTyping ? (
+              <span className="text-emerald-400 font-medium flex items-center gap-1">
+                <span className="flex gap-0.5">
+                  <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" style={{animationDelay: '0ms'}}></span>
+                  <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" style={{animationDelay: '150ms'}}></span>
+                  <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" style={{animationDelay: '300ms'}}></span>
+                </span>
+                Yazıyor...
+              </span>
+            ) : (
+              chat.lastMessage || "Yeni sohbet"
             )}
-            <p className="text-sm text-gray-400 truncate flex-1">
-              {isTyping ? (
-                <span className="text-emerald-400 italic">Yazıyor...</span>
-              ) : (
-                chat.lastMessage || "Yeni sohbet"
-              )}
-            </p>
-          </div>
+          </p>
         </div>
+        
+        {/* Unread badge with glow */}
         {chat.unreadCount > 0 && (
-          <div className="w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center flex-shrink-0">
-            <span className="text-xs text-white font-bold">{chat.unreadCount}</span>
+          <div className="relative">
+            <div className="w-6 h-6 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/40">
+              <span className="text-[11px] text-white font-bold">{chat.unreadCount}</span>
+            </div>
           </div>
         )}
       </div>
@@ -88,7 +113,7 @@ const ChatListItem = ({ chat, isSelected, onClick, isTyping, onlineInfo }) => {
   );
 };
 
-// Message Bubble Component
+// Message Bubble Component - Premium Design
 const MessageBubble = ({ message, isOwn }) => {
   const formatTime = (date) => {
     return new Date(date).toLocaleTimeString("tr-TR", {
@@ -99,24 +124,30 @@ const MessageBubble = ({ message, isOwn }) => {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`flex ${isOwn ? "justify-end" : "justify-start"} mb-3`}
+      initial={{ opacity: 0, y: 15, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+      className={`flex ${isOwn ? "justify-end" : "justify-start"} mb-4`}
     >
       <div
-        className={`max-w-[70%] rounded-2xl px-4 py-2 ${
+        className={`relative max-w-[75%] rounded-3xl px-5 py-3 shadow-lg ${
           message.type === "system"
-            ? "bg-gray-700/50 text-gray-400 text-center text-sm mx-auto"
+            ? "bg-gray-800/60 text-gray-400 text-center text-sm mx-auto backdrop-blur-sm border border-gray-700/50"
             : isOwn
-            ? "bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-br-sm"
-            : "bg-gray-700/80 text-white rounded-bl-sm"
+            ? "bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600 text-white rounded-br-lg shadow-emerald-500/25"
+            : "bg-gradient-to-br from-gray-700/90 to-gray-800/90 text-white rounded-bl-lg backdrop-blur-sm border border-gray-600/30"
         }`}
       >
+        {/* Glow effect for own messages */}
+        {isOwn && (
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-400/20 to-cyan-400/20 rounded-3xl blur-xl -z-10"></div>
+        )}
+        
         {message.type === "image" && message.fileUrl && (
           <img
             src={message.fileUrl}
             alt="Gönderilen resim"
-            className="max-w-full rounded-lg mb-2 cursor-pointer hover:opacity-90"
+            className="max-w-full rounded-2xl mb-2 cursor-pointer hover:opacity-90 transition-opacity shadow-lg"
             onClick={() => window.open(message.fileUrl, "_blank")}
           />
         )}
@@ -125,17 +156,21 @@ const MessageBubble = ({ message, isOwn }) => {
             href={message.fileUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 text-sm underline"
+            className="flex items-center gap-2 text-sm underline hover:opacity-80 transition-opacity"
           >
             <Paperclip className="w-4 h-4" />
             {message.fileName || "Dosya"}
           </a>
         )}
-        {message.content && <p className="text-sm">{message.content}</p>}
-        <div className={`flex items-center gap-1 mt-1 ${isOwn ? "justify-end" : "justify-start"}`}>
-          <span className="text-xs opacity-70">{formatTime(message.createdAt)}</span>
+        {message.content && (
+          <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{message.content}</p>
+        )}
+        <div className={`flex items-center gap-1.5 mt-2 ${isOwn ? "justify-end" : "justify-start"}`}>
+          <span className={`text-[11px] font-medium ${isOwn ? 'text-white/70' : 'text-gray-400'}`}>
+            {formatTime(message.createdAt)}
+          </span>
           {isOwn && message.isRead && (
-            <CheckCircle2 className="w-3 h-3 text-blue-300" />
+            <CheckCircle2 className="w-3.5 h-3.5 text-cyan-200" />
           )}
         </div>
       </div>
