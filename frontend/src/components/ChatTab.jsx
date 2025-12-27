@@ -143,6 +143,22 @@ const MessageBubble = ({ message, isOwn }) => {
   );
 };
 
+// Default hızlı yanıtlar
+const defaultQuickReplies = [
+  "Merhaba! 👋 Size nasıl yardımcı olabiliriz?",
+  "Siparişiniz hazırlanıyor 📦",
+  "Siparişiniz yola çıktı 🚚",
+  "Teslim edildi ✅",
+  "Birazdan sizinle ilgileneceğiz 🙏",
+  "İyi günler dileriz! 😊",
+  "Teşekkür ederiz! 🙏",
+  "Siparişiniz 10-15 dakika içinde hazır olacak ⏰",
+  "Siparişinizi kontrol ediyorum 🔍",
+  "Maalesef bu ürün şu anda stokta yok 😔",
+  "İade işleminiz başlatıldı ↩️",
+  "Kupon kodunuz aktif edildi 🎉",
+];
+
 // Main ChatTab Component
 const ChatTab = () => {
   const [chats, setChats] = useState([]);
@@ -156,6 +172,12 @@ const ChatTab = () => {
   const [typingUsers, setTypingUsers] = useState({});
   const [onlineUsers, setOnlineUsers] = useState({}); // Sohbette aktif kullanıcılar
   const [showMobileChat, setShowMobileChat] = useState(false);
+  const [quickReplies, setQuickReplies] = useState(() => {
+    const saved = localStorage.getItem("chatQuickReplies");
+    return saved ? JSON.parse(saved) : defaultQuickReplies;
+  });
+  const [showQuickReplyEditor, setShowQuickReplyEditor] = useState(false);
+  const [newQuickReply, setNewQuickReply] = useState("");
   
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -526,24 +548,94 @@ const ChatTab = () => {
             {selectedChat.status === "active" ? (
               <div className="border-t border-gray-700/30">
                 {/* Hızlı Yanıtlar */}
-                <div className="p-2 flex flex-wrap gap-1.5 border-b border-gray-700/20">
-                  {[
-                    "Merhaba! 👋 Size nasıl yardımcı olabiliriz?",
-                    "Siparişiniz hazırlanıyor 📦",
-                    "Siparişiniz yola çıktı 🚚",
-                    "Teslim edildi ✅",
-                    "Birazdan sizinle ilgileneceğiz 🙏",
-                    "İyi günler dileriz! 😊",
-                  ].map((text, i) => (
+                <div className="p-2 border-b border-gray-700/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-gray-500 font-medium">⚡ Hızlı Yanıtlar</span>
                     <button
-                      key={i}
                       type="button"
-                      onClick={() => setNewMessage(text)}
-                      className="px-2.5 py-1 text-xs bg-gray-700/40 hover:bg-emerald-500/20 text-gray-300 hover:text-emerald-400 rounded-lg transition-colors whitespace-nowrap"
+                      onClick={() => setShowQuickReplyEditor(!showQuickReplyEditor)}
+                      className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
                     >
-                      {text.length > 25 ? text.slice(0, 25) + '...' : text}
+                      {showQuickReplyEditor ? '✕ Kapat' : '✏️ Düzenle'}
                     </button>
-                  ))}
+                  </div>
+                  
+                  {/* Hızlı Yanıt Düzenleme Modu */}
+                  {showQuickReplyEditor && (
+                    <div className="mb-3 p-3 bg-gray-800/50 rounded-xl space-y-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={newQuickReply}
+                          onChange={(e) => setNewQuickReply(e.target.value)}
+                          placeholder="Yeni hızlı yanıt ekle..."
+                          className="flex-1 bg-gray-700/50 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (newQuickReply.trim()) {
+                              const updated = [...quickReplies, newQuickReply.trim()];
+                              setQuickReplies(updated);
+                              localStorage.setItem("chatQuickReplies", JSON.stringify(updated));
+                              setNewQuickReply("");
+                              toast.success("Hızlı yanıt eklendi!");
+                            }
+                          }}
+                          className="px-3 py-2 bg-emerald-500 text-white text-sm rounded-lg hover:bg-emerald-600 transition-colors"
+                        >
+                          + Ekle
+                        </button>
+                      </div>
+                      <div className="max-h-32 overflow-y-auto space-y-1">
+                        {quickReplies.map((text, i) => (
+                          <div key={i} className="flex items-center justify-between gap-2 px-2 py-1 bg-gray-700/30 rounded-lg group">
+                            <span className="text-xs text-gray-300 truncate flex-1">{text}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = quickReplies.filter((_, idx) => idx !== i);
+                                setQuickReplies(updated);
+                                localStorage.setItem("chatQuickReplies", JSON.stringify(updated));
+                                toast.success("Hızlı yanıt silindi");
+                              }}
+                              className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-all"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuickReplies(defaultQuickReplies);
+                          localStorage.setItem("chatQuickReplies", JSON.stringify(defaultQuickReplies));
+                          toast.success("Varsayılana sıfırlandı");
+                        }}
+                        className="w-full text-xs text-gray-400 hover:text-gray-300 py-1"
+                      >
+                        🔄 Varsayılana Sıfırla
+                      </button>
+                    </div>
+                  )}
+                  
+                  {/* Hızlı Yanıt Butonları */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {quickReplies.slice(0, 8).map((text, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setNewMessage(text)}
+                        className="px-2.5 py-1 text-xs bg-gradient-to-r from-gray-700/40 to-gray-600/40 hover:from-emerald-500/20 hover:to-teal-500/20 text-gray-300 hover:text-emerald-400 rounded-lg transition-all duration-200 border border-gray-600/30 hover:border-emerald-500/30 whitespace-nowrap"
+                      >
+                        {text.length > 30 ? text.slice(0, 30) + '...' : text}
+                      </button>
+                    ))}
+                    {quickReplies.length > 8 && (
+                      <span className="px-2.5 py-1 text-xs text-gray-500">+{quickReplies.length - 8} daha</span>
+                    )}
+                  </div>
                 </div>
                 {/* Mesaj Giriş */}
                 <form onSubmit={handleSendMessage} className="p-4">

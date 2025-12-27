@@ -171,7 +171,7 @@ const BulkUploadSection = ({ onUpload }) => (
 );
 
 const AdminPage = () => {
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState("siparişler");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { fetchAllProducts, products } = useProductStore();
