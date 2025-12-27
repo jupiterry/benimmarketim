@@ -232,14 +232,10 @@ const ChatTab = () => {
   //   scrollToBottom();
   // }, [messages]);
 
-  // StatusFilter değiştiğinde sohbetleri yeniden yükle
-  useEffect(() => {
-    fetchChats();
-    setSelectedChat(null); // Filtre değiştiğinde seçili sohbeti sıfırla
-  }, [statusFilter]);
-
   // Socket.IO bağlantısı
   useEffect(() => {
+    fetchChats();
+
     const socket = socketService.connect();
     socket.emit("joinAdminRoom");
 
@@ -289,6 +285,11 @@ const ChatTab = () => {
       socket.off("userStopTyping");
     };
   }, [selectedChat]);
+
+  // StatusFilter değiştiğinde sohbetleri yeniden yükle
+  useEffect(() => {
+    fetchChats();
+  }, [statusFilter]);
 
   // Sohbet seçildiğinde
   useEffect(() => {
