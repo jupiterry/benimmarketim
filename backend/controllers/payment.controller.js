@@ -5,7 +5,7 @@ import { sendOrderNotification } from "../services/n8n.service.js";
 // Sipariş oluşturma fonksiyonu
 export const createOrder = async (req, res) => {
   try {
-    const { products, city, phone, note, deliveryPoint, deliveryPointName } = req.body;
+    const { products, city, phone, note, deliveryPoint, deliveryPointName, couponCode, discountAmount } = req.body;
 
     console.log("Sipariş oluşturma isteği:", { products, city, phone, deliveryPoint, deliveryPointName });
 
@@ -54,16 +54,26 @@ export const createOrder = async (req, res) => {
       })
     );
 
+    // İndirim varsa toplam tutardan düş
+    let finalAmount = totalAmount;
+    if (discountAmount && discountAmount > 0) {
+      finalAmount = totalAmount - discountAmount;
+      console.log(`Kupon indirimi uygulandı: ${couponCode}, İndirim: ${discountAmount}₺, İndirimli Tutar: ${finalAmount}₺`);
+    }
+
     // Yeni siparişi oluştur
     const orderData = {
       user: req.user._id,
       products: orderProducts,
-      totalAmount,
+      totalAmount: finalAmount, // İndirimli tutarı kullan
+      subtotalAmount: totalAmount, // Orijinal tutarı sakla (indirim öncesi)
       city,
       phone,
       note: note || "",
       deliveryPoint,
-      deliveryPointName: deliveryPointName || ""
+      deliveryPointName: deliveryPointName || "",
+      couponCode: couponCode || null, // Kupon kodu
+      couponDiscount: discountAmount || 0 // İndirim miktarı
     };
 
     console.log("Oluşturulacak sipariş verisi:", orderData);
