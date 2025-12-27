@@ -10,7 +10,7 @@ import toast from "react-hot-toast";
 import socketService from "../lib/socket.js";
 
 // Chat List Item Component
-const ChatListItem = ({ chat, isSelected, onClick, isTyping, isOnline }) => {
+const ChatListItem = ({ chat, isSelected, onClick, isTyping, onlineInfo }) => {
   const getTimeAgo = (date) => {
     const now = new Date();
     const diff = now - new Date(date);
@@ -23,6 +23,8 @@ const ChatListItem = ({ chat, isSelected, onClick, isTyping, isOnline }) => {
     if (hours < 24) return `${hours}sa`;
     return `${days}g`;
   };
+
+  const isOnline = onlineInfo?.isOnline || false;
 
   return (
     <motion.div
@@ -54,8 +56,8 @@ const ChatListItem = ({ chat, isSelected, onClick, isTyping, isOnline }) => {
             <div className="flex items-center gap-2">
               <h4 className="text-white font-medium truncate">{chat.user?.name || "Misafir"}</h4>
               {isOnline && (
-                <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 text-xs rounded animate-pulse">
-                  Sohbette
+                <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 text-xs rounded animate-pulse flex items-center gap-1">
+                  📱 {onlineInfo?.platform === 'ios' ? 'iOS' : 'Android'} v{onlineInfo?.appVersion || '?'}
                 </span>
               )}
             </div>
@@ -296,9 +298,9 @@ const ChatTab = () => {
     });
 
     // Kullanıcı sohbete girdi
-    socket.on("userInChat", ({ chatId, userId, userName }) => {
-      console.log(`🟢 Kullanıcı sohbette: ${userName || userId} - Chat: ${chatId}`);
-      setOnlineUsers(prev => ({ ...prev, [chatId]: { isOnline: true, userName } }));
+    socket.on("userInChat", ({ chatId, userId, userName, platform, appVersion }) => {
+      console.log(`🟢 Kullanıcı sohbette: ${userName || userId} - Chat: ${chatId} - Platform: ${platform} v${appVersion}`);
+      setOnlineUsers(prev => ({ ...prev, [chatId]: { isOnline: true, userName, platform, appVersion } }));
     });
 
     // Kullanıcı sohbetten çıktı
@@ -426,7 +428,7 @@ const ChatTab = () => {
                   chat={chat}
                   isSelected={selectedChat?._id === chat._id}
                   isTyping={typingUsers[chat._id]}
-                  isOnline={onlineUsers[chat._id]?.isOnline || false}
+                  onlineInfo={onlineUsers[chat._id]}
                   onClick={() => {
                     setSelectedChat(chat);
                     setShowMobileChat(true);

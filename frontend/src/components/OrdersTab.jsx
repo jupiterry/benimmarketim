@@ -1,5 +1,30 @@
 import { useEffect, useState } from "react";
 import axios from "../lib/axios";
+import { Smartphone, Monitor, Apple, HelpCircle } from "lucide-react";
+
+// Platform ikonu döndüren fonksiyon
+const getPlatformIcon = (platform) => {
+    switch (platform?.toLowerCase()) {
+        case 'android':
+            return <Smartphone className="w-4 h-4 text-green-400" />;
+        case 'ios':
+            return <Apple className="w-4 h-4 text-gray-300" />;
+        case 'web':
+            return <Monitor className="w-4 h-4 text-blue-400" />;
+        default:
+            return <HelpCircle className="w-4 h-4 text-gray-500" />;
+    }
+};
+
+// Platform adını döndüren fonksiyon
+const getPlatformName = (platform) => {
+    switch (platform?.toLowerCase()) {
+        case 'android': return 'Android';
+        case 'ios': return 'iOS';
+        case 'web': return 'Web';
+        default: return 'Bilinmiyor';
+    }
+};
 
 const OrdersTab = () => {
     const [orders, setOrders] = useState([]);
@@ -47,7 +72,19 @@ const OrdersTab = () => {
                     <h4 className="text-lg font-bold text-white mt-4">Siparişler:</h4>
                     {userOrder.orders.map(order => (
                         <div key={order.orderId} className="bg-gray-700 p-4 rounded-lg mt-2 shadow">
-                            <p className="text-gray-300 font-semibold">Sipariş ID: {order.orderId}</p>
+                            <div className="flex items-center justify-between mb-2">
+                                <p className="text-gray-300 font-semibold">Sipariş ID: {order.orderId}</p>
+                                {/* Cihaz bilgisi */}
+                                {order.device && (
+                                    <div className="flex items-center gap-2 bg-gray-600/50 px-3 py-1 rounded-full">
+                                        {getPlatformIcon(order.device?.platform)}
+                                        <span className="text-xs text-gray-300">
+                                            {getPlatformName(order.device?.platform)}
+                                            {order.device?.appVersion && ` v${order.device.appVersion}`}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
                             <p className="text-gray-300">
                                 Toplam Tutar: <span className="text-green-400 font-bold">${order.totalAmount}</span>
                             </p>
