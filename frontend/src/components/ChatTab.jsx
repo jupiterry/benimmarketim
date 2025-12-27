@@ -524,27 +524,50 @@ const ChatTab = () => {
 
             {/* Input */}
             {selectedChat.status === "active" ? (
-              <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-700/30">
-                <div className="flex items-center gap-2">
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Mesajınızı yazın..."
-                    className="flex-1 bg-gray-800/50 border border-gray-700/50 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                  />
-                  <motion.button
-                    type="submit"
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    disabled={!newMessage.trim() || isSending}
-                    className="p-3 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl text-white disabled:opacity-50"
-                  >
-                    <Send className="w-5 h-5" />
-                  </motion.button>
+              <div className="border-t border-gray-700/30">
+                {/* Hızlı Yanıtlar */}
+                <div className="p-2 flex flex-wrap gap-1.5 border-b border-gray-700/20">
+                  {[
+                    "Merhaba! 👋 Size nasıl yardımcı olabiliriz?",
+                    "Siparişiniz hazırlanıyor 📦",
+                    "Siparişiniz yola çıktı 🚚",
+                    "Teslim edildi ✅",
+                    "Birazdan sizinle ilgileneceğiz 🙏",
+                    "İyi günler dileriz! 😊",
+                  ].map((text, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setNewMessage(text)}
+                      className="px-2.5 py-1 text-xs bg-gray-700/40 hover:bg-emerald-500/20 text-gray-300 hover:text-emerald-400 rounded-lg transition-colors whitespace-nowrap"
+                    >
+                      {text.length > 25 ? text.slice(0, 25) + '...' : text}
+                    </button>
+                  ))}
                 </div>
-              </form>
+                {/* Mesaj Giriş */}
+                <form onSubmit={handleSendMessage} className="p-4">
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      placeholder="Mesajınızı yazın..."
+                      className="flex-1 bg-gray-800/50 border border-gray-700/50 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                    />
+                    <motion.button
+                      type="submit"
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      disabled={!newMessage.trim() || isSending}
+                      className="p-3 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl text-white disabled:opacity-50"
+                    >
+                      <Send className="w-5 h-5" />
+                    </motion.button>
+                  </div>
+                </form>
+              </div>
             ) : (
               <div className="p-4 border-t border-gray-700/30 text-center">
                 <p className="text-gray-400 text-sm flex items-center justify-center gap-2">
