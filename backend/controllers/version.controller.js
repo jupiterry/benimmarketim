@@ -3,8 +3,6 @@
  * Mobil uygulama için sürüm kontrolü API endpoint'i
  */
 
-import Settings from "../models/settings.model.js";
-
 /**
  * GET /api/version-check
  * Mobil uygulamanın sürüm kontrolü için endpoint
@@ -16,32 +14,22 @@ import Settings from "../models/settings.model.js";
  * {
  *   "latest_version": "2.1.0",
  *   "minimum_version": "2.0.9",
- *   "url": "https://play.google.com/store/apps/details?id=...",
- *   "force_update": false
+ *   "url": "https://play.google.com/store/apps/details?id=..."
  * }
  */
 export const checkVersion = async (req, res) => {
   try {
     const platform = req.query.platform || 'android'; // 'android' veya 'ios'
     
-    // Ayarlardan versiyon bilgisini al
-    const settings = await Settings.getSettings();
-    const appVersion = settings.appVersion || {};
+    // Platform URL'leri
+    const androidUrl = "https://play.google.com/store/apps/details?id=com.jupi.benimapp.benimmarketim_app";
+    const iosUrl = "https://apps.apple.com/tr/app/benim-marketim/id6755792336?l=tr";
     
-    // Varsayılan store URL'leri
-    const defaultAndroidUrl = "https://play.google.com/store/apps/details?id=com.jupi.benimapp.benimmarketim_app";
-    const defaultIosUrl = "https://apps.apple.com/tr/app/benim-marketim/id6755792336?l=tr";
-    
-    // Platform'a göre store URL seç
-    const storeUrl = platform === 'ios' 
-      ? (appVersion.iosStoreUrl || defaultIosUrl)
-      : (appVersion.androidStoreUrl || defaultAndroidUrl);
-    
+    // Sürüm bilgileri (burayı yeni sürüm çıktıkça güncelleyin)
     const response = {
-      latest_version: appVersion.latestVersion || "3.0.1",
-      minimum_version: appVersion.minimumVersion || "3.0.1",
-      url: storeUrl,
-      force_update: appVersion.forceUpdate || false
+      latest_version: "3.0.1",      // En son yayınlanan sürüm
+      minimum_version: "3.0.1",     // Minimum desteklenen sürüm (bundan düşükse zorunlu güncelleme)
+      url: platform === 'ios' ? iosUrl : androidUrl
     };
     
     res.status(200).json(response);
