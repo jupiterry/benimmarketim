@@ -38,8 +38,8 @@ export const checkVersion = async (req, res) => {
       : (appVersion.androidStoreUrl || defaultAndroidUrl);
     
     const response = {
-      latest_version: appVersion.latestVersion || "2.1.1",
-      minimum_version: appVersion.minimumVersion || "2.1.1",
+      latest_version: appVersion.latestVersion || "3.0.1",
+      minimum_version: appVersion.minimumVersion || "3.0.1",
       url: storeUrl,
       force_update: appVersion.forceUpdate || false
     };
