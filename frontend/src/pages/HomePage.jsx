@@ -325,18 +325,17 @@ const HomePage = () => {
 							<span className="relative z-10">Alışverişe Başla</span>
 							<ArrowRight className="w-5 h-5 relative z-10 group-hover:translate-x-1 transition-transform" />
 						</motion.button>
-						
-						<motion.button 
-							onClick={scrollToFeatured}
-							whileHover={{ scale: 1.05 }}
-							whileTap={{ scale: 0.95 }}
-							className="group bg-white/10 backdrop-blur-xl border border-white/20 hover:bg-white/20 text-white px-8 py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all"
-						>
-							<Sparkles className="w-6 h-6 text-yellow-400" />
-							Öne Çıkanları Gör
-							<Star className="w-5 h-5 text-yellow-400 group-hover:rotate-12 transition-transform" />
-						</motion.button>
-					</motion.div>
+												<motion.button 
+								onClick={scrollToCategories}
+								whileHover={{ scale: 1.05 }}
+								whileTap={{ scale: 0.95 }}
+								className="group bg-white/10 backdrop-blur-xl border border-white/20 hover:bg-white/20 text-white px-8 py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all"
+							>
+								<Sparkles className="w-6 h-6 text-yellow-400" />
+								Kategorileri Keşfet
+								<Star className="w-5 h-5 text-yellow-400 group-hover:rotate-12 transition-transform" />
+							</motion.button>
+						</motion.div>
 
 					{/* Animated Stats */}
 					<motion.div 
