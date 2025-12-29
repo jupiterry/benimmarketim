@@ -4,173 +4,164 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   MessageCircle, Send, X, User, Clock, CheckCircle2, 
   Image as ImageIcon, Paperclip, Search, RefreshCw,
-  ChevronLeft, Package2, AlertCircle
+  ChevronLeft, Package2, AlertCircle, Sparkles, MoreVertical,
+  Phone, MapPin, Tag, Plus, Trash2, Edit2, RotateCcw
 } from "lucide-react";
 import toast from "react-hot-toast";
 import socketService from "../lib/socket.js";
 
-// Chat List Item Component - Premium Design
-const ChatListItem = ({ chat, isSelected, onClick, isTyping, onlineInfo }) => {
-  const getTimeAgo = (date) => {
-    const now = new Date();
-    const diff = now - new Date(date);
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
+// --- Design Constants ---
+const GLASS_PANEL = "bg-gray-900/60 backdrop-blur-xl border border-white/10 shadow-2xl";
+const GLASS_CARD = "bg-white/5 hover:bg-white/10 border border-white/5 transition-all duration-300";
+const GRADIENT_PRIMARY = "bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500";
+const GRADIENT_TEXT = "bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400";
 
-    if (minutes < 1) return "Şimdi";
-    if (minutes < 60) return `${minutes}dk`;
-    if (hours < 24) return `${hours}sa`;
-    return `${days}g`;
+// --- Components ---
+
+// Avatar Component
+const Avatar = ({ name, isOnline, size = "md" }) => {
+  const sizeClasses = {
+    sm: "w-8 h-8 text-xs",
+    md: "w-12 h-12 text-lg",
+    lg: "w-16 h-16 text-2xl"
   };
 
-  const isOnline = onlineInfo?.isOnline || false;
+  return (
+    <div className="relative">
+      <div className={`${sizeClasses[size]} rounded-2xl ${GRADIENT_PRIMARY} p-[2px] shadow-lg shadow-emerald-500/20`}>
+        <div className="w-full h-full rounded-[14px] bg-gray-900 flex items-center justify-center">
+          <span className="font-bold text-white">{(name || "?")[0].toUpperCase()}</span>
+        </div>
+      </div>
+      {isOnline && (
+        <span className="absolute -bottom-1 -right-1 flex h-4 w-4">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-gray-900"></span>
+        </span>
+      )}
+    </div>
+  );
+};
+
+// Chat List Item
+const ChatListItem = ({ chat, isSelected, onClick, isTyping, onlineInfo }) => {
+  const getTimeAgo = (date) => {
+    const min = Math.floor((new Date() - new Date(date)) / 60000);
+    if (min < 1) return "Şimdi";
+    if (min < 60) return `${min}dk`;
+    const hours = Math.floor(min / 60);
+    if (hours < 24) return `${hours}sa`;
+    return `${Math.floor(hours / 24)}g`;
+  };
 
   return (
     <motion.div
+      layout
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.9 }}
       whileHover={{ scale: 1.02, x: 4 }}
-      whileTap={{ scale: 0.98 }}
       onClick={onClick}
-      className={`relative m-2 p-4 cursor-pointer rounded-2xl transition-all duration-300 ${
-        isSelected
-          ? "bg-gradient-to-r from-emerald-500/20 via-teal-500/15 to-cyan-500/20 border border-emerald-500/50 shadow-lg shadow-emerald-500/20"
-          : "bg-gray-800/40 hover:bg-gray-700/50 border border-transparent hover:border-gray-600/50"
-      }`}
+      className={`group relative p-4 mb-3 rounded-2xl cursor-pointer overflow-hidden ${
+        isSelected ? "bg-white/10 border-white/10" : "bg-white/5 border-transparent hover:bg-white/10"
+      } border backdrop-blur-md transition-all duration-300`}
     >
-      {/* Selection indicator line */}
       {isSelected && (
         <motion.div
-          layoutId="activeChat"
-          className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-emerald-400 to-teal-500 rounded-full"
+          layoutId="activeGlow"
+          className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 to-transparent pointer-events-none"
         />
       )}
       
-      <div className="flex items-center gap-4">
-        {/* Avatar with glow effect */}
-        <div className="relative flex-shrink-0">
-          <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-500 flex items-center justify-center shadow-lg ${isOnline ? 'shadow-emerald-500/40' : 'shadow-gray-700/30'}`}>
-            <span className="text-white font-bold text-lg">
-              {(chat.user?.name || "M")[0].toUpperCase()}
-            </span>
-          </div>
-          {/* Online indicator - neon glow */}
-          <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-gray-800 flex items-center justify-center ${
-            isOnline ? 'bg-green-400 shadow-lg shadow-green-400/50' : 'bg-gray-500'
-          }`}>
-            {isOnline && <span className="animate-ping absolute w-3 h-3 rounded-full bg-green-400 opacity-75"></span>}
-          </div>
-        </div>
+      <div className="flex gap-4 relative z-10">
+        <Avatar 
+          name={chat.user?.name} 
+          isOnline={onlineInfo?.isOnline} 
+        />
         
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between mb-1.5">
-            <div className="flex items-center gap-2">
-              <h4 className="text-white font-semibold truncate">{chat.user?.name || "Misafir"}</h4>
-              {chat.type === "order" && (
-                <span className="px-2 py-0.5 bg-gradient-to-r from-purple-500/30 to-pink-500/30 text-purple-300 text-[10px] font-bold rounded-full uppercase tracking-wide">
-                  📦 Sipariş
+          <div className="flex justify-between items-start mb-1">
+            <h4 className={`font-semibold truncate ${isSelected ? "text-emerald-400" : "text-white group-hover:text-white/90"}`}>
+              {chat.user?.name || "Misafir"}
+            </h4>
+            <span className="text-xs text-gray-500 font-medium whitespace-nowrap ml-2">
+              {getTimeAgo(chat.lastMessageAt)}
+            </span>
+          </div>
+
+          <div className="flex justify-between items-end">
+            <div className="flex-1 min-w-0 mr-2">
+              {isTyping ? (
+                <span className="text-emerald-400 text-xs font-medium flex items-center gap-1">
+                  <span className="flex gap-0.5">
+                    <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" style={{animationDelay: "0ms"}}/>
+                    <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" style={{animationDelay: "150ms"}}/>
+                    <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" style={{animationDelay: "300ms"}}/>
+                  </span>
+                  Yazıyor...
                 </span>
+              ) : (
+                <p className="text-sm text-gray-400 truncate group-hover:text-gray-300 transition-colors">
+                  {chat.lastMessage || "Sohbet başlatıldı"}
+                </p>
               )}
             </div>
-            <span className="text-[11px] text-gray-500 font-medium">{getTimeAgo(chat.lastMessageAt)}</span>
-          </div>
-          
-          {/* Online info badge */}
-          {isOnline && (
-            <div className="flex items-center gap-1 mb-1">
-              <span className="px-2 py-0.5 bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-400 text-[10px] rounded-full flex items-center gap-1 border border-green-500/30">
-                <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
-                {onlineInfo?.platform === 'ios' ? '🍎 iOS' : '🤖 Android'} v{onlineInfo?.appVersion || '?'}
-              </span>
-            </div>
-          )}
-          
-          <p className="text-sm text-gray-400 truncate">
-            {isTyping ? (
-              <span className="text-emerald-400 font-medium flex items-center gap-1">
-                <span className="flex gap-0.5">
-                  <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" style={{animationDelay: '0ms'}}></span>
-                  <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" style={{animationDelay: '150ms'}}></span>
-                  <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" style={{animationDelay: '300ms'}}></span>
+            
+            {(chat.unreadCount > 0) && (
+              <div className="flex flex-col items-end gap-1">
+                <span className="min-w-[20px] h-5 px-1.5 flex items-center justify-center bg-emerald-500 text-white text-[10px] font-bold rounded-full shadow-lg shadow-emerald-500/30">
+                  {chat.unreadCount}
                 </span>
-                Yazıyor...
-              </span>
-            ) : (
-              chat.lastMessage || "Yeni sohbet"
+              </div>
             )}
-          </p>
-        </div>
-        
-        {/* Unread badge with glow */}
-        {chat.unreadCount > 0 && (
-          <div className="relative">
-            <div className="w-6 h-6 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/40">
-              <span className="text-[11px] text-white font-bold">{chat.unreadCount}</span>
-            </div>
           </div>
-        )}
+          
+          {/* Tags / Badges */}
+          <div className="flex gap-2 mt-2">
+            {chat.type === "order" && (
+              <span className="px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-400 text-[10px] border border-purple-500/20 font-medium flex items-center gap-1">
+                <Package2 className="w-3 h-3" /> Sipariş
+              </span>
+            )}
+            {onlineInfo?.isOnline && (
+              <span className="px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-400 text-[10px] border border-blue-500/20 font-medium">
+                {onlineInfo.platform === 'ios' ? '🍎 iOS' : '🤖 Android'} v{onlineInfo.appVersion}
+              </span>
+            )}
+          </div>
+        </div>
       </div>
     </motion.div>
   );
 };
 
-// Message Bubble Component - Premium Design
+// Message Bubble
 const MessageBubble = ({ message, isOwn }) => {
-  const formatTime = (date) => {
-    return new Date(date).toLocaleTimeString("tr-TR", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
   return (
     <motion.div
-      initial={{ opacity: 0, y: 15, scale: 0.95 }}
+      initial={{ opacity: 0, y: 10, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.3, ease: "easeOut" }}
-      className={`flex ${isOwn ? "justify-end" : "justify-start"} mb-4`}
+      className={`flex w-full mb-6 ${isOwn ? "justify-end" : "justify-start"}`}
     >
-      <div
-        className={`relative max-w-[75%] rounded-3xl px-5 py-3 shadow-lg ${
-          message.type === "system"
-            ? "bg-gray-800/60 text-gray-400 text-center text-sm mx-auto backdrop-blur-sm border border-gray-700/50"
-            : isOwn
-            ? "bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600 text-white rounded-br-lg shadow-emerald-500/25"
-            : "bg-gradient-to-br from-gray-700/90 to-gray-800/90 text-white rounded-bl-lg backdrop-blur-sm border border-gray-600/30"
-        }`}
-      >
-        {/* Glow effect for own messages */}
-        {isOwn && (
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-400/20 to-cyan-400/20 rounded-3xl blur-xl -z-10"></div>
-        )}
+      <div className={`max-w-[75%] relative group ${isOwn ? "items-end" : "items-start"} flex flex-col`}>
+        <div
+          className={`px-5 py-3 rounded-2xl text-sm leading-relaxed shadow-lg backdrop-blur-md relative overflow-hidden ${
+            isOwn
+              ? "bg-gradient-to-br from-emerald-600 to-teal-700 text-white rounded-tr-sm"
+              : "bg-gray-800/80 text-gray-100 border border-gray-700 rounded-tl-sm"
+          }`}
+        >
+          {isOwn && <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity" />}
+          
+          {message.content}
+        </div>
         
-        {message.type === "image" && message.fileUrl && (
-          <img
-            src={message.fileUrl}
-            alt="Gönderilen resim"
-            className="max-w-full rounded-2xl mb-2 cursor-pointer hover:opacity-90 transition-opacity shadow-lg"
-            onClick={() => window.open(message.fileUrl, "_blank")}
-          />
-        )}
-        {message.type === "file" && message.fileUrl && (
-          <a
-            href={message.fileUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 text-sm underline hover:opacity-80 transition-opacity"
-          >
-            <Paperclip className="w-4 h-4" />
-            {message.fileName || "Dosya"}
-          </a>
-        )}
-        {message.content && (
-          <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{message.content}</p>
-        )}
-        <div className={`flex items-center gap-1.5 mt-2 ${isOwn ? "justify-end" : "justify-start"}`}>
-          <span className={`text-[11px] font-medium ${isOwn ? 'text-white/70' : 'text-gray-400'}`}>
-            {formatTime(message.createdAt)}
+        <div className={`flex items-center gap-1.5 mt-1.5 px-1 ${isOwn ? "flex-row-reverse" : "flex-row"}`}>
+          <span className="text-[10px] text-gray-500 font-medium">
+            {new Date(message.createdAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}
           </span>
           {isOwn && message.isRead && (
-            <CheckCircle2 className="w-3.5 h-3.5 text-cyan-200" />
+            <CheckCircle2 className="w-3 h-3 text-emerald-500" />
           )}
         </div>
       </div>
@@ -178,318 +169,223 @@ const MessageBubble = ({ message, isOwn }) => {
   );
 };
 
-// Default hızlı yanıtlar
 const defaultQuickReplies = [
   "Merhaba! 👋 Size nasıl yardımcı olabiliriz?",
   "Siparişiniz hazırlanıyor 📦",
   "Siparişiniz yola çıktı 🚚",
   "Teslim edildi ✅",
   "Birazdan sizinle ilgileneceğiz 🙏",
-  "İyi günler dileriz! 😊",
-  "Teşekkür ederiz! 🙏",
-  "Siparişiniz 10-15 dakika içinde hazır olacak ⏰",
-  "Siparişinizi kontrol ediyorum 🔍",
-  "Maalesef bu ürün şu anda stokta yok 😔",
-  "İade işleminiz başlatıldı ↩️",
-  "Kupon kodunuz aktif edildi 🎉",
+  "Teşekkür ederiz, iyi günler! 😊"
 ];
 
-// Main ChatTab Component
+// Main Component
 const ChatTab = () => {
   const [chats, setChats] = useState([]);
   const [selectedChat, setSelectedChat] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [isSending, setIsSending] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("active");
   const [typingUsers, setTypingUsers] = useState({});
-  const [onlineUsers, setOnlineUsers] = useState({}); // Sohbette aktif kullanıcılar
+  const [onlineUsers, setOnlineUsers] = useState({});
   const [showMobileChat, setShowMobileChat] = useState(false);
+  
+  // Quick Reply State
   const [quickReplies, setQuickReplies] = useState(() => {
     const saved = localStorage.getItem("chatQuickReplies");
     return saved ? JSON.parse(saved) : defaultQuickReplies;
   });
-  const [showQuickReplyEditor, setShowQuickReplyEditor] = useState(false);
-  const [newQuickReply, setNewQuickReply] = useState("");
-  
-  const messagesEndRef = useRef(null);
-  const inputRef = useRef(null);
+  const [showQuickEditor, setShowQuickEditor] = useState(false);
+  const [newTag, setNewTag] = useState("");
 
-  // Sohbetleri yükle
+  const messagesEndRef = useRef(null);
+  const chatContainerRef = useRef(null);
+
+  // --- Logic ---
   const fetchChats = async () => {
     try {
-      const response = await axios.get(`/chat/list?status=${statusFilter}`);
-      setChats(response.data.chats || []);
+      setIsLoading(true);
+      const { data } = await axios.get(`/chat/list?status=${statusFilter}`);
+      setChats(data.chats || []);
     } catch (error) {
-      console.error("Sohbetler yüklenirken hata:", error);
       toast.error("Sohbetler yüklenemedi");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Mesajları yükle
   const fetchMessages = async (chatId) => {
     try {
-      const response = await axios.get(`/chat/${chatId}`);
-      setMessages(response.data.messages || []);
-      
-      // Mesajları okundu olarak işaretle
+      const { data } = await axios.get(`/chat/${chatId}`);
+      setMessages(data.messages || []);
       await axios.put(`/chat/${chatId}/read`);
-      
-      // Okunmamış sayısını sıfırla
-      setChats(prev => prev.map(c => 
-        c._id === chatId ? { ...c, unreadCount: 0 } : c
-      ));
+      setChats(prev => prev.map(c => c._id === chatId ? { ...c, unreadCount: 0 } : c));
     } catch (error) {
-      console.error("Mesajlar yüklenirken hata:", error);
-      toast.error("Mesajlar yüklenemedi");
+      toast.error("Mesajlar alınamadı");
     }
   };
 
-  // Mesaj gönder
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!newMessage.trim() || !selectedChat || isSending) return;
-
-    setIsSending(true);
-    const messageContent = newMessage;
-    setNewMessage("");
+    if (!newMessage.trim() || !selectedChat) return;
 
     try {
-      const response = await axios.post(`/chat/${selectedChat._id}/send`, {
-        content: messageContent,
-        type: "text",
+      const content = newMessage;
+      setNewMessage(""); 
+      const { data } = await axios.post(`/chat/${selectedChat._id}/send`, {
+        content, type: "text"
       });
-
-      // Mesajı listeye ekle
-      setMessages(prev => [...prev, response.data.message]);
-      
-      // Son mesajı güncelle
+      setMessages(prev => [...prev, data.message]);
       setChats(prev => prev.map(c => 
         c._id === selectedChat._id 
-          ? { ...c, lastMessage: messageContent, lastMessageAt: new Date() }
+          ? { ...c, lastMessage: content, lastMessageAt: new Date() } 
           : c
       ));
-
-      inputRef.current?.focus();
     } catch (error) {
-      console.error("Mesaj gönderilirken hata:", error);
       toast.error("Mesaj gönderilemedi");
-      setNewMessage(messageContent);
-    } finally {
-      setIsSending(false);
     }
   };
 
-  // Sohbeti kapat
   const handleCloseChat = async () => {
-    if (!selectedChat) return;
-
+    if (!confirm("Sohbeti kapatmak istediğinize emin misiniz?")) return;
     try {
       await axios.put(`/chat/${selectedChat._id}/close`);
       toast.success("Sohbet kapatıldı");
       setSelectedChat(null);
       fetchChats();
     } catch (error) {
-      console.error("Sohbet kapatılırken hata:", error);
-      toast.error("Sohbet kapatılamadı");
+      toast.error("İşlem başarısız");
     }
   };
 
-  // Scroll to bottom
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  // Scroll to bottom - sadece istendiğinde çağrılır
-  // useEffect(() => {
-  //   scrollToBottom();
-  // }, [messages]);
-
-  // Socket.IO bağlantısı
+  // Socket setup
   useEffect(() => {
     fetchChats();
-
     const socket = socketService.connect();
     socket.emit("joinAdminRoom");
 
-    // Yeni sohbet bildirimi
-    socket.on("newChat", (data) => {
-      setChats(prev => [data.chat, ...prev]);
-      toast.success(`Yeni sohbet: ${data.chat.user?.name || "Misafir"}`);
-    });
-
-    // Sohbet güncelleme
-    socket.on("chatUpdate", (data) => {
-      setChats(prev => prev.map(c => 
-        c._id === data.chatId 
-          ? { ...c, lastMessage: data.lastMessage, unreadCount: data.unreadCount }
-          : c
-      ));
-    });
-
-    // Yeni mesaj
-    socket.on("newMessage", (data) => {
-      if (selectedChat?._id === data.chatId) {
-        // Admin'in kendi gönderdiği mesajları tekrar ekleme (zaten API ile eklendi)
-        if (data.message.sender !== "admin") {
-          setMessages(prev => {
-            // Aynı mesaj zaten varsa ekleme
-            if (prev.some(m => m._id === data.message._id)) return prev;
-            return [...prev, data.message];
-          });
+    const handlers = {
+      newChat: (data) => {
+        setChats(prev => [data.chat, ...prev]);
+        toast.success(`Yeni sohbet: ${data.chat.user?.name}`);
+      },
+      chatUpdate: (data) => {
+        setChats(prev => prev.map(c => c._id === data.chatId 
+          ? { ...c, lastMessage: data.lastMessage, unreadCount: data.unreadCount } : c));
+      },
+      newMessage: (data) => {
+        if (selectedChat?._id === data.chatId && data.message.sender !== "admin") {
+          setMessages(prev => [...prev, data.message]);
         }
-      }
-    });
-
-    // Yazıyor göstergesi
-    socket.on("userTyping", ({ chatId }) => {
-      setTypingUsers(prev => ({ ...prev, [chatId]: true }));
-    });
-
-    socket.on("userStopTyping", ({ chatId }) => {
-      setTypingUsers(prev => ({ ...prev, [chatId]: false }));
-    });
-
-    // Kullanıcı sohbete girdi
-    socket.on("userInChat", ({ chatId, userId, userName, platform, appVersion }) => {
-      console.log(`🟢 Kullanıcı sohbette: ${userName || userId} - Chat: ${chatId} - Platform: ${platform} v${appVersion}`);
-      setOnlineUsers(prev => ({ ...prev, [chatId]: { isOnline: true, userName, platform, appVersion } }));
-    });
-
-    // Kullanıcı sohbetten çıktı
-    socket.on("userLeftChat", ({ chatId, userId }) => {
-      console.log(`⚪ Kullanıcı çıktı: ${userId} - Chat: ${chatId}`);
-      setOnlineUsers(prev => ({ ...prev, [chatId]: { isOnline: false } }));
-    });
-
-    return () => {
-      socket.off("newChat");
-      socket.off("chatUpdate");
-      socket.off("newMessage");
-      socket.off("userTyping");
-      socket.off("userStopTyping");
-      socket.off("userInChat");
-      socket.off("userLeftChat");
+      },
+      userTyping: ({ chatId }) => setTypingUsers(prev => ({ ...prev, [chatId]: true })),
+      userStopTyping: ({ chatId }) => setTypingUsers(prev => ({ ...prev, [chatId]: false })),
+      userInChat: (data) => setOnlineUsers(prev => ({ ...prev, [data.chatId]: { isOnline: true, ...data } })),
+      userLeftChat: ({ chatId }) => setOnlineUsers(prev => ({ ...prev, [chatId]: { isOnline: false } }))
     };
+
+    Object.entries(handlers).forEach(([event, handler]) => socket.on(event, handler));
+    return () => Object.keys(handlers).forEach(event => socket.off(event));
   }, [selectedChat]);
 
-  // StatusFilter değiştiğinde sohbetleri yeniden yükle
-  useEffect(() => {
-    fetchChats();
-  }, [statusFilter]);
-
-  // Sohbet seçildiğinde
   useEffect(() => {
     if (selectedChat) {
       fetchMessages(selectedChat._id);
-      
-      const socket = socketService.getSocket();
-      socket.emit("joinChat", selectedChat._id);
-
-      return () => {
-        socket.emit("leaveChat", selectedChat._id);
-      };
+      socketService.getSocket().emit("joinChat", selectedChat._id);
+      return () => socketService.getSocket().emit("leaveChat", selectedChat._id);
     }
   }, [selectedChat?._id]);
 
-  // Filtrelenmiş sohbetler
-  const filteredChats = chats.filter(chat =>
-    (chat.user?.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (chat.user?.email || "").toLowerCase().includes(searchTerm.toLowerCase())
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // --- Render ---
+  const filteredChats = chats.filter(c => 
+    c.user?.name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
-    <div className="h-[calc(100vh-200px)] flex gap-4">
-      {/* Chat List - Sol Panel */}
-      <motion.div
+    <div className="h-[calc(100vh-140px)] w-full flex gap-6 p-4">
+      {/* BACKGROUND EFFECTS */}
+      <div className="fixed inset-0 pointer-events-none -z-10">
+        <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-emerald-500/10 rounded-full blur-[100px]" />
+        <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-purple-500/10 rounded-full blur-[100px]" />
+      </div>
+
+      {/* --- LEFT SIDEBAR (Chat List) --- */}
+      <motion.div 
         initial={{ opacity: 0, x: -20 }}
         animate={{ opacity: 1, x: 0 }}
-        className={`w-full md:w-80 lg:w-96 glass rounded-2xl overflow-hidden flex flex-col ${
-          showMobileChat ? "hidden md:flex" : "flex"
-        }`}
+        className={`${GLASS_PANEL} w-full md:w-[380px] rounded-3xl flex flex-col overflow-hidden transition-all duration-300 ${showMobileChat ? 'hidden md:flex' : 'flex'}`}
       >
-        {/* Header */}
-        <div className="p-4 border-b border-gray-700/30">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <MessageCircle className="w-5 h-5 text-emerald-400" />
+        {/* Sidebar Header */}
+        <div className="p-6 border-b border-white/5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+              <span className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400">
+                <MessageCircle size={24} />
+              </span>
               Canlı Sohbet
             </h2>
-            <motion.button
-              whileHover={{ rotate: 180 }}
-              whileTap={{ scale: 0.9 }}
+            <button 
               onClick={fetchChats}
-              className="p-2 rounded-lg hover:bg-gray-700/50 text-gray-400"
+              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
             >
-              <RefreshCw className="w-4 h-4" />
-            </motion.button>
+              <RefreshCw size={18} />
+            </button>
           </div>
 
-          {/* Search */}
-          <div className="relative mb-3">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-            <input
-              type="text"
-              placeholder="Kullanıcı ara..."
+          <div className="relative group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-emerald-400 transition-colors" size={18} />
+            <input 
+              type="text" 
+              placeholder="Sohbet veya müşteri ara..." 
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-gray-800/50 border border-gray-700/50 text-white rounded-xl pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full bg-black/20 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 focus:bg-black/40 transition-all"
             />
           </div>
 
-          {/* Status Filter */}
-          <div className="flex gap-2">
-            <button
-              onClick={() => setStatusFilter("active")}
-              className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                statusFilter === "active"
-                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                  : "bg-gray-700/30 text-gray-400"
-              }`}
-            >
-              Aktif
-            </button>
-            <button
-              onClick={() => setStatusFilter("closed")}
-              className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                statusFilter === "closed"
-                  ? "bg-gray-500/20 text-gray-300 border border-gray-500/30"
-                  : "bg-gray-700/30 text-gray-400"
-              }`}
-            >
-              Kapalı
-            </button>
+          <div className="flex bg-black/20 p-1 rounded-xl">
+            {['active', 'closed'].map(status => (
+              <button
+                key={status}
+                onClick={() => setStatusFilter(status)}
+                className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
+                  statusFilter === status 
+                    ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/25' 
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                {status === 'active' ? 'Aktif Sohbetler' : 'Geçmiş'}
+              </button>
+            ))}
           </div>
         </div>
 
         {/* Chat List */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1 custom-scrollbar">
           {isLoading ? (
-            <div className="flex items-center justify-center h-32">
-              <RefreshCw className="w-6 h-6 text-emerald-400 animate-spin" />
-            </div>
+            <div className="flex justify-center py-10"><RefreshCw className="animate-spin text-emerald-500" /></div>
           ) : filteredChats.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-32 text-gray-400">
-              <MessageCircle className="w-8 h-8 mb-2 opacity-50" />
-              <p className="text-sm">Henüz sohbet yok</p>
+            <div className="text-center py-10 text-gray-500">
+              <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4">
+                <MessageCircle size={32} className="opacity-50" />
+              </div>
+              <p>Sohbet bulunamadı</p>
             </div>
           ) : (
             <AnimatePresence>
-              {filteredChats.map((chat) => (
+              {filteredChats.map(chat => (
                 <ChatListItem
                   key={chat._id}
                   chat={chat}
                   isSelected={selectedChat?._id === chat._id}
                   isTyping={typingUsers[chat._id]}
                   onlineInfo={onlineUsers[chat._id]}
-                  onClick={() => {
-                    setSelectedChat(chat);
-                    setShowMobileChat(true);
-                  }}
+                  onClick={() => { setSelectedChat(chat); setShowMobileChat(true); }}
                 />
               ))}
             </AnimatePresence>
@@ -497,219 +393,178 @@ const ChatTab = () => {
         </div>
       </motion.div>
 
-      {/* Chat Messages - Sağ Panel */}
+      {/* --- RIGHT PANEL (Chat Area) --- */}
       <motion.div
-        initial={{ opacity: 0, x: 20 }}
-        animate={{ opacity: 1, x: 0 }}
-        className={`flex-1 glass rounded-2xl overflow-hidden flex flex-col ${
-          !showMobileChat ? "hidden md:flex" : "flex"
-        }`}
+        layout
+        className={`${GLASS_PANEL} flex-1 rounded-3xl overflow-hidden flex flex-col transition-all duration-300 relative ${!showMobileChat ? 'hidden md:flex' : 'flex'}`}
       >
         {selectedChat ? (
           <>
             {/* Chat Header */}
-            <div className="p-4 border-b border-gray-700/30 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setShowMobileChat(false)}
-                  className="md:hidden p-2 rounded-lg hover:bg-gray-700/50 text-gray-400"
-                >
-                  <ChevronLeft className="w-5 h-5" />
+            <div className="h-20 border-b border-white/5 flex items-center justify-between px-6 bg-white/5 backdrop-blur-md z-20">
+              <div className="flex items-center gap-4">
+                <button onClick={() => setShowMobileChat(false)} className="md:hidden p-2 text-gray-400">
+                  <ChevronLeft />
                 </button>
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
-                  <User className="w-5 h-5 text-white" />
+                <div className="relative">
+                  <Avatar name={selectedChat.user?.name} isOnline={onlineUsers[selectedChat._id]?.isOnline} />
                 </div>
                 <div>
-                  <h3 className="text-white font-medium">{selectedChat.user?.name}</h3>
-                  <p className="text-sm text-gray-400">{selectedChat.user?.email}</p>
-                  {/* Online durumu ve platform/versiyon bilgisi */}
-                  {onlineUsers[selectedChat._id]?.isOnline ? (
-                    <p className="text-xs text-green-400 flex items-center gap-1 mt-0.5">
-                      <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                      📱 {onlineUsers[selectedChat._id]?.platform === 'ios' ? 'iOS' : 'Android'} v{onlineUsers[selectedChat._id]?.appVersion || '?'}
-                    </p>
-                  ) : (
-                    <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                      <span className="w-2 h-2 bg-gray-500 rounded-full"></span>
-                      Çevrimdışı
-                    </p>
-                  )}
+                  <h3 className="font-bold text-lg text-white flex items-center gap-2">
+                    {selectedChat.user?.name}
+                    {onlineUsers[selectedChat._id]?.isOnline && (
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    )}
+                  </h3>
+                  <div className="flex items-center gap-2 text-sm text-gray-400">
+                    <span className="flex items-center gap-1">
+                      <User size={12} /> {selectedChat.user?.email || "Email yok"}
+                    </span>
+                    {selectedChat.user?.phone && (
+                      <>
+                        <span className="w-1 h-1 rounded-full bg-gray-600" />
+                        <span className="flex items-center gap-1">
+                          <Phone size={12} /> {selectedChat.user?.phone}
+                        </span>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                {selectedChat.order && (
-                  <span className="px-3 py-1 bg-purple-500/20 text-purple-400 text-sm rounded-full flex items-center gap-1">
-                    <Package2 className="w-4 h-4" />
-                    Sipariş
-                  </span>
+
+              <div className="flex items-center gap-3">
+                {selectedChat.type === "order" && (
+                  <div className="px-4 py-2 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-300 flex items-center gap-2">
+                    <Package2 size={16} />
+                    <span className="font-medium text-sm">Sipariş Sorusu</span>
+                  </div>
                 )}
                 {selectedChat.status === "active" && (
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
+                  <button 
                     onClick={handleCloseChat}
-                    className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg text-sm flex items-center gap-1"
+                    className="p-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-all flex items-center gap-2 text-sm font-medium"
                   >
-                    <X className="w-4 h-4" />
-                    Kapat
-                  </motion.button>
+                    <X size={16} /> <span className="hidden sm:inline">Sohbeti Kapat</span>
+                  </button>
                 )}
               </div>
             </div>
 
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4">
-              {messages.map((message) => (
-                <MessageBubble
-                  key={message._id}
-                  message={message}
-                  isOwn={message.sender === "admin"}
-                />
+            {/* Messages Area */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-b from-transparent to-black/20" ref={chatContainerRef}>
+              <div className="text-center py-6">
+                <span className="px-4 py-1.5 rounded-full bg-white/5 text-xs text-gray-500 border border-white/5">
+                  {new Date(selectedChat.createdAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', weekday: 'long' })}
+                </span>
+              </div>
+              
+              {messages.map((msg, i) => (
+                <MessageBubble key={i} message={msg} isOwn={msg.sender === "admin"} />
               ))}
+              
               {typingUsers[selectedChat._id] && (
-                <div className="flex items-center gap-2 text-gray-400 text-sm">
-                  <div className="flex gap-1">
-                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }}></span>
-                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }}></span>
-                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }}></span>
-                  </div>
-                  <span>Yazıyor...</span>
-                </div>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-1 pl-4 py-2">
+                   <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{animationDelay: "0ms"}}/>
+                   <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{animationDelay: "150ms"}}/>
+                   <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{animationDelay: "300ms"}}/>
+                </motion.div>
               )}
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input */}
-            {selectedChat.status === "active" ? (
-              <div className="border-t border-gray-700/30">
-                {/* Hızlı Yanıtlar */}
-                <div className="p-2 border-b border-gray-700/20">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-gray-500 font-medium">⚡ Hızlı Yanıtlar</span>
-                    <button
-                      type="button"
-                      onClick={() => setShowQuickReplyEditor(!showQuickReplyEditor)}
-                      className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
-                    >
-                      {showQuickReplyEditor ? '✕ Kapat' : '✏️ Düzenle'}
+            {/* Quick Replies & Input */}
+            <div className="bg-gray-900/80 backdrop-blur-xl border-t border-white/5 p-4 z-20 space-y-4">
+              {/* Quick Replies Strip */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar">
+                <button 
+                  onClick={() => setShowQuickEditor(!showQuickEditor)}
+                  className={`p-2 rounded-lg transition-colors flex-shrink-0 ${showQuickEditor ? 'bg-emerald-500 text-white' : 'bg-white/5 text-gray-400 hover:text-emerald-400'}`}
+                >
+                  {showQuickEditor ? <X size={16}/> : <Edit2 size={16}/>}
+                </button>
+                
+                {showQuickEditor ? (
+                  <div className="flex items-center gap-2 flex-1 animate-in fade-in slide-in-from-left-4">
+                    <input 
+                      autoFocus
+                      placeholder="Yeni hızlı yanıt..."
+                      value={newTag}
+                      onChange={e => setNewTag(e.target.value)}
+                      onKeyDown={e => {
+                        if(e.key === 'Enter' && newTag.trim()){
+                          const updated = [...quickReplies, newTag.trim()];
+                          setQuickReplies(updated);
+                          localStorage.setItem("chatQuickReplies", JSON.stringify(updated));
+                          setNewTag("");
+                          toast.success("Eklendi");
+                        }
+                      }}
+                      className="bg-black/40 text-sm text-white px-3 py-1.5 rounded-lg border border-emerald-500/30 focus:outline-none w-64"
+                    />
+                    <button onClick={() => {
+                       setQuickReplies(defaultQuickReplies);
+                       localStorage.setItem("chatQuickReplies", JSON.stringify(defaultQuickReplies));
+                       toast.success("Sıfırlandı");
+                    }} className="text-xs text-red-400 hover:text-red-300 ml-auto whitespace-nowrap">
+                      Varsayılana Dön
                     </button>
                   </div>
-                  
-                  {/* Hızlı Yanıt Düzenleme Modu */}
-                  {showQuickReplyEditor && (
-                    <div className="mb-3 p-3 bg-gray-800/50 rounded-xl space-y-2">
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={newQuickReply}
-                          onChange={(e) => setNewQuickReply(e.target.value)}
-                          placeholder="Yeni hızlı yanıt ekle..."
-                          className="flex-1 bg-gray-700/50 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (newQuickReply.trim()) {
-                              const updated = [...quickReplies, newQuickReply.trim()];
-                              setQuickReplies(updated);
-                              localStorage.setItem("chatQuickReplies", JSON.stringify(updated));
-                              setNewQuickReply("");
-                              toast.success("Hızlı yanıt eklendi!");
-                            }
-                          }}
-                          className="px-3 py-2 bg-emerald-500 text-white text-sm rounded-lg hover:bg-emerald-600 transition-colors"
-                        >
-                          + Ekle
-                        </button>
-                      </div>
-                      <div className="max-h-32 overflow-y-auto space-y-1">
-                        {quickReplies.map((text, i) => (
-                          <div key={i} className="flex items-center justify-between gap-2 px-2 py-1 bg-gray-700/30 rounded-lg group">
-                            <span className="text-xs text-gray-300 truncate flex-1">{text}</span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const updated = quickReplies.filter((_, idx) => idx !== i);
-                                setQuickReplies(updated);
-                                localStorage.setItem("chatQuickReplies", JSON.stringify(updated));
-                                toast.success("Hızlı yanıt silindi");
-                              }}
-                              className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-all"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setQuickReplies(defaultQuickReplies);
-                          localStorage.setItem("chatQuickReplies", JSON.stringify(defaultQuickReplies));
-                          toast.success("Varsayılana sıfırlandı");
-                        }}
-                        className="w-full text-xs text-gray-400 hover:text-gray-300 py-1"
-                      >
-                        🔄 Varsayılana Sıfırla
-                      </button>
-                    </div>
-                  )}
-                  
-                  {/* Hızlı Yanıt Butonları - Grid Layout */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto custom-scrollbar">
-                    {quickReplies.map((text, i) => (
-                      <motion.button
-                        key={i}
-                        type="button"
-                        whileHover={{ scale: 1.02, y: -1 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => setNewMessage(text)}
-                        className="px-3 py-2 text-xs bg-gradient-to-r from-gray-800/60 to-gray-700/60 hover:from-emerald-500/30 hover:to-teal-500/30 text-gray-300 hover:text-emerald-300 rounded-xl transition-all duration-300 border border-gray-600/40 hover:border-emerald-500/50 text-left shadow-sm hover:shadow-emerald-500/10"
-                      >
-                        <span className="block truncate">{text}</span>
-                      </motion.button>
-                    ))}
-                  </div>
-                </div>
-                {/* Mesaj Giriş - Modern */}
-                <form onSubmit={handleSendMessage} className="p-4 bg-gradient-to-r from-gray-900/50 to-gray-800/50">
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 relative">
-                      <input
-                        ref={inputRef}
-                        type="text"
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        placeholder="✨ Mesajınızı yazın..."
-                        className="w-full bg-gray-800/70 border-2 border-gray-600/50 text-white rounded-2xl px-5 py-3.5 focus:outline-none focus:border-emerald-500/70 focus:ring-4 focus:ring-emerald-500/20 transition-all duration-300 placeholder-gray-500"
-                      />
-                    </div>
+                ) : (
+                  quickReplies.map((reply, i) => (
                     <motion.button
-                      type="submit"
-                      whileHover={{ scale: 1.08, rotate: 5 }}
-                      whileTap={{ scale: 0.92 }}
-                      disabled={!newMessage.trim() || isSending}
-                      className="p-4 bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 rounded-2xl text-white disabled:opacity-40 shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/50 transition-all duration-300"
+                      key={i}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setNewMessage(reply)}
+                      className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-white/5 border border-white/5 text-gray-300 text-xs hover:bg-emerald-500/20 hover:border-emerald-500/30 hover:text-emerald-300 transition-all whitespace-nowrap"
                     >
-                      <Send className="w-5 h-5" />
+                      {reply}
                     </motion.button>
+                  ))
+                )}
+              </div>
+
+              {/* Input Bar */}
+              <form onSubmit={handleSendMessage} className="relative flex gap-3 items-end">
+                 <div className="flex-1 bg-black/30 border border-white/10 rounded-2xl p-1 flex items-center focus-within:border-emerald-500/50 focus-within:bg-black/50 transition-all">
+                  <input
+                    type="text"
+                    value={newMessage}
+                    onChange={e => setNewMessage(e.target.value)}
+                    placeholder="Bir mesaj yazın..."
+                    className="flex-1 bg-transparent border-none text-white px-4 py-3 focus:ring-0 placeholder-gray-600"
+                  />
+                  <div className="flex gap-1 pr-2">
+                    <button type="button" className="p-2 text-gray-500 hover:text-white transition-colors rounded-lg hover:bg-white/10">
+                       <Paperclip size={18} />
+                    </button>
+                    <button type="button" className="p-2 text-gray-500 hover:text-white transition-colors rounded-lg hover:bg-white/10">
+                       <ImageIcon size={18} />
+                    </button>
                   </div>
-                </form>
-              </div>
-            ) : (
-              <div className="p-4 border-t border-gray-700/30 text-center">
-                <p className="text-gray-400 text-sm flex items-center justify-center gap-2">
-                  <AlertCircle className="w-4 h-4" />
-                  Bu sohbet kapatılmış
-                </p>
-              </div>
-            )}
+                 </div>
+                 
+                 <motion.button
+                   whileHover={{ scale: 1.05, rotate: -5 }}
+                   whileTap={{ scale: 0.95 }}
+                   type="submit"
+                   disabled={!newMessage.trim()}
+                   className="p-4 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/25 disabled:opacity-50 disabled:shadow-none hover:shadow-emerald-500/40 transition-all"
+                 >
+                   <Send size={22} className={newMessage.trim() ? "translate-x-0.5 -translate-y-0.5" : ""} />
+                 </motion.button>
+              </form>
+            </div>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
-            <MessageCircle className="w-16 h-16 mb-4 opacity-30" />
-            <p className="text-lg font-medium mb-2">Sohbet Seçin</p>
-            <p className="text-sm">Sol panelden bir sohbet seçerek yanıtlamaya başlayın</p>
+          <div className="flex-1 flex flex-col items-center justify-center text-gray-500 bg-grid-white/[0.02]">
+             <div className="w-24 h-24 rounded-full bg-linear-to-br from-emerald-500/10 to-teal-500/5 flex items-center justify-center mb-6 ring-1 ring-white/5">
+                <Sparkles size={40} className="text-emerald-500/50" />
+             </div>
+             <h3 className="text-2xl font-bold text-white mb-2">Hoş Geldiniz</h3>
+             <p className="max-w-xs text-center text-gray-400">
+               Mesajlaşmaya başlamak için sol menüden bir sohbet seçin.
+             </p>
           </div>
         )}
       </motion.div>
