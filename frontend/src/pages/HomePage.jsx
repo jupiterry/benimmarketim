@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import CategoryItem from "../components/CategoryItem";
 import { useProductStore } from "../stores/useProductStore";
-import FeaturedProducts from "../components/FeaturedProducts";
+import WeeklyProducts from "../components/WeeklyProducts";
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
 import { ShoppingCart, Sparkles, TrendingUp, Clock, Gift, Smartphone, Download, Apple, ExternalLink, ChevronRight, Star, Zap, Truck, Shield, ArrowRight } from "lucide-react";
 
@@ -446,6 +446,13 @@ const HomePage = () => {
 							delay={0.3}
 						/>
 					</div>
+				</div>
+			</section>
+
+			{/* Weekly Products Section */}
+			<section className="relative py-20 bg-gray-900">
+				<div className="container mx-auto px-4">
+					<WeeklyProducts />
 				</div>
 			</section>
 

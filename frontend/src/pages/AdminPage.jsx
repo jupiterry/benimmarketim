@@ -2,7 +2,7 @@ import {
   BarChart, PlusCircle, ShoppingBasket, Upload, Users, Package2, 
   MessageSquare, Settings, LayoutDashboard, Bell, AlertCircle, Image,
   Menu, X, ChevronRight, LogOut, Search, Moon, Sun, TrendingUp, Clock,
-  FileText, Zap
+  FileText, Zap, Calendar
 } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -25,6 +25,7 @@ import CouponsTab from "../components/CouponsTab";
 import ReferralsTab from "../components/ReferralsTab";
 import AdvancedAnalyticsTab from "../components/AdvancedAnalyticsTab";
 import ChatTab from "../components/ChatTab";
+import WeeklyProductsTab from "../components/WeeklyProductsTab";
 import { Tag, Gift, MessageCircle } from "lucide-react";
 
 // Sidebar Menu Item Component
@@ -278,6 +279,7 @@ const AdminPage = () => {
     { id: "referrals", label: "Referral", icon: Gift },
     { id: "feedback", label: "Geri Bildirimler", icon: MessageSquare },
     { id: "photocopy", label: "Fotokopi", icon: FileText },
+    { id: "weekly-products", label: "Haftalık Ürünler", icon: Calendar },
     { id: "banners", label: "Banner'lar", icon: Image },
     { id: "bulk-upload", label: "Toplu Yükleme", icon: Upload },
     { id: "settings", label: "Ayarlar", icon: Settings },
@@ -320,6 +322,8 @@ const AdminPage = () => {
         return <PhotocopyTab />;
       case "banners":
         return <BannerTab />;
+      case "weekly-products":
+        return <WeeklyProductsTab />;
       case "bulk-upload":
         return <BulkUploadSection onUpload={handleBulkUpload} />;
       case "coupons":

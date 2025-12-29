@@ -22,6 +22,7 @@ import n8nRoutes from "./routes/n8n.route.js";
 import versionRoutes from "./routes/version.route.js";
 import referralRoutes from "./routes/referral.route.js";
 import chatRoutes from "./routes/chat.route.js";
+import weeklyProductRoutes from "./routes/weeklyProductRoutes.js";
 import { createServer } from "http";
 import { Server } from "socket.io";
 
@@ -209,6 +210,7 @@ app.use("/api/n8n", n8nRoutes);
 app.use("/api", versionRoutes);
 app.use("/api/referrals", referralRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/weekly-products", weeklyProductRoutes);
 
 import fs from "fs";
 import Product from "./models/product.model.js";

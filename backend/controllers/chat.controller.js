@@ -232,6 +232,15 @@ export const sendMessage = async (req, res) => {
           lastMessage: chat.lastMessage,
           unreadCount: chat.unreadCount,
         });
+        
+        // Global chat bildirim event'i - Admin panelinde herhangi bir sayfada bildirim göster
+        const user = await User.findById(userId).select("name");
+        io.to("adminRoom").emit("newChatMessage", {
+          chatId,
+          message: chat.lastMessage,
+          senderName: user?.name || "Kullanıcı",
+          timestamp: new Date(),
+        });
       }
     }
 

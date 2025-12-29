@@ -193,6 +193,7 @@ const OrderNotification = () => {
         if (user?.role === 'admin') {
             const socket = socketService.connect();
             socket.removeAllListeners("newOrder");
+            socket.removeAllListeners("newChatMessage");
             
             const handleConnect = () => {
                 socket.emit('joinAdminRoom');
@@ -254,8 +255,45 @@ const OrderNotification = () => {
                 ), { duration: Infinity, position: 'top-right' });
             });
 
+            // Global Chat Message Notification - Herhangi bir sayfada olsa bile bildirim
+            socket.on('newChatMessage', (data) => {
+                playNotificationSound();
+                
+                toast.custom((t) => (
+                    <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-gray-800 shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-purple-500/30`}>
+                        <div className="flex-1 w-0 p-4">
+                            <div className="flex items-start">
+                                <div className="flex-shrink-0 pt-0.5">
+                                    <div className="h-10 w-10 rounded-full bg-purple-500/20 flex items-center justify-center">
+                                        <Bell className="h-5 w-5 text-purple-400" />
+                                    </div>
+                                </div>
+                                <div className="ml-3 flex-1">
+                                    <p className="text-sm font-medium text-white flex items-center justify-between">
+                                        <span>💬 Yeni Mesaj</span>
+                                        <span className="text-xs text-gray-400">
+                                            {new Date(data.timestamp).toLocaleTimeString()}
+                                        </span>
+                                    </p>
+                                    <div className="mt-1 text-sm text-gray-400 space-y-1">
+                                        <p className="font-medium text-purple-400">{data.senderName}</p>
+                                        <p className="truncate">{data.message}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex border-l border-gray-700">
+                            <button onClick={() => toast.dismiss(t.id)} className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-purple-400 hover:text-purple-500 focus:outline-none">
+                                Kapat
+                            </button>
+                        </div>
+                    </div>
+                ), { duration: 10000, position: 'top-right' });
+            });
+
             return () => {
                 socket.off('newOrder');
+                socket.off('newChatMessage');
                 socket.off('connect', handleConnect);
                 socketService.disconnect();
             };
