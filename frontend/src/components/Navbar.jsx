@@ -158,6 +158,10 @@ const OrderNotification = () => {
     const { user } = useUserStore();
     const [selectedSound, setSelectedSound] = useState(() => localStorage.getItem('notificationSound') || 'ringtone');
     const [currentAudio, setCurrentAudio] = useState(null);
+    
+    // Canlı destek: Bu oturumda bildirim gönderilen kullanıcı ID'leri
+    const notifiedUserIds = useRef(new Set());
+    const [chatModal, setChatModal] = useState(null); // { senderId, senderName, message, timestamp }
     const notificationSounds = {
         ringtone: new Audio('/ringtone.mp3'),
         bell: new Audio('/bell.mp3'),
@@ -259,36 +263,51 @@ const OrderNotification = () => {
             socket.on('newChatMessage', (data) => {
                 playNotificationSound();
                 
-                toast.custom((t) => (
-                    <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-gray-800 shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-purple-500/30`}>
-                        <div className="flex-1 w-0 p-4">
-                            <div className="flex items-start">
-                                <div className="flex-shrink-0 pt-0.5">
-                                    <div className="h-10 w-10 rounded-full bg-purple-500/20 flex items-center justify-center">
-                                        <Bell className="h-5 w-5 text-purple-400" />
+                const senderId = data.senderId || data.userId;
+                
+                // Bu kullanıcıdan ilk mesaj mı kontrol et
+                if (!notifiedUserIds.current.has(senderId)) {
+                    // İLK MESAJ: Modal Pop-up göster
+                    notifiedUserIds.current.add(senderId);
+                    setChatModal({
+                        senderId,
+                        senderName: data.senderName,
+                        message: data.message,
+                        timestamp: data.timestamp
+                    });
+                } else {
+                    // SONRAKI MESAJLAR: Toast bildirimi göster
+                    toast.custom((t) => (
+                        <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-gray-800 shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-purple-500/30`}>
+                            <div className="flex-1 w-0 p-4">
+                                <div className="flex items-start">
+                                    <div className="flex-shrink-0 pt-0.5">
+                                        <div className="h-10 w-10 rounded-full bg-purple-500/20 flex items-center justify-center">
+                                            <Bell className="h-5 w-5 text-purple-400" />
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="ml-3 flex-1">
-                                    <p className="text-sm font-medium text-white flex items-center justify-between">
-                                        <span>💬 Yeni Mesaj</span>
-                                        <span className="text-xs text-gray-400">
-                                            {new Date(data.timestamp).toLocaleTimeString()}
-                                        </span>
-                                    </p>
-                                    <div className="mt-1 text-sm text-gray-400 space-y-1">
-                                        <p className="font-medium text-purple-400">{data.senderName}</p>
-                                        <p className="truncate">{data.message}</p>
+                                    <div className="ml-3 flex-1">
+                                        <p className="text-sm font-medium text-white flex items-center justify-between">
+                                            <span>💬 Yeni Mesaj</span>
+                                            <span className="text-xs text-gray-400">
+                                                {new Date(data.timestamp).toLocaleTimeString()}
+                                            </span>
+                                        </p>
+                                        <div className="mt-1 text-sm text-gray-400 space-y-1">
+                                            <p className="font-medium text-purple-400">{data.senderName}</p>
+                                            <p className="truncate">{data.message}</p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
+                            <div className="flex border-l border-gray-700">
+                                <button onClick={() => toast.dismiss(t.id)} className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-purple-400 hover:text-purple-500 focus:outline-none">
+                                    Kapat
+                                </button>
+                            </div>
                         </div>
-                        <div className="flex border-l border-gray-700">
-                            <button onClick={() => toast.dismiss(t.id)} className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-purple-400 hover:text-purple-500 focus:outline-none">
-                                Kapat
-                            </button>
-                        </div>
-                    </div>
-                ), { duration: 10000, position: 'top-right' });
+                    ), { duration: 10000, position: 'top-right' });
+                }
             });
 
             return () => {
@@ -380,6 +399,67 @@ const OrderNotification = () => {
                                 </div>
                             ))}
                         </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* İlk Mesaj Modal Pop-up */}
+            <AnimatePresence>
+                {chatModal && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999]"
+                        onClick={() => setChatModal(null)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.8, opacity: 0 }}
+                            className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-3xl p-8 max-w-md w-full mx-4 shadow-2xl border border-purple-500/30"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {/* Header */}
+                            <div className="flex items-center gap-4 mb-6">
+                                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/30">
+                                    <Bell className="w-8 h-8 text-white" />
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-bold text-white">🆕 Yeni Müşteri Mesajı!</h2>
+                                    <p className="text-purple-400 text-sm">
+                                        {chatModal.timestamp && new Date(chatModal.timestamp).toLocaleString()}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Content */}
+                            <div className="bg-white/5 rounded-2xl p-5 mb-6 border border-white/10">
+                                <p className="text-lg font-semibold text-purple-400 mb-2">
+                                    {chatModal.senderName}
+                                </p>
+                                <p className="text-white text-lg leading-relaxed">
+                                    "{chatModal.message}"
+                                </p>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setChatModal(null)}
+                                    className="flex-1 py-3 px-6 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl transition-all"
+                                >
+                                    Kapat
+                                </button>
+                                <a
+                                    href="/admin?tab=chats"
+                                    onClick={() => setChatModal(null)}
+                                    className="flex-1 py-3 px-6 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-xl transition-all text-center shadow-lg shadow-purple-500/20"
+                                >
+                                    💬 Yanıtla
+                                </a>
+                            </div>
+                        </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>
