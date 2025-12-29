@@ -1,16 +1,68 @@
 import { redis } from "../lib/redis.js";
 import cloudinary from "../lib/cloudinary.js";
 import Product from "../models/product.model.js";
+import WeeklyProduct from "../models/weeklyProduct.model.js";
 import { Parser } from 'json2csv';
 import { detectBrand } from '../services/brandDetection.js';
 import mongoose from "mongoose";
+
+// Helper: Ürünlere haftalık fiyat bilgisi ekle
+async function applyWeeklyPricesToProducts(products) {
+  try {
+    // Aktif haftalık ürünleri getir
+    const weeklyProducts = await WeeklyProduct.find({ isActive: true })
+      .populate('product')
+      .lean();
+    
+    // Haftalık ürün ID'lerini ve fiyatlarını map'e al
+    const weeklyPriceMap = new Map();
+    for (const wp of weeklyProducts) {
+      if (wp.product && wp.product._id) {
+        weeklyPriceMap.set(wp.product._id.toString(), {
+          weeklyPrice: wp.weeklyPrice,
+          discountPercentage: wp.discountPercentage,
+          originalPrice: wp.originalPrice || wp.product.price
+        });
+      }
+    }
+    
+    // Ürünlere haftalık fiyat bilgisi ekle
+    const productsWithWeeklyPrice = products.map(product => {
+      const productId = product._id ? product._id.toString() : product.id?.toString();
+      const weeklyInfo = weeklyPriceMap.get(productId);
+      
+      if (weeklyInfo) {
+        // Haftalık fiyat varsa uygula
+        return {
+          ...product.toObject ? product.toObject() : product,
+          isWeeklyProduct: true,
+          weeklyPrice: weeklyInfo.weeklyPrice,
+          weeklyDiscountPercentage: weeklyInfo.discountPercentage,
+          originalPrice: weeklyInfo.originalPrice,
+          // actualPrice alanını güncelle (sepet ve diğer hesaplamalar için)
+          actualPrice: weeklyInfo.weeklyPrice
+        };
+      }
+      return product.toObject ? product.toObject() : product;
+    });
+    
+    return productsWithWeeklyPrice;
+  } catch (error) {
+    console.error("Haftalık fiyat uygulama hatası:", error);
+    return products.map(p => p.toObject ? p.toObject() : p);
+  }
+}
 
 export const getAllProducts = async (req, res) => {
   try {
     console.log("Get all products request received for admin"); // Debug log
     const products = await Product.find({}); // Admin için tüm ürünleri getir (isHidden dahil)
     console.log("Products fetched for admin:", products.length);
-    res.json({ products });
+    
+    // Haftalık fiyatları uygula (admin panelde de tutarlılık için)
+    const productsWithWeeklyPrices = await applyWeeklyPricesToProducts(products);
+    
+    res.json({ products: productsWithWeeklyPrices });
   } catch (error) {
     console.error("Error in getAllProducts controller:", error.message);
     res.status(500).json({ message: "Server error", error: error.message });
@@ -87,11 +139,14 @@ export const getFeaturedProducts = async (req, res) => {
     res.setHeader('ETag', etag);
     res.setHeader('Cache-Control', 'private, max-age=300'); // 5 minutes cache
 
+    // Haftalık fiyatları uygula
+    const productsWithWeeklyPrices = await applyWeeklyPricesToProducts(allFeaturedProducts);
+
     // Tutarlı response yapısı için her zaman aynı formatı döndür
     res.json({
       success: true,
-      products: allFeaturedProducts,
-      count: allFeaturedProducts.length
+      products: productsWithWeeklyPrices,
+      count: productsWithWeeklyPrices.length
     });
   } catch (error) {
     console.error("Öne çıkan ürünler getirilirken hata:", error);
@@ -316,8 +371,11 @@ export const getProducts = async (req, res) => {
     res.setHeader('ETag', etag);
     res.setHeader('Cache-Control', 'private, max-age=300'); // 5 minutes cache
     
+    // Haftalık fiyatları uygula
+    const productsWithWeeklyPrices = await applyWeeklyPricesToProducts(products);
+    
     res.status(200).json({ 
-      products,
+      products: productsWithWeeklyPrices,
       pagination: {
         total,
         page: Number(page),
@@ -426,10 +484,13 @@ export const searchProducts = async (req, res) => {
     // Skora göre sırala
     scoredProducts.sort((a, b) => b.searchScore - a.searchScore);
 
+    // Haftalık fiyatları uygula
+    const productsWithWeeklyPrices = await applyWeeklyPricesToProducts(scoredProducts);
+
     res.status(200).json({ 
       success: true, 
-      products: scoredProducts,
-      total: scoredProducts.length,
+      products: productsWithWeeklyPrices,
+      total: productsWithWeeklyPrices.length,
       searchTerm: q
     });
   } catch (error) {
