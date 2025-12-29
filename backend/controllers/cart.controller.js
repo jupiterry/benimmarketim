@@ -1,5 +1,6 @@
 import Product from "../models/product.model.js";
 import Order from "../models/order.model.js";
+import WeeklyProduct from "../models/weeklyProduct.model.js";
 import Settings from "../models/settings.model.js";
 import { sendOrderNotification } from "../services/n8n.service.js";
 import { processReferralFirstOrder } from "./referral.controller.js";
@@ -247,18 +248,37 @@ export const placeOrder = async (req, res) => {
   
 	  // Toplam tutarı hesapla
 	  let totalAmount = 0;
+
+      // Haftalık ürünleri al (sipariş hesaplaması için)
+      const weeklyProducts = await WeeklyProduct.find({ isActive: true }).lean();
+      const weeklyPriceMap = new Map();
+      for (const wp of weeklyProducts) {
+        if (wp.product) {
+          weeklyPriceMap.set(wp.product.toString(), wp.weeklyPrice);
+        }
+      }
+
 	  const orderProducts = await Promise.all(
 		products.map(async (cartItem) => {
 		  const product = await Product.findById(cartItem.product);
 		  if (!product) {
 			throw new Error(`Ürün bulunamadı: ${cartItem.product}`);
 		  }
-		  totalAmount += product.price * cartItem.quantity;
+
+          // Haftalık fiyat kontrolü - varsa haftalık fiyatı kullan
+          const weeklyPrice = weeklyPriceMap.get(product._id.toString());
+          const effectivePrice = weeklyPrice !== undefined ? weeklyPrice : product.price;
+          
+          console.log(`Sipariş Ürünü: ${product.name}, Normal: ${product.price}₺, Haftalık: ${weeklyPrice || 'Yok'}, Kullanılan: ${effectivePrice}₺`);
+
+		  totalAmount += effectivePrice * cartItem.quantity;
 		  return {
 			product: product._id,
 			name: product.name,
 			quantity: cartItem.quantity,
-			price: product.price,
+			price: effectivePrice, // Haftalık fiyat varsa onu kullan
+            originalPrice: product.price, // Orijinal fiyatı da sakla
+            isWeeklyDiscount: weeklyPrice !== undefined,
 		  };
 		})
 	  );
