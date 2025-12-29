@@ -1,5 +1,5 @@
 import express from "express";
-import { protectRoute, adminRoute } from "../middleware/authMiddleware.js";
+import { protectRoute, adminRoute } from "../middleware/auth.middleware.js";
 import {
   getWeeklyProducts,
   getAllWeeklyProducts,
