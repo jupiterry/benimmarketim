@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import CategoryItem from "../components/CategoryItem";
 import WeeklyProducts from "../components/WeeklyProducts";
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
