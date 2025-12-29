@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback } from "react";
 import CategoryItem from "../components/CategoryItem";
-import { useProductStore } from "../stores/useProductStore";
 import WeeklyProducts from "../components/WeeklyProducts";
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
 import { ShoppingCart, Sparkles, TrendingUp, Clock, Gift, Smartphone, Download, Apple, ExternalLink, ChevronRight, Star, Zap, Truck, Shield, ArrowRight } from "lucide-react";
@@ -200,23 +199,13 @@ const FeatureCard = ({ icon: Icon, title, description, color, delay }) => (
 );
 
 const HomePage = () => {
-	const { fetchFeaturedProducts, products, isLoading } = useProductStore();
 	const categoriesRef = useRef(null);
-	const featuredRef = useRef(null);
 	const { scrollY } = useScroll();
 	const heroOpacity = useTransform(scrollY, [0, 400], [1, 0]);
 	const heroScale = useTransform(scrollY, [0, 400], [1, 0.95]);
 
-	useEffect(() => {
-		fetchFeaturedProducts();
-	}, [fetchFeaturedProducts]);
-
 	const scrollToCategories = () => {
 		categoriesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-	};
-
-	const scrollToFeatured = () => {
-		featuredRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 	};
 
 	const container = {
@@ -649,13 +638,6 @@ const HomePage = () => {
 							</motion.div>
 						))}
 					</motion.div>
-				</div>
-			</section>
-
-			{/* Featured Products */}
-			<section ref={featuredRef} className="py-20 bg-gray-900">
-				<div className="container mx-auto px-4">
-					<FeaturedProducts featuredProducts={products?.filter(product => !product.isHidden).slice(0, 8) || []} />
 				</div>
 			</section>
 		</div>
