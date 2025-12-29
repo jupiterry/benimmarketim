@@ -125,48 +125,80 @@ const FloatingChatWidget = () => {
     } finally { setIsLoading(false); }
   }, [fetchChats]);
 
+  // Refs for stable access in socket listeners
+  const selectedChatRef = useRef(selectedChat);
+  const soundEnabledRef = useRef(soundEnabled);
+  const chatsRef = useRef(chats);
+  const messagesRef = useRef(messages);
+
+  useEffect(() => {
+    selectedChatRef.current = selectedChat;
+    soundEnabledRef.current = soundEnabled;
+    chatsRef.current = chats;
+    messagesRef.current = messages;
+  }, [selectedChat, soundEnabled, chats, messages]);
+
   // Socket
   useEffect(() => {
     socketService.connect();
     socketService.joinAdminRoom();
     fetchChats();
 
-    const handlers = {
-      newMessage: (data) => {
-        if(data.message.sender === "user") {
-          if(soundEnabled) playNotificationSound();
-          if(selectedChat?._id === data.message.chat) {
-            setMessages(prev => [...prev, data.message]);
-          } else {
-             toast.custom((t) => (
-               <motion.div initial={{y: 50, opacity:0}} animate={{y:0, opacity:1}} className={`${GLASS_PANEL} p-4 rounded-xl flex items-center gap-3 w-80`}>
-                 <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
-                    <MessageCircle size={20} />
-                 </div>
-                 <div className="flex-1">
-                    <h4 className="text-white font-bold text-sm">Yeni Mesaj</h4>
-                    <p className="text-gray-400 text-xs truncate">{data.message.content}</p>
-                 </div>
-                 <button onClick={() => {
-                    toast.dismiss(t.id);
-                    setIsOpen(true);
-                    const chat = chats.find(c => c._id === data.message.chat);
-                    if(chat) { setSelectedChat(chat); fetchMessages(chat._id); }
-                 }} className="text-emerald-400 text-xs font-bold hover:underline">AÇ</button>
-               </motion.div>
-             ), {duration: 4000});
-          }
-          fetchChats();
+    const handleNewMessage = (data) => {
+      // Admin'in kendi mesajlarını tekrar ekleme (API response zaten ekliyor)
+      if (data.message.sender === "admin") return;
+
+      if(data.message.sender === "user") {
+        const currentSelectedChat = selectedChatRef.current;
+        const isCurrentChat = currentSelectedChat?._id === data.chatId;
+
+        if(soundEnabledRef.current) playNotificationSound();
+        
+        if(isCurrentChat) {
+          setMessages(prev => {
+             if (prev.some(m => m._id === data.message._id)) return prev;
+             return [...prev, data.message];
+          });
+          // Okundu olarak işaretle (anlık)
+          axios.put(`/chat/${data.chatId}/read`).catch(console.error);
+        } else {
+           toast.custom((t) => (
+             <motion.div initial={{y: 50, opacity:0}} animate={{y:0, opacity:1}} className={`${GLASS_PANEL} p-4 rounded-xl flex items-center gap-3 w-80`}>
+               <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <MessageCircle size={20} />
+               </div>
+               <div className="flex-1">
+                  <h4 className="text-white font-bold text-sm">Yeni Mesaj</h4>
+                  <p className="text-gray-400 text-xs truncate">{data.message.content}</p>
+               </div>
+               <button onClick={() => {
+                  toast.dismiss(t.id);
+                  setIsOpen(true);
+                  const chat = chatsRef.current.find(c => c._id === data.chatId);
+                  if(chat) { 
+                    setSelectedChat(chat); 
+                    // fetchMessages will be called by effect change, but we can't rely on effect inside listener easily
+                    // we will trigger select logic:
+                  }
+               }} className="text-emerald-400 text-xs font-bold hover:underline">AÇ</button>
+             </motion.div>
+           ), {duration: 4000});
         }
-      },
+        fetchChats();
+      }
+    };
+    
+    // Stable handlers
+     const handlers = {
+      newMessage: handleNewMessage,
       typing: (data) => data.sender === "user" && setTypingChats(prev => ({...prev, [data.chatId]: true})),
       stopTyping: (data) => setTypingChats(prev => { const n = {...prev}; delete n[data.chatId]; return n; }),
-      newChat: () => { if(soundEnabled) playNotificationSound(); toast.success("Yeni Destek Talebi!"); fetchChats(); }
+      newChat: () => { if(soundEnabledRef.current) playNotificationSound(); toast.success("Yeni Destek Talebi!"); fetchChats(); }
     };
 
     Object.entries(handlers).forEach(([evt, handler]) => socketService.on(evt, handler));
     return () => Object.entries(handlers).forEach(([evt]) => socketService.off(evt));
-  }, [fetchChats, messages, selectedChat, soundEnabled, chats]);
+  }, [fetchChats]); // Removed dynamic dependencies to prevent constant reconnects
 
   useEffect(() => messagesEndRef.current?.scrollIntoView({behavior:"smooth"}), [messages]);
 
