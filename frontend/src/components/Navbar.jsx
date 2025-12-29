@@ -306,7 +306,7 @@ const OrderNotification = () => {
                                 </button>
                             </div>
                         </div>
-                    ), { duration: 10000, position: 'top-right' });
+                    ), { duration: Infinity, position: 'top-right' });
                 }
             });
 
