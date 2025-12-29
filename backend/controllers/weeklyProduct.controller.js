@@ -106,6 +106,12 @@ export const addWeeklyProduct = async (req, res) => {
       select: "name price image thumbnail category description isOutOfStock",
     });
 
+    // Socket.IO bildirimi gönder
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('weeklyProductsUpdated');
+    }
+
     res.status(201).json({
       success: true,
       message: "Haftalık ürün eklendi",
@@ -158,6 +164,12 @@ export const updateWeeklyProduct = async (req, res) => {
       select: "name price image thumbnail category description isOutOfStock",
     });
 
+    // Socket.IO bildirimi gönder
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('weeklyProductsUpdated');
+    }
+
     res.json({
       success: true,
       message: "Haftalık ürün güncellendi",
@@ -186,6 +198,12 @@ export const removeWeeklyProduct = async (req, res) => {
         success: false,
         message: "Haftalık ürün bulunamadı",
       });
+    }
+
+    // Socket.IO bildirimi gönder
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('weeklyProductsUpdated');
     }
 
     res.json({
@@ -224,6 +242,12 @@ export const toggleWeeklyProductStatus = async (req, res) => {
       path: "product",
       select: "name price image thumbnail category description isOutOfStock",
     });
+
+    // Socket.IO bildirimi gönder
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('weeklyProductsUpdated');
+    }
 
     res.json({
       success: true,
