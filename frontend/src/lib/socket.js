@@ -57,7 +57,7 @@ class SocketService {
   joinChat(chatId) {
     const socket = this.getSocket();
     if (socket && chatId) {
-      socket.emit('joinChat', { chatId });
+      socket.emit('joinChat', chatId);
       console.log('💬 Sohbet odasına katılındı:', chatId);
     }
   }
@@ -66,7 +66,7 @@ class SocketService {
   leaveChat(chatId) {
     const socket = this.getSocket();
     if (socket && chatId) {
-      socket.emit('leaveChat', { chatId });
+      socket.emit('leaveChat', chatId);
       console.log('👋 Sohbet odasından ayrılındı:', chatId);
     }
   }
