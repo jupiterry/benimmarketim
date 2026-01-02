@@ -380,7 +380,7 @@ const OrderCard = forwardRef(({ order, index, onStatusUpdate, onPrint, onAddItem
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{product.name}</p>
+                    <p className="text-sm font-medium text-white whitespace-normal break-words">{product.name}</p>
                     <div className="flex items-center gap-2 mt-1">
                       <span className="text-gray-400 text-xs">Birim: ₺{product.price}</span>
                     </div>
@@ -1526,7 +1526,7 @@ const OrdersList = () => {
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-white truncate">{product.name}</p>
+                            <p className="text-sm font-medium text-white whitespace-normal break-words">{product.name}</p>
                             <p className="text-xs text-gray-400">{product.category}</p>
                           </div>
                           <div className="text-right">
