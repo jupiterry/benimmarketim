@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, forwardRef } from "react";
 import axios from "../lib/axios";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
@@ -122,7 +122,7 @@ const StatusTimeline = ({ status, orderId, onStatusUpdate }) => {
 };
 
 // Order Card Component
-const OrderCard = ({ order, index, onStatusUpdate, onPrint, onAddItem, onDelete, onRemoveItem, onUpdateQuantity }) => {
+const OrderCard = forwardRef(({ order, index, onStatusUpdate, onPrint, onAddItem, onDelete, onRemoveItem, onUpdateQuantity }, ref) => {
   const [isExpanded, setIsExpanded] = useState(false);
   
   const getCardGradient = () => {
@@ -424,7 +424,7 @@ const OrderCard = ({ order, index, onStatusUpdate, onPrint, onAddItem, onDelete,
       )}
     </motion.div>
   );
-};
+});
 
 // Main Component
 const OrdersList = () => {

@@ -284,3 +284,62 @@
   background: rgba(255, 255, 255, 0.2);
 }
 
+/* ======================================
+   ADMIN PANEL V2 ENHANCEMENTS
+   ====================================== */
+
+/* Safe area for mobile */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Tabular numbers for counters */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Hide scrollbar but allow scrolling */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Admin specific overrides */
+.admin-layout .glass {
+  background: rgba(15, 23, 42, 0.8);
+}
+
+.admin-layout .glass-dark {
+  background: rgba(3, 7, 18, 0.9);
+}
+
+/* Focus visible for accessibility */
+.admin-layout button:focus-visible,
+.admin-layout a:focus-visible,
+.admin-layout input:focus-visible {
+  outline: 2px solid rgba(16, 185, 129, 0.5);
+  outline-offset: 2px;
+}
+
+/* Smooth scroll behavior */
+.admin-layout {
+  scroll-behavior: smooth;
+}
+
+/* Print styles */
+@media print {
+  .admin-sidebar,
+  .admin-header,
+  .admin-status-bar {
+    display: none !important;
+  }
+  
+  .admin-main {
+    margin-left: 0 !important;
+  }
+}
+
