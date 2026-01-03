@@ -4,11 +4,43 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
   Search, Package2, ChevronLeft, ChevronRight, RefreshCw, Printer, Filter, X, 
   Clock, Truck, CheckCircle2, XCircle, MapPin, Phone, Mail, User, Calendar,
-  TrendingUp, ShoppingBag, AlertTriangle, Trash2, Plus, Minus, Edit3
+  TrendingUp, ShoppingBag, AlertTriangle, Trash2, Plus, Minus, Edit3, Timer, Eye, AlertCircle
 } from "lucide-react";
 import toast from "react-hot-toast";
 import socketService from "../lib/socket.js";
 import { useConfirm } from "./ConfirmModal";
+
+// Helper: Sipariş süresini hesapla
+const getOrderDuration = (createdAt, updatedAt, status) => {
+  const start = new Date(createdAt);
+  const end = status === "Teslim Edildi" || status === "İptal Edildi" 
+    ? new Date(updatedAt) 
+    : new Date();
+  
+  const diffMs = end - start;
+  const diffMins = Math.floor(diffMs / 60000);
+  
+  if (diffMins < 60) return `${diffMins}dk`;
+  const hours = Math.floor(diffMins / 60);
+  const mins = diffMins % 60;
+  return mins > 0 ? `${hours}s ${mins}dk` : `${hours}s`;
+};
+
+// Helper: Bekleyen sipariş uyarı seviyesi
+const getWarningLevel = (createdAt, status) => {
+  if (status !== "Hazırlanıyor") return null;
+  
+  const diffMins = Math.floor((new Date() - new Date(createdAt)) / 60000);
+  
+  if (diffMins >= 30) return "critical"; // Kırmızı
+  if (diffMins >= 15) return "warning";  // Turuncu
+  return null;
+};
+
+// Helper: Dakika cinsinden bekleme süresi
+const getWaitingMinutes = (createdAt) => {
+  return Math.floor((new Date() - new Date(createdAt)) / 60000);
+};
 
 // Skeleton Loading Component
 const SkeletonCard = () => (
@@ -121,191 +153,342 @@ const StatusTimeline = ({ status, orderId, onStatusUpdate }) => {
   );
 };
 
+// Order Detail Modal Component
+const OrderDetailModal = ({ order, isOpen, onClose, onStatusUpdate, onPrint, onDelete }) => {
+  if (!isOpen || !order) return null;
+
+  const warningLevel = getWarningLevel(order.createdAt, order.status);
+  const duration = getOrderDuration(order.createdAt, order.updatedAt, order.status);
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.9, y: 20 }}
+          className="bg-gray-900 border border-white/10 rounded-3xl w-full max-w-3xl max-h-[90vh] overflow-hidden shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="p-6 border-b border-white/10 bg-gradient-to-r from-emerald-500/10 to-teal-500/10">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold text-lg">
+                  {order.user?.name?.[0]?.toUpperCase() || '?'}
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">{order.user?.name}</h2>
+                  <p className="text-sm text-gray-400">#{order.orderId.slice(-8).toUpperCase()}</p>
+                </div>
+              </div>
+              <button
+                onClick={onClose}
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Status & Duration */}
+            <div className="flex flex-wrap gap-3">
+              <span className={`px-3 py-1.5 rounded-full text-sm font-medium ${
+                order.status === "Teslim Edildi" ? "bg-blue-500/20 text-blue-300" :
+                order.status === "Yolda" ? "bg-amber-500/20 text-amber-300" :
+                order.status === "İptal Edildi" ? "bg-red-500/20 text-red-300" :
+                "bg-emerald-500/20 text-emerald-300"
+              }`}>
+                {order.status}
+              </span>
+              <span className="px-3 py-1.5 rounded-full text-sm bg-gray-700/50 text-gray-300 flex items-center gap-2">
+                <Timer className="w-4 h-4" /> {duration}
+              </span>
+              {warningLevel && (
+                <span className={`px-3 py-1.5 rounded-full text-sm flex items-center gap-2 ${
+                  warningLevel === 'critical' ? 'bg-red-500/30 text-red-300 animate-pulse' : 'bg-orange-500/20 text-orange-300'
+                }`}>
+                  <AlertCircle className="w-4 h-4" /> {getWaitingMinutes(order.createdAt)}dk bekliyor
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="p-6 overflow-y-auto max-h-[60vh] space-y-6">
+            {/* Customer Info */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 bg-white/5 rounded-xl space-y-3">
+                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Müşteri Bilgileri</h3>
+                <div className="space-y-2">
+                  <p className="flex items-center gap-2 text-white"><User className="w-4 h-4 text-emerald-400" /> {order.user?.name}</p>
+                  <p className="flex items-center gap-2 text-gray-300"><Mail className="w-4 h-4 text-gray-500" /> {order.user?.email || '-'}</p>
+                  <p className="flex items-center gap-2 text-gray-300"><Phone className="w-4 h-4 text-gray-500" /> {order.phone || order.user?.phone || '-'}</p>
+                </div>
+              </div>
+              <div className="p-4 bg-white/5 rounded-xl space-y-3">
+                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Teslimat</h3>
+                <div className="space-y-2">
+                  <p className="flex items-center gap-2 text-white"><MapPin className="w-4 h-4 text-emerald-400" /> {order.deliveryPointName || order.deliveryPoint}</p>
+                  <p className="flex items-center gap-2 text-gray-300"><Calendar className="w-4 h-4 text-gray-500" /> {new Date(order.createdAt).toLocaleString('tr-TR')}</p>
+                  <p className="flex items-center gap-2 text-gray-300"><Package2 className="w-4 h-4 text-gray-500" /> {order.products?.length || 0} ürün</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Order Note */}
+            {order.note && (
+              <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs text-amber-400/70 font-medium mb-1">Müşteri Notu</p>
+                    <p className="text-sm text-amber-200">{order.note}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Products */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Ürünler</h3>
+              <div className="space-y-2">
+                {order.products?.map((product, idx) => (
+                  <div key={idx} className="flex items-center gap-4 p-3 bg-white/5 rounded-xl">
+                    <div className="w-14 h-14 rounded-lg bg-gray-700/50 flex items-center justify-center overflow-hidden flex-shrink-0">
+                      {product.image ? (
+                        <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <Package2 className="w-6 h-6 text-gray-500" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-medium truncate">{product.name}</p>
+                      <p className="text-sm text-gray-400">₺{product.price} × {product.quantity}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-emerald-400 font-bold">₺{(product.price * product.quantity).toFixed(2)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {/* Total */}
+              <div className="flex justify-between items-center p-4 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+                <span className="text-gray-300 font-medium">Toplam Tutar</span>
+                <span className="text-2xl font-bold text-emerald-400">₺{order.totalAmount?.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="p-6 border-t border-white/10 bg-gray-900/50 flex flex-wrap gap-3">
+            <select
+              className="flex-1 min-w-[200px] px-4 py-3 rounded-xl bg-gray-800 border border-white/10 text-white font-medium focus:outline-none focus:border-emerald-500/50"
+              value={order.status}
+              onChange={(e) => { onStatusUpdate(order.orderId, e.target.value); onClose(); }}
+            >
+              <option value="Hazırlanıyor">📦 Hazırlanıyor</option>
+              <option value="Yolda">🚚 Yolda</option>
+              <option value="Teslim Edildi">✅ Teslim Edildi</option>
+              <option value="İptal Edildi">❌ İptal Edildi</option>
+            </select>
+            <button
+              onClick={() => { onPrint(order); onClose(); }}
+              className="px-4 py-3 rounded-xl bg-gray-700 hover:bg-gray-600 text-white font-medium flex items-center gap-2 transition-colors"
+            >
+              <Printer className="w-4 h-4" /> Yazdır
+            </button>
+            <button
+              onClick={() => { onDelete(order.orderId); onClose(); }}
+              className="px-4 py-3 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 font-medium flex items-center gap-2 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" /> Sil
+            </button>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
+
 // Order Card Component
-const OrderCard = forwardRef(({ order, index, onStatusUpdate, onPrint, onAddItem, onDelete, onRemoveItem, onUpdateQuantity }, ref) => {
+const OrderCard = forwardRef(({ order, index, onStatusUpdate, onPrint, onAddItem, onDelete, onRemoveItem, onUpdateQuantity, onViewDetail }, ref) => {
   const [isExpanded, setIsExpanded] = useState(false);
   
-  const getCardGradient = () => {
+  const getStatusColor = () => {
     switch (order.status) {
-      case "Yolda": return "from-amber-500/10 to-orange-500/10 border-amber-500/30";
-      case "Teslim Edildi": return "from-blue-500/10 to-indigo-500/10 border-blue-500/30";
-      case "İptal Edildi": return "from-red-500/10 to-pink-500/10 border-red-500/30";
-      default: return "from-emerald-500/10 to-teal-500/10 border-emerald-500/30";
+      case "Yolda": return { bg: "from-amber-600/20 to-orange-600/20", border: "border-amber-500/40", text: "text-amber-400", icon: "🚚" };
+      case "Teslim Edildi": return { bg: "from-blue-600/20 to-indigo-600/20", border: "border-blue-500/40", text: "text-blue-400", icon: "✅" };
+      case "İptal Edildi": return { bg: "from-red-600/20 to-pink-600/20", border: "border-red-500/40", text: "text-red-400", icon: "❌" };
+      default: return { bg: "from-emerald-600/20 to-teal-600/20", border: "border-emerald-500/40", text: "text-emerald-400", icon: "📦" };
     }
   };
+  
+  const statusStyle = getStatusColor();
+  const warningLevel = getWarningLevel(order.createdAt, order.status);
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.3, delay: index * 0.05 }}
+      transition={{ duration: 0.3, delay: index * 0.03 }}
       layout
-      className={`order-card glass rounded-2xl p-5 border bg-gradient-to-br ${getCardGradient()}`}
+      className={`relative overflow-hidden rounded-2xl border ${statusStyle.border} bg-gradient-to-br ${statusStyle.bg} backdrop-blur-xl shadow-xl hover:shadow-2xl transition-all duration-300`}
     >
-      {/* Header */}
-      <div className="flex items-start justify-between mb-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <User className="w-4 h-4 text-emerald-400" />
-            <h3 className="text-lg font-bold text-white">{order.user.name}</h3>
-            {order.isFirstOrder && (
-              <span className="px-2 py-0.5 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-xs font-bold rounded-full animate-pulse shadow-lg shadow-pink-500/30">
-                🎉 İlk Sipariş
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-3 mt-1">
-            <p className="text-xs text-gray-500 font-mono">Sipariş: #{order.orderId.slice(-8).toUpperCase()}</p>
-            <span className="text-xs text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full">
-              📦 {order.userOrderCount || '?'} sipariş
-            </span>
-            {/* Device bilgisi */}
-            {order.device && (
-              <span className="text-xs text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full flex items-center gap-1">
-                {order.device.platform === 'ios' ? '🍎' : order.device.platform === 'android' ? '🤖' : '💻'}
-                {order.device.platform === 'ios' ? 'iOS' : order.device.platform === 'android' ? 'Android' : 'Web'}
-                {order.device.appVersion && ` v${order.device.appVersion}`}
-              </span>
-            )}
-          </div>
+      {/* Glow Effect for Warning */}
+      {warningLevel && (
+        <div className={`absolute inset-0 pointer-events-none ${warningLevel === 'critical' ? 'animate-pulse' : ''}`}>
+          <div className={`absolute top-0 left-0 w-full h-1 ${warningLevel === 'critical' ? 'bg-red-500' : 'bg-orange-500'}`} />
         </div>
-        <div className="flex gap-2">
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => onAddItem(order.orderId)}
-            className="p-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 transition-colors"
-            title="Ürün Ekle"
-          >
-            <span className="text-lg font-bold">+</span>
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => onPrint(order)}
-            className="p-2 rounded-xl bg-gray-700/50 hover:bg-gray-600/50 text-gray-300 transition-colors"
-            title="Yazdır"
-          >
-            <Printer className="w-4 h-4" />
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => onDelete(order.orderId)}
-            className="p-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 transition-colors"
-            title="Siparişi Sil"
-          >
-            <X className="w-4 h-4" />
-          </motion.button>
-        </div>
-      </div>
-
-      {/* Status Timeline */}
-      <div className="mb-4">
-        <StatusTimeline status={order.status} orderId={order.orderId} onStatusUpdate={onStatusUpdate} />
-      </div>
-
-      {/* Status Selector */}
-      <div className="mb-4">
-        <select
-          className={`modern-select w-full px-4 py-3 rounded-xl font-semibold transition-all cursor-pointer ${
-            order.status === "Teslim Edildi"
-              ? "bg-blue-900/80 text-blue-300 border border-blue-500/40"
-              : order.status === "Yolda"
-              ? "bg-amber-900/80 text-amber-300 border border-amber-500/40"
-              : order.status === "İptal Edildi"
-              ? "bg-red-900/80 text-red-300 border border-red-500/40"
-              : "bg-emerald-900/80 text-emerald-300 border border-emerald-500/40"
-          }`}
-          value={order.status}
-          onChange={(e) => onStatusUpdate(order.orderId, e.target.value)}
-          style={{ backgroundColor: 'rgb(17, 24, 39)' }}
-        >
-          <option value="Hazırlanıyor" style={{ backgroundColor: 'rgb(17, 24, 39)', color: '#6ee7b7' }}>📦 Hazırlanıyor</option>
-          <option value="Yolda" style={{ backgroundColor: 'rgb(17, 24, 39)', color: '#fcd34d' }}>🚚 Yolda</option>
-          <option value="Teslim Edildi" style={{ backgroundColor: 'rgb(17, 24, 39)', color: '#93c5fd' }}>✅ Teslim Edildi</option>
-          <option value="İptal Edildi" style={{ backgroundColor: 'rgb(17, 24, 39)', color: '#fca5a5' }}>❌ İptal Edildi</option>
-        </select>
-      </div>
-
-      {/* Customer Info */}
-      <motion.div 
-        className="glass-dark rounded-xl p-3 mb-4 space-y-2"
-        initial={false}
-      >
-        <div className="flex items-center gap-2 text-sm text-gray-400">
-          <Mail className="w-4 h-4 text-gray-500" />
-          <span className="truncate">{order.user.email}</span>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-gray-400">
-          <Phone className="w-4 h-4 text-gray-500" />
-          <span>{order.user.phone || "Belirtilmemiş"}</span>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-gray-400">
-          <MapPin className="w-4 h-4 text-gray-500" />
-          <span className="truncate">{order.deliveryPointName || order.city || "Belirtilmemiş"}</span>
-        </div>
-      </motion.div>
-
-      {/* Order Summary */}
-      <div className="space-y-2 mb-4">
-        {/* Ürün Sayısı ve Toplam Adet */}
-        <div className="flex items-center justify-between px-3 py-2 bg-gray-700/30 rounded-xl">
-          <div className="flex items-center gap-2">
-            <ShoppingBag className="w-5 h-5 text-gray-400" />
-            <span className="text-gray-300 text-sm font-medium">
-              {order.products.length} farklı ürün
+      )}
+      
+      {/* Header Section */}
+      <div className="p-4 border-b border-white/5">
+        <div className="flex items-center gap-3">
+          {/* Avatar */}
+          <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${statusStyle.bg} ${statusStyle.border} border flex items-center justify-center flex-shrink-0`}>
+            <span className={`text-lg font-bold ${statusStyle.text}`}>
+              {order.user?.name?.[0]?.toUpperCase() || '?'}
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 text-sm font-bold rounded-full">
-              Toplam {order.products.reduce((sum, p) => sum + (p.quantity || 1), 0)} adet
-            </span>
-          </div>
-        </div>
-
-        {/* Kupon Bilgisi */}
-        {order.couponCode && (
-          <div className="flex items-center justify-between px-3 py-2 bg-purple-500/10 rounded-xl border border-purple-500/30">
+          
+          {/* Name & Meta */}
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-lg">🎟️</span>
-              <span className="text-purple-300 text-sm font-medium">Kupon: {order.couponCode}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {order.discountPercentage > 0 && (
-                <span className="text-purple-400 text-xs">%{order.discountPercentage}</span>
+              <h3 className="text-white font-semibold truncate">{order.user?.name}</h3>
+              {order.isFirstOrder && (
+                <span className="px-1.5 py-0.5 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-[9px] font-bold rounded-md uppercase tracking-wide">
+                  Yeni
+                </span>
               )}
-              <span className="text-purple-400 font-bold">-₺{(order.couponDiscount || 0).toFixed(2)}</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-[11px] text-gray-500 mt-0.5">
+              <span className="font-mono">#{order.orderId.slice(-6).toUpperCase()}</span>
+              <span>•</span>
+              <span>{order.userOrderCount || 1}. sipariş</span>
+              {order.device && (
+                <>
+                  <span>•</span>
+                  <span>{order.device.platform === 'ios' ? '🍎' : order.device.platform === 'android' ? '🤖' : '💻'}</span>
+                </>
+              )}
             </div>
           </div>
-        )}
-
-        {/* Fiyat Özeti */}
-        <div className="px-3 py-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
-          {order.couponCode && order.subtotalAmount > 0 && (
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-gray-400 text-sm">Ara Toplam:</span>
-              <span className="text-gray-400 text-sm line-through">₺{order.subtotalAmount.toFixed(2)}</span>
-            </div>
+          
+          {/* Actions */}
+          <div className="flex items-center gap-1">
+            <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => onViewDetail(order)}
+              className="p-1.5 rounded-lg bg-white/5 hover:bg-purple-500/20 text-gray-400 hover:text-purple-400 transition-colors">
+              <Eye className="w-4 h-4" />
+            </motion.button>
+            <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => onPrint(order)}
+              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors">
+              <Printer className="w-4 h-4" />
+            </motion.button>
+            <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => onDelete(order.orderId)}
+              className="p-1.5 rounded-lg bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition-colors">
+              <Trash2 className="w-4 h-4" />
+            </motion.button>
+          </div>
+        </div>
+        
+        {/* Status & Duration Row */}
+        <div className="flex items-center gap-2 mt-3">
+          <span className={`text-xs font-medium px-2.5 py-1 rounded-lg ${statusStyle.text} bg-black/20`}>
+            {statusStyle.icon} {order.status}
+          </span>
+          <span className="text-[11px] text-gray-500 bg-black/20 px-2 py-1 rounded-lg flex items-center gap-1">
+            <Timer className="w-3 h-3" />
+            {getOrderDuration(order.createdAt, order.updatedAt, order.status)}
+          </span>
+          {warningLevel && (
+            <span className={`text-[11px] px-2 py-1 rounded-lg flex items-center gap-1 ${
+              warningLevel === 'critical' ? 'bg-red-500/30 text-red-300' : 'bg-orange-500/20 text-orange-300'
+            }`}>
+              <AlertCircle className="w-3 h-3" />
+              {getWaitingMinutes(order.createdAt)}dk
+            </span>
           )}
-          <div className="flex items-center justify-between">
-            <span className="text-white font-medium">Toplam Tutar:</span>
-            <span className="text-2xl font-bold text-emerald-400">₺{order.totalAmount.toFixed(2)}</span>
-          </div>
+          <div className="flex-1" />
+          <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => onAddItem(order.orderId)}
+            className={`text-xs font-medium px-2.5 py-1 rounded-lg ${statusStyle.text} bg-black/20 hover:bg-black/30 transition-colors flex items-center gap-1`}>
+            <Plus className="w-3 h-3" /> Ekle
+          </motion.button>
         </div>
       </div>
 
-      {/* Date */}
-      <div className="flex items-center gap-2 text-xs text-gray-500 mb-4">
-        <Calendar className="w-3 h-3" />
-        {new Date(order.createdAt).toLocaleString("tr-TR", {
-          day: "2-digit",
-          month: "long",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit"
-        })}
+      {/* Body Section */}
+      <div className="p-4 space-y-3">
+        {/* Quick Info Row */}
+        <div className="flex items-center justify-between text-[11px]">
+          <div className="flex items-center gap-3 text-gray-400">
+            <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {order.user?.email?.split('@')[0]}@...</span>
+            <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {order.user?.phone || '-'}</span>
+          </div>
+          <span className="flex items-center gap-1 text-gray-500">
+            <MapPin className="w-3 h-3" /> {order.deliveryPointName || order.city || 'Belirtilmemiş'}
+          </span>
+        </div>
+
+        {/* Order Summary Compact */}
+        <div className={`flex items-center justify-between p-3 rounded-xl bg-black/20 border ${statusStyle.border}`}>
+          <div className="flex items-center gap-3">
+            <div className="text-center">
+              <p className="text-lg font-bold text-white">{order.products?.length || 0}</p>
+              <p className="text-[10px] text-gray-500 uppercase">Ürün</p>
+            </div>
+            <div className="w-px h-8 bg-white/10" />
+            <div className="text-center">
+              <p className="text-lg font-bold text-white">{order.products?.reduce((s, p) => s + (p.quantity || 1), 0)}</p>
+              <p className="text-[10px] text-gray-500 uppercase">Adet</p>
+            </div>
+            {order.couponCode && (
+              <>
+                <div className="w-px h-8 bg-white/10" />
+                <div className="text-center">
+                  <p className="text-sm font-bold text-purple-400">🎟️ {order.couponCode}</p>
+                  <p className="text-[10px] text-purple-300">-₺{(order.couponDiscount || 0).toFixed(0)}</p>
+                </div>
+              </>
+            )}
+          </div>
+          <div className="text-right">
+            <p className={`text-2xl font-bold ${statusStyle.text}`}>₺{order.totalAmount?.toFixed(2)}</p>
+            {order.couponCode && order.subtotalAmount > 0 && (
+              <p className="text-[10px] text-gray-500 line-through">₺{order.subtotalAmount?.toFixed(2)}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Status Change Row */}
+        <div className="flex gap-2">
+          {['Hazırlanıyor', 'Yolda', 'Teslim Edildi', 'İptal Edildi'].map(status => (
+            <button
+              key={status}
+              onClick={() => onStatusUpdate(order.orderId, status)}
+              className={`flex-1 py-2 text-xs font-medium rounded-lg transition-all ${
+                order.status === status 
+                  ? `${statusStyle.text} bg-black/30 ring-1 ring-current` 
+                  : 'text-gray-500 bg-black/10 hover:bg-black/20 hover:text-gray-300'
+              }`}
+            >
+              {status === 'Hazırlanıyor' ? '📦' : status === 'Yolda' ? '🚚' : status === 'Teslim Edildi' ? '✅' : '❌'}
+            </button>
+          ))}
+        </div>
+
+        {/* Date */}
+        <div className="flex items-center gap-2 text-[10px] text-gray-500">
+          <Calendar className="w-3 h-3" />
+          {new Date(order.createdAt).toLocaleString("tr-TR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+        </div>
       </div>
 
       {/* Products Toggle */}
@@ -455,6 +638,9 @@ const OrdersList = () => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [productQuantity, setProductQuantity] = useState(1);
   const [loadingProducts, setLoadingProducts] = useState(false);
+  
+  // Order Detail Modal state
+  const [detailModalOrder, setDetailModalOrder] = useState(null);
 
   const handleOpenAddItemModal = async (orderId) => {
     setSelectedOrderId(orderId);
@@ -930,6 +1116,46 @@ const OrdersList = () => {
     }
   };
 
+  // Ürünün manuel işaretini değiştirme handler'ı
+  const handleToggleManual = async (orderId, productIndex, isManual) => {
+    try {
+      await axios.put("/orders-analytics/toggle-manual", {
+        orderId,
+        productIndex,
+        isManual
+      });
+      
+      // Optimistic update - state'i hemen güncelle
+      setOrderAnalyticsData((prevData) => ({
+        ...prevData,
+        usersOrders: prevData.usersOrders.map((userOrder) => ({
+          ...userOrder,
+          orders: userOrder.orders.map((order) => {
+            if (order.orderId === orderId) {
+              const updatedProducts = [...order.products];
+              updatedProducts[productIndex] = {
+                ...updatedProducts[productIndex],
+                isManual
+              };
+              return {
+                ...order,
+                products: updatedProducts
+              };
+            }
+            return order;
+          }),
+        })),
+      }));
+      
+      toast.success(isManual ? "Ürün manuel olarak işaretlendi" : "Manuel işaret kaldırıldı");
+    } catch (error) {
+      console.error("Manuel işaret güncellenirken hata:", error);
+      toast.error(error.response?.data?.message || "Manuel işaret güncellenirken hata oluştu");
+      // Hata durumunda veriyi yeniden çek
+      fetchOrderAnalyticsData();
+    }
+  };
+
 
   const filterOrders = (orders) => {
     return orders.filter((order) => {
@@ -1362,6 +1588,7 @@ const OrdersList = () => {
               onDelete={handleDeleteOrder}
               onRemoveItem={handleRemoveItem}
               onUpdateQuantity={handleUpdateQuantity}
+              onViewDetail={(order) => setDetailModalOrder(order)}
             />
           ))}
         </AnimatePresence>
@@ -1645,6 +1872,16 @@ const OrdersList = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Order Detail Modal */}
+      <OrderDetailModal
+        order={detailModalOrder}
+        isOpen={!!detailModalOrder}
+        onClose={() => setDetailModalOrder(null)}
+        onStatusUpdate={updateOrderStatus}
+        onPrint={handlePrint}
+        onDelete={handleDeleteOrder}
+      />
     </div>
   );
 };

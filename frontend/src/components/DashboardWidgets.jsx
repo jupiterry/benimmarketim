@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   TrendingUp,
@@ -17,7 +17,9 @@ import {
   ArrowUpRight,
   Eye,
   Box,
-  Truck
+  Truck,
+  Percent,
+  Calculator
 } from "lucide-react";
 import axios from "../lib/axios";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell } from 'recharts';
@@ -176,6 +178,108 @@ const StatusDistribution = ({ data }) => {
   );
 };
 
+// Profit Margin Card Component
+const ProfitMarginCard = ({ allOrders }) => {
+  const [profitMargin, setProfitMargin] = useState(() => {
+    const saved = localStorage.getItem('profitMargin');
+    return saved ? parseFloat(saved) : 10;
+  });
+
+  // Calculate totals
+  const totals = useMemo(() => {
+    let totalWithManual = 0;
+    let manualProductsTotal = 0;
+
+    allOrders.forEach(order => {
+      // İptal edilen siparişleri hariç tut (gerçek satış değil)
+      if (order.status !== 'İptal Edildi') {
+        totalWithManual += order.totalAmount || 0;
+        
+        // Manuel ürünlerin tutarını hesapla
+        order.products?.forEach(product => {
+          if (product.isManual) {
+            manualProductsTotal += (product.price || 0) * (product.quantity || 1);
+          }
+        });
+      }
+    });
+
+    return { 
+      totalWithManual, 
+      totalWithoutManual: totalWithManual - manualProductsTotal,
+      manualProductsTotal 
+    };
+  }, [allOrders]);
+
+  const estimatedProfit = totals.totalWithoutManual * (profitMargin / 100);
+
+  const handleMarginChange = (value) => {
+    const numValue = Math.max(0, Math.min(100, parseFloat(value) || 0));
+    setProfitMargin(numValue);
+    localStorage.setItem('profitMargin', numValue.toString());
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="admin-card bg-gradient-to-br from-emerald-900/30 to-teal-900/20 border-emerald-500/30"
+    >
+      <div className="admin-card-header">
+        <h3 className="admin-card-title">
+          <Calculator className="w-5 h-5 text-emerald-400" />
+          Kar Marjı Hesaplaması
+        </h3>
+        <div className="flex items-center gap-2 bg-gray-800/50 rounded-lg px-3 py-1.5">
+          <Percent className="w-4 h-4 text-emerald-400" />
+          <input
+            type="number"
+            value={profitMargin}
+            onChange={(e) => handleMarginChange(e.target.value)}
+            className="w-14 bg-transparent text-white font-bold text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            min="0"
+            max="100"
+            step="0.5"
+          />
+        </div>
+      </div>
+      <div className="admin-card-body space-y-4">
+        {/* Total With Manual */}
+        <div className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl">
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-blue-400" />
+            <span className="text-gray-400 text-sm">Manuel Dahil Toplam</span>
+          </div>
+          <span className="text-white font-bold">₺{totals.totalWithManual.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</span>
+        </div>
+
+        {/* Total Without Manual */}
+        <div className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl">
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-purple-400" />
+            <span className="text-gray-400 text-sm">Manuel Hariç Toplam</span>
+          </div>
+          <span className="text-white font-bold">₺{totals.totalWithoutManual.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</span>
+        </div>
+
+        {/* Estimated Profit */}
+        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 rounded-xl border border-emerald-500/30">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-emerald-400" />
+            <span className="text-emerald-300 font-medium">Tahmini Net Kâr</span>
+          </div>
+          <span className="text-2xl font-bold text-emerald-400">₺{estimatedProfit.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</span>
+        </div>
+
+        {/* Manual Amount Info */}
+        <div className="text-center text-xs text-gray-500 mt-2">
+          Manuel Eklemeler: ₺{totals.manualProductsTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
 // Main Dashboard Component
 const DashboardWidgets = () => {
   const [stats, setStats] = useState({
@@ -188,7 +292,8 @@ const DashboardWidgets = () => {
     liveOrderCount: 0,
     recentOrders: [],
     totalUsers: 0,
-    statusDistribution: []
+    statusDistribution: [],
+    allOrders: []
   });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -273,7 +378,8 @@ const DashboardWidgets = () => {
         liveOrderCount: allOrders.filter(o => o.status === "Hazırlanıyor").length,
         recentOrders,
         totalUsers: users.length,
-        statusDistribution
+        statusDistribution,
+        allOrders
       });
     } catch (error) {
       console.error("Dashboard verileri yüklenirken hata:", error);
@@ -308,7 +414,7 @@ const DashboardWidgets = () => {
           customerName: orders.find(u => u.orders?.some(o => o.orderId === order.orderId))?.user?.name || 'Müşteri'
         }));
       
-      setStats(prev => ({ ...prev, liveOrderCount: liveCount, recentOrders }));
+      setStats(prev => ({ ...prev, liveOrderCount: liveCount, recentOrders, allOrders }));
     } catch (error) {
       console.error("Canlı veri güncellenirken hata:", error);
     }
@@ -509,7 +615,9 @@ const DashboardWidgets = () => {
       </div>
 
       {/* Bottom Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Profit Margin Calculator */}
+        <ProfitMarginCard allOrders={stats.allOrders} />
         {/* Popular Products */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}

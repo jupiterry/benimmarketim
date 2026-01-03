@@ -50,8 +50,8 @@ export const getAnalytics = async (req, res) => {
 			createdAt: { $gte: previousPeriodStart, $lt: startDate }
 		});
 
-		// Toplam gelir hesaplama - Tüm zamanlar için
-		const allOrders = await Order.find();
+		// Toplam gelir hesaplama - Tüm zamanlar için (İptal edilenler hariç)
+		const allOrders = await Order.find({ status: { $ne: "İptal Edildi" } });
 		const totalRevenue = allOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
 
 		// Değişim oranları hesaplama

@@ -37,6 +37,7 @@ export const getOrderAnalyticsData = async () => {
           quantity: p.quantity,
           price: p.price ?? p.product?.price ?? 0,
           image: p.image || p.product?.image || null,
+          isManual: p.isManual || false,
         })),
         totalAmount: order.totalAmount,
         subtotalAmount: order.subtotalAmount || order.totalAmount,
@@ -80,15 +81,7 @@ export const updateOrderStatus = async (req, res) => {
       return res.status(404).json({ message: "Sipariş bulunamadı!" });
     }
 
-    // Eğer sipariş zaten teslim edilmiş veya iptal edilmişse, durumu değiştirilemez
-    if (order.status === "Teslim Edildi" || order.status === "İptal Edildi") {
-      return res.status(400).json({ message: "Bu siparişin durumu artık değiştirilemez!" });
-    }
-
-    // Yolda olan bir sipariş sadece teslim edildi olarak işaretlenebilir
-    if (order.status === "Yolda" && status !== "Teslim Edildi") {
-      return res.status(400).json({ message: "Yoldaki sipariş sadece teslim edildi olarak işaretlenebilir!" });
-    }
+    // Admin tüm durum değişikliklerini yapabilir - kısıtlama yok
 
     order.status = status;
     await order.save();
@@ -274,7 +267,8 @@ export const addCustomItemToOrder = async (req, res) => {
       name: name || "Özel Ekleme",
       quantity: 1, // Adet her zaman 1
       price: parseFloat(amount), // Fiyat girilen tutar
-      image: customProduct.image
+      image: customProduct.image,
+      isManual: true, // Manuel eklenen ürün - kar marjı hesaplamasında hariç tutulacak
     };
 
     // Siparişe ekle
@@ -486,6 +480,42 @@ export const addProductToOrder = async (req, res) => {
     });
   } catch (error) {
     console.error("Siparişe ürün eklenirken hata:", error.message);
+    res.status(500).json({ message: "Server hatası", error: error.message });
+  }
+};
+
+// Ürünün manuel işaretini değiştirme fonksiyonu (Admin only)
+export const toggleManualFlag = async (req, res) => {
+  try {
+    const { orderId, productIndex, isManual } = req.body;
+
+    if (!orderId || productIndex === undefined || isManual === undefined) {
+      return res.status(400).json({ message: "Sipariş ID, ürün index'i ve isManual değeri gerekli!" });
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ message: "Sipariş bulunamadı!" });
+    }
+
+    if (productIndex < 0 || productIndex >= order.products.length) {
+      return res.status(400).json({ message: "Geçersiz ürün index'i!" });
+    }
+
+    // isManual değerini güncelle
+    order.products[productIndex].isManual = isManual;
+
+    await order.save();
+
+    res.json({ 
+      success: true,
+      message: isManual ? "Ürün manuel olarak işaretlendi!" : "Manuel işareti kaldırıldı!",
+      order,
+      updatedProduct: order.products[productIndex].name,
+      isManual
+    });
+  } catch (error) {
+    console.error("Manuel işareti güncellenirken hata:", error.message);
     res.status(500).json({ message: "Server hatası", error: error.message });
   }
 };

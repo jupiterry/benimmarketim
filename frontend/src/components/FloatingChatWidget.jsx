@@ -296,7 +296,11 @@ const FloatingChatWidget = () => {
                            <MiniChatItem 
                               key={chat._id} chat={chat} isTyping={typingChats[chat._id]}
                               isSelected={selectedChat?._id === chat._id} 
-                              onClick={() => { setSelectedChat(chat); if(!isMaximized) socketService.joinChat(chat._id); }}
+                              onClick={() => { 
+                                 setSelectedChat(chat); 
+                                 fetchMessages(chat._id);
+                                 socketService.joinChat(chat._id); 
+                               }}
                            />
                         ))
                      )}

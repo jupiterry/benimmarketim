@@ -11,6 +11,7 @@ import {
   removeItemFromOrder,
   updateItemQuantity,
   addProductToOrder,
+  toggleManualFlag,
 } from "../controllers/ordersAnalytics.controller.js";
 
 const router = express.Router();
@@ -58,5 +59,8 @@ router.put("/update-item-quantity", protectRoute, adminRoute, updateItemQuantity
 
 // Siparişe katalog ürünü ekleme endpoint'i
 router.put("/add-product", protectRoute, adminRoute, addProductToOrder);
+
+// Ürünün manuel işaretini değiştirme endpoint'i
+router.put("/toggle-manual", protectRoute, adminRoute, toggleManualFlag);
 
 export default router;
