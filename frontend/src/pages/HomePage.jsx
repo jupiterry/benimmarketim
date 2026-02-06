@@ -23,7 +23,7 @@ const categories = [
 	{ href: "/icecekler", name: "Buz Gibi İçecekler", imageUrl: "/juice.png" },
 	{ href: "/dondurulmus", name: "Dondurulmuş Gıdalar", imageUrl: "/frozen.png" },
 	{ href: "/baharat", name: "Baharatlar", imageUrl: "/spices.png" },
-	{ href: "/dondurma", name: "Golf Dondurmalar", imageUrl: "/dondurma.png" }
+	{ href: "/dondurma", name: "Dondurmalar", imageUrl: "/dondurma.png" }
 ];
 
 const announcements = [
@@ -150,7 +150,7 @@ const Typewriter = ({ texts, speed = 100, deleteSpeed = 50, pauseTime = 2000 }) 
 // Scroll Progress Bar
 const ScrollProgressBar = () => {
 	const { scrollYProgress } = useScroll();
-	
+
 	return (
 		<motion.div
 			className="fixed top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 origin-left z-[100]"
@@ -227,21 +227,21 @@ const HomePage = () => {
 			<ScrollProgressBar />
 
 			{/* Hero Section */}
-			<motion.div 
+			<motion.div
 				style={{ opacity: heroOpacity, scale: heroScale }}
 				className="relative min-h-screen overflow-hidden pt-24"
 			>
 				{/* Animated Background */}
 				<div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-emerald-900/40 to-gray-900" />
-				
+
 				{/* Grid Pattern */}
 				<div className="absolute inset-0 bg-[linear-gradient(rgba(16,185,129,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(16,185,129,0.03)_1px,transparent_1px)] bg-[size:100px_100px]" />
-				
+
 				{/* Floating Shapes */}
 				<div className="absolute top-20 left-10 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl animate-pulse" />
 				<div className="absolute top-60 right-20 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl animate-pulse delay-1000" />
 				<div className="absolute bottom-40 left-1/4 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl animate-pulse delay-2000" />
-				
+
 				{/* Floating Products */}
 				<div className="absolute inset-0 overflow-hidden pointer-events-none">
 					<FloatingProduct emoji="🍎" delay={0} x={5} y={20} duration={5} />
@@ -253,7 +253,7 @@ const HomePage = () => {
 					<FloatingProduct emoji="🍫" delay={3} x={20} y={85} duration={5.5} />
 					<FloatingProduct emoji="🥤" delay={3.5} x={80} y={80} duration={6} />
 				</div>
-				
+
 				<div className="relative z-10 min-h-screen flex flex-col items-center justify-center text-center px-4 sm:px-6 lg:px-8 pt-16 pb-8">
 					{/* Badge */}
 					<motion.div
@@ -274,7 +274,7 @@ const HomePage = () => {
 						className="mb-6"
 					>
 						<div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-4">
-							<motion.div 
+							<motion.div
 								className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-3xl flex items-center justify-center shadow-2xl shadow-emerald-500/30"
 								animate={{ rotate: [0, 5, -5, 0] }}
 								transition={{ duration: 4, repeat: Infinity }}
@@ -308,13 +308,13 @@ const HomePage = () => {
 					</motion.div>
 
 					{/* CTA Buttons */}
-					<motion.div 
+					<motion.div
 						className="flex flex-col sm:flex-row gap-4 mb-12"
 						initial={{ opacity: 0, y: 20 }}
 						animate={{ opacity: 1, y: 0 }}
 						transition={{ delay: 0.8 }}
 					>
-						<motion.button 
+						<motion.button
 							onClick={scrollToCategories}
 							whileHover={{ scale: 1.05, boxShadow: "0 25px 50px rgba(16, 185, 129, 0.4)" }}
 							whileTap={{ scale: 0.95 }}
@@ -325,20 +325,20 @@ const HomePage = () => {
 							<span className="relative z-10">Alışverişe Başla</span>
 							<ArrowRight className="w-5 h-5 relative z-10 group-hover:translate-x-1 transition-transform" />
 						</motion.button>
-												<motion.button 
-								onClick={scrollToCategories}
-								whileHover={{ scale: 1.05 }}
-								whileTap={{ scale: 0.95 }}
-								className="group bg-white/10 backdrop-blur-xl border border-white/20 hover:bg-white/20 text-white px-8 py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all"
-							>
-								<Sparkles className="w-6 h-6 text-yellow-400" />
-								Kategorileri Keşfet
-								<Star className="w-5 h-5 text-yellow-400 group-hover:rotate-12 transition-transform" />
-							</motion.button>
-						</motion.div>
+						<motion.button
+							onClick={scrollToCategories}
+							whileHover={{ scale: 1.05 }}
+							whileTap={{ scale: 0.95 }}
+							className="group bg-white/10 backdrop-blur-xl border border-white/20 hover:bg-white/20 text-white px-8 py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all"
+						>
+							<Sparkles className="w-6 h-6 text-yellow-400" />
+							Kategorileri Keşfet
+							<Star className="w-5 h-5 text-yellow-400 group-hover:rotate-12 transition-transform" />
+						</motion.button>
+					</motion.div>
 
 					{/* Animated Stats */}
-					<motion.div 
+					<motion.div
 						className="grid grid-cols-3 gap-8 max-w-3xl"
 						initial={{ opacity: 0, y: 30 }}
 						animate={{ opacity: 1, y: 0 }}
@@ -456,7 +456,7 @@ const HomePage = () => {
 					<div className="absolute top-20 left-20 w-72 h-72 bg-purple-500/20 rounded-full blur-3xl animate-pulse" />
 					<div className="absolute bottom-20 right-20 w-80 h-80 bg-pink-500/20 rounded-full blur-3xl animate-pulse delay-1000" />
 				</div>
-				
+
 				<div className="container mx-auto px-4 relative z-10">
 					<div className="max-w-4xl mx-auto text-center">
 						<motion.div
@@ -470,14 +470,14 @@ const HomePage = () => {
 								<span className="text-purple-300 font-semibold">Arkadaşını Getir, Kazan!</span>
 								<Gift className="w-6 h-6 text-pink-400" />
 							</div>
-							
+
 							<h2 className="text-3xl sm:text-5xl font-bold text-white mb-4">
-								Arkadaşını Davet Et, 
+								Arkadaşını Davet Et,
 								<span className="bg-gradient-to-r from-purple-400 via-pink-400 to-rose-400 bg-clip-text text-transparent"> %5 İndirim</span> Kazan!
 							</h2>
-							
+
 							<p className="text-gray-400 text-lg max-w-2xl mx-auto mb-8">
-								Referral kodunu arkadaşlarınla paylaş! Onlar <span className="text-purple-400 font-semibold">%5 indirim</span> ile ilk siparişlerini versin, 
+								Referral kodunu arkadaşlarınla paylaş! Onlar <span className="text-purple-400 font-semibold">%5 indirim</span> ile ilk siparişlerini versin,
 								sen de <span className="text-pink-400 font-semibold">%5 indirim kuponu</span> kazan!
 							</p>
 						</motion.div>
@@ -563,7 +563,7 @@ const HomePage = () => {
 								Mobil Uygulamamızı İndirin!
 							</h2>
 						</motion.div>
-						
+
 						<motion.p
 							initial={{ opacity: 0 }}
 							whileInView={{ opacity: 1 }}
@@ -591,7 +591,7 @@ const HomePage = () => {
 								<span>App Store</span>
 								<ExternalLink className="w-4 h-4" />
 							</a>
-							
+
 							<a
 								href={PLAY_STORE_URL}
 								target="_blank"
@@ -623,8 +623,8 @@ const HomePage = () => {
 						</h2>
 						<p className="text-gray-400">İstediğiniz kategoriye tıklayarak alışverişe başlayın</p>
 					</motion.div>
-					
-					<motion.div 
+
+					<motion.div
 						className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6"
 						variants={container}
 						initial="hidden"

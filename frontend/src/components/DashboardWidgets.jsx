@@ -50,31 +50,63 @@ const AnimatedCounter = ({ value, prefix = "", suffix = "", decimals = 0 }) => {
   return <span>{prefix}{displayValue.toFixed(decimals).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}{suffix}</span>;
 };
 
-// Hero Stat Card
-const HeroStatCard = ({ icon: Icon, title, value, subtitle, trend, trendLabel, color, delay = 0 }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ delay, duration: 0.4 }}
-    className={`admin-stat-card ${color}`}
-  >
-    <div className="relative z-10">
-      <div className={`admin-stat-card-icon ${color}`}>
-        <Icon className="w-6 h-6 text-white" />
+// Hero Stat Card - Premium Neon Design
+const HeroStatCard = ({ icon: Icon, title, value, subtitle, trend, trendLabel, color, delay = 0 }) => {
+  // Map color names to neon colors
+  const colorMap = {
+    emerald: { bg: 'from-[#00ff9d] to-[#00d4aa]', glow: '#00ff9d', border: 'rgba(0, 255, 157, 0.2)' },
+    cyan: { bg: 'from-[#00f5ff] to-[#2d7cff]', glow: '#00f5ff', border: 'rgba(0, 245, 255, 0.2)' },
+    indigo: { bg: 'from-[#bf00ff] to-[#7c3aed]', glow: '#bf00ff', border: 'rgba(191, 0, 255, 0.2)' },
+    purple: { bg: 'from-[#bf00ff] to-[#ff2d92]', glow: '#bf00ff', border: 'rgba(191, 0, 255, 0.2)' },
+    amber: { bg: 'from-[#f59e0b] to-[#ff6b2c]', glow: '#f59e0b', border: 'rgba(245, 158, 11, 0.2)' },
+    violet: { bg: 'from-[#8b5cf6] to-[#bf00ff]', glow: '#8b5cf6', border: 'rgba(139, 92, 246, 0.2)' },
+    pink: { bg: 'from-[#ff2d92] to-[#ff6b2c]', glow: '#ff2d92', border: 'rgba(255, 45, 146, 0.2)' },
+    green: { bg: 'from-[#00ff9d] to-[#00d4aa]', glow: '#00ff9d', border: 'rgba(0, 255, 157, 0.2)' },
+  };
+  const colorStyle = colorMap[color] || colorMap.cyan;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay, duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
+      whileHover={{ y: -4, scale: 1.02 }}
+      className="relative p-6 rounded-2xl overflow-hidden"
+      style={{
+        background: 'rgba(16, 16, 42, 0.7)',
+        backdropFilter: 'blur(16px)',
+        border: `1px solid ${colorStyle.border}`,
+        boxShadow: `0 8px 32px rgba(0, 0, 0, 0.3), 0 0 20px ${colorStyle.glow}15`
+      }}
+    >
+      {/* Gradient Orb Background */}
+      <div 
+        className="absolute -top-1/2 -right-1/2 w-[200px] h-[200px] rounded-full opacity-20"
+        style={{ background: `radial-gradient(circle, ${colorStyle.glow}, transparent 70%)` }}
+      />
+      
+      <div className="relative z-10">
+        <motion.div 
+          className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${colorStyle.bg} flex items-center justify-center mb-4`}
+          style={{ boxShadow: `0 8px 24px ${colorStyle.glow}40` }}
+          whileHover={{ scale: 1.1, rotate: 5 }}
+        >
+          <Icon className="w-7 h-7 text-white" />
+        </motion.div>
+        <p className="text-gray-400 text-sm font-medium mb-1">{title}</p>
+        <p className="text-3xl font-bold text-white">{value}</p>
+        {trend !== undefined && (
+          <div className={`inline-flex items-center gap-1 mt-2 px-2.5 py-1 rounded-full text-xs font-semibold ${trend >= 0 ? 'bg-[#00ff9d]/10 text-[#00ff9d]' : 'bg-[#ff2d92]/10 text-[#ff2d92]'}`}>
+            {trend >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+            <span>{Math.abs(trend)}%</span>
+            {trendLabel && <span className="opacity-70">{trendLabel}</span>}
+          </div>
+        )}
+        {subtitle && <p className="text-gray-500 text-sm mt-2">{subtitle}</p>}
       </div>
-      <p className="admin-stat-card-label">{title}</p>
-      <p className="admin-stat-card-value">{value}</p>
-      {trend !== undefined && (
-        <div className={`admin-stat-card-trend ${trend >= 0 ? 'up' : 'down'}`}>
-          {trend >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-          <span>{Math.abs(trend)}%</span>
-          {trendLabel && <span className="ml-1 opacity-70">{trendLabel}</span>}
-        </div>
-      )}
-      {subtitle && <p className="text-gray-500 text-sm mt-2">{subtitle}</p>}
-    </div>
-  </motion.div>
-);
+    </motion.div>
+  );
+};
 
 // Quick Action Button
 const QuickAction = ({ icon: Icon, label, onClick, color = "emerald" }) => (
@@ -128,8 +160,15 @@ const LiveClock = () => {
   }, []);
   
   return (
-    <div className="flex items-center gap-3 px-4 py-2.5 bg-gray-800/50 rounded-xl border border-gray-700/50">
-      <Clock className="w-4 h-4 text-emerald-400" />
+    <div 
+      className="flex items-center gap-3 px-4 py-2.5 rounded-xl"
+      style={{
+        background: 'rgba(0, 245, 255, 0.05)',
+        border: '1px solid rgba(0, 245, 255, 0.1)',
+        boxShadow: '0 0 20px rgba(0, 245, 255, 0.05)'
+      }}
+    >
+      <Clock className="w-4 h-4 text-[#00f5ff]" />
       <span className="text-white font-mono text-lg tabular-nums">
         {time.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
       </span>
@@ -140,9 +179,9 @@ const LiveClock = () => {
   );
 };
 
-// Order Status Distribution
+// Order Status Distribution - Neon Colors
 const StatusDistribution = ({ data }) => {
-  const COLORS = ['#10b981', '#f59e0b', '#3b82f6', '#ef4444'];
+  const COLORS = ['#00ff9d', '#f59e0b', '#00f5ff', '#ff2d92'];
   
   return (
     <div className="flex items-center gap-6">
@@ -474,8 +513,8 @@ const DashboardWidgets = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Zap className="w-6 h-6 text-emerald-400" />
-            Dashboard
+            <Zap className="w-6 h-6 text-[#00f5ff]" style={{ filter: 'drop-shadow(0 0 8px #00f5ff)' }} />
+            <span className="admin-gradient-text">Dashboard</span>
           </h1>
           <p className="text-gray-400 text-sm mt-1">Gerçek zamanlı mağaza istatistikleri</p>
         </div>
@@ -486,7 +525,12 @@ const DashboardWidgets = () => {
             whileTap={{ scale: 0.95 }}
             onClick={handleRefresh}
             disabled={refreshing}
-            className="p-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 rounded-xl text-emerald-400 transition-colors disabled:opacity-50"
+            className="p-2.5 rounded-xl transition-colors disabled:opacity-50"
+            style={{
+              background: 'rgba(0, 245, 255, 0.1)',
+              color: '#00f5ff',
+              boxShadow: '0 0 15px rgba(0, 245, 255, 0.2)'
+            }}
           >
             <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
           </motion.button>

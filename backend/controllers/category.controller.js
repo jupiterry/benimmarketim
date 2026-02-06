@@ -46,7 +46,7 @@ export const getCategories = async (req, res) => {
       "Buz Gibi İçecekler": { href: "/icecekler", imageUrl: "/juice.png" },
       "Dondurulmuş Gıdalar": { href: "/dondurulmus", imageUrl: "/frozen.png" },
       "Baharatlar": { href: "/baharat", imageUrl: "/spices.png" },
-      "Golf Dondurmalar": { href: "/dondurma", imageUrl: "/dondurma.png" },
+      "Dondurmalar": { href: "/dondurma", imageUrl: "/dondurma.png" },
     };
 
     // Kategorileri formatla

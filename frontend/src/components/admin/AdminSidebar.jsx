@@ -1,9 +1,9 @@
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
   LayoutDashboard, BarChart, Package2, ShoppingBasket, Users, 
   MessageCircle, Tag, Gift, Image, Calendar, FileText, Upload, 
   Settings, PlusCircle, Zap, ChevronRight, ChevronLeft, X,
-  Menu, LogOut
+  Menu, Sparkles
 } from "lucide-react";
 
 const AdminSidebar = ({ 
@@ -21,41 +21,41 @@ const AdminSidebar = ({
     {
       title: "Genel Bakış",
       items: [
-        { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-        { id: "analytics", label: "Gelişmiş Analiz", icon: BarChart },
+        { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, color: "cyan" },
+        { id: "analytics", label: "Gelişmiş Analiz", icon: BarChart, color: "purple" },
       ]
     },
     {
-      title: "Satış",
+      title: "Satış Yönetimi",
       items: [
-        { id: "orders", label: "Siparişler", icon: Package2, badge: orderCount },
-        { id: "products", label: "Ürünler", icon: ShoppingBasket },
-        { id: "create", label: "Ürün Ekle", icon: PlusCircle },
-        { id: "weekly-products", label: "Haftalık Ürünler", icon: Calendar },
+        { id: "orders", label: "Siparişler", icon: Package2, badge: orderCount, color: "green" },
+        { id: "products", label: "Ürünler", icon: ShoppingBasket, color: "cyan" },
+        { id: "create", label: "Ürün Ekle", icon: PlusCircle, color: "purple" },
+        { id: "weekly-products", label: "Haftalık Ürünler", icon: Calendar, color: "pink" },
       ]
     },
     {
-      title: "Müşteriler",
+      title: "Müşteri İlişkileri",
       items: [
-        { id: "users", label: "Kullanıcılar", icon: Users },
-        { id: "chat", label: "Canlı Sohbet", icon: MessageCircle, badge: chatCount },
-        { id: "feedback", label: "Geri Bildirimler", icon: MessageCircle },
+        { id: "users", label: "Kullanıcılar", icon: Users, color: "cyan" },
+        { id: "chat", label: "Canlı Sohbet", icon: MessageCircle, badge: chatCount, color: "green" },
+        { id: "feedback", label: "Geri Bildirimler", icon: MessageCircle, color: "purple" },
       ]
     },
     {
       title: "Pazarlama",
       items: [
-        { id: "coupons", label: "Kuponlar", icon: Tag },
-        { id: "referrals", label: "Referral", icon: Gift },
-        { id: "banners", label: "Banner'lar", icon: Image },
+        { id: "coupons", label: "Kuponlar", icon: Tag, color: "pink" },
+        { id: "referrals", label: "Referral", icon: Gift, color: "purple" },
+        { id: "banners", label: "Banner'lar", icon: Image, color: "cyan" },
       ]
     },
     {
       title: "Sistem",
       items: [
-        { id: "photocopy", label: "Fotokopi", icon: FileText },
-        { id: "bulk-upload", label: "Toplu Yükleme", icon: Upload },
-        { id: "settings", label: "Ayarlar", icon: Settings },
+        { id: "photocopy", label: "Fotokopi", icon: FileText, color: "green" },
+        { id: "bulk-upload", label: "Toplu Yükleme", icon: Upload, color: "purple" },
+        { id: "settings", label: "Ayarlar", icon: Settings, color: "cyan" },
       ]
     }
   ];
@@ -65,89 +65,171 @@ const AdminSidebar = ({
     if (mobileOpen) onMobileClose();
   };
 
+  // Animation variants
+  const itemVariants = {
+    hidden: { opacity: 0, x: -20 },
+    visible: (i) => ({
+      opacity: 1,
+      x: 0,
+      transition: {
+        delay: i * 0.03,
+        duration: 0.3,
+        ease: [0.25, 0.46, 0.45, 0.94]
+      }
+    })
+  };
+
   const sidebarContent = (
     <>
       {/* Logo Section */}
       <div className="admin-sidebar-header">
-        <div className="admin-sidebar-logo">
-          <Zap className="w-5 h-5 text-white" />
-        </div>
-        {!collapsed && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex-1 min-w-0"
-          >
-            <h1 className="text-white font-bold text-lg truncate">Benim Marketim</h1>
-            <p className="text-gray-500 text-xs">Yönetici Paneli</p>
-          </motion.div>
-        )}
+        <motion.div 
+          className="admin-sidebar-logo"
+          whileHover={{ scale: 1.05, rotate: 5 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <Sparkles className="w-6 h-6 text-white" />
+        </motion.div>
+        
+        <AnimatePresence>
+          {!collapsed && (
+            <motion.div
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.2 }}
+              className="flex-1 min-w-0"
+            >
+              <h1 className="text-white font-bold text-lg truncate admin-gradient-text">
+                Benim Marketim
+              </h1>
+              <p className="text-gray-500 text-xs flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#00ff9d] animate-pulse" />
+                Yönetici Paneli
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
         
         {/* Desktop Collapse Button */}
-        <button
+        <motion.button
+          whileHover={{ scale: 1.1, backgroundColor: "rgba(255,255,255,0.1)" }}
+          whileTap={{ scale: 0.9 }}
           onClick={onCollapse}
-          className="hidden lg:flex p-2 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white transition-colors"
+          className="hidden lg:flex p-2 rounded-xl text-gray-400 hover:text-white transition-colors"
         >
-          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-        </button>
+          {collapsed ? (
+            <ChevronRight className="w-4 h-4" />
+          ) : (
+            <ChevronLeft className="w-4 h-4" />
+          )}
+        </motion.button>
         
         {/* Mobile Close Button */}
-        <button
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
           onClick={onMobileClose}
-          className="lg:hidden p-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 transition-colors"
+          className="lg:hidden p-2 rounded-xl bg-[#ff2d92]/10 hover:bg-[#ff2d92]/20 text-[#ff2d92] transition-colors"
         >
           <X className="w-4 h-4" />
-        </button>
+        </motion.button>
       </div>
 
       {/* Navigation */}
-      <nav className="admin-sidebar-content admin-scrollbar">
+      <nav className="admin-sidebar-content">
         {menuGroups.map((group, groupIdx) => (
           <div key={group.title} className="admin-sidebar-group">
-            {!collapsed && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: groupIdx * 0.05 }}
-                className="admin-sidebar-group-title"
-              >
-                {group.title}
-              </motion.div>
-            )}
+            <AnimatePresence>
+              {!collapsed && (
+                <motion.div
+                  initial={{ opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -5 }}
+                  transition={{ delay: groupIdx * 0.05 }}
+                  className="admin-sidebar-group-title"
+                >
+                  {group.title}
+                </motion.div>
+              )}
+            </AnimatePresence>
             
             {group.items.map((item, itemIdx) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
+              const globalIdx = groupIdx * 10 + itemIdx;
               
               return (
                 <motion.button
                   key={item.id}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: (groupIdx * group.items.length + itemIdx) * 0.02 }}
-                  whileHover={{ x: collapsed ? 0 : 4 }}
+                  custom={globalIdx}
+                  variants={itemVariants}
+                  initial="hidden"
+                  animate="visible"
+                  whileHover={{ 
+                    x: collapsed ? 0 : 6,
+                    transition: { duration: 0.2 }
+                  }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => handleItemClick(item.id)}
                   className={`admin-sidebar-item ${isActive ? 'active' : ''}`}
                   title={collapsed ? item.label : undefined}
                 >
-                  <Icon className="admin-sidebar-item-icon" />
-                  {!collapsed && (
-                    <>
-                      <span className="flex-1 text-left truncate">{item.label}</span>
-                      {item.badge > 0 && (
-                        <span className="admin-sidebar-item-badge">
-                          {item.badge > 99 ? '99+' : item.badge}
-                        </span>
-                      )}
-                      {isActive && <ChevronRight className="w-4 h-4 opacity-50" />}
-                    </>
-                  )}
-                  {collapsed && item.badge > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                      {item.badge > 9 ? '9+' : item.badge}
-                    </span>
-                  )}
+                  <motion.div
+                    animate={isActive ? { 
+                      scale: [1, 1.2, 1],
+                      transition: { duration: 0.3 }
+                    } : {}}
+                  >
+                    <Icon className="admin-sidebar-item-icon" />
+                  </motion.div>
+                  
+                  <AnimatePresence>
+                    {!collapsed && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="flex-1 flex items-center justify-between min-w-0"
+                      >
+                        <span className="truncate text-left">{item.label}</span>
+                        <div className="flex items-center gap-2">
+                          {item.badge > 0 && (
+                            <motion.span 
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              className="admin-sidebar-item-badge"
+                            >
+                              {item.badge > 99 ? '99+' : item.badge}
+                            </motion.span>
+                          )}
+                          {isActive && (
+                            <motion.div
+                              initial={{ opacity: 0, x: -5 }}
+                              animate={{ opacity: 0.5, x: 0 }}
+                            >
+                              <ChevronRight className="w-4 h-4" />
+                            </motion.div>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  
+                  {/* Badge for collapsed state */}
+                  <AnimatePresence>
+                    {collapsed && item.badge > 0 && (
+                      <motion.span 
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        exit={{ scale: 0 }}
+                        className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-br from-[#ff2d92] to-[#ff6b2c] text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-lg"
+                        style={{ boxShadow: '0 0 10px rgba(255, 45, 146, 0.5)' }}
+                      >
+                        {item.badge > 9 ? '9+' : item.badge}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
                 </motion.button>
               );
             })}
@@ -157,17 +239,33 @@ const AdminSidebar = ({
 
       {/* User Section */}
       <div className="admin-sidebar-footer">
-        <div className={`admin-sidebar-user ${collapsed ? 'justify-center' : ''}`}>
+        <motion.div 
+          className={`admin-sidebar-user ${collapsed ? 'justify-center' : ''}`}
+          whileHover={{ scale: 1.02 }}
+          transition={{ duration: 0.2 }}
+        >
           <div className="admin-sidebar-avatar">
             {user?.name?.charAt(0)?.toUpperCase() || 'A'}
           </div>
-          {!collapsed && (
-            <div className="flex-1 min-w-0">
-              <p className="text-white text-sm font-medium truncate">{user?.name || 'Admin'}</p>
-              <p className="text-gray-500 text-xs truncate">{user?.email || 'admin@example.com'}</p>
-            </div>
-          )}
-        </div>
+          
+          <AnimatePresence>
+            {!collapsed && (
+              <motion.div
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                className="flex-1 min-w-0"
+              >
+                <p className="text-white text-sm font-medium truncate">
+                  {user?.name || 'Admin'}
+                </p>
+                <p className="text-gray-500 text-xs truncate">
+                  {user?.email || 'admin@example.com'}
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
       </div>
     </>
   );
@@ -177,8 +275,11 @@ const AdminSidebar = ({
       {/* Desktop Sidebar */}
       <motion.aside
         initial={false}
-        animate={{ width: collapsed ? 80 : 280 }}
-        className={`admin-sidebar hidden lg:flex`}
+        animate={{ 
+          width: collapsed ? 80 : 280,
+          transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }
+        }}
+        className="admin-sidebar hidden lg:flex"
       >
         {sidebarContent}
       </motion.aside>
@@ -191,16 +292,22 @@ const AdminSidebar = ({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[55] lg:hidden"
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-black/80 backdrop-blur-md z-[55] lg:hidden"
               onClick={onMobileClose}
             />
             <motion.aside
-              initial={{ x: '-100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              initial={{ x: '-100%', opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: '-100%', opacity: 0 }}
+              transition={{ 
+                type: 'spring', 
+                damping: 30, 
+                stiffness: 300,
+                opacity: { duration: 0.2 }
+              }}
               className="admin-sidebar lg:hidden"
-              style={{ transform: 'none' }}
+              style={{ transform: 'none', boxShadow: '20px 0 60px rgba(0, 0, 0, 0.5)' }}
             >
               {sidebarContent}
             </motion.aside>
@@ -209,62 +316,76 @@ const AdminSidebar = ({
       </AnimatePresence>
 
       {/* Mobile Bottom Tab Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[#0d1321]/95 backdrop-blur-xl border-t border-white/10 z-50 lg:hidden safe-area-bottom">
-        <div className="flex items-center justify-around py-2 px-2">
-          <button
+      <div className="admin-mobile-nav lg:hidden">
+        <div className="admin-mobile-nav-items">
+          <motion.button
+            whileTap={{ scale: 0.9 }}
             onClick={() => handleItemClick('dashboard')}
-            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-colors ${
-              activeTab === 'dashboard' ? 'text-emerald-400' : 'text-gray-500'
-            }`}
+            className={`admin-mobile-nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
           >
             <LayoutDashboard className="w-5 h-5" />
-            <span className="text-[10px]">Ana</span>
-          </button>
-          <button
+            <span>Ana Sayfa</span>
+          </motion.button>
+          
+          <motion.button
+            whileTap={{ scale: 0.9 }}
             onClick={() => handleItemClick('orders')}
-            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-colors relative ${
-              activeTab === 'orders' ? 'text-emerald-400' : 'text-gray-500'
-            }`}
+            className={`admin-mobile-nav-item ${activeTab === 'orders' ? 'active' : ''}`}
           >
             <Package2 className="w-5 h-5" />
-            <span className="text-[10px]">Siparişler</span>
+            <span>Siparişler</span>
             {orderCount > 0 && (
-              <span className="absolute top-0 right-0 w-4 h-4 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+              <span 
+                className="absolute -top-1 right-0 w-4 h-4 text-[10px] font-bold rounded-full flex items-center justify-center"
+                style={{ 
+                  background: 'linear-gradient(135deg, #ff2d92, #ff6b2c)',
+                  boxShadow: '0 0 10px rgba(255, 45, 146, 0.5)'
+                }}
+              >
                 {orderCount > 9 ? '9+' : orderCount}
               </span>
             )}
-          </button>
-          <button
-            onClick={() => onMobileClose() || document.querySelector('.admin-sidebar')?.classList.toggle('open')}
-            className="flex flex-col items-center gap-1 p-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white -mt-4 shadow-lg shadow-emerald-500/30"
+          </motion.button>
+          
+          {/* Center FAB */}
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => {
+              // Toggle mobile menu
+              if (mobileOpen) {
+                onMobileClose();
+              } else {
+                // Trigger mobile menu open - we need to pass this up
+                document.dispatchEvent(new CustomEvent('toggleMobileMenu'));
+              }
+            }}
+            className="admin-mobile-nav-fab"
           >
             <Menu className="w-6 h-6" />
-          </button>
-          <button
+          </motion.button>
+          
+          <motion.button
+            whileTap={{ scale: 0.9 }}
             onClick={() => handleItemClick('products')}
-            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-colors ${
-              activeTab === 'products' ? 'text-emerald-400' : 'text-gray-500'
-            }`}
+            className={`admin-mobile-nav-item ${activeTab === 'products' ? 'active' : ''}`}
           >
             <ShoppingBasket className="w-5 h-5" />
-            <span className="text-[10px]">Ürünler</span>
-          </button>
-          <button
+            <span>Ürünler</span>
+          </motion.button>
+          
+          <motion.button
+            whileTap={{ scale: 0.9 }}
             onClick={() => handleItemClick('users')}
-            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-colors ${
-              activeTab === 'users' ? 'text-emerald-400' : 'text-gray-500'
-            }`}
+            className={`admin-mobile-nav-item ${activeTab === 'users' ? 'active' : ''}`}
           >
             <Users className="w-5 h-5" />
-            <span className="text-[10px]">Kullanıcı</span>
-          </button>
+            <span>Kullanıcılar</span>
+          </motion.button>
         </div>
       </div>
     </>
   );
 };
-
-// AnimatePresence import için
-import { AnimatePresence } from "framer-motion";
 
 export default AdminSidebar;

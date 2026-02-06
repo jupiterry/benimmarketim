@@ -7,65 +7,65 @@ import { ChevronRight, Home, Filter, SortAsc, SortDesc, Grid, List, Sparkles, Ar
 
 
 const categories = [
-	{ href: "/kahve", name: "Benim Kahvem", imageUrl: "/kahve.png", emoji: "☕" },
-	{ href: "/category/yiyecekler", name: "Yiyecekler", imageUrl: "/foods.png", emoji: "🍕" },
-	{ href: "/category/kahvalti", name: "Kahvaltılık Ürünler", imageUrl: "/kahvalti.png", emoji: "🍳" },
-	{ href: "/category/gida", name: "Temel Gıda", imageUrl: "/basic.png", emoji: "🌾" },
-	{ href: "/category/meyve-sebze", name: "Meyve & Sebze", imageUrl: "/fruit.png", emoji: "🍎" },
-	{ href: "/category/sut", name: "Süt & Süt Ürünleri", imageUrl: "/milk.png", emoji: "🥛" },
-	{ href: "/category/bespara", name: "Beş Para Etmeyen Ürünler", imageUrl: "/bespara.png", emoji: "💰" },
-	{ href: "/category/tozicecekler", name: "Toz İçecekler", imageUrl: "/instant.png", emoji: "🍵" },
-	{ href: "/category/cips", name: "Cips & Çerez", imageUrl: "/dd.png", emoji: "🥨" },
-	{ href: "/category/cayseker", name: "Çay ve Şekerler", imageUrl: "/cay.png", emoji: "🍬" },
-	{ href: "/category/atistirma", name: "Atıştırmalıklar", imageUrl: "/atistirmaa.png", emoji: "🍿" },
-	{ href: "/category/temizlik", name: "Temizlik & Hijyen", imageUrl: "/clean.png", emoji: "🧹" },
-	{ href: "/category/kisisel", name: "Kişisel Bakım", imageUrl: "/care.png", emoji: "🧴" },
-	{ href: "/category/makarna", name: "Makarna ve Kuru Bakliyat", imageUrl: "/makarna.png", emoji: "🍝" },
-	{ href: "/category/et", name: "Şarküteri & Et Ürünleri", imageUrl: "/chicken.png", emoji: "🍗" },
-	{ href: "/category/icecekler", name: "Buz Gibi İçecekler", imageUrl: "/juice.png", emoji: "🧃" },
-	{ href: "/category/dondurulmus", name: "Dondurulmuş Gıdalar", imageUrl: "/frozen.png", emoji: "❄️" },
-	{ href: "/category/baharat", name: "Baharatlar", imageUrl: "/spices.png", emoji: "🌶️" },
-  { href: "/dondurma", name: "Golf Dondurmalar", imageUrl: "/dondurma.png", emoji: "🍦" }
+  { href: "/kahve", name: "Benim Kahvem", imageUrl: "/kahve.png", emoji: "☕" },
+  { href: "/category/yiyecekler", name: "Yiyecekler", imageUrl: "/foods.png", emoji: "🍕" },
+  { href: "/category/kahvalti", name: "Kahvaltılık Ürünler", imageUrl: "/kahvalti.png", emoji: "🍳" },
+  { href: "/category/gida", name: "Temel Gıda", imageUrl: "/basic.png", emoji: "🌾" },
+  { href: "/category/meyve-sebze", name: "Meyve & Sebze", imageUrl: "/fruit.png", emoji: "🍎" },
+  { href: "/category/sut", name: "Süt & Süt Ürünleri", imageUrl: "/milk.png", emoji: "🥛" },
+  { href: "/category/bespara", name: "Beş Para Etmeyen Ürünler", imageUrl: "/bespara.png", emoji: "💰" },
+  { href: "/category/tozicecekler", name: "Toz İçecekler", imageUrl: "/instant.png", emoji: "🍵" },
+  { href: "/category/cips", name: "Cips & Çerez", imageUrl: "/dd.png", emoji: "🥨" },
+  { href: "/category/cayseker", name: "Çay ve Şekerler", imageUrl: "/cay.png", emoji: "🍬" },
+  { href: "/category/atistirma", name: "Atıştırmalıklar", imageUrl: "/atistirmaa.png", emoji: "🍿" },
+  { href: "/category/temizlik", name: "Temizlik & Hijyen", imageUrl: "/clean.png", emoji: "🧹" },
+  { href: "/category/kisisel", name: "Kişisel Bakım", imageUrl: "/care.png", emoji: "🧴" },
+  { href: "/category/makarna", name: "Makarna ve Kuru Bakliyat", imageUrl: "/makarna.png", emoji: "🍝" },
+  { href: "/category/et", name: "Şarküteri & Et Ürünleri", imageUrl: "/chicken.png", emoji: "🍗" },
+  { href: "/category/icecekler", name: "Buz Gibi İçecekler", imageUrl: "/juice.png", emoji: "🧃" },
+  { href: "/category/dondurulmus", name: "Dondurulmuş Gıdalar", imageUrl: "/frozen.png", emoji: "❄️" },
+  { href: "/category/baharat", name: "Baharatlar", imageUrl: "/spices.png", emoji: "🌶️" },
+  { href: "/dondurma", name: "Dondurmalar", imageUrl: "/dondurma.png", emoji: "🍦" }
 ];
 
 // Floating particles component
 const FloatingParticles = () => {
-	const particles = Array.from({ length: 20 }, (_, i) => ({
-		id: i,
-		size: Math.random() * 4 + 2,
-		x: Math.random() * 100,
-		y: Math.random() * 100,
-		duration: Math.random() * 20 + 10,
-		delay: Math.random() * 5,
-	}));
+  const particles = Array.from({ length: 20 }, (_, i) => ({
+    id: i,
+    size: Math.random() * 4 + 2,
+    x: Math.random() * 100,
+    y: Math.random() * 100,
+    duration: Math.random() * 20 + 10,
+    delay: Math.random() * 5,
+  }));
 
-	return (
-		<div className="absolute inset-0 overflow-hidden pointer-events-none">
-			{particles.map((particle) => (
-				<motion.div
-					key={particle.id}
-					className="absolute rounded-full bg-emerald-400/20"
-					style={{
-						width: particle.size,
-						height: particle.size,
-						left: `${particle.x}%`,
-						top: `${particle.y}%`,
-					}}
-					animate={{
-						y: [-20, 20, -20],
-						x: [-10, 10, -10],
-						opacity: [0.2, 0.5, 0.2],
-					}}
-					transition={{
-						duration: particle.duration,
-						delay: particle.delay,
-						repeat: Infinity,
-						ease: "easeInOut",
-					}}
-				/>
-			))}
-		</div>
-	);
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {particles.map((particle) => (
+        <motion.div
+          key={particle.id}
+          className="absolute rounded-full bg-emerald-400/20"
+          style={{
+            width: particle.size,
+            height: particle.size,
+            left: `${particle.x}%`,
+            top: `${particle.y}%`,
+          }}
+          animate={{
+            y: [-20, 20, -20],
+            x: [-10, 10, -10],
+            opacity: [0.2, 0.5, 0.2],
+          }}
+          transition={{
+            duration: particle.duration,
+            delay: particle.delay,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
+      ))}
+    </div>
+  );
 };
 
 const CategoryPage = () => {
@@ -139,7 +139,7 @@ const CategoryPage = () => {
         <div className="absolute inset-0 bg-gradient-to-r from-emerald-900/20 via-teal-900/20 to-emerald-900/20" />
         <div className="absolute top-0 left-1/4 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl" />
         <div className="absolute top-0 right-1/4 w-48 h-48 bg-teal-500/10 rounded-full blur-3xl" />
-        
+
         <div className="relative container mx-auto px-4 py-6">
           {/* Breadcrumb */}
           <motion.nav
@@ -148,8 +148,8 @@ const CategoryPage = () => {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.3 }}
           >
-            <Link 
-              to="/" 
+            <Link
+              to="/"
               className="flex items-center gap-1 text-gray-400 hover:text-emerald-400 transition-colors"
             >
               <Home size={16} />
@@ -167,15 +167,15 @@ const CategoryPage = () => {
             transition={{ duration: 0.4 }}
           >
             {/* Category Icon */}
-            <motion.div 
+            <motion.div
               className="relative flex-shrink-0"
               whileHover={{ scale: 1.05, rotate: 3 }}
               transition={{ type: "spring", stiffness: 300 }}
             >
               <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-emerald-400 via-teal-500 to-green-500 rounded-2xl flex items-center justify-center shadow-xl shadow-emerald-500/20">
                 {categoryData?.imageUrl ? (
-                  <img 
-                    src={categoryData.imageUrl} 
+                  <img
+                    src={categoryData.imageUrl}
                     alt={displayName}
                     className="w-10 h-10 sm:w-12 sm:h-12 object-contain"
                   />
@@ -187,7 +187,7 @@ const CategoryPage = () => {
                 <Sparkles size={12} className="text-yellow-900" />
               </div>
             </motion.div>
-            
+
             {/* Title & Count */}
             <div className="flex-1 min-w-0">
               <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-emerald-400 via-teal-400 to-green-400 bg-clip-text text-transparent truncate">
@@ -214,7 +214,7 @@ const CategoryPage = () => {
       </div>
 
       {/* Sticky Filter Bar */}
-      <motion.div 
+      <motion.div
         className="sticky top-[72px] z-40 bg-gray-900/80 backdrop-blur-xl border-y border-gray-700/50"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -226,18 +226,17 @@ const CategoryPage = () => {
             <div className="flex items-center gap-3">
               <motion.button
                 onClick={() => setShowFilters(!showFilters)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all duration-300 ${
-                  showFilters 
-                    ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30' 
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all duration-300 ${showFilters
+                    ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30'
                     : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                }`}
+                  }`}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
                 <Filter size={18} />
                 <span className="hidden sm:inline">Filtrele</span>
               </motion.button>
-              
+
               <div className="hidden sm:block text-gray-400 text-sm">
                 <span className="text-emerald-400 font-bold">{sortedProducts.length}</span> ürün
               </div>
@@ -262,11 +261,10 @@ const CategoryPage = () => {
             <div className="flex items-center gap-1 bg-gray-800 rounded-xl p-1">
               <motion.button
                 onClick={() => setViewMode("grid")}
-                className={`p-2 rounded-lg transition-all duration-300 ${
-                  viewMode === "grid" 
-                    ? 'bg-emerald-500 text-white' 
+                className={`p-2 rounded-lg transition-all duration-300 ${viewMode === "grid"
+                    ? 'bg-emerald-500 text-white'
                     : 'text-gray-400 hover:text-white'
-                }`}
+                  }`}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
@@ -274,11 +272,10 @@ const CategoryPage = () => {
               </motion.button>
               <motion.button
                 onClick={() => setViewMode("list")}
-                className={`p-2 rounded-lg transition-all duration-300 ${
-                  viewMode === "list" 
-                    ? 'bg-emerald-500 text-white' 
+                className={`p-2 rounded-lg transition-all duration-300 ${viewMode === "list"
+                    ? 'bg-emerald-500 text-white'
                     : 'text-gray-400 hover:text-white'
-                }`}
+                  }`}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
@@ -330,20 +327,20 @@ const CategoryPage = () => {
           >
             <AnimatePresence mode="popLayout">
               {sortedProducts?.length === 0 ? (
-                <motion.div 
+                <motion.div
                   className="col-span-full"
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
                 >
                   <div className="flex flex-col items-center justify-center py-20 px-4">
-                    <motion.div 
+                    <motion.div
                       className="relative mb-8"
-                      animate={{ 
+                      animate={{
                         y: [0, -10, 0],
                         rotate: [0, 5, -5, 0]
                       }}
-                      transition={{ 
+                      transition={{
                         duration: 4,
                         repeat: Infinity,
                         ease: "easeInOut"
@@ -356,14 +353,14 @@ const CategoryPage = () => {
                         <span className="text-white text-xl">!</span>
                       </div>
                     </motion.div>
-                    
+
                     <h2 className="text-3xl font-bold text-gray-300 text-center mb-4">
                       Ürün Bulunamadı
                     </h2>
                     <p className="text-gray-400 text-center max-w-md text-lg leading-relaxed mb-8">
                       Bu kategoride henüz ürün bulunmuyor. Yakında yeni ürünler eklenecek! 🚀
                     </p>
-                    
+
                     <motion.button
                       className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white px-8 py-3 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-emerald-500/25"
                       whileHover={{ scale: 1.05 }}
@@ -382,16 +379,16 @@ const CategoryPage = () => {
                     initial={{ opacity: 0, y: 30 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.9 }}
-                    transition={{ 
-                      duration: 0.4, 
+                    transition={{
+                      duration: 0.4,
                       delay: Math.min(index * 0.05, 0.5),
                       layout: { duration: 0.3 }
                     }}
                     whileHover={{ y: -5 }}
                     className={viewMode === "list" ? "w-full" : ""}
                   >
-                    <ProductCard 
-                      product={product} 
+                    <ProductCard
+                      product={product}
                       isAdmin={user?.role === 'admin'}
                       viewMode={viewMode}
                     />

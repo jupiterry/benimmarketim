@@ -22,7 +22,7 @@ const categories = [
 	{ href: "/icecekler", name: "Buz Gibi İçecekler" },
 	{ href: "/dondurulmus", name: "Dondurulmuş Gıdalar" },
 	{ href: "/baharat", name: "Baharatlar" },
-	{ href: "/dondurma", name: "Golf Dondurmalar" }
+	{ href: "/dondurma", name: "Dondurmalar" }
 ];
 
 const CreateProductForm = () => {
@@ -48,11 +48,11 @@ const CreateProductForm = () => {
 	const confirmAndSubmit = async () => {
 		try {
 			await createProduct(newProduct);
-			setNewProduct({ 
-				name: "", 
-				description: "", 
-				price: "", 
-				category: "", 
+			setNewProduct({
+				name: "",
+				description: "",
+				price: "",
+				category: "",
 				image: "",
 				featured: false,
 				hidden: false,
@@ -89,7 +89,7 @@ const CreateProductForm = () => {
 				<div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-teal-500/5 to-blue-500/5" />
 				<div className="absolute -top-24 -right-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl" />
 				<div className="absolute -bottom-24 -left-24 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl" />
-				
+
 				<div className="relative">
 					<div className="flex items-center gap-3 mb-8">
 						<div className="h-12 w-1 bg-gradient-to-b from-emerald-500 to-teal-500 rounded-full" />
@@ -224,10 +224,10 @@ const CreateProductForm = () => {
 									type="button"
 									onClick={() => setNewProduct({ ...newProduct, featured: !newProduct.featured })}
 									className={`group relative flex items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all duration-300
-									${newProduct.featured 
-										? 'border-yellow-500/50 text-yellow-400 bg-yellow-500/10' 
-										: 'border-gray-700 text-gray-400 hover:border-yellow-500/30 hover:bg-yellow-500/5'
-									}`}
+									${newProduct.featured
+											? 'border-yellow-500/50 text-yellow-400 bg-yellow-500/10'
+											: 'border-gray-700 text-gray-400 hover:border-yellow-500/30 hover:bg-yellow-500/5'
+										}`}
 								>
 									<Star size={20} className={`transition-transform duration-300 ${newProduct.featured ? 'scale-110' : 'group-hover:scale-110'}`} />
 									<span>Öne Çıkar</span>
@@ -237,10 +237,10 @@ const CreateProductForm = () => {
 									type="button"
 									onClick={() => setNewProduct({ ...newProduct, hidden: !newProduct.hidden })}
 									className={`group relative flex items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all duration-300
-									${newProduct.hidden 
-										? 'border-purple-500/50 text-purple-400 bg-purple-500/10' 
-										: 'border-gray-700 text-gray-400 hover:border-purple-500/30 hover:bg-purple-500/5'
-									}`}
+									${newProduct.hidden
+											? 'border-purple-500/50 text-purple-400 bg-purple-500/10'
+											: 'border-gray-700 text-gray-400 hover:border-purple-500/30 hover:bg-purple-500/5'
+										}`}
 								>
 									{newProduct.hidden ? (
 										<EyeOff size={20} className="transition-transform duration-300 scale-110" />
@@ -254,10 +254,10 @@ const CreateProductForm = () => {
 									type="button"
 									onClick={() => setNewProduct({ ...newProduct, inStock: !newProduct.inStock })}
 									className={`group relative flex items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all duration-300
-									${newProduct.inStock 
-										? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10' 
-										: 'border-red-500/50 text-red-400 bg-red-500/10'
-									}`}
+									${newProduct.inStock
+											? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10'
+											: 'border-red-500/50 text-red-400 bg-red-500/10'
+										}`}
 								>
 									{newProduct.inStock ? (
 										<Check size={20} className="transition-transform duration-300 scale-110" />
@@ -313,7 +313,7 @@ const CreateProductForm = () => {
 							<div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-teal-500/5 to-blue-500/5" />
 							<div className="absolute -top-24 -right-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl" />
 							<div className="absolute -bottom-24 -left-24 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl" />
-							
+
 							<div className="relative">
 								<div className="flex items-center gap-3 mb-6">
 									<div className="h-10 w-1 bg-gradient-to-b from-emerald-500 to-teal-500 rounded-full" />
@@ -321,7 +321,7 @@ const CreateProductForm = () => {
 										Ürün Önizleme
 									</h3>
 								</div>
-								
+
 								<div className="space-y-6">
 									{newProduct.image && (
 										<div className="relative w-full h-56 rounded-xl overflow-hidden">
@@ -333,7 +333,7 @@ const CreateProductForm = () => {
 											<div className="absolute inset-0 bg-gradient-to-t from-gray-900/80 via-transparent to-transparent" />
 										</div>
 									)}
-									
+
 									<div className="space-y-4">
 										<div className="flex items-center gap-2">
 											<h4 className="text-xl font-medium text-white">{newProduct.name}</h4>
@@ -349,9 +349,9 @@ const CreateProductForm = () => {
 												)}
 											</div>
 										</div>
-										
+
 										<p className="text-gray-300 text-sm leading-relaxed">{newProduct.description}</p>
-										
+
 										<div className="flex items-center justify-between pt-2">
 											<div className="flex items-baseline gap-1">
 												<span className="text-2xl font-bold text-emerald-400">₺{newProduct.price}</span>
@@ -363,7 +363,7 @@ const CreateProductForm = () => {
 										</div>
 									</div>
 								</div>
-								
+
 								<div className="flex gap-4 mt-8">
 									<button
 										onClick={confirmAndSubmit}
@@ -385,7 +385,7 @@ const CreateProductForm = () => {
 											</>
 										)}
 									</button>
-									
+
 									<button
 										onClick={() => setShowConfirmModal(false)}
 										className="flex-1 bg-gray-700/50 hover:bg-gray-700 text-white py-3 px-4 rounded-xl

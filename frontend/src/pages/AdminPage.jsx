@@ -147,8 +147,18 @@ const AdminPage = () => {
       }
     };
 
+    // Mobile menu toggle event handler
+    const handleMobileMenuToggle = () => {
+      setMobileMenuOpen(prev => !prev);
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener('toggleMobileMenu', handleMobileMenuToggle);
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('toggleMobileMenu', handleMobileMenuToggle);
+    };
   }, []);
 
   // Fetch data on mount
