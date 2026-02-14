@@ -3,6 +3,7 @@ import { useProductStore } from "../stores/useProductStore";
 import { useParams, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import ProductCard from "../components/ProductCard";
+import { ProductGridSkeleton } from "../components/Skeletons";
 import { ChevronRight, Home, Filter, SortAsc, SortDesc, Grid, List, Sparkles, ArrowUp } from "lucide-react";
 
 
@@ -69,7 +70,7 @@ const FloatingParticles = () => {
 };
 
 const CategoryPage = () => {
-  const { fetchProductsByCategory, products } = useProductStore();
+  const { fetchProductsByCategory, products, loading } = useProductStore();
   const { category } = useParams();
   const [filteredProducts, setFilteredProducts] = useState(products);
   const { user } = useProductStore();
@@ -227,8 +228,8 @@ const CategoryPage = () => {
               <motion.button
                 onClick={() => setShowFilters(!showFilters)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all duration-300 ${showFilters
-                    ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30'
-                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30'
+                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                   }`}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
@@ -262,8 +263,8 @@ const CategoryPage = () => {
               <motion.button
                 onClick={() => setViewMode("grid")}
                 className={`p-2 rounded-lg transition-all duration-300 ${viewMode === "grid"
-                    ? 'bg-emerald-500 text-white'
-                    : 'text-gray-400 hover:text-white'
+                  ? 'bg-emerald-500 text-white'
+                  : 'text-gray-400 hover:text-white'
                   }`}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -273,8 +274,8 @@ const CategoryPage = () => {
               <motion.button
                 onClick={() => setViewMode("list")}
                 className={`p-2 rounded-lg transition-all duration-300 ${viewMode === "list"
-                    ? 'bg-emerald-500 text-white'
-                    : 'text-gray-400 hover:text-white'
+                  ? 'bg-emerald-500 text-white'
+                  : 'text-gray-400 hover:text-white'
                   }`}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -326,7 +327,11 @@ const CategoryPage = () => {
             layout
           >
             <AnimatePresence mode="popLayout">
-              {sortedProducts?.length === 0 ? (
+              {loading ? (
+                <div className="col-span-full">
+                  <ProductGridSkeleton count={12} />
+                </div>
+              ) : sortedProducts?.length === 0 ? (
                 <motion.div
                   className="col-span-full"
                   initial={{ opacity: 0, scale: 0.9 }}

@@ -1,61 +1,61 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  LayoutDashboard, BarChart, Package2, ShoppingBasket, Users, 
-  MessageCircle, Tag, Gift, Image, Calendar, FileText, Upload, 
-  Settings, PlusCircle, Zap, ChevronRight, ChevronLeft, X,
-  Menu, Sparkles
+import {
+  LayoutDashboard, BarChart, Package2, ShoppingBasket, Users,
+  MessageCircle, Tag, Gift, Image, Calendar, FileText, Upload,
+  Settings, PlusCircle, ChevronRight, ChevronLeft, X,
+  Menu, ChevronsLeft, LogOut
 } from "lucide-react";
 
-const AdminSidebar = ({ 
-  activeTab, 
-  onTabChange, 
-  collapsed, 
-  onCollapse, 
-  mobileOpen, 
+const AdminSidebar = ({
+  activeTab,
+  onTabChange,
+  collapsed,
+  onCollapse,
+  mobileOpen,
   onMobileClose,
   user,
   orderCount = 0,
-  chatCount = 0 
+  chatCount = 0
 }) => {
   const menuGroups = [
     {
-      title: "Genel Bakış",
+      title: "GENEL BAKIŞ",
       items: [
-        { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, color: "cyan" },
-        { id: "analytics", label: "Gelişmiş Analiz", icon: BarChart, color: "purple" },
+        { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+        { id: "analytics", label: "Gelişmiş Analiz", icon: BarChart },
       ]
     },
     {
-      title: "Satış Yönetimi",
+      title: "SATIŞ YÖNETİMİ",
       items: [
-        { id: "orders", label: "Siparişler", icon: Package2, badge: orderCount, color: "green" },
-        { id: "products", label: "Ürünler", icon: ShoppingBasket, color: "cyan" },
-        { id: "create", label: "Ürün Ekle", icon: PlusCircle, color: "purple" },
-        { id: "weekly-products", label: "Haftalık Ürünler", icon: Calendar, color: "pink" },
+        { id: "orders", label: "Siparişler", icon: Package2, badge: orderCount },
+        { id: "products", label: "Ürünler", icon: ShoppingBasket },
+        { id: "create", label: "Ürün Ekle", icon: PlusCircle },
+        { id: "weekly-products", label: "Haftalık Ürünler", icon: Calendar },
       ]
     },
     {
-      title: "Müşteri İlişkileri",
+      title: "MÜŞTERİ İLİŞKİLERİ",
       items: [
-        { id: "users", label: "Kullanıcılar", icon: Users, color: "cyan" },
-        { id: "chat", label: "Canlı Sohbet", icon: MessageCircle, badge: chatCount, color: "green" },
-        { id: "feedback", label: "Geri Bildirimler", icon: MessageCircle, color: "purple" },
+        { id: "users", label: "Kullanıcılar", icon: Users },
+        { id: "chat", label: "Canlı Sohbet", icon: MessageCircle, badge: chatCount },
+        { id: "feedback", label: "Geri Bildirimler", icon: MessageCircle },
       ]
     },
     {
-      title: "Pazarlama",
+      title: "PAZARLAMA",
       items: [
-        { id: "coupons", label: "Kuponlar", icon: Tag, color: "pink" },
-        { id: "referrals", label: "Referral", icon: Gift, color: "purple" },
-        { id: "banners", label: "Banner'lar", icon: Image, color: "cyan" },
+        { id: "coupons", label: "Kuponlar", icon: Tag },
+        { id: "referrals", label: "Referral", icon: Gift },
+        { id: "banners", label: "Banner'lar", icon: Image },
       ]
     },
     {
-      title: "Sistem",
+      title: "SİSTEM",
       items: [
-        { id: "photocopy", label: "Fotokopi", icon: FileText, color: "green" },
-        { id: "bulk-upload", label: "Toplu Yükleme", icon: Upload, color: "purple" },
-        { id: "settings", label: "Ayarlar", icon: Settings, color: "cyan" },
+        { id: "photocopy", label: "Fotokopi", icon: FileText },
+        { id: "bulk-upload", label: "Toplu Yükleme", icon: Upload },
+        { id: "settings", label: "Ayarlar", icon: Settings },
       ]
     }
   ];
@@ -65,201 +65,170 @@ const AdminSidebar = ({
     if (mobileOpen) onMobileClose();
   };
 
-  // Animation variants
-  const itemVariants = {
-    hidden: { opacity: 0, x: -20 },
-    visible: (i) => ({
-      opacity: 1,
-      x: 0,
-      transition: {
-        delay: i * 0.03,
-        duration: 0.3,
-        ease: [0.25, 0.46, 0.45, 0.94]
-      }
-    })
-  };
-
   const sidebarContent = (
-    <>
-      {/* Logo Section */}
-      <div className="admin-sidebar-header">
-        <motion.div 
-          className="admin-sidebar-logo"
-          whileHover={{ scale: 1.05, rotate: 5 }}
-          whileTap={{ scale: 0.95 }}
+    <div className="flex flex-col h-full">
+      {/* ─── Header ─── */}
+      <div className={`flex items-center gap-3 px-5 pt-6 pb-5 ${collapsed ? 'px-3 justify-center' : ''}`}>
+        {/* Logo */}
+        <motion.div
+          whileHover={{ scale: 1.05 }}
+          className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-violet-500/20"
         >
-          <Sparkles className="w-6 h-6 text-white" />
+          <span className="text-white font-black text-sm">BM</span>
         </motion.div>
-        
+
         <AnimatePresence>
           {!collapsed && (
             <motion.div
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
+              initial={{ opacity: 0, width: 0 }}
+              animate={{ opacity: 1, width: "auto" }}
+              exit={{ opacity: 0, width: 0 }}
               transition={{ duration: 0.2 }}
-              className="flex-1 min-w-0"
+              className="flex-1 min-w-0 overflow-hidden"
             >
-              <h1 className="text-white font-bold text-lg truncate admin-gradient-text">
-                Benim Marketim
-              </h1>
-              <p className="text-gray-500 text-xs flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#00ff9d] animate-pulse" />
+              <h1 className="text-[15px] font-bold text-white tracking-tight truncate">Benim Marketim</h1>
+              <p className="text-[11px] text-gray-500 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 Yönetici Paneli
               </p>
             </motion.div>
           )}
         </AnimatePresence>
-        
-        {/* Desktop Collapse Button */}
-        <motion.button
-          whileHover={{ scale: 1.1, backgroundColor: "rgba(255,255,255,0.1)" }}
-          whileTap={{ scale: 0.9 }}
-          onClick={onCollapse}
-          className="hidden lg:flex p-2 rounded-xl text-gray-400 hover:text-white transition-colors"
-        >
-          {collapsed ? (
-            <ChevronRight className="w-4 h-4" />
-          ) : (
-            <ChevronLeft className="w-4 h-4" />
-          )}
-        </motion.button>
-        
-        {/* Mobile Close Button */}
+
+        {/* Desktop collapse */}
         <motion.button
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
-          onClick={onMobileClose}
-          className="lg:hidden p-2 rounded-xl bg-[#ff2d92]/10 hover:bg-[#ff2d92]/20 text-[#ff2d92] transition-colors"
+          onClick={onCollapse}
+          className="hidden lg:flex w-7 h-7 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] items-center justify-center text-gray-500 hover:text-gray-300 transition-colors flex-shrink-0"
         >
-          <X className="w-4 h-4" />
+          {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronsLeft className="w-3.5 h-3.5" />}
+        </motion.button>
+
+        {/* Mobile close */}
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          onClick={onMobileClose}
+          className="lg:hidden w-7 h-7 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] flex items-center justify-center text-gray-500 hover:text-gray-300 transition-colors"
+        >
+          <X className="w-3.5 h-3.5" />
         </motion.button>
       </div>
 
-      {/* Navigation */}
-      <nav className="admin-sidebar-content">
-        {menuGroups.map((group, groupIdx) => (
-          <div key={group.title} className="admin-sidebar-group">
+      {/* ─── Navigation ─── */}
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 pb-4 space-y-6 scrollbar-thin scrollbar-thumb-white/5">
+        {menuGroups.map((group) => (
+          <div key={group.title}>
+            {/* Group Title */}
             <AnimatePresence>
               {!collapsed && (
-                <motion.div
-                  initial={{ opacity: 0, y: -5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -5 }}
-                  transition={{ delay: groupIdx * 0.05 }}
-                  className="admin-sidebar-group-title"
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="text-[10px] font-bold text-gray-600 tracking-[0.12em] mb-2 px-3"
                 >
                   {group.title}
-                </motion.div>
+                </motion.p>
               )}
             </AnimatePresence>
-            
-            {group.items.map((item, itemIdx) => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
-              const globalIdx = groupIdx * 10 + itemIdx;
-              
-              return (
-                <motion.button
-                  key={item.id}
-                  custom={globalIdx}
-                  variants={itemVariants}
-                  initial="hidden"
-                  animate="visible"
-                  whileHover={{ 
-                    x: collapsed ? 0 : 6,
-                    transition: { duration: 0.2 }
-                  }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => handleItemClick(item.id)}
-                  className={`admin-sidebar-item ${isActive ? 'active' : ''}`}
-                  title={collapsed ? item.label : undefined}
-                >
-                  <motion.div
-                    animate={isActive ? { 
-                      scale: [1, 1.2, 1],
-                      transition: { duration: 0.3 }
-                    } : {}}
+
+            {/* Collapsed: thin separator line */}
+            {collapsed && (
+              <div className="mx-auto w-6 border-t border-white/[0.06] mb-2" />
+            )}
+
+            <div className="space-y-0.5">
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+
+                return (
+                  <motion.button
+                    key={item.id}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => handleItemClick(item.id)}
+                    title={collapsed ? item.label : undefined}
+                    className={`
+                      relative w-full flex items-center gap-3 rounded-xl transition-all duration-200
+                      ${collapsed ? 'justify-center px-0 py-2.5 mx-auto' : 'px-3 py-2'}
+                      ${isActive
+                        ? 'bg-violet-500/[0.1] text-white'
+                        : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.03]'
+                      }
+                    `}
                   >
-                    <Icon className="admin-sidebar-item-icon" />
-                  </motion.div>
-                  
-                  <AnimatePresence>
-                    {!collapsed && (
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="flex-1 flex items-center justify-between min-w-0"
-                      >
-                        <span className="truncate text-left">{item.label}</span>
-                        <div className="flex items-center gap-2">
+                    <Icon className={`w-[18px] h-[18px] flex-shrink-0 stroke-[1.5] ${isActive ? 'text-violet-400' : ''
+                      }`} />
+
+                    <AnimatePresence>
+                      {!collapsed && (
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          className="flex-1 flex items-center justify-between min-w-0"
+                        >
+                          <span className={`text-[13px] truncate ${isActive ? 'font-semibold' : 'font-medium'}`}>
+                            {item.label}
+                          </span>
+
                           {item.badge > 0 && (
-                            <motion.span 
+                            <motion.span
                               initial={{ scale: 0 }}
                               animate={{ scale: 1 }}
-                              className="admin-sidebar-item-badge"
+                              className="min-w-[20px] h-5 px-1.5 bg-violet-500 text-white text-[10px] font-bold rounded-md flex items-center justify-center"
                             >
                               {item.badge > 99 ? '99+' : item.badge}
                             </motion.span>
                           )}
-                          {isActive && (
-                            <motion.div
-                              initial={{ opacity: 0, x: -5 }}
-                              animate={{ opacity: 0.5, x: 0 }}
-                            >
-                              <ChevronRight className="w-4 h-4" />
-                            </motion.div>
-                          )}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                  
-                  {/* Badge for collapsed state */}
-                  <AnimatePresence>
-                    {collapsed && item.badge > 0 && (
-                      <motion.span 
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        exit={{ scale: 0 }}
-                        className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-br from-[#ff2d92] to-[#ff6b2c] text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-lg"
-                        style={{ boxShadow: '0 0 10px rgba(255, 45, 146, 0.5)' }}
-                      >
-                        {item.badge > 9 ? '9+' : item.badge}
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </motion.button>
-              );
-            })}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Collapsed badge */}
+                    <AnimatePresence>
+                      {collapsed && item.badge > 0 && (
+                        <motion.span
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          exit={{ scale: 0 }}
+                          className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-violet-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center"
+                        >
+                          {item.badge > 9 ? '9+' : item.badge}
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </motion.button>
+                );
+              })}
+            </div>
           </div>
         ))}
       </nav>
 
-      {/* User Section */}
-      <div className="admin-sidebar-footer">
-        <motion.div 
-          className={`admin-sidebar-user ${collapsed ? 'justify-center' : ''}`}
-          whileHover={{ scale: 1.02 }}
-          transition={{ duration: 0.2 }}
+      {/* ─── User Profile Footer ─── */}
+      <div className={`border-t border-white/[0.06] px-3 py-3 ${collapsed ? 'px-2' : ''}`}>
+        <motion.div
+          whileHover={{ backgroundColor: "rgba(255,255,255,0.03)" }}
+          className={`flex items-center gap-3 rounded-xl p-2 transition-colors cursor-default ${collapsed ? 'justify-center' : ''}`}
         >
-          <div className="admin-sidebar-avatar">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500/30 to-fuchsia-500/30 border border-violet-500/20 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-md shadow-violet-500/10">
             {user?.name?.charAt(0)?.toUpperCase() || 'A'}
           </div>
-          
+
           <AnimatePresence>
             {!collapsed && (
               <motion.div
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                className="flex-1 min-w-0"
+                initial={{ opacity: 0, width: 0 }}
+                animate={{ opacity: 1, width: "auto" }}
+                exit={{ opacity: 0, width: 0 }}
+                className="flex-1 min-w-0 overflow-hidden"
               >
-                <p className="text-white text-sm font-medium truncate">
+                <p className="text-[13px] text-white font-medium truncate leading-tight">
                   {user?.name || 'Admin'}
                 </p>
-                <p className="text-gray-500 text-xs truncate">
+                <p className="text-[11px] text-gray-600 truncate leading-tight">
                   {user?.email || 'admin@example.com'}
                 </p>
               </motion.div>
@@ -267,24 +236,24 @@ const AdminSidebar = ({
           </AnimatePresence>
         </motion.div>
       </div>
-    </>
+    </div>
   );
 
   return (
     <>
-      {/* Desktop Sidebar */}
+      {/* ─── Desktop Sidebar ─── */}
       <motion.aside
         initial={false}
-        animate={{ 
-          width: collapsed ? 80 : 280,
-          transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }
+        animate={{
+          width: collapsed ? 72 : 260,
+          transition: { duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }
         }}
-        className="admin-sidebar hidden lg:flex"
+        className="hidden lg:flex flex-col fixed top-0 left-0 bottom-0 z-40 bg-[#0a0a1a] border-r border-white/[0.06]"
       >
         {sidebarContent}
       </motion.aside>
 
-      {/* Mobile Overlay */}
+      {/* ─── Mobile Overlay ─── */}
       <AnimatePresence>
         {mobileOpen && (
           <>
@@ -292,22 +261,15 @@ const AdminSidebar = ({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="fixed inset-0 bg-black/80 backdrop-blur-md z-[55] lg:hidden"
+              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[55] lg:hidden"
               onClick={onMobileClose}
             />
             <motion.aside
-              initial={{ x: '-100%', opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: '-100%', opacity: 0 }}
-              transition={{ 
-                type: 'spring', 
-                damping: 30, 
-                stiffness: 300,
-                opacity: { duration: 0.2 }
-              }}
-              className="admin-sidebar lg:hidden"
-              style={{ transform: 'none', boxShadow: '20px 0 60px rgba(0, 0, 0, 0.5)' }}
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="fixed top-0 left-0 bottom-0 w-[260px] z-[56] lg:hidden flex flex-col bg-[#0a0a1a] border-r border-white/[0.06] shadow-2xl shadow-black/50"
             >
               {sidebarContent}
             </motion.aside>
@@ -315,73 +277,58 @@ const AdminSidebar = ({
         )}
       </AnimatePresence>
 
-      {/* Mobile Bottom Tab Bar */}
-      <div className="admin-mobile-nav lg:hidden">
-        <div className="admin-mobile-nav-items">
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={() => handleItemClick('dashboard')}
-            className={`admin-mobile-nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
-          >
-            <LayoutDashboard className="w-5 h-5" />
-            <span>Ana Sayfa</span>
-          </motion.button>
-          
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={() => handleItemClick('orders')}
-            className={`admin-mobile-nav-item ${activeTab === 'orders' ? 'active' : ''}`}
-          >
-            <Package2 className="w-5 h-5" />
-            <span>Siparişler</span>
-            {orderCount > 0 && (
-              <span 
-                className="absolute -top-1 right-0 w-4 h-4 text-[10px] font-bold rounded-full flex items-center justify-center"
-                style={{ 
-                  background: 'linear-gradient(135deg, #ff2d92, #ff6b2c)',
-                  boxShadow: '0 0 10px rgba(255, 45, 146, 0.5)'
-                }}
-              >
-                {orderCount > 9 ? '9+' : orderCount}
-              </span>
-            )}
-          </motion.button>
-          
+      {/* ─── Mobile Bottom Tab Bar ─── */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-[#0a0a1a]/95 backdrop-blur-xl border-t border-white/[0.06]">
+        <div className="flex items-center justify-around px-2 py-1.5 max-w-md mx-auto">
+          {[
+            { id: 'dashboard', icon: LayoutDashboard, label: 'Ana Sayfa' },
+            { id: 'orders', icon: Package2, label: 'Siparişler', badge: orderCount },
+          ].map(item => (
+            <motion.button
+              key={item.id}
+              whileTap={{ scale: 0.9 }}
+              onClick={() => handleItemClick(item.id)}
+              className={`relative flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-colors ${activeTab === item.id ? 'text-violet-400' : 'text-gray-600'
+                }`}
+            >
+              <item.icon className="w-5 h-5 stroke-[1.5]" />
+              <span className="text-[10px] font-medium">{item.label}</span>
+              {item.badge > 0 && (
+                <span className="absolute -top-0.5 right-0 w-4 h-4 bg-violet-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                  {item.badge > 9 ? '9+' : item.badge}
+                </span>
+              )}
+            </motion.button>
+          ))}
+
           {/* Center FAB */}
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => {
-              // Toggle mobile menu
-              if (mobileOpen) {
-                onMobileClose();
-              } else {
-                // Trigger mobile menu open - we need to pass this up
-                document.dispatchEvent(new CustomEvent('toggleMobileMenu'));
-              }
+              if (mobileOpen) onMobileClose();
+              else document.dispatchEvent(new CustomEvent('toggleMobileMenu'));
             }}
-            className="admin-mobile-nav-fab"
+            className="w-12 h-12 -mt-5 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-violet-500/30"
           >
-            <Menu className="w-6 h-6" />
+            <Menu className="w-5 h-5" />
           </motion.button>
-          
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={() => handleItemClick('products')}
-            className={`admin-mobile-nav-item ${activeTab === 'products' ? 'active' : ''}`}
-          >
-            <ShoppingBasket className="w-5 h-5" />
-            <span>Ürünler</span>
-          </motion.button>
-          
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={() => handleItemClick('users')}
-            className={`admin-mobile-nav-item ${activeTab === 'users' ? 'active' : ''}`}
-          >
-            <Users className="w-5 h-5" />
-            <span>Kullanıcılar</span>
-          </motion.button>
+
+          {[
+            { id: 'products', icon: ShoppingBasket, label: 'Ürünler' },
+            { id: 'users', icon: Users, label: 'Kullanıcılar' },
+          ].map(item => (
+            <motion.button
+              key={item.id}
+              whileTap={{ scale: 0.9 }}
+              onClick={() => handleItemClick(item.id)}
+              className={`relative flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-colors ${activeTab === item.id ? 'text-violet-400' : 'text-gray-600'
+                }`}
+            >
+              <item.icon className="w-5 h-5 stroke-[1.5]" />
+              <span className="text-[10px] font-medium">{item.label}</span>
+            </motion.button>
+          ))}
         </div>
       </div>
     </>

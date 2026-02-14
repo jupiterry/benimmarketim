@@ -2,6 +2,7 @@ import { ShoppingCart, UserPlus, LogIn, LogOut, Lock, Package, Menu, X, Bell, Fi
 import { Link, useNavigate } from "react-router-dom";
 import { useUserStore } from "../stores/useUserStore";
 import { useCartStore } from "../stores/useCartStore";
+import { useCartNotification } from "../context/CartNotificationContext";
 import SearchBar from "./SearchBar";
 import { useState, useEffect, useRef } from "react";
 import socketService from "../lib/socket.js";
@@ -11,7 +12,7 @@ import toast from 'react-hot-toast';
 // Cart Preview Component
 const CartPreview = ({ cart, onClose }) => {
   const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  
+
   return (
     <motion.div
       initial={{ opacity: 0, y: -10, scale: 0.95 }}
@@ -30,7 +31,7 @@ const CartPreview = ({ cart, onClose }) => {
           </button>
         </div>
       </div>
-      
+
       <div className="max-h-64 overflow-y-auto">
         {cart.length === 0 ? (
           <div className="p-8 text-center">
@@ -61,7 +62,7 @@ const CartPreview = ({ cart, onClose }) => {
           </div>
         )}
       </div>
-      
+
       {cart.length > 0 && (
         <div className="p-4 border-t border-white/10 space-y-3">
           <div className="flex items-center justify-between">
@@ -84,7 +85,7 @@ const CartPreview = ({ cart, onClose }) => {
 // User Menu Component
 const UserMenu = ({ user, onLogout, onClose }) => {
   const isAdmin = user?.role === "admin";
-  
+
   return (
     <motion.div
       initial={{ opacity: 0, y: -10, scale: 0.95 }}
@@ -103,7 +104,7 @@ const UserMenu = ({ user, onLogout, onClose }) => {
           </div>
         </div>
       </div>
-      
+
       <div className="p-2">
         {!isAdmin && (
           <>
@@ -136,7 +137,7 @@ const UserMenu = ({ user, onLogout, onClose }) => {
           </Link>
         )}
       </div>
-      
+
       <div className="p-2 border-t border-white/10">
         <button
           onClick={() => { onLogout(); onClose(); }}
@@ -150,321 +151,231 @@ const UserMenu = ({ user, onLogout, onClose }) => {
   );
 };
 
-// OrderNotification bileşeni
+// OrderNotification bileşeni — Chat listener + sound settings only
+// Order notifications are handled by CartNotificationContext
 const OrderNotification = () => {
-    const [notifications, setNotifications] = useState([]);
-    const [showNotifications, setShowNotifications] = useState(false);
-    const [showSoundSettings, setShowSoundSettings] = useState(false);
-    const { user } = useUserStore();
-    const [selectedSound, setSelectedSound] = useState(() => localStorage.getItem('notificationSound') || 'ringtone');
-    const [currentAudio, setCurrentAudio] = useState(null);
-    
-    // Canlı destek: Bu oturumda bildirim gönderilen kullanıcı ID'leri
-    const notifiedUserIds = useRef(new Set());
-    const [chatModal, setChatModal] = useState(null); // { senderId, senderName, message, timestamp }
-    const notificationSounds = {
-        ringtone: new Audio('/ringtone.mp3'),
-        bell: new Audio('/bell.mp3'),
-        chime: new Audio('/chime.mp3'),
-        furelise: new Audio('/fur-elise.mp3'),
-        gnosienne: new Audio('/gnosienne-no1.mp3'),
-        vivaldi: new Audio('/vivaldi-winter.mp3')
-    };
+  const [showSoundSettings, setShowSoundSettings] = useState(false);
+  const { user } = useUserStore();
+  const [selectedSound, setSelectedSound] = useState(() => localStorage.getItem('notificationSound') || 'ringtone');
+  const [currentAudio, setCurrentAudio] = useState(null);
 
-    const changeNotificationSound = (soundName) => {
-        if (currentAudio) {
-            currentAudio.pause();
-            currentAudio.currentTime = 0;
-        }
-        setSelectedSound(soundName);
-        localStorage.setItem('notificationSound', soundName);
-        const newAudio = notificationSounds[soundName];
-        setCurrentAudio(newAudio);
-        newAudio.play().catch(err => console.log('Ses çalma hatası:', err));
-    };
+  // Cart notification context — order notification count
+  const { notifications: cartNotifications } = useCartNotification();
 
-    const playNotificationSound = () => {
-        if (currentAudio) {
-            currentAudio.pause();
-            currentAudio.currentTime = 0;
-        }
-        const audio = notificationSounds[selectedSound];
-        setCurrentAudio(audio);
-        audio.play().catch(err => console.log('Ses çalma hatası:', err));
-    };
+  // Canlı destek: Bu oturumda bildirim gönderilen kullanıcı ID'leri
+  const notifiedUserIds = useRef(new Set());
+  const [chatModal, setChatModal] = useState(null);
+  const notificationSoundsRef = useRef({
+    ringtone: new Audio('/ringtone.mp3'),
+    bell: new Audio('/bell.mp3'),
+    chime: new Audio('/chime.mp3'),
+    furelise: new Audio('/fur-elise.mp3'),
+    gnosienne: new Audio('/gnosienne-no1.mp3'),
+    vivaldi: new Audio('/vivaldi-winter.mp3')
+  });
 
-    useEffect(() => {
-        if (user?.role === 'admin') {
-            const socket = socketService.connect();
-            socket.removeAllListeners("newOrder");
-            socket.removeAllListeners("newChatMessage");
-            
-            const handleConnect = () => {
-                socket.emit('joinAdminRoom');
-            };
+  const changeNotificationSound = (soundName) => {
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+    }
+    setSelectedSound(soundName);
+    localStorage.setItem('notificationSound', soundName);
+    const newAudio = notificationSoundsRef.current[soundName];
+    setCurrentAudio(newAudio);
+    newAudio.play().catch(err => console.log('Ses çalma hatası:', err));
+  };
 
-            socket.on('connect', handleConnect);
-            if (socket.connected) handleConnect();
+  const playNotificationSound = () => {
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+    }
+    const audio = notificationSoundsRef.current[selectedSound];
+    setCurrentAudio(audio);
+    audio.play().catch(err => console.log('Ses çalma hatası:', err));
+  };
 
-            socket.on('newOrder', (data) => {
-                if (data.order.id === 'test') return;
-                playNotificationSound();
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      const socket = socketService.connect();
+      socket.removeAllListeners("newChatMessage");
 
-                const notification = {
-                    message: data.message,
-                    order: {
-                        id: data.order.id,
-                        totalAmount: data.order.totalAmount,
-                        status: data.order.status,
-                        createdAt: data.order.createdAt,
-                        customerName: data.order.customerName,
-                        city: data.order.city,
-                        phone: data.order.phone
-                    }
-                };
-                setNotifications(prev => [notification, ...prev]);
-                
-                toast.custom((t) => (
-                    <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-gray-800 shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}>
-                        <div className="flex-1 w-0 p-4">
-                            <div className="flex items-start">
-                                <div className="flex-shrink-0 pt-0.5">
-                                    <div className="h-10 w-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                                        <Package className="h-6 w-6 text-emerald-500" />
-                                    </div>
-                                </div>
-                                <div className="ml-3 flex-1">
-                                    <p className="text-sm font-medium text-white flex items-center justify-between">
-                                        <span>Yeni Sipariş!</span>
-                                        <span className="text-xs text-gray-400">
-                                            {new Date(data.order.createdAt).toLocaleTimeString()}
-                                        </span>
-                                    </p>
-                                    <div className="mt-1 text-sm text-gray-400 space-y-1">
-                                        <p className="font-medium text-emerald-400">{data.order.customerName}</p>
-                                        <div className="flex items-center justify-between">
-                                            <p>{data.order.city}</p>
-                                            <p className="font-medium">₺{data.order.totalAmount.toLocaleString()}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="flex border-l border-gray-700">
-                            <button onClick={() => toast.dismiss(t.id)} className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-emerald-400 hover:text-emerald-500 focus:outline-none">
-                                Kapat
-                            </button>
-                        </div>
+      const handleConnect = () => {
+        socket.emit('joinAdminRoom');
+      };
+
+      socket.on('connect', handleConnect);
+      if (socket.connected) handleConnect();
+
+      // Chat Message Notification — order notifications are now handled by CartNotificationContext
+      socket.on('newChatMessage', (data) => {
+        playNotificationSound();
+
+        const senderId = data.senderId || data.userId;
+
+        if (!notifiedUserIds.current.has(senderId)) {
+          notifiedUserIds.current.add(senderId);
+          setChatModal({
+            senderId,
+            senderName: data.senderName,
+            message: data.message,
+            timestamp: data.timestamp
+          });
+        } else {
+          toast.custom((t) => (
+            <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-gray-800 shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-purple-500/30`}>
+              <div className="flex-1 w-0 p-4">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0 pt-0.5">
+                    <div className="h-10 w-10 rounded-full bg-purple-500/20 flex items-center justify-center">
+                      <Bell className="h-5 w-5 text-purple-400" />
                     </div>
-                ), { duration: Infinity, position: 'top-right' });
-            });
-
-            // Global Chat Message Notification - Herhangi bir sayfada olsa bile bildirim
-            socket.on('newChatMessage', (data) => {
-                playNotificationSound();
-                
-                const senderId = data.senderId || data.userId;
-                
-                // Bu kullanıcıdan ilk mesaj mı kontrol et
-                if (!notifiedUserIds.current.has(senderId)) {
-                    // İLK MESAJ: Modal Pop-up göster
-                    notifiedUserIds.current.add(senderId);
-                    setChatModal({
-                        senderId,
-                        senderName: data.senderName,
-                        message: data.message,
-                        timestamp: data.timestamp
-                    });
-                } else {
-                    // SONRAKI MESAJLAR: Toast bildirimi göster
-                    toast.custom((t) => (
-                        <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-gray-800 shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-purple-500/30`}>
-                            <div className="flex-1 w-0 p-4">
-                                <div className="flex items-start">
-                                    <div className="flex-shrink-0 pt-0.5">
-                                        <div className="h-10 w-10 rounded-full bg-purple-500/20 flex items-center justify-center">
-                                            <Bell className="h-5 w-5 text-purple-400" />
-                                        </div>
-                                    </div>
-                                    <div className="ml-3 flex-1">
-                                        <p className="text-sm font-medium text-white flex items-center justify-between">
-                                            <span>💬 Yeni Mesaj</span>
-                                            <span className="text-xs text-gray-400">
-                                                {new Date(data.timestamp).toLocaleTimeString()}
-                                            </span>
-                                        </p>
-                                        <div className="mt-1 text-sm text-gray-400 space-y-1">
-                                            <p className="font-medium text-purple-400">{data.senderName}</p>
-                                            <p className="truncate">{data.message}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="flex border-l border-gray-700">
-                                <button onClick={() => toast.dismiss(t.id)} className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-purple-400 hover:text-purple-500 focus:outline-none">
-                                    Kapat
-                                </button>
-                            </div>
-                        </div>
-                    ), { duration: Infinity, position: 'top-right' });
-                }
-            });
-
-            return () => {
-                socket.off('newOrder');
-                socket.off('newChatMessage');
-                socket.off('connect', handleConnect);
-                socketService.disconnect();
-            };
-        }
-    }, [user]);
-
-    const clearNotifications = () => {
-        setNotifications([]);
-        setShowNotifications(false);
-    };
-
-    if (user?.role !== 'admin') return null;
-
-    return (
-        <div className="relative">
-            <div className="flex items-center gap-1">
-                <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setShowNotifications(!showNotifications)}
-                    className="relative p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-white transition-colors"
-                >
-                    <Bell size={18} />
-                    {notifications.length > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full font-bold">
-                            {notifications.length > 9 ? '9+' : notifications.length}
-                        </span>
-                    )}
-                </motion.button>
-                <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setShowSoundSettings(!showSoundSettings)}
-                    className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-white transition-colors"
-                    title="Bildirim Sesi"
-                >
-                    {selectedSound === 'ringtone' ? '🔔' : selectedSound === 'bell' ? '🎵' : selectedSound === 'chime' ? '🎶' : selectedSound === 'furelise' ? '🎹' : selectedSound === 'gnosienne' ? '🎼' : '🎻'}
-                </motion.button>
+                  </div>
+                  <div className="ml-3 flex-1">
+                    <p className="text-sm font-medium text-white flex items-center justify-between">
+                      <span>💬 Yeni Mesaj</span>
+                      <span className="text-xs text-gray-400">
+                        {new Date(data.timestamp).toLocaleTimeString()}
+                      </span>
+                    </p>
+                    <div className="mt-1 text-sm text-gray-400 space-y-1">
+                      <p className="font-medium text-purple-400">{data.senderName}</p>
+                      <p className="truncate">{data.message}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex border-l border-gray-700">
+                <button onClick={() => toast.dismiss(t.id)} className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-purple-400 hover:text-purple-500 focus:outline-none">
+                  Kapat
+                </button>
+              </div>
             </div>
+          ), { duration: Infinity, position: 'top-right' });
+        }
+      });
 
-            <AnimatePresence>
-                {showSoundSettings && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        className="absolute right-0 mt-2 w-56 bg-gray-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/10 overflow-hidden z-50"
-                    >
-                        <div className="p-2 space-y-1">
-                            {['ringtone', 'bell', 'chime', 'furelise', 'gnosienne', 'vivaldi'].map((sound) => (
-                                <button
-                                    key={sound}
-                                    onClick={() => changeNotificationSound(sound)}
-                                    className={`w-full p-2.5 text-left rounded-xl transition-colors ${selectedSound === sound ? 'bg-emerald-500/20 text-emerald-400' : 'text-gray-400 hover:bg-white/5'}`}
-                                >
-                                    {sound === 'ringtone' ? '🔔 Varsayılan' : sound === 'bell' ? '🎵 Zil' : sound === 'chime' ? '🎶 iPhone' : sound === 'furelise' ? '🎹 Für Elise' : sound === 'gnosienne' ? '🎼 Gnosienne' : '🎻 Vivaldi'}
-                                </button>
-                            ))}
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+      return () => {
+        socket.off('newChatMessage');
+        socket.off('connect', handleConnect);
+      };
+    }
+  }, [user]);
 
-            <AnimatePresence>
-                {showNotifications && notifications.length > 0 && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        className="absolute right-0 mt-2 w-80 bg-gray-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/10 overflow-hidden z-50"
-                    >
-                        <div className="p-4 border-b border-white/10 flex items-center justify-between">
-                            <h3 className="text-white font-bold">Bildirimler</h3>
-                            <button onClick={clearNotifications} className="text-sm text-gray-400 hover:text-white transition-colors">
-                                Temizle
-                            </button>
-                        </div>
-                        <div className="max-h-80 overflow-auto">
-                            {notifications.map((notif, index) => (
-                                <div key={index} className="p-4 border-b border-white/5 hover:bg-white/5 transition-colors">
-                                    <p className="text-white font-medium">{notif.message}</p>
-                                    <p className="text-sm text-emerald-400 mt-1">₺{notif.order.totalAmount}</p>
-                                    <p className="text-xs text-gray-500 mt-1">{new Date(notif.order.createdAt).toLocaleString()}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+  if (user?.role !== 'admin') return null;
 
-            {/* İlk Mesaj Modal Pop-up */}
-            <AnimatePresence>
-                {chatModal && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999]"
-                        onClick={() => setChatModal(null)}
-                    >
-                        <motion.div
-                            initial={{ scale: 0.8, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.8, opacity: 0 }}
-                            className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-3xl p-8 max-w-md w-full mx-4 shadow-2xl border border-purple-500/30"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            {/* Header */}
-                            <div className="flex items-center gap-4 mb-6">
-                                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/30">
-                                    <Bell className="w-8 h-8 text-white" />
-                                </div>
-                                <div>
-                                    <h2 className="text-2xl font-bold text-white">🆕 Yeni Müşteri Mesajı!</h2>
-                                    <p className="text-purple-400 text-sm">
-                                        {chatModal.timestamp && new Date(chatModal.timestamp).toLocaleString()}
-                                    </p>
-                                </div>
-                            </div>
+  const totalNotifCount = cartNotifications.length;
 
-                            {/* Content */}
-                            <div className="bg-white/5 rounded-2xl p-5 mb-6 border border-white/10">
-                                <p className="text-lg font-semibold text-purple-400 mb-2">
-                                    {chatModal.senderName}
-                                </p>
-                                <p className="text-white text-lg leading-relaxed">
-                                    "{chatModal.message}"
-                                </p>
-                            </div>
+  return (
+    <div className="relative">
+      <div className="flex items-center gap-1">
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className="relative p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-white transition-colors"
+          title="Bildirimler"
+        >
+          <Bell size={18} />
+          {totalNotifCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full font-bold animate-pulse">
+              {totalNotifCount > 9 ? '9+' : totalNotifCount}
+            </span>
+          )}
+        </motion.button>
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setShowSoundSettings(!showSoundSettings)}
+          className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-white transition-colors"
+          title="Bildirim Sesi"
+        >
+          {selectedSound === 'ringtone' ? '🔔' : selectedSound === 'bell' ? '🎵' : selectedSound === 'chime' ? '🎶' : selectedSound === 'furelise' ? '🎹' : selectedSound === 'gnosienne' ? '🎼' : '🎻'}
+        </motion.button>
+      </div>
 
-                            {/* Actions */}
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => setChatModal(null)}
-                                    className="flex-1 py-3 px-6 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl transition-all"
-                                >
-                                    Kapat
-                                </button>
-                                <a
-                                    href="/admin?tab=chats"
-                                    onClick={() => setChatModal(null)}
-                                    className="flex-1 py-3 px-6 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-xl transition-all text-center shadow-lg shadow-purple-500/20"
-                                >
-                                    💬 Yanıtla
-                                </a>
-                            </div>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </div>
-    );
+      <AnimatePresence>
+        {showSoundSettings && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="absolute right-0 mt-2 w-56 bg-gray-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/10 overflow-hidden z-50"
+          >
+            <div className="p-2 space-y-1">
+              {['ringtone', 'bell', 'chime', 'furelise', 'gnosienne', 'vivaldi'].map((sound) => (
+                <button
+                  key={sound}
+                  onClick={() => changeNotificationSound(sound)}
+                  className={`w-full p-2.5 text-left rounded-xl transition-colors ${selectedSound === sound ? 'bg-emerald-500/20 text-emerald-400' : 'text-gray-400 hover:bg-white/5'}`}
+                >
+                  {sound === 'ringtone' ? '🔔 Varsayılan' : sound === 'bell' ? '🎵 Zil' : sound === 'chime' ? '🎶 iPhone' : sound === 'furelise' ? '🎹 Für Elise' : sound === 'gnosienne' ? '🎼 Gnosienne' : '🎻 Vivaldi'}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* İlk Mesaj Modal Pop-up */}
+      <AnimatePresence>
+        {chatModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999]"
+            onClick={() => setChatModal(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-3xl p-8 max-w-md w-full mx-4 shadow-2xl border border-purple-500/30"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/30">
+                  <Bell className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-white">🆕 Yeni Müşteri Mesajı!</h2>
+                  <p className="text-purple-400 text-sm">
+                    {chatModal.timestamp && new Date(chatModal.timestamp).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-white/5 rounded-2xl p-5 mb-6 border border-white/10">
+                <p className="text-lg font-semibold text-purple-400 mb-2">
+                  {chatModal.senderName}
+                </p>
+                <p className="text-white text-lg leading-relaxed">
+                  "{chatModal.message}"
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setChatModal(null)}
+                  className="flex-1 py-3 px-6 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl transition-all"
+                >
+                  Kapat
+                </button>
+                <a
+                  href="/admin?tab=chats"
+                  onClick={() => setChatModal(null)}
+                  className="flex-1 py-3 px-6 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-xl transition-all text-center shadow-lg shadow-purple-500/20"
+                >
+                  💬 Yanıtla
+                </a>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
 };
 
 const Navbar = () => {
@@ -500,7 +411,7 @@ const Navbar = () => {
     const handleClickOutside = (event) => {
       const mobileMenu = document.getElementById('mobile-menu');
       const menuButton = document.getElementById('menu-button');
-      
+
       if (isMenuOpen && mobileMenu && !mobileMenu.contains(event.target) && !menuButton.contains(event.target)) {
         setIsMenuOpen(false);
         document.body.style.overflow = 'unset';
@@ -527,7 +438,7 @@ const Navbar = () => {
               </div>
             </div>
           </Link>
-          
+
           {/* Search Bar - Desktop */}
           <div className="flex-1 max-w-lg mx-4 hidden md:block">
             <SearchBar />
