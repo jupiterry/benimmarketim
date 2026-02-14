@@ -20,6 +20,7 @@ import ProductsList from "../components/ProductsList";
 import OrdersList from "../components/OrdersList";
 import FeedbackList from "../components/FeedbackList";
 import SettingsTab from "../components/SettingsTab";
+
 import UsersTab from "../components/UsersTab";
 import PhotocopyTab from "../components/PhotocopyTab";
 import BannerTab from "../components/BannerTab";
@@ -248,7 +249,7 @@ const AdminPage = () => {
   const renderContent = () => {
     switch (activeTab) {
       case "dashboard":
-        return <DashboardWidgets />;
+        return <AdvancedAnalyticsTab />;
       case "analytics":
         return <AdvancedAnalyticsTab />;
       case "orders":
@@ -293,7 +294,7 @@ const AdminPage = () => {
       case "settings":
         return <SettingsTab />;
       default:
-        return <DashboardWidgets />;
+        return <AdvancedAnalyticsTab />;
     }
   };
 
