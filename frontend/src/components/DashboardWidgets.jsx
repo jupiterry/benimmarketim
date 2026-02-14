@@ -1,35 +1,99 @@
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-    Package, ShoppingCart, Users, TrendingUp, Clock,
-    ArrowUpRight, ArrowDownRight, Activity, Zap,
-    DollarSign, Eye, Repeat, ChevronRight
+    TrendingUp,
+    TrendingDown,
+    ShoppingCart,
+    Package,
+    AlertTriangle,
+    DollarSign,
+    Clock,
+    Users,
+    Zap,
+    RefreshCw,
+    ChevronRight,
+    Star,
+    Activity,
+    ArrowUpRight,
+    Eye,
+    Box,
+    Truck,
+    Percent,
+    Calculator
 } from "lucide-react";
-import { useEffect, useState, useRef, useMemo } from "react";
 import axios from "../lib/axios";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
-// ═══════════════════════════════════════════════════════
-//  §  HELPERS
-// ═══════════════════════════════════════════════════════
-
+// ── Dynamic Greeting ──
 const getGreeting = () => {
-    const h = new Date().getHours();
-    if (h < 6) return "İyi Geceler";
-    if (h < 12) return "Günaydın";
-    if (h < 18) return "İyi Günler";
-    return "İyi Akşamlar";
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) return "Günaydın";
+    if (hour >= 12 && hour < 18) return "İyi Günler";
+    if (hour >= 18 && hour < 22) return "İyi Akşamlar";
+    return "İyi Geceler";
 };
 
-const statusColors = {
-    "Hazırlanıyor": { bg: "bg-amber-500/10", text: "text-amber-400", dot: "bg-amber-400", pulse: true, shadow: "shadow-[0_0_6px_rgba(245,158,11,0.5)]" },
-    "Yolda": { bg: "bg-blue-500/10", text: "text-blue-400", dot: "bg-blue-400", pulse: false, shadow: "" },
-    "Teslim Edildi": { bg: "bg-emerald-500/10", text: "text-emerald-400", dot: "bg-emerald-400", pulse: false, shadow: "" },
-    "İptal Edildi": { bg: "bg-rose-500/10", text: "text-rose-400", dot: "bg-rose-400", pulse: false, shadow: "" },
-    "Beklemede": { bg: "bg-gray-500/10", text: "text-gray-400", dot: "bg-gray-400", pulse: false, shadow: "" },
+// ── Animated Counter ──
+const AnimatedCounter = ({ value, prefix = "", suffix = "", decimals = 0 }) => {
+    const [displayValue, setDisplayValue] = useState(0);
+    useEffect(() => {
+        const steps = 60;
+        const stepValue = value / steps;
+        let current = 0;
+        const timer = setInterval(() => {
+            current += stepValue;
+            if (current >= value) { setDisplayValue(value); clearInterval(timer); }
+            else setDisplayValue(current);
+        }, 25);
+        return () => clearInterval(timer);
+    }, [value]);
+    return <span>{prefix}{displayValue.toFixed(decimals).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}{suffix}</span>;
 };
 
-// ═══════════════════════════════════════════════════════
-//  §1  LIVE CLOCK — Monospace neon display
-// ═══════════════════════════════════════════════════════
+// ── Frosted Glass Stat Card ──
+const HeroStatCard = ({ icon: Icon, title, value, subtitle, trend, trendLabel, color, delay = 0 }) => {
+    const neon = {
+        emerald: { border: "border-emerald-500/40", glow: "shadow-[0_4px_20px_rgba(16,185,129,0.15)]", hoverGlow: "hover:shadow-[0_4px_30px_rgba(16,185,129,0.25)]", iconBg: "bg-emerald-500/10", iconBorder: "border-emerald-500/20", iconText: "text-emerald-400", iconDrop: "drop-shadow-[0_0_8px_rgba(16,185,129,0.6)]", bottomBorder: "border-b-emerald-400", trendPlus: "text-emerald-400 bg-emerald-500/10", numGlow: "drop-shadow-[0_0_6px_rgba(16,185,129,0.3)]" },
+        indigo: { border: "border-violet-500/40", glow: "shadow-[0_4px_20px_rgba(139,92,246,0.15)]", hoverGlow: "hover:shadow-[0_4px_30px_rgba(139,92,246,0.25)]", iconBg: "bg-violet-500/10", iconBorder: "border-violet-500/20", iconText: "text-violet-400", iconDrop: "drop-shadow-[0_0_8px_rgba(139,92,246,0.6)]", bottomBorder: "border-b-violet-400", trendPlus: "text-violet-400 bg-violet-500/10", numGlow: "drop-shadow-[0_0_6px_rgba(139,92,246,0.3)]" },
+        amber: { border: "border-amber-500/40", glow: "shadow-[0_4px_20px_rgba(245,158,11,0.15)]", hoverGlow: "hover:shadow-[0_4px_30px_rgba(245,158,11,0.25)]", iconBg: "bg-amber-500/10", iconBorder: "border-amber-500/20", iconText: "text-amber-400", iconDrop: "drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]", bottomBorder: "border-b-amber-400", trendPlus: "text-amber-400 bg-amber-500/10", numGlow: "drop-shadow-[0_0_6px_rgba(245,158,11,0.3)]" },
+        violet: { border: "border-purple-500/40", glow: "shadow-[0_4px_20px_rgba(168,85,247,0.15)]", hoverGlow: "hover:shadow-[0_4px_30px_rgba(168,85,247,0.25)]", iconBg: "bg-purple-500/10", iconBorder: "border-purple-500/20", iconText: "text-purple-400", iconDrop: "drop-shadow-[0_0_8px_rgba(168,85,247,0.6)]", bottomBorder: "border-b-purple-400", trendPlus: "text-purple-400 bg-purple-500/10", numGlow: "drop-shadow-[0_0_6px_rgba(168,85,247,0.3)]" },
+        cyan: { border: "border-cyan-500/40", glow: "shadow-[0_4px_20px_rgba(6,182,212,0.15)]", hoverGlow: "hover:shadow-[0_4px_30px_rgba(6,182,212,0.25)]", iconBg: "bg-cyan-500/10", iconBorder: "border-cyan-500/20", iconText: "text-cyan-400", iconDrop: "drop-shadow-[0_0_8px_rgba(6,182,212,0.6)]", bottomBorder: "border-b-cyan-400", trendPlus: "text-cyan-400 bg-cyan-500/10", numGlow: "drop-shadow-[0_0_6px_rgba(6,182,212,0.3)]" },
+    };
+    const s = neon[color] || neon.cyan;
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay, duration: 0.4 }}
+            whileHover={{ y: -4 }}
+            className={`relative bg-white/[0.03] backdrop-blur-2xl rounded-2xl border border-white/[0.06] border-b-[3px] ${s.bottomBorder} ${s.glow} ${s.hoverGlow} transition-all duration-300 p-5 overflow-hidden`}
+        >
+            {/* upper area */}
+            <div className="flex items-start justify-between mb-4">
+                <motion.div
+                    whileHover={{ scale: 1.15, rotate: 8 }}
+                    transition={{ type: "spring", stiffness: 300 }}
+                    className={`w-11 h-11 rounded-xl ${s.iconBg} border ${s.iconBorder} flex items-center justify-center`}
+                >
+                    <Icon className={`w-5 h-5 ${s.iconText} ${s.iconDrop}`} />
+                </motion.div>
+                {trend !== undefined && (
+                    <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${trend >= 0 ? "text-emerald-400 bg-emerald-500/10" : "text-rose-400 bg-rose-500/10"}`}>
+                        {trend >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                        {Math.abs(trend)}%
+                        {trendLabel && <span className="opacity-60 ml-0.5">{trendLabel}</span>}
+                    </div>
+                )}
+            </div>
+            <p className="text-gray-500 text-xs font-semibold uppercase tracking-wider mb-1">{title}</p>
+            <p className={`text-2xl font-black text-white tabular-nums font-mono ${s.numGlow}`}>{value}</p>
+            {subtitle && <p className="text-gray-600 text-[11px] mt-1.5">{subtitle}</p>}
+        </motion.div>
+    );
+};
+
+// ── Live Clock — Neon Digital ──
 const LiveClock = () => {
     const [time, setTime] = useState(new Date());
     useEffect(() => {
@@ -37,437 +101,561 @@ const LiveClock = () => {
         return () => clearInterval(t);
     }, []);
 
-    const fmt = (n) => String(n).padStart(2, "0");
-    const h = fmt(time.getHours());
-    const m = fmt(time.getMinutes());
-    const s = fmt(time.getSeconds());
+    const timeStr = time.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    const dateStr = time.toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" });
 
     return (
-        <div className="flex items-center gap-1 font-mono">
-            {[h, ":", m, ":", s].map((c, i) => (
-                <span
-                    key={i}
-                    className={c === ":"
-                        ? "text-cyan-500/50 text-lg font-bold animate-pulse"
-                        : "bg-gray-900/80 border border-cyan-500/15 rounded-md px-1.5 py-0.5 text-cyan-300 text-sm font-bold tracking-wider shadow-[0_0_8px_rgba(6,182,212,0.1)]"
-                    }
-                >
-                    {c}
-                </span>
+        <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-cyan-500/[0.06] border border-cyan-500/[0.12]">
+            <Clock className="w-4 h-4 text-cyan-400 drop-shadow-[0_0_6px_rgba(6,182,212,0.5)]" />
+            <span className="text-cyan-300 font-mono text-base font-bold tabular-nums tracking-wider drop-shadow-[0_0_8px_rgba(6,182,212,0.3)]">
+                {timeStr}
+            </span>
+            <span className="text-gray-600 text-xs hidden sm:block">{dateStr}</span>
+        </div>
+    );
+};
+
+// ── Custom Glassmorphic Tooltip ──
+const GlassTooltip = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null;
+    return (
+        <div className="bg-gray-900/80 backdrop-blur-xl border border-white/[0.08] rounded-xl px-4 py-3 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+            <p className="text-white text-xs font-bold mb-1">{label}</p>
+            {payload.map((p, i) => (
+                <p key={i} className="text-emerald-400 text-sm font-mono font-bold">
+                    ₺{p.value?.toFixed(0)} <span className="text-gray-500 text-[10px] font-sans">satış</span>
+                </p>
             ))}
         </div>
     );
 };
 
-// ═══════════════════════════════════════════════════════
-//  §2  STAT CARD — Frosted glass + neon bottom border
-// ═══════════════════════════════════════════════════════
-const neonMap = {
-    emerald: { border: "border-b-emerald-400", glow: "shadow-[0_4px_15px_rgba(16,185,129,0.2)]", iconBg: "bg-emerald-500/10", iconBorder: "border-emerald-500/20", iconColor: "text-emerald-400", textShadow: "drop-shadow-[0_0_8px_rgba(16,185,129,0.4)]" },
-    cyan: { border: "border-b-cyan-400", glow: "shadow-[0_4px_15px_rgba(6,182,212,0.2)]", iconBg: "bg-cyan-500/10", iconBorder: "border-cyan-500/20", iconColor: "text-cyan-400", textShadow: "drop-shadow-[0_0_8px_rgba(6,182,212,0.4)]" },
-    violet: { border: "border-b-violet-400", glow: "shadow-[0_4px_15px_rgba(139,92,246,0.2)]", iconBg: "bg-violet-500/10", iconBorder: "border-violet-500/20", iconColor: "text-violet-400", textShadow: "drop-shadow-[0_0_8px_rgba(139,92,246,0.4)]" },
-    amber: { border: "border-b-amber-400", glow: "shadow-[0_4px_15px_rgba(245,158,11,0.2)]", iconBg: "bg-amber-500/10", iconBorder: "border-amber-500/20", iconColor: "text-amber-400", textShadow: "drop-shadow-[0_0_8px_rgba(245,158,11,0.4)]" },
-    rose: { border: "border-b-rose-400", glow: "shadow-[0_4px_15px_rgba(244,63,94,0.2)]", iconBg: "bg-rose-500/10", iconBorder: "border-rose-500/20", iconColor: "text-rose-400", textShadow: "drop-shadow-[0_0_8px_rgba(244,63,94,0.4)]" },
-    blue: { border: "border-b-blue-400", glow: "shadow-[0_4px_15px_rgba(59,130,246,0.2)]", iconBg: "bg-blue-500/10", iconBorder: "border-blue-500/20", iconColor: "text-blue-400", textShadow: "drop-shadow-[0_0_8px_rgba(59,130,246,0.4)]" },
+// ── Recent Order Item — Glass Pill ──
+const RecentOrderItem = ({ order, index }) => {
+    const isPreparing = order.status === "Hazırlanıyor";
+    return (
+        <motion.div
+            initial={{ opacity: 0, x: 40 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20, scale: 0.95 }}
+            transition={{ delay: index * 0.06, duration: 0.3 }}
+            whileHover={{ x: -4 }}
+            className="flex items-center justify-between px-3.5 py-2.5 bg-white/[0.03] backdrop-blur-xl rounded-xl border border-white/[0.05] hover:border-emerald-500/20 hover:shadow-[0_0_15px_rgba(16,185,129,0.06)] transition-all duration-200 cursor-pointer group"
+        >
+            <div className="flex items-center gap-3">
+                <div className="relative">
+                    <div className={`w-2 h-2 rounded-full ${isPreparing ? "bg-amber-400" :
+                        order.status === "Yolda" ? "bg-blue-400" :
+                            order.status === "Teslim Edildi" ? "bg-emerald-400" : "bg-gray-500"
+                        }`} />
+                    {isPreparing && (
+                        <div className="absolute inset-0 w-2 h-2 rounded-full bg-amber-400 animate-ping opacity-60" />
+                    )}
+                </div>
+                <div>
+                    <p className="text-white text-xs font-semibold">{order.customerName || "Müşteri"}</p>
+                    <p className="text-gray-600 text-[10px]">{new Date(order.createdAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</p>
+                </div>
+            </div>
+            <div className="flex items-center gap-2.5">
+                <span className="text-emerald-400 font-mono font-bold text-sm">₺{order.totalAmount?.toFixed(0)}</span>
+                <ChevronRight className="w-3.5 h-3.5 text-gray-700 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-all" />
+            </div>
+        </motion.div>
+    );
 };
 
-const StatCard = ({ icon: Icon, label, value, color, change, delay }) => {
-    const n = neonMap[color] || neonMap.emerald;
-    const isPositive = change >= 0;
+// ── Status Distribution (Pie) ──
+const StatusDistribution = ({ data }) => {
+    const COLORS = ["#10b981", "#f59e0b", "#3b82f6", "#ef4444"];
+    return (
+        <div className="flex items-center gap-6">
+            <div className="w-24 h-24">
+                <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                        <Pie data={data} cx="50%" cy="50%" innerRadius={25} outerRadius={40} paddingAngle={3} dataKey="value">
+                            {data.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color || COLORS[index % COLORS.length]} />
+                            ))}
+                        </Pie>
+                    </PieChart>
+                </ResponsiveContainer>
+            </div>
+            <div className="space-y-2">
+                {data.map((item, index) => (
+                    <div key={index} className="flex items-center gap-2 text-xs">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color || COLORS[index] }} />
+                        <span className="text-gray-500">{item.name}</span>
+                        <span className="text-white font-bold ml-auto">{item.value}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+// ── Profit Margin Calculator ──
+const ProfitMarginCard = ({ allOrders }) => {
+    const [profitMargin, setProfitMargin] = useState(() => {
+        const saved = localStorage.getItem("profitMargin");
+        return saved ? parseFloat(saved) : 10;
+    });
+
+    const totals = useMemo(() => {
+        let totalWithManual = 0;
+        let manualProductsTotal = 0;
+        allOrders.forEach(order => {
+            if (order.status !== "İptal Edildi") {
+                totalWithManual += order.totalAmount || 0;
+                order.products?.forEach(product => {
+                    if (product.isManual) manualProductsTotal += (product.price || 0) * (product.quantity || 1);
+                });
+            }
+        });
+        return { totalWithManual, totalWithoutManual: totalWithManual - manualProductsTotal, manualProductsTotal };
+    }, [allOrders]);
+
+    const estimatedProfit = totals.totalWithoutManual * (profitMargin / 100);
+
+    const handleMarginChange = (value) => {
+        const numValue = Math.max(0, Math.min(100, parseFloat(value) || 0));
+        setProfitMargin(numValue);
+        localStorage.setItem("profitMargin", numValue.toString());
+    };
 
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay, type: "spring", stiffness: 300, damping: 25 }}
-            whileHover={{ y: -4 }}
-            className={`bg-white/[0.03] backdrop-blur-xl border border-white/[0.06] border-b-[3px] ${n.border} ${n.glow} rounded-2xl p-5 transition-all duration-300 group`}
+            className="bg-white/[0.03] backdrop-blur-2xl rounded-2xl border border-white/[0.06] border-b-[3px] border-b-emerald-400 overflow-hidden"
         >
-            <div className="flex items-center justify-between mb-4">
-                <motion.div
-                    whileHover={{ scale: 1.15, rotate: 8 }}
-                    transition={{ type: "spring", stiffness: 400 }}
-                    className={`w-11 h-11 rounded-xl ${n.iconBg} border ${n.iconBorder} flex items-center justify-center`}
-                >
-                    <Icon className={`w-5 h-5 ${n.iconColor} drop-shadow-[0_0_6px_currentColor]`} />
-                </motion.div>
-                {change !== undefined && (
-                    <div className={`flex items-center gap-0.5 text-[11px] font-bold ${isPositive ? "text-emerald-400" : "text-rose-400"}`}>
-                        {isPositive ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                        {Math.abs(change).toFixed(1)}%
-                    </div>
-                )}
-            </div>
-            <div className={`text-2xl font-black text-white font-mono tracking-tight mb-1 ${n.textShadow}`}>
-                {value}
-            </div>
-            <div className="text-[11px] text-gray-500 font-semibold uppercase tracking-wider">{label}</div>
-        </motion.div>
-    );
-};
-
-// ═══════════════════════════════════════════════════════
-//  §3  MINI SVG AREA CHART — Pure CSS/SVG
-// ═══════════════════════════════════════════════════════
-const AreaChart = ({ data, color = "cyan" }) => {
-    const colorMap = {
-        cyan: { stroke: "#22d3ee", fill: "rgba(6,182,212,0.15)", gradient: ["rgba(6,182,212,0.3)", "rgba(6,182,212,0)"] },
-        emerald: { stroke: "#34d399", fill: "rgba(16,185,129,0.15)", gradient: ["rgba(16,185,129,0.3)", "rgba(16,185,129,0)"] },
-    };
-    const c = colorMap[color] || colorMap.cyan;
-
-    if (!data || data.length === 0) {
-        return (
-            <div className="h-full flex items-center justify-center text-gray-700 text-sm">
-                Veri yükleniyor...
-            </div>
-        );
-    }
-
-    const W = 600, H = 200, PAD = 20;
-    const amounts = data.map(d => d.amount || 0);
-    const maxVal = Math.max(...amounts, 1);
-    const minVal = Math.min(...amounts, 0);
-    const range = maxVal - minVal || 1;
-
-    const points = data.map((d, i) => {
-        const x = PAD + (i / Math.max(data.length - 1, 1)) * (W - PAD * 2);
-        const y = H - PAD - ((d.amount - minVal) / range) * (H - PAD * 2);
-        return { x, y, ...d };
-    });
-
-    const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
-    const areaPath = `${linePath} L ${points[points.length - 1].x} ${H - PAD} L ${points[0].x} ${H - PAD} Z`;
-    const gradientId = `grad-${color}`;
-
-    return (
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" preserveAspectRatio="none">
-            <defs>
-                <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor={c.gradient[0]} />
-                    <stop offset="100%" stopColor={c.gradient[1]} />
-                </linearGradient>
-                <filter id="glow">
-                    <feGaussianBlur stdDeviation="3" result="blur" />
-                    <feMerge>
-                        <feMergeNode in="blur" />
-                        <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                </filter>
-            </defs>
-
-            {/* Grid lines */}
-            {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
-                const y = PAD + ratio * (H - PAD * 2);
-                return <line key={ratio} x1={PAD} y1={y} x2={W - PAD} y2={y} stroke="rgba(255,255,255,0.04)" strokeDasharray="4 4" />;
-            })}
-
-            {/* Area fill */}
-            <path d={areaPath} fill={`url(#${gradientId})`} />
-
-            {/* Main line with glow */}
-            <path d={linePath} fill="none" stroke={c.stroke} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" filter="url(#glow)" />
-
-            {/* Data points */}
-            {points.map((p, i) => (
-                <g key={i}>
-                    <circle cx={p.x} cy={p.y} r="4" fill="transparent" stroke={c.stroke} strokeWidth="0" className="hover:stroke-[2]" />
-                    {/* Show dots on first, last, and every 2nd point */}
-                    {(i === 0 || i === points.length - 1 || i % 2 === 0) && (
-                        <circle cx={p.x} cy={p.y} r="3" fill={c.stroke} opacity="0.6" />
-                    )}
-                </g>
-            ))}
-
-            {/* X labels (dates) */}
-            {points.filter((_, i) => i % Math.max(1, Math.floor(points.length / 5)) === 0 || i === points.length - 1).map((p, i) => (
-                <text key={i} x={p.x} y={H - 4} textAnchor="middle" fill="rgba(255,255,255,0.25)" fontSize="9" fontFamily="monospace">
-                    {p.date?.slice(5) || ""}
-                </text>
-            ))}
-        </svg>
-    );
-};
-
-// ═══════════════════════════════════════════════════════
-//  §4  ORDER ROW — Mini glass pill
-// ═══════════════════════════════════════════════════════
-const OrderRow = ({ order, index }) => {
-    const st = statusColors[order.status] || statusColors["Beklemede"];
-
-    return (
-        <motion.div
-            initial={{ opacity: 0, x: 40 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: index * 0.05, type: "spring", stiffness: 300, damping: 25 }}
-            whileHover={{ x: -4 }}
-            className="group flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] hover:bg-white/[0.05] hover:border-cyan-500/15 hover:shadow-[0_0_12px_rgba(6,182,212,0.05)] transition-all duration-300 cursor-pointer"
-        >
-            {/* Status dot */}
-            <div className="relative flex-shrink-0">
-                <span className={`block w-2.5 h-2.5 rounded-full ${st.dot} ${st.shadow}`} />
-                {st.pulse && (
-                    <span className={`absolute inset-0 rounded-full ${st.dot} animate-ping opacity-50`} />
-                )}
-            </div>
-
-            {/* Info */}
-            <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                    <span className="text-white text-xs font-semibold truncate">{order.customer}</span>
-                    <span className="text-gray-600 text-[10px] font-mono">#{String(order.id).slice(-6)}</span>
-                </div>
-                <div className="flex items-center justify-between mt-0.5">
-                    <span className={`text-[10px] font-bold ${st.text}`}>{order.status}</span>
-                    <span className="text-gray-400 text-[10px] font-semibold font-mono">₺{order.total?.toLocaleString()}</span>
-                </div>
-            </div>
-
-            {/* Chevron */}
-            <ChevronRight size={14} className="text-gray-700 group-hover:text-cyan-400 transition-colors flex-shrink-0" />
-        </motion.div>
-    );
-};
-
-// ═══════════════════════════════════════════════════════
-//  §5  POPULAR PRODUCT ROW
-// ═══════════════════════════════════════════════════════
-const PopularProductRow = ({ product, index, maxSales }) => {
-    const pct = maxSales > 0 ? (product.totalSales / maxSales) * 100 : 0;
-
-    return (
-        <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.06 }}
-            className="flex items-center gap-3 p-2.5"
-        >
-            <span className="text-[10px] text-gray-600 font-bold font-mono w-4 text-right">{index + 1}</span>
-            <div className="flex-1 min-w-0">
-                <span className="text-xs text-white font-medium truncate block">{product.name || "Ürün"}</span>
-                <div className="mt-1.5 h-1 bg-white/[0.04] rounded-full overflow-hidden">
-                    <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${pct}%` }}
-                        transition={{ delay: 0.3 + index * 0.08, duration: 0.6 }}
-                        className="h-full bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-full"
+            <div className="flex items-center justify-between p-4 border-b border-white/[0.04]">
+                <h3 className="flex items-center gap-2 text-white text-sm font-bold">
+                    <Calculator className="w-4 h-4 text-emerald-400 drop-shadow-[0_0_6px_rgba(16,185,129,0.5)]" />
+                    Kar Marjı
+                </h3>
+                <div className="flex items-center gap-1.5 bg-gray-800/60 rounded-lg px-2.5 py-1">
+                    <Percent className="w-3.5 h-3.5 text-emerald-400" />
+                    <input
+                        type="number"
+                        value={profitMargin}
+                        onChange={(e) => handleMarginChange(e.target.value)}
+                        className="w-12 bg-transparent text-white font-mono font-bold text-sm text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        min="0" max="100" step="0.5"
                     />
                 </div>
             </div>
-            <div className="text-right flex-shrink-0">
-                <span className="text-xs text-gray-300 font-bold font-mono">{product.totalSales}</span>
-                <span className="text-[10px] text-gray-600 ml-1">adet</span>
+            <div className="p-4 space-y-3">
+                <div className="flex items-center justify-between p-2.5 bg-gray-800/40 rounded-xl">
+                    <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-blue-400" />
+                        <span className="text-gray-500 text-xs">Manuel Dahil</span>
+                    </div>
+                    <span className="text-white font-mono font-bold text-sm">₺{totals.totalWithManual.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex items-center justify-between p-2.5 bg-gray-800/40 rounded-xl">
+                    <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-violet-400" />
+                        <span className="text-gray-500 text-xs">Manuel Hariç</span>
+                    </div>
+                    <span className="text-white font-mono font-bold text-sm">₺{totals.totalWithoutManual.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-emerald-500/[0.08] rounded-xl border border-emerald-500/20">
+                    <div className="flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-emerald-400" />
+                        <span className="text-emerald-300 text-xs font-semibold">Net Kâr</span>
+                    </div>
+                    <span className="text-emerald-400 font-mono font-black text-lg drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]">₺{estimatedProfit.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</span>
+                </div>
+                <p className="text-center text-[10px] text-gray-700">Manuel: ₺{totals.manualProductsTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</p>
             </div>
         </motion.div>
     );
 };
 
-// ═══════════════════════════════════════════════════════
-//  §  MAIN COMPONENT
-// ═══════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════
+//   MAIN DASHBOARD
+// ════════════════════════════════════════════════════════════
 const DashboardWidgets = () => {
-    const [analytics, setAnalytics] = useState(null);
+    const [stats, setStats] = useState({
+        todaySales: 0,
+        todayOrders: 0,
+        totalRevenue: 0,
+        salesTrend: [],
+        popularProducts: [],
+        lowStockProducts: [],
+        liveOrderCount: 0,
+        recentOrders: [],
+        totalUsers: 0,
+        statusDistribution: [],
+        allOrders: []
+    });
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const { data } = await axios.get("/analytics?timeRange=week");
-                if (data) setAnalytics(data);
-            } catch (e) {
-                console.error("Dashboard fetch error:", e);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchData();
-        // Auto-refresh every 30 seconds
-        const interval = setInterval(fetchData, 30000);
-        return () => clearInterval(interval);
+    const fetchDashboardData = useCallback(async () => {
+        try {
+            const [analyticsRes, productsRes, ordersRes, usersRes] = await Promise.all([
+                axios.get("/analytics"),
+                axios.get("/products"),
+                axios.get("/orders-analytics"),
+                axios.get("/users")
+            ]);
+
+            const analytics = analyticsRes.data;
+            const products = productsRes.data.products || [];
+            const orders = ordersRes.data.orderAnalyticsData?.usersOrders || [];
+            const users = usersRes.data.users || [];
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const allOrders = orders.flatMap(user => user.orders || []);
+            const todayOrders = allOrders.filter(order => new Date(order.createdAt) >= today);
+            const todaySales = todayOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+
+            const recentOrders = allOrders
+                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                .slice(0, 6)
+                .map(order => ({
+                    ...order,
+                    customerName: orders.find(u => u.orders?.some(o => o.orderId === order.orderId))?.user?.name || "Müşteri"
+                }));
+
+            const statusCounts = allOrders.reduce((acc, order) => { acc[order.status] = (acc[order.status] || 0) + 1; return acc; }, {});
+            const statusDistribution = [
+                { name: "Hazırlanıyor", value: statusCounts["Hazırlanıyor"] || 0, color: "#10b981" },
+                { name: "Yolda", value: statusCounts["Yolda"] || 0, color: "#f59e0b" },
+                { name: "Teslim Edildi", value: statusCounts["Teslim Edildi"] || 0, color: "#3b82f6" },
+                { name: "İptal", value: statusCounts["İptal Edildi"] || 0, color: "#ef4444" },
+            ].filter(s => s.value > 0);
+
+            const productSales = {};
+            allOrders.forEach(order => {
+                order.products?.forEach(product => {
+                    const name = product.name;
+                    if (!productSales[name]) productSales[name] = { name, quantity: 0, revenue: 0 };
+                    productSales[name].quantity += product.quantity;
+                    productSales[name].revenue += (product.price || 0) * product.quantity;
+                });
+            });
+            const popularProducts = Object.values(productSales).sort((a, b) => b.quantity - a.quantity).slice(0, 5);
+
+            const lowStockProducts = products.filter(p => p.stock < 10).sort((a, b) => a.stock - b.stock).slice(0, 5);
+            const salesTrend = getLast7DaysSales(allOrders);
+
+            setStats({
+                todaySales, todayOrders: todayOrders.length,
+                totalRevenue: analytics.totalRevenue || 0,
+                salesTrend, popularProducts, lowStockProducts,
+                liveOrderCount: allOrders.filter(o => o.status === "Hazırlanıyor").length,
+                recentOrders, totalUsers: users.length, statusDistribution, allOrders
+            });
+        } catch (error) {
+            console.error("Dashboard verileri yüklenirken hata:", error);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
     }, []);
 
-    const a = analytics?.analyticsData || {};
-    const greeting = useMemo(getGreeting, []);
+    useEffect(() => {
+        fetchDashboardData();
+        const interval = setInterval(() => fetchLiveData(), 10000);
+        return () => clearInterval(interval);
+    }, [fetchDashboardData]);
 
-    const popularMax = useMemo(() => {
-        const list = a.popularProducts || [];
-        return list.length > 0 ? Math.max(...list.map(p => p.totalSales || 0)) : 0;
-    }, [a.popularProducts]);
+    const fetchLiveData = async () => {
+        try {
+            const res = await axios.get("/orders-analytics");
+            const orders = res.data.orderAnalyticsData?.usersOrders || [];
+            const allOrders = orders.flatMap(user => user.orders || []);
+            const liveCount = allOrders.filter(o => o.status === "Hazırlanıyor").length;
+            const recentOrders = allOrders
+                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                .slice(0, 6)
+                .map(order => ({
+                    ...order,
+                    customerName: orders.find(u => u.orders?.some(o => o.orderId === order.orderId))?.user?.name || "Müşteri"
+                }));
+            setStats(prev => ({ ...prev, liveOrderCount: liveCount, recentOrders, allOrders }));
+        } catch (error) {
+            console.error("Canlı veri güncellenirken hata:", error);
+        }
+    };
 
+    const handleRefresh = () => { setRefreshing(true); fetchDashboardData(); };
+
+    const getLast7DaysSales = (orders) => {
+        const last7Days = [];
+        const today = new Date();
+        for (let i = 6; i >= 0; i--) {
+            const date = new Date(today);
+            date.setDate(date.getDate() - i);
+            date.setHours(0, 0, 0, 0);
+            const nextDate = new Date(date);
+            nextDate.setDate(nextDate.getDate() + 1);
+            const dayOrders = orders.filter(order => {
+                const d = new Date(order.createdAt);
+                return d >= date && d < nextDate;
+            });
+            last7Days.push({
+                date: date.toLocaleDateString("tr-TR", { weekday: "short" }),
+                sales: dayOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0),
+                orders: dayOrders.length
+            });
+        }
+        return last7Days;
+    };
+
+    // ── Loading skeleton ──
     if (loading) {
         return (
-            <div className="flex items-center justify-center py-20">
-                <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-                    className="text-cyan-500"
-                >
-                    <Activity size={28} />
-                </motion.div>
+            <div className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {[...Array(4)].map((_, i) => (
+                        <div key={i} className="bg-white/[0.03] backdrop-blur-xl rounded-2xl border border-white/[0.06] p-5 animate-pulse">
+                            <div className="w-11 h-11 bg-gray-800 rounded-xl mb-4" />
+                            <div className="w-20 h-3 bg-gray-800 rounded mb-2" />
+                            <div className="w-28 h-7 bg-gray-800 rounded" />
+                        </div>
+                    ))}
+                </div>
             </div>
         );
     }
 
     return (
         <div className="space-y-6">
-            {/* ─── Header & Welcome ─── */}
-            <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-            >
-                <div>
-                    <h2 className="text-xl font-black text-white mb-0.5 flex items-center gap-2">
-                        {greeting}, <span className="bg-gradient-to-r from-cyan-300 to-emerald-300 bg-clip-text text-transparent">Emirhan</span>
-                        <motion.span
-                            animate={{ rotate: [0, 14, -8, 0] }}
-                            transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-                            className="inline-block"
-                        >
-                            👋
-                        </motion.span>
-                    </h2>
-                    <p className="text-gray-500 text-xs flex items-center gap-1.5">
-                        <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+            {/* ═══════════ HEADER + GREETING ═══════════ */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <motion.div initial={{ opacity: 0, x: -15 }} animate={{ opacity: 1, x: 0 }}>
+                    <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2.5">
+                        <Zap className="w-5 h-5 text-cyan-400 drop-shadow-[0_0_8px_rgba(6,182,212,0.6)]" />
+                        <span>
+                            {getGreeting()},{" "}
+                            <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">Emirhan</span>
                         </span>
-                        Sistem aktif — Gerçek zamanlı izleme
-                    </p>
+                    </h1>
+                    <p className="text-gray-600 text-xs mt-1 font-medium">Gerçek zamanlı mağaza istatistikleri</p>
+                </motion.div>
+                <div className="flex items-center gap-3">
+                    <LiveClock />
+                    <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handleRefresh}
+                        disabled={refreshing}
+                        className="p-2.5 rounded-xl bg-cyan-500/[0.08] border border-cyan-500/[0.12] text-cyan-400 disabled:opacity-40 transition-all hover:shadow-[0_0_12px_rgba(6,182,212,0.15)]"
+                    >
+                        <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+                    </motion.button>
                 </div>
-                <LiveClock />
-            </motion.div>
-
-            {/* ─── Stat Cards ─── */}
-            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-                <StatCard icon={ShoppingCart} label="Toplam Sipariş" value={a.totalOrders || 0} color="emerald" change={a.ordersChange} delay={0} />
-                <StatCard icon={DollarSign} label="Toplam Gelir" value={`₺${(a.totalRevenue || 0).toLocaleString()}`} color="cyan" change={a.revenueChange} delay={0.04} />
-                <StatCard icon={Users} label="Kullanıcı" value={a.users || 0} color="violet" delay={0.08} />
-                <StatCard icon={Package} label="Ürün" value={a.products || 0} color="amber" delay={0.12} />
-                <StatCard icon={Eye} label="Dönüşüm" value={`%${(a.conversionRate || 0).toFixed(1)}`} color="blue" delay={0.16} />
-                <StatCard icon={Repeat} label="Sadakat" value={`%${(a.customerRetention || 0).toFixed(1)}`} color="rose" delay={0.2} />
             </div>
 
-            {/* ─── Main Content: Chart + Orders ─── */}
+            {/* ═══════════ STAT CARDS ═══════════ */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <HeroStatCard
+                    icon={DollarSign} title="Bugünkü Satış"
+                    value={<AnimatedCounter value={stats.todaySales} prefix="₺" decimals={0} />}
+                    subtitle={`${stats.todayOrders} sipariş`}
+                    trend={12} trendLabel="dün" color="emerald" delay={0}
+                />
+                <HeroStatCard
+                    icon={TrendingUp} title="Toplam Gelir"
+                    value={<AnimatedCounter value={stats.totalRevenue} prefix="₺" decimals={0} />}
+                    subtitle="Tüm zamanlar" color="indigo" delay={0.08}
+                />
+                <HeroStatCard
+                    icon={Package} title="Hazırlanan"
+                    value={stats.liveOrderCount}
+                    subtitle="Sipariş bekliyor" color="amber" delay={0.16}
+                />
+                <HeroStatCard
+                    icon={Users} title="Toplam Kullanıcı"
+                    value={stats.totalUsers}
+                    subtitle="Kayıtlı müşteri" trend={8} trendLabel="bu ay" color="violet" delay={0.24}
+                />
+            </div>
+
+            {/* ═══════════ CHARTS + LIVE ORDERS ROW ═══════════ */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-
-                {/* Sales Chart (2 cols) */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="lg:col-span-2 bg-white/[0.02] backdrop-blur-xl border border-white/[0.06] rounded-2xl p-5 shadow-[0_0_30px_rgba(6,182,212,0.04)]"
-                >
-                    <div className="flex items-center justify-between mb-5">
-                        <div>
-                            <h3 className="text-white font-bold text-sm flex items-center gap-2">
-                                <Activity size={15} className="text-cyan-400" />
-                                Satış Trendi
-                            </h3>
-                            <p className="text-gray-600 text-[10px] mt-0.5">Son 7 gün</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-1.5">
-                                <span className="w-2 h-2 rounded-full bg-cyan-400" />
-                                <span className="text-[10px] text-gray-500">Gelir</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="h-48">
-                        <AreaChart data={a.salesByDay || []} color="cyan" />
-                    </div>
-                </motion.div>
-
-                {/* Recent Orders (1 col) */}
+                {/* Area Chart — Glass Panel */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.3 }}
-                    className="bg-white/[0.02] backdrop-blur-xl border border-white/[0.06] rounded-2xl p-4 flex flex-col"
+                    className="lg:col-span-2 bg-white/[0.03] backdrop-blur-2xl rounded-2xl border border-white/[0.06] shadow-[0_0_30px_rgba(16,185,129,0.04)] overflow-hidden"
                 >
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-white font-bold text-sm flex items-center gap-2">
-                            <Zap size={14} className="text-amber-400" />
+                    <div className="flex items-center justify-between p-4 border-b border-white/[0.04]">
+                        <h3 className="flex items-center gap-2 text-white text-sm font-bold">
+                            <Activity className="w-4 h-4 text-emerald-400 drop-shadow-[0_0_6px_rgba(16,185,129,0.5)]" />
+                            Son 7 Gün Satış Trendi
+                        </h3>
+                        <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-bold">
+                            <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+                            Canlı
+                        </div>
+                    </div>
+                    <div className="p-4">
+                        <ResponsiveContainer width="100%" height={260}>
+                            <AreaChart data={stats.salesTrend}>
+                                <defs>
+                                    <linearGradient id="neonSalesGrad" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor="#10B981" stopOpacity={0.25} />
+                                        <stop offset="100%" stopColor="#10B981" stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <XAxis dataKey="date" stroke="#374151" fontSize={11} tickLine={false} axisLine={false} />
+                                <YAxis stroke="#374151" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(v) => `₺${v}`} />
+                                <Tooltip content={<GlassTooltip />} />
+                                <Area
+                                    type="monotone"
+                                    dataKey="sales"
+                                    stroke="#10B981"
+                                    strokeWidth={3}
+                                    fill="url(#neonSalesGrad)"
+                                    dot={{ r: 4, fill: "#10B981", stroke: "#0f172a", strokeWidth: 2 }}
+                                    activeDot={{ r: 6, fill: "#10B981", stroke: "#0f172a", strokeWidth: 2, filter: "drop-shadow(0 0 6px rgba(16,185,129,0.5))" }}
+                                />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                </motion.div>
+
+                {/* Recent Orders — "Canlı Sipariş Akışı" */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="bg-white/[0.03] backdrop-blur-2xl rounded-2xl border border-white/[0.06] overflow-hidden flex flex-col"
+                >
+                    <div className="flex items-center justify-between p-4 border-b border-white/[0.04]">
+                        <h3 className="flex items-center gap-2 text-white text-sm font-bold">
+                            <ShoppingCart className="w-4 h-4 text-amber-400 drop-shadow-[0_0_6px_rgba(245,158,11,0.5)]" />
                             Canlı Sipariş Akışı
                         </h3>
-                        <span className="flex items-center gap-1.5">
-                            <span className="relative flex h-2 w-2">
+                        <div className="flex items-center gap-1.5">
+                            <span className="relative flex h-2.5 w-2.5">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400" />
                             </span>
-                            <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Live</span>
-                        </span>
+                            <span className="text-emerald-400 text-[10px] font-bold">CANLI</span>
+                        </div>
                     </div>
-
-                    <div className="flex-1 overflow-y-auto space-y-1.5 custom-scrollbar pr-1 max-h-[320px]">
-                        {(a.recentOrders || []).length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-8 text-gray-700">
-                                <ShoppingCart size={24} className="mb-2 opacity-30" />
-                                <p className="text-xs">Henüz sipariş yok</p>
+                    <div className="p-3 space-y-2 flex-1 overflow-y-auto">
+                        <AnimatePresence mode="popLayout">
+                            {stats.recentOrders.map((order, index) => (
+                                <RecentOrderItem key={order.orderId} order={order} index={index} />
+                            ))}
+                        </AnimatePresence>
+                        {stats.recentOrders.length === 0 && (
+                            <div className="py-8 text-center">
+                                <Box className="w-8 h-8 text-gray-800 mx-auto mb-2" />
+                                <p className="text-gray-700 text-xs">Henüz sipariş yok</p>
                             </div>
-                        ) : (
-                            (a.recentOrders || []).map((order, i) => (
-                                <OrderRow key={order.id || i} order={order} index={i} />
-                            ))
                         )}
                     </div>
                 </motion.div>
             </div>
 
-            {/* ─── Bottom Row: Popular Products + Quick Stats ─── */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* ═══════════ BOTTOM ROW ═══════════ */}
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
+                {/* Profit Margin */}
+                <ProfitMarginCard allOrders={stats.allOrders} />
 
                 {/* Popular Products */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.35 }}
-                    className="bg-white/[0.02] backdrop-blur-xl border border-white/[0.06] rounded-2xl p-5"
+                    transition={{ delay: 0.5 }}
+                    className="bg-white/[0.03] backdrop-blur-2xl rounded-2xl border border-white/[0.06] overflow-hidden"
                 >
-                    <h3 className="text-white font-bold text-sm flex items-center gap-2 mb-4">
-                        <TrendingUp size={15} className="text-emerald-400" />
-                        En Çok Satan Ürünler
-                    </h3>
-                    <div className="space-y-1">
-                        {(a.popularProducts || []).map((p, i) => (
-                            <PopularProductRow key={i} product={p} index={i} maxSales={popularMax} />
+                    <div className="flex items-center justify-between p-4 border-b border-white/[0.04]">
+                        <h3 className="flex items-center gap-2 text-white text-sm font-bold">
+                            <Star className="w-4 h-4 text-amber-400 drop-shadow-[0_0_6px_rgba(245,158,11,0.5)]" />
+                            Popüler Ürünler
+                        </h3>
+                    </div>
+                    <div className="p-3 space-y-2">
+                        {stats.popularProducts.map((product, index) => (
+                            <div key={index} className="flex items-center justify-between p-2.5 bg-gray-800/30 hover:bg-gray-800/50 rounded-xl transition-colors">
+                                <div className="flex items-center gap-2.5">
+                                    <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-white font-bold text-[10px] ${index === 0 ? "bg-gradient-to-br from-amber-400 to-orange-500" :
+                                        index === 1 ? "bg-gradient-to-br from-gray-300 to-gray-400" :
+                                            index === 2 ? "bg-gradient-to-br from-amber-600 to-amber-700" : "bg-gray-700"
+                                        }`}>
+                                        {index + 1}
+                                    </span>
+                                    <div className="min-w-0">
+                                        <p className="text-white font-medium text-xs truncate max-w-[130px]">{product.name}</p>
+                                        <p className="text-gray-600 text-[10px]">{product.quantity} Adet</p>
+                                    </div>
+                                </div>
+                                <p className="text-emerald-400 font-mono font-bold text-xs">₺{product.revenue.toFixed(0)}</p>
+                            </div>
                         ))}
-                        {(a.popularProducts || []).length === 0 && (
-                            <p className="text-gray-700 text-xs text-center py-4">Veri bulunamadı</p>
+                        {stats.popularProducts.length === 0 && (
+                            <div className="py-6 text-center text-gray-700 text-xs">Veri yok</div>
                         )}
                     </div>
                 </motion.div>
 
-                {/* Quick Metrics */}
+                {/* Order Status */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.4 }}
-                    className="bg-white/[0.02] backdrop-blur-xl border border-white/[0.06] rounded-2xl p-5"
+                    transition={{ delay: 0.6 }}
+                    className="bg-white/[0.03] backdrop-blur-2xl rounded-2xl border border-white/[0.06] overflow-hidden"
                 >
-                    <h3 className="text-white font-bold text-sm flex items-center gap-2 mb-4">
-                        <Activity size={15} className="text-violet-400" />
-                        Hızlı Bakış
-                    </h3>
-                    <div className="grid grid-cols-2 gap-3">
-                        {[
-                            { label: "Ort. Sipariş", value: `₺${(a.averageOrderValue || 0).toFixed(0)}`, icon: DollarSign, color: "cyan" },
-                            { label: "Bu Hafta Gelir", value: `₺${((a.salesByDay || []).reduce((s, d) => s + (d.amount || 0), 0)).toLocaleString()}`, icon: TrendingUp, color: "emerald" },
-                            { label: "Aktif Ürün", value: a.products || 0, icon: Package, color: "amber" },
-                            { label: "Yeni Üye (Hafta)", value: (a.userGrowth || []).reduce((s, d) => s + (d.count || 0), 0), icon: Users, color: "violet" },
-                        ].map((m, i) => (
-                            <motion.div
-                                key={i}
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                transition={{ delay: 0.45 + i * 0.05 }}
-                                className={`p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.04] hover:border-${m.color}-500/15 transition-all`}
-                            >
-                                <m.icon size={14} className={`text-${m.color}-400 mb-2 opacity-60`} />
-                                <div className="text-lg font-black text-white font-mono">{m.value}</div>
-                                <div className="text-[10px] text-gray-600 font-semibold mt-0.5">{m.label}</div>
-                            </motion.div>
-                        ))}
+                    <div className="flex items-center justify-between p-4 border-b border-white/[0.04]">
+                        <h3 className="flex items-center gap-2 text-white text-sm font-bold">
+                            <Truck className="w-4 h-4 text-blue-400 drop-shadow-[0_0_6px_rgba(59,130,246,0.5)]" />
+                            Sipariş Durumları
+                        </h3>
+                    </div>
+                    <div className="p-4 flex items-center justify-center">
+                        {stats.statusDistribution.length > 0 ? (
+                            <StatusDistribution data={stats.statusDistribution} />
+                        ) : (
+                            <div className="py-6 text-center text-gray-700 text-xs">Veri yok</div>
+                        )}
+                    </div>
+                </motion.div>
+
+                {/* Low Stock Alert */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.7 }}
+                    className={`bg-white/[0.03] backdrop-blur-2xl rounded-2xl border overflow-hidden ${stats.lowStockProducts.length > 0 ? "border-rose-500/20" : "border-white/[0.06]"}`}
+                >
+                    <div className="flex items-center justify-between p-4 border-b border-white/[0.04]">
+                        <h3 className="flex items-center gap-2 text-white text-sm font-bold">
+                            <AlertTriangle className={`w-4 h-4 ${stats.lowStockProducts.length > 0 ? "text-rose-400 drop-shadow-[0_0_6px_rgba(244,63,94,0.5)]" : "text-gray-500"}`} />
+                            Stok Durumu
+                        </h3>
+                    </div>
+                    <div className="p-3">
+                        {stats.lowStockProducts.length > 0 ? (
+                            <div className="space-y-2">
+                                {stats.lowStockProducts.map((product, index) => (
+                                    <div key={index} className="flex items-center justify-between p-2.5 bg-gray-800/30 rounded-xl">
+                                        <p className="text-white text-xs truncate flex-1 mr-3">{product.name}</p>
+                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${product.stock < 5 ? "bg-rose-500/15 text-rose-400" : "bg-amber-500/15 text-amber-400"
+                                            }`}>
+                                            {product.stock}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="py-8 text-center">
+                                <Package className="w-8 h-8 text-emerald-500/40 mx-auto mb-2" />
+                                <p className="text-emerald-400 font-bold text-xs">Tüm ürünler stokta!</p>
+                                <p className="text-gray-700 text-[10px] mt-0.5">Kritik stok yok</p>
+                            </div>
+                        )}
                     </div>
                 </motion.div>
             </div>
