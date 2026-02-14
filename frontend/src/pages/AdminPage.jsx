@@ -20,7 +20,7 @@ import ProductsList from "../components/ProductsList";
 import OrdersList from "../components/OrdersList";
 import FeedbackList from "../components/FeedbackList";
 import SettingsTab from "../components/SettingsTab";
-import DashboardWidgets from "../components/DashboardWidgets";
+
 import UsersTab from "../components/UsersTab";
 import PhotocopyTab from "../components/PhotocopyTab";
 import BannerTab from "../components/BannerTab";
@@ -48,14 +48,14 @@ const BulkUploadSection = ({ onUpload }) => (
           <h2 className="text-2xl font-bold text-white mb-2">Toplu Ürün Yükleme</h2>
           <p className="text-gray-400">CSV dosyası ile ürünleri toplu olarak yükleyin</p>
         </div>
-        
+
         <div className="bg-gray-800/50 rounded-xl p-4 mb-6 border border-gray-700/50">
           <p className="text-sm text-gray-400 mb-2">CSV dosyası aşağıdaki başlıklara sahip olmalıdır:</p>
           <code className="block text-xs text-emerald-400 bg-gray-900/50 p-3 rounded-lg overflow-x-auto font-mono">
             name,description,price,image,category,stock,isOutOfStock,isHidden,discountedPrice
           </code>
         </div>
-        
+
         <label className="block">
           <div className="border-2 border-dashed border-gray-600 hover:border-emerald-500/50 rounded-2xl p-8 text-center cursor-pointer transition-all group hover:bg-emerald-500/5">
             <Upload className="w-10 h-10 text-gray-500 group-hover:text-emerald-400 mx-auto mb-3 transition-colors" />
@@ -91,7 +91,7 @@ const AdminPage = () => {
 
   // Product edit state
   const [editingProduct, setEditingProduct] = useState(null);
-  
+
   // Users state
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -124,7 +124,7 @@ const AdminPage = () => {
         e.preventDefault();
         setCommandPaletteOpen(true);
       }
-      
+
       // Quick navigation shortcuts (when not in input)
       if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
         if (e.key === 'g') {
@@ -154,7 +154,7 @@ const AdminPage = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     document.addEventListener('toggleMobileMenu', handleMobileMenuToggle);
-    
+
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('toggleMobileMenu', handleMobileMenuToggle);
@@ -249,7 +249,7 @@ const AdminPage = () => {
   const renderContent = () => {
     switch (activeTab) {
       case "dashboard":
-        return <DashboardWidgets />;
+        return <AdvancedAnalyticsTab />;
       case "analytics":
         return <AdvancedAnalyticsTab />;
       case "orders":
@@ -294,14 +294,14 @@ const AdminPage = () => {
       case "settings":
         return <SettingsTab />;
       default:
-        return <DashboardWidgets />;
+        return <AdvancedAnalyticsTab />;
     }
   };
 
   return (
     <div className="admin-layout">
       {/* Command Palette */}
-      <CommandPalette 
+      <CommandPalette
         isOpen={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}
         onNavigate={handleTabChange}
@@ -352,7 +352,7 @@ const AdminPage = () => {
         </div>
 
         {/* Status Bar (Desktop) */}
-        <AdminStatusBar 
+        <AdminStatusBar
           collapsed={sidebarCollapsed}
           serverStatus="online"
           lastSync={lastSync}
