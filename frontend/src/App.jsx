@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { HelmetProvider } from "react-helmet-async";
 import { motion, AnimatePresence } from "framer-motion";
@@ -52,6 +52,8 @@ function App() {
   const { user, checkAuth, checkingAuth } = useUserStore();
   const { getCartItems } = useCartStore();
   const { fetchSettings } = useSettingsStore();
+  const location = useLocation();
+  const isAdminPage = location.pathname === "/secret-dashboard";
 
   useEffect(() => {
     checkAuth();
@@ -146,7 +148,7 @@ function App() {
               </Routes>
             </div>
 
-            <Footer />
+            {!isAdminPage && <Footer />}
             <Toaster />
             {user?.role === "admin" && <FloatingChatWidget />}
             <AppDownloadModal />
