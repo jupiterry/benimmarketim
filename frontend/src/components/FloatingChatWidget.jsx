@@ -26,18 +26,18 @@ const MiniChatItem = ({ chat, isSelected, onClick, isTyping }) => (
     whileTap={{ scale: 0.98 }}
     onClick={onClick}
     className={`p-3 rounded-xl cursor-pointer mb-1.5 transition-all duration-300 border ${isSelected
-        ? "bg-cyan-500/10 border-cyan-400/30 shadow-[0_0_15px_rgba(6,182,212,0.1)]"
-        : "bg-white/[0.03] border-white/[0.04] hover:bg-white/[0.07] hover:border-cyan-400/20"
+      ? "bg-cyan-500/10 border-cyan-400/30 shadow-[0_0_15px_rgba(6,182,212,0.1)]"
+      : "bg-white/[0.03] border-white/[0.04] hover:bg-white/[0.07] hover:border-cyan-400/20"
       }`}
   >
     <div className="flex items-center gap-3">
       {/* Avatar with glow ring */}
       <div className="relative flex-shrink-0">
         <div className={`w-10 h-10 rounded-full p-[2px] ${chat.unreadCount > 0
-            ? "bg-gradient-to-br from-cyan-400 via-teal-400 to-emerald-400 shadow-[0_0_12px_rgba(6,182,212,0.4)]"
-            : isSelected
-              ? "bg-gradient-to-br from-cyan-500/60 to-teal-500/60"
-              : "bg-gradient-to-br from-white/10 to-white/5"
+          ? "bg-gradient-to-br from-cyan-400 via-teal-400 to-emerald-400 shadow-[0_0_12px_rgba(6,182,212,0.4)]"
+          : isSelected
+            ? "bg-gradient-to-br from-cyan-500/60 to-teal-500/60"
+            : "bg-gradient-to-br from-white/10 to-white/5"
           }`}>
           <div className="w-full h-full bg-gray-900 rounded-full flex items-center justify-center">
             <User size={16} className="text-gray-300" />
@@ -82,8 +82,8 @@ const MiniMessageBubble = ({ message, isOwn }) => (
   >
     <div
       className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm ${isOwn
-          ? "bg-gradient-to-br from-cyan-600/80 to-teal-700/80 text-white rounded-br-sm border border-cyan-500/20 shadow-[0_2px_12px_rgba(6,182,212,0.15)]"
-          : "bg-white/[0.06] text-gray-200 rounded-bl-sm border border-white/[0.06] backdrop-blur-sm"
+        ? "bg-gradient-to-br from-cyan-600/80 to-teal-700/80 text-white rounded-br-sm border border-cyan-500/20 shadow-[0_2px_12px_rgba(6,182,212,0.15)]"
+        : "bg-white/[0.06] text-gray-200 rounded-bl-sm border border-white/[0.06] backdrop-blur-sm"
         }`}
     >
       <p className="leading-snug">{message.content}</p>
@@ -93,6 +93,93 @@ const MiniMessageBubble = ({ message, isOwn }) => (
     </div>
   </motion.div>
 );
+
+// ─── HUD Notification Toast ───
+const HUDNotification = ({ notification, onReply, onDismiss }) => {
+  const [shouldPulse, setShouldPulse] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShouldPulse(true), 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!notification) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ x: 400, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        exit={{ x: 400, opacity: 0 }}
+        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+        className={`fixed top-4 right-4 z-[60] w-80 bg-gray-900/80 backdrop-blur-xl rounded-2xl overflow-hidden transition-shadow duration-500 ${shouldPulse
+            ? "border border-cyan-400/60 shadow-[0_0_25px_rgba(6,182,212,0.35)] animate-[hudPulse_2s_ease-in-out_infinite]"
+            : "border border-cyan-500/50 shadow-[0_0_20px_rgba(6,182,212,0.3)]"
+          }`}
+      >
+        {/* Top glow edge */}
+        <div className="h-[1px] bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent" />
+
+        <div className="p-4">
+          {/* Header row: live dot + "Yeni Mesaj" + X dismiss */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]" />
+              </span>
+              <span className="text-[11px] font-bold text-gray-300 uppercase tracking-wider">Yeni Mesaj</span>
+            </div>
+            <button
+              onClick={onDismiss}
+              className="p-1 rounded-md text-gray-600 hover:text-rose-400 hover:bg-rose-500/10 transition-all"
+            >
+              <X size={14} />
+            </button>
+          </div>
+
+          {/* User info */}
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-9 h-9 rounded-full p-[2px] bg-gradient-to-br from-cyan-400 to-teal-400 shadow-[0_0_10px_rgba(6,182,212,0.4)] flex-shrink-0">
+              <div className="w-full h-full bg-gray-900 rounded-full flex items-center justify-center">
+                <User size={14} className="text-cyan-300" />
+              </div>
+            </div>
+            <div className="min-w-0">
+              <h4 className="text-sm font-bold text-white truncate">{notification.userName || "Kullanıcı"}</h4>
+              <p className="text-[10px] text-gray-500">Canlı Destek</p>
+            </div>
+          </div>
+
+          {/* Message preview bubble */}
+          <div className="bg-white/[0.05] border border-white/[0.06] rounded-lg p-3 mb-3">
+            <p className="text-xs text-gray-300 leading-relaxed line-clamp-3">
+              {notification.orderContext && (
+                <motion.span
+                  className="inline-block mr-1.5"
+                  animate={{ y: [0, -2, 0] }}
+                  transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                >📦</motion.span>
+              )}
+              {notification.content}
+            </p>
+          </div>
+
+          {/* Reply button */}
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={onReply}
+            className="w-full py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(6,182,212,0.2)] hover:shadow-[0_0_25px_rgba(6,182,212,0.35)] transition-shadow"
+          >
+            <MessageCircle size={14} />
+            Yanıtla
+          </motion.button>
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
 
 // ─── Main Widget ───
 const FloatingChatWidget = () => {
@@ -108,8 +195,10 @@ const FloatingChatWidget = () => {
   const [typingChats, setTypingChats] = useState({});
   const [totalUnread, setTotalUnread] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
+  const [incomingNotification, setIncomingNotification] = useState(null);
 
   const messagesEndRef = useRef(null);
+  const notifTimeoutRef = useRef(null);
 
   // ─── Logic (preserved) ───
   const fetchChats = useCallback(async () => {
@@ -146,6 +235,12 @@ const FloatingChatWidget = () => {
     messagesRef.current = messages;
   }, [selectedChat, soundEnabled, chats, messages]);
 
+  // Dismiss notification helper
+  const dismissNotification = useCallback(() => {
+    setIncomingNotification(null);
+    if (notifTimeoutRef.current) clearTimeout(notifTimeoutRef.current);
+  }, []);
+
   // Socket
   useEffect(() => {
     socketService.connect();
@@ -166,24 +261,17 @@ const FloatingChatWidget = () => {
           });
           axios.put(`/chat/${data.chatId}/read`).catch(console.error);
         } else {
-          toast.custom((t) => (
-            <motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-              className="bg-gray-900/90 backdrop-blur-2xl border border-cyan-500/20 shadow-[0_0_30px_rgba(6,182,212,0.15)] p-4 rounded-2xl flex items-center gap-3 w-80">
-              <div className="w-10 h-10 rounded-full bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
-                <MessageCircle size={20} />
-              </div>
-              <div className="flex-1">
-                <h4 className="text-white font-bold text-sm">Yeni Mesaj</h4>
-                <p className="text-gray-400 text-xs truncate">{data.message.content}</p>
-              </div>
-              <button onClick={() => {
-                toast.dismiss(t.id);
-                setIsOpen(true);
-                const chat = chatsRef.current.find(c => c._id === data.chatId);
-                if (chat) { setSelectedChat(chat); }
-              }} className="text-cyan-400 text-xs font-bold hover:underline">AÇ</button>
-            </motion.div>
-          ), { duration: 4000 });
+          // Show HUD notification
+          const senderChat = chatsRef.current.find(c => c._id === data.chatId);
+          setIncomingNotification({
+            chatId: data.chatId,
+            userName: senderChat?.user?.name || "Kullanıcı",
+            content: data.message.content,
+            orderContext: data.message.content?.includes("sipariş") || data.message.content?.includes("Sipariş"),
+          });
+          // Auto-dismiss after 8 seconds
+          if (notifTimeoutRef.current) clearTimeout(notifTimeoutRef.current);
+          notifTimeoutRef.current = setTimeout(() => setIncomingNotification(null), 8000);
         }
         fetchChats();
       }
@@ -197,8 +285,11 @@ const FloatingChatWidget = () => {
     };
 
     Object.entries(handlers).forEach(([evt, handler]) => socketService.on(evt, handler));
-    return () => Object.entries(handlers).forEach(([evt]) => socketService.off(evt));
-  }, [fetchChats]);
+    return () => {
+      Object.entries(handlers).forEach(([evt]) => socketService.off(evt));
+      if (notifTimeoutRef.current) clearTimeout(notifTimeoutRef.current);
+    };
+  }, [fetchChats, dismissNotification]);
 
   useEffect(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), [messages]);
 
@@ -220,6 +311,26 @@ const FloatingChatWidget = () => {
   // ─── Render ───
   return (
     <>
+      {/* ════════ HUD NOTIFICATION — Top-Right Toast ════════ */}
+      <AnimatePresence>
+        {incomingNotification && (
+          <HUDNotification
+            notification={incomingNotification}
+            onDismiss={dismissNotification}
+            onReply={() => {
+              dismissNotification();
+              setIsOpen(true);
+              const chat = chatsRef.current.find(c => c._id === incomingNotification.chatId);
+              if (chat) {
+                setSelectedChat(chat);
+                fetchMessages(chat._id);
+                socketService.joinChat(chat._id);
+              }
+            }}
+          />
+        )}
+      </AnimatePresence>
+
       {/* ════════ TRIGGER BUTTON — Frosted Glass Neon Orb ════════ */}
       <AnimatePresence>
         {!isOpen && (
