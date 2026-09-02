@@ -12,7 +12,7 @@ router.get("/", getSettings);
 router.put("/", protectRoute, adminRoute, updateSettings);
 
 // Test amaçlı - önbelleği temizle ve durumu kontrol et
-router.get("/refresh-cache", async (req, res) => {
+router.get("/refresh-cache", protectRoute, adminRoute, async (req, res) => {
   try {
     await refreshOrderHoursCache();
     res.status(200).json({ 

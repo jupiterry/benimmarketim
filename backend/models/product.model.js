@@ -57,7 +57,7 @@ const productSchema = new mongoose.Schema(
 );
 
 // Text indeksini oluştur
-productSchema.index({ name: "text", description: "text", brand: "text" });
+productSchema.index({ name: "text", description: "text" });
 
 const Product = mongoose.model("Product", productSchema);
 

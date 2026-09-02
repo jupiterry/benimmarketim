@@ -27,6 +27,7 @@ import {
   bulkAddFlashSale,
   getSimilarProducts,
   bulkReplaceText,
+  getProductById,
 } from "../controllers/product.controller.js"; // Tüm kontrolörleri import et
 
 const router = express.Router();
@@ -35,7 +36,7 @@ const upload = multer({ dest: "uploads/" }); // Dosyaları "uploads" klasörüne
 
 
 // Sadece "Bilinmeyen" markalı ürünlere brand ekleyen endpoint
-router.get("/update-brands", async (req, res) => {
+router.get("/update-brands", protectRoute, adminRoute, async (req, res) => {
   try {
     // Sadece markası "Bilinmeyen" olan ürünleri bul
     const products = await Product.find({ brand: "Bilinmeyen" });
@@ -223,6 +224,7 @@ router.get("/", getProducts); // Admin için tüm ürünleri getir
 router.get("/featured", getFeaturedProducts);
 router.get("/recommendations", getRecommendedProducts);
 router.get("/:id/similar", getSimilarProducts); // Similar products endpoint
+router.get("/:id", getProductById);
 router.post("/", protectRoute, adminRoute, createProduct);
 router.patch("/:id", protectRoute, adminRoute, toggleFeaturedProduct);
 router.delete("/:id", protectRoute, adminRoute, deleteProduct);

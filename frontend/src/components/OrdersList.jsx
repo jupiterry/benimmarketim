@@ -9,6 +9,7 @@ import {
 import toast from "react-hot-toast";
 import socketService from "../lib/socket.js";
 import { useConfirm } from "./ConfirmModal";
+import { useUserStore } from "../stores/useUserStore";
 
 // Helper: Sipariş süresini hesapla
 const getOrderDuration = (createdAt, updatedAt, status) => {
@@ -611,6 +612,8 @@ const OrderCard = forwardRef(({ order, index, onStatusUpdate, onPrint, onAddItem
 
 // Main Component
 const OrdersList = () => {
+  const { user } = useUserStore();
+  const accessToken = user?.accessToken;
   const [orderAnalyticsData, setOrderAnalyticsData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -879,10 +882,10 @@ const OrdersList = () => {
     const socket = socketService.connect();
 
     if (socket.connected) {
-        socket.emit('joinAdminRoom');
+        socket.emit('joinAdminRoom', { token: accessToken });
     } else {
         socket.on('connect', () => {
-            socket.emit('joinAdminRoom');
+            socket.emit('joinAdminRoom', { token: accessToken });
         });
     }
 

@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import socketService from "../lib/socket.js";
+import { useUserStore } from "../stores/useUserStore";
 
 // --- Design Constants (Shared with ChatTab) ---
 const GLASS_PANEL = "bg-gray-900/80 backdrop-blur-xl border border-white/10 shadow-2xl";
@@ -99,6 +100,8 @@ const FloatingChatWidget = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [typingChats, setTypingChats] = useState({});
   const [totalUnread, setTotalUnread] = useState(0);
+  const { user } = useUserStore();
+  const accessToken = user?.accessToken;
   
   const messagesEndRef = useRef(null);
 
@@ -141,7 +144,7 @@ const FloatingChatWidget = () => {
   // Socket
   useEffect(() => {
     socketService.connect();
-    socketService.joinAdminRoom();
+    socketService.joinAdminRoom(accessToken);
     fetchChats();
 
     const handleNewMessage = (data) => {

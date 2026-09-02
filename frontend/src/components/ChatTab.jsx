@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import socketService from "../lib/socket.js";
+import { useUserStore } from "../stores/useUserStore";
 
 // --- Design Constants ---
 const GLASS_PANEL = "bg-gray-900/60 backdrop-blur-xl border border-white/10 shadow-2xl";
@@ -190,6 +191,8 @@ const ChatTab = () => {
   const [typingUsers, setTypingUsers] = useState({});
   const [onlineUsers, setOnlineUsers] = useState({});
   const [showMobileChat, setShowMobileChat] = useState(false);
+  const { user } = useUserStore();
+  const accessToken = user?.accessToken;
   
   // Quick Reply State
   const [quickReplies, setQuickReplies] = useState(() => {
@@ -263,7 +266,7 @@ const ChatTab = () => {
   useEffect(() => {
     fetchChats();
     const socket = socketService.connect();
-    socket.emit("joinAdminRoom");
+    socket.emit("joinAdminRoom", { token: accessToken });
 
     const handlers = {
       newChat: (data) => {

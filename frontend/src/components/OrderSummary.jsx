@@ -199,11 +199,8 @@ const OrderSummary = () => {
       note: note,
         deliveryPoint: selectedDeliveryPoint,
         deliveryPointName: deliveryPointName,
-      // Kupon bilgileri
-      couponCode: isCouponApplied && coupon ? coupon.code : null,
-      couponDiscount: isCouponApplied && coupon ? (coupon.calculatedDiscount || (subtotal * (coupon.discountPercentage || 0) / 100)) : 0,
-      subtotalAmount: subtotal,
-      discountPercentage: isCouponApplied && coupon ? (coupon.discountPercentage || 0) : 0
+      // Sadece kupon kodu gönderilir; indirim tutarı backend tarafından hesaplanır.
+      couponCode: isCouponApplied && coupon ? coupon.code : null
     });
     
       console.log("Sipariş yanıtı:", res.data);

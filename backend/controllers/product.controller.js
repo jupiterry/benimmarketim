@@ -73,29 +73,27 @@ export const getFeaturedProducts = async (req, res) => {
   try {
     // Offline Sync Support: Check If-Modified-Since header
     const ifModifiedSince = req.headers['if-modified-since'];
-    if (ifModifiedSince) {
-      const modifiedSinceDate = new Date(ifModifiedSince);
-      
-      // Get the latest featured product update time
-      const latestProduct = await Product.findOne({
-        $or: [
-          { isDiscounted: true, isHidden: false },
-          { isFeatured: true, isHidden: false }
-        ]
-      })
-        .sort({ updatedAt: -1 })
-        .select('updatedAt')
-        .lean();
+    // Son güncelleme zamanını tek sorguda al; hem cache kontrolünde hem header
+    // üretiminde aynı sonucu kullan.
+    const latestProduct = await Product.findOne({
+      $or: [
+        { isDiscounted: true, isHidden: false },
+        { isFeatured: true, isHidden: false }
+      ]
+    })
+      .sort({ updatedAt: -1 })
+      .select('updatedAt')
+      .lean();
 
-      if (latestProduct && latestProduct.updatedAt) {
-        const lastModified = new Date(latestProduct.updatedAt);
-        
-        // If data hasn't changed, return 304 Not Modified
-        if (lastModified <= modifiedSinceDate) {
-          res.setHeader('Last-Modified', lastModified.toUTCString());
-          res.setHeader('ETag', `"${lastModified.getTime()}"`);
-          return res.status(304).end();
-        }
+    if (ifModifiedSince && latestProduct?.updatedAt) {
+      const modifiedSinceDate = new Date(ifModifiedSince);
+      const lastModifiedDate = new Date(latestProduct.updatedAt);
+
+      // If data hasn't changed, return 304 Not Modified
+      if (lastModifiedDate <= modifiedSinceDate) {
+        res.setHeader('Last-Modified', lastModifiedDate.toUTCString());
+        res.setHeader('ETag', `"${lastModifiedDate.getTime()}"`);
+        return res.status(304).end();
       }
     }
 
@@ -115,17 +113,7 @@ export const getFeaturedProducts = async (req, res) => {
     // Tüm ürünleri birleştir (önce indirimli sonra öne çıkan)
     const allFeaturedProducts = [...discountedProducts, ...featuredProducts];
 
-    // Get the latest update time for Last-Modified header
-    const latestProduct = await Product.findOne({
-      $or: [
-        { isDiscounted: true, isHidden: false },
-        { isFeatured: true, isHidden: false }
-      ]
-    })
-      .sort({ updatedAt: -1 })
-      .select('updatedAt')
-      .lean();
-
+    // Aynı latestProduct sorgusunu tekrar çalıştırma.
     const lastModified = latestProduct?.updatedAt 
       ? new Date(latestProduct.updatedAt).toUTCString()
       : new Date().toUTCString();
@@ -386,6 +374,20 @@ export const getProducts = async (req, res) => {
   } catch (error) {
     console.error("Error in getProducts controller:", error.message);
     res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// Mobil ve ürün detay ekranları için tek ürün getirir.
+export const getProductById = async (req, res) => {
+  try {
+    const product = await Product.findOne({ _id: req.params.id, isHidden: false }).lean();
+    if (!product) {
+      return res.status(404).json({ success: false, message: "Ürün bulunamadı" });
+    }
+    const [withWeeklyPrice] = await applyWeeklyPricesToProducts([product]);
+    return res.status(200).json(withWeeklyPrice);
+  } catch (error) {
+    return res.status(400).json({ success: false, message: "Geçersiz ürün bilgisi" });
   }
 };
 

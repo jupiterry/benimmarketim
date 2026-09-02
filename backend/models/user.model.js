@@ -92,16 +92,12 @@ const userSchema = new mongoose.Schema(
 	}
 );
 
-// Pre-save hook to hash password before saving to database
+// Pre-save hook: Şifre değiştiyse kayıt öncesi hash'le
 userSchema.pre("save", async function () {
 	if (!this.isModified("password")) return;
-
-	try {
-		const salt = await bcrypt.genSalt(10);
-		this.password = await bcrypt.hash(this.password, salt);
-	} catch (error) {
-		throw error;
-	}
+	// #13 — Gereksiz try-catch kaldırıldı. Hata zaten Mongoose'a iletilir.
+	const salt = await bcrypt.genSalt(10);
+	this.password = await bcrypt.hash(this.password, salt);
 });
 
 userSchema.methods.comparePassword = async function (password) {

@@ -163,15 +163,22 @@ export const logout = async (req, res) => {
 	try {
 		const refreshToken = req.cookies.refreshToken;
 		if (refreshToken) {
-			const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
-			await redis.del(`refresh_token:${decoded.userId}`);
+			try {
+				// #5 — Token süresi dolmuş veya geçersizse hata fırlatabilir.
+				// Bu hatayı yakala; kullanıcı her durumda çıkış yapabilmeli.
+				const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+				await redis.del(`refresh_token:${decoded.userId}`);
+			} catch {
+				// Token zaten geçersiz — Redis'teki karşılığı varsa bile
+				// ilgili anahtar TTL ile kendiliğinden sona erecek. Sessizce devam et.
+			}
 		}
 
 		res.clearCookie("accessToken");
 		res.clearCookie("refreshToken");
 		res.json({ message: "Başarıyla çıkış yapıldı." });
 	} catch (error) {
-		console.log("Error in logout controller", error.message);
+		console.error("Logout hatası:", error.message);
 		res.status(500).json({ message: "Server error", error: error.message });
 	}
 };
@@ -180,7 +187,7 @@ export const logout = async (req, res) => {
 export const refreshToken = async (req, res) => {
 	try {
 		// Flutter'dan gelen refresh token'ı body'den al
-		const { refreshToken } = req.body;
+		const refreshToken = req.body.refreshToken || req.cookies.refreshToken;
 		
 		if (!refreshToken) {
 			return res.status(401).json({ message: "No refresh token provided" });

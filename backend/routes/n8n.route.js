@@ -36,4 +36,3 @@ router.get("/test", testConnection);
 router.post("/test-order", testOrderNotification);
 
 export default router;
-

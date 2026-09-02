@@ -3,6 +3,10 @@ import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import path from "path";
 import cors from "cors";
+import fs from "fs";
+import { createServer } from "http";
+import { Server } from "socket.io";
+import jwt from "jsonwebtoken";
 import userRoutes from "./routes/userRoutes.js";
 import ordersAnalyticsRoutes from "./routes/ordersAnalytics.route.js";
 import authRoutes from "./routes/auth.route.js";
@@ -23,9 +27,8 @@ import versionRoutes from "./routes/version.route.js";
 import referralRoutes from "./routes/referral.route.js";
 import chatRoutes from "./routes/chat.route.js";
 import weeklyProductRoutes from "./routes/weeklyProductRoutes.js";
-import { createServer } from "http";
-import { Server } from "socket.io";
-
+import Product from "./models/product.model.js";
+import User from "./models/user.model.js";
 import { connectDB } from "./lib/db.js";
 import { refreshOrderHoursCache } from "./controllers/cart.controller.js";
 import { startCartReminderJob } from "./jobs/cartReminder.job.js";
@@ -107,8 +110,11 @@ const io = new Server(httpServer, {
 try {
   const redisUrl = process.env.UPSTASH_REDIS_URL;
   
-  if (redisUrl) {
-    const pubClient = new Redis(redisUrl);
+  if (redisUrl && process.env.REDIS_DISABLED !== 'true') {
+    const pubClient = new Redis(redisUrl, {
+      maxRetriesPerRequest: 1,
+      retryStrategy: () => null,
+    });
     const subClient = pubClient.duplicate();
 
     // ioredis otomatik bağlanır, connect() çağırmaya gerek yok
@@ -134,11 +140,27 @@ app.set('io', io);
 
 // Socket.IO bağlantı yönetimi
 io.on('connection', (socket) => {
-  console.log('Yeni bir kullanıcı bağlandı. Socket ID:', socket.id);
+  console.log('Yeni bir kullanıcı bağlandtı. Socket ID:', socket.id);
 
-  socket.on('joinAdminRoom', () => {
-    socket.join('adminRoom');
-    console.log('Admin odaya katıldı');
+  // #9 — joinAdminRoom: JWT ve rol doğrulaması eklendi.
+  // Önceden herhangi bir kullanıcı bu olaya emit gönderip admin bildirimlerini dinleyebiliyordu.
+  socket.on('joinAdminRoom', async ({ token } = {}) => {
+    try {
+      if (!token) {
+        socket.emit('error', { message: 'Yetki hatası: Token gerekli' });
+        return;
+      }
+      const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+      const user = await User.findById(decoded.userId).select('role').lean();
+      if (!user || user.role !== 'admin') {
+        socket.emit('error', { message: 'Yetki hatası: Sadece adminler bu odaya katılabilir' });
+        return;
+      }
+      socket.join('adminRoom');
+      console.log('Admin odaya katıldı. Socket:', socket.id);
+    } catch {
+      socket.emit('error', { message: 'Geçersiz veya süresi dolmuş token' });
+    }
   });
 
   // ========== CANLI SOHBET EVENT'LERİ ==========
@@ -211,9 +233,6 @@ app.use("/api", versionRoutes);
 app.use("/api/referrals", referralRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/weekly-products", weeklyProductRoutes);
-
-import fs from "fs";
-import Product from "./models/product.model.js";
 
 // ============ SEO ENDPOINTS ============
 

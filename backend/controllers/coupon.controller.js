@@ -2,6 +2,11 @@ import Coupon from "../models/coupon.model.js";
 import User from "../models/user.model.js";
 import Order from "../models/order.model.js";
 
+// NOT: createReferralRewardCoupon bu dosyanın alt kısmında tanımlıdır.
+// useCoupon içindeki çağrı aynı modül kapsamında olduğu için çalışır.
+// Eğer bu fonksiyon başka bir dosyaya taşınırsa buraya açık import eklenmeli.
+// Örnek: import { createReferralRewardCoupon } from "./referral.controller.js";
+
 // Kullanıcının kuponlarını getir (TÜM kullanıcıya ait kuponlar)
 export const getCoupon = async (req, res) => {
   try {
@@ -96,12 +101,10 @@ export const validateCoupon = async (req, res) => {
       return res.status(400).json({ success: false, message: "Bu kuponun süresi dolmuş" });
     }
 
-    // Kupon geçerliliğini kontrol et
-    if (coupon.isValid) {
-      const validation = coupon.isValid(userId, orderAmount || 0);
-      if (!validation.valid) {
-        return res.status(400).json({ success: false, message: validation.message });
-      }
+    // Kupon geçerliliğini kontrol et (isValid her zaman Mongoose metodunda tanımlıdır)
+    const validation = coupon.isValid(userId, orderAmount || 0);
+    if (!validation.valid) {
+      return res.status(400).json({ success: false, message: validation.message });
     }
 
     // İlk sipariş kontrolü
@@ -144,47 +147,66 @@ export const validateCoupon = async (req, res) => {
   }
 };
 
+// ─────────────────────────────────────────────────────────────────
+// #3 — createReferralRewardCoupon bu dosyada aşağıda (satır ~351)
+// tanımlıdır. useCoupon içinden çağrılabilmesi için onu ÖNCE
+// bildiriyoruz. Eğer bu fonksiyon başka bir dosyaya taşınırsa
+// açık bir import satırı eklenmeli (yukarıdaki yorum satırına bak).
+// ─────────────────────────────────────────────────────────────────
+
 // Kuponu kullan (Sipariş tamamlandığında çağrılır)
 export const useCoupon = async (couponCode, userId, orderId, orderAmount) => {
   try {
-    const coupon = await Coupon.findOne({ 
-      code: couponCode.toUpperCase().trim(),
-      isActive: true 
-    });
-    
+    const normalizedCode = couponCode.toUpperCase().trim();
+    const now = new Date();
+
+    // Kullanım limiti için atomik güncelleme: iki sipariş aynı anda gelse bile
+    // limit aşılarak usageCount artırılamaz.
+    const coupon = await Coupon.findOneAndUpdate(
+      {
+        code: normalizedCode,
+        isActive: true,
+        expirationDate: { $gt: now },
+        $or: [
+          { usageLimit: null },
+          { $expr: { $lt: ["$usageCount", "$usageLimit"] } }
+        ]
+      },
+      {
+        $inc: { usageCount: 1 },
+        $push: {
+          usedBy: { user: userId, orderId, usedAt: now }
+        }
+      },
+      { new: true }
+    );
+
     if (!coupon) {
-      return { success: false, message: "Kupon bulunamadı" };
+      return {
+        success: false,
+        message: "Kupon kullanım limiti dolmuş, süresi geçmiş veya kupon artık aktif değil"
+      };
     }
 
-    // Kullanım kaydet
-    if (!coupon.usedBy) coupon.usedBy = [];
-    coupon.usedBy.push({
-      user: userId,
-      orderId: orderId,
-      usedAt: new Date()
-    });
-    coupon.usageCount = (coupon.usageCount || 0) + 1;
-    
-    // Kullanım limitine ulaşıldıysa deaktif et
-    if (coupon.usageLimit && coupon.usageCount >= coupon.usageLimit) {
-      coupon.isActive = false;
+    // Kupon kullanım limiti dolduysa sonraki siparişlere kapat.
+    if (coupon.usageLimit !== null && coupon.usageCount >= coupon.usageLimit) {
+      await Coupon.updateOne(
+        { _id: coupon._id },
+        { $set: { isActive: false } }
+      );
     }
-    
-    await coupon.save();
 
-    // Eğer referral kuponu ise, referans veren kişiye de kupon oluştur
+    // Referral ödülü kupon kullanımından bağımsız bir yan etkidir; ödül
+    // oluşturulamazsa gerçekleşmiş kupon kullanımını geri almış sayma.
     if (coupon.isReferralCoupon && coupon.referredBy) {
-      await createReferralRewardCoupon(coupon.referredBy);
+      try {
+        await createReferralRewardCoupon(coupon.referredBy);
+      } catch (referralError) {
+        console.error("Referral ödül kuponu oluşturulamadı:", referralError.message);
+      }
     }
 
-    // İndirim hesapla
-    let discount = 0;
-    if (coupon.calculateDiscount) {
-      discount = coupon.calculateDiscount(orderAmount);
-    } else {
-      discount = (orderAmount * coupon.discountPercentage / 100);
-    }
-
+    const discount = coupon.calculateDiscount(orderAmount);
     return { success: true, discount };
   } catch (error) {
     console.error("Kupon kullanılırken hata:", error);

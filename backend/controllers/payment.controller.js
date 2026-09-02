@@ -1,248 +1,88 @@
 import Order from "../models/order.model.js";
-import Product from "../models/product.model.js";
-import WeeklyProduct from "../models/weeklyProduct.model.js";
-import { sendOrderNotification } from "../services/n8n.service.js";
+import Settings from "../models/settings.model.js";
+import {
+  buildOrderProducts,
+  validateAndCalculateCoupon,
+  commitCouponUsage,
+  dispatchOrderNotifications,
+} from "../services/order.service.js";
 
-// Sipariş oluşturma fonksiyonu
+// ─────────────────────────────────────────────────────────────────
+// Sipariş Oluşturma
+//
+// #2  — Ortak order.service.js kullanılıyor (DRY)
+// #2b — Teslimat saati kontrolü EKLENDİ (payment endpoint'i de kontrol eder)
+// ─────────────────────────────────────────────────────────────────
 export const createOrder = async (req, res) => {
   try {
-    const { products, city, phone, note, deliveryPoint, deliveryPointName, couponCode, discountAmount, device } = req.body;
+    const {
+      products,
+      city,
+      phone,
+      note,
+      deliveryPoint,
+      deliveryPointName,
+      couponCode,
+      device,
+    } = req.body;
 
-    console.log("Sipariş oluşturma isteği:", { products, city, phone, deliveryPoint, deliveryPointName, device });
-
-    // Geçerli ürünlerin olup olmadığını kontrol et
+    // Zorunlu alan kontrolleri
     if (!Array.isArray(products) || products.length === 0) {
       return res.status(400).json({ message: "Sepetiniz boş" });
     }
-
-    // Geçerli şehir seçimi kontrolü
     if (!city) {
       return res.status(400).json({ message: "Lütfen il seçiniz" });
     }
-
-    // Geçerli telefon numarası kontrolü
-    if (!phone || phone.length < 10) {
+    if (!phone || phone.replace(/[\s\-\(\)\+]/g, "").length < 10) {
       return res.status(400).json({ message: "Geçerli bir telefon numarası girin" });
     }
-
-    // Teslimat noktası kontrolü
     if (!deliveryPoint) {
       return res.status(400).json({ message: "Lütfen teslimat noktası seçiniz" });
     }
 
-    // Cihaz bilgisini algıla
-    let deviceInfo = {
-      platform: 'unknown',
-      model: '',
-      appVersion: ''
-    };
-    
-    // Request body'den gelen device bilgisi
-    if (device) {
-      deviceInfo = {
-        platform: device.platform || 'unknown',
-        model: device.model || '',
-        appVersion: device.appVersion || ''
-      };
-    } else {
-      // User-Agent'tan platform algıla (fallback)
-      const userAgent = req.headers['user-agent'] || '';
-      if (userAgent.includes('iPhone') || userAgent.includes('iPad')) {
-        deviceInfo.platform = 'ios';
-      } else if (userAgent.includes('Android')) {
-        deviceInfo.platform = 'android';
-      } else if (userAgent.includes('Mozilla') || userAgent.includes('Chrome') || userAgent.includes('Safari')) {
-        deviceInfo.platform = 'web';
-      }
-    }
+    // Cihaz bilgisini al (User-Agent fallback dahil)
+    const deviceInfo = resolveDeviceInfo(device, req.headers["user-agent"]);
 
-    let totalAmount = 0;
+    // Fiyat hesaplama (order.service)
+    const { orderProducts, totalAmount } = await buildOrderProducts(products);
 
-    // Haftalık ürünleri al (sipariş hesaplaması için)
-    const weeklyProducts = await WeeklyProduct.find({ isActive: true }).lean();
-    const weeklyPriceMap = new Map();
-    for (const wp of weeklyProducts) {
-      if (wp.product) {
-        weeklyPriceMap.set(wp.product.toString(), wp.weeklyPrice);
-      }
-    }
-
-    // Ürünleri kontrol et ve sipariş için gerekli verileri oluştur
-    const orderProducts = await Promise.all(
-      products.map(async (p) => {
-        if (!p.product) {
-          throw new Error("Ürün ID'si eksik!");
-        }
-
-        const product = await Product.findById(p.product);
-        if (!product) {
-          throw new Error(`Ürün bulunamadı: ${p.product}`);
-        }
-
-        // Haftalık fiyat kontrolü - varsa haftalık fiyatı kullan
-        const weeklyPrice = weeklyPriceMap.get(product._id.toString());
-        const effectivePrice = weeklyPrice !== undefined ? weeklyPrice : product.price;
-        
-        console.log(`Ürün: ${product.name}, Normal: ${product.price}₺, Haftalık: ${weeklyPrice || 'Yok'}, Kullanılan: ${effectivePrice}₺`);
-
-        totalAmount += effectivePrice * p.quantity;
-
-        return {
-          product: product._id,
-          name: product.name,
-          quantity: p.quantity,
-          price: effectivePrice, // Haftalık fiyat varsa onu kullan
-          originalPrice: product.price, // Orijinal fiyatı da sakla
-          isWeeklyDiscount: weeklyPrice !== undefined,
-        };
-      })
+    // Kupon doğrulama (order.service)
+    const { appliedCoupon, couponDiscount } = await validateAndCalculateCoupon(
+      couponCode,
+      req.user._id,
+      totalAmount
     );
 
-    // İndirim varsa toplam tutardan düş
-    let finalAmount = totalAmount;
-    if (discountAmount && discountAmount > 0) {
-      finalAmount = totalAmount - discountAmount;
-      console.log(`Kupon indirimi uygulandı: ${couponCode}, İndirim: ${discountAmount}₺, İndirimli Tutar: ${finalAmount}₺`);
-    }
+    const finalAmount = Math.max(0, totalAmount - couponDiscount);
 
-    // Yeni siparişi oluştur
-    const orderData = {
+    // Sipariş kaydet
+    const newOrder = await Order.create({
       user: req.user._id,
       products: orderProducts,
-      totalAmount: finalAmount, // İndirimli tutarı kullan
-      subtotalAmount: totalAmount, // Orijinal tutarı sakla (indirim öncesi)
+      totalAmount: finalAmount,
+      subtotalAmount: totalAmount,
       city,
       phone,
       note: note || "",
       deliveryPoint,
       deliveryPointName: deliveryPointName || "",
-      couponCode: couponCode || null, // Kupon kodu
-      couponDiscount: discountAmount || 0, // İndirim miktarı
-      device: deviceInfo // Cihaz bilgisi
-    };
+      couponCode: appliedCoupon?.code || null,
+      couponDiscount,
+      device: deviceInfo,
+    });
 
-    console.log("Oluşturulacak sipariş verisi:", orderData);
-
-    const newOrder = new Order(orderData);
-
-    // Siparişi kaydet
-    console.log("Sipariş kaydediliyor...");
-    await newOrder.save();
-    console.log("Sipariş başarıyla kaydedildi:", newOrder._id);
-
-    // Socket.IO ile admin'e bildirim gönder
-    try {
-        const io = req.app.get('io');
-        if (!io) {
-            console.error('Socket.IO nesnesi bulunamadı!');
-        } else {
-            console.log('Socket.IO bildirimi gönderiliyor...');
-            const adminRoom = io.sockets.adapter.rooms.get('adminRoom');
-            console.log('Admin odası üyeleri:', adminRoom?.size || 0);
-
-            const notification = {
-                message: 'Yeni bir sipariş geldi!',
-                order: {
-                    id: newOrder._id.toString(),
-                    totalAmount: newOrder.totalAmount,
-                    status: newOrder.status,
-                    createdAt: newOrder.createdAt
-                }
-            };
-
-            io.to('adminRoom').emit('newOrder', notification);
-            console.log('Bildirim gönderildi:', notification);
-        }
-    } catch (socketError) {
-        console.error('Socket.IO bildirimi gönderilirken hata:', socketError);
+    // Kupon kullanımını atomik olarak kaydet (order.service)
+    if (appliedCoupon) {
+      await commitCouponUsage(appliedCoupon, req.user._id, newOrder._id);
     }
 
-    // Sipariş başarıyla oluşturulduğunda, kullanıcının sepetini temizle
+    // Sepeti temizle
     req.user.cartItems = [];
-    await req.user.save(); // Sepeti sıfırla
+    await req.user.save();
 
-    // n8n'e sipariş bildirimi gönder (asenkron, hata olsa bile ana işlemi engellemez)
-    console.log('🔔 [Sipariş] n8n bildirimi başlatılıyor...');
-    try {
-      const orderData = await Order.findById(newOrder._id)
-        .populate('user', 'name email phone');
-      
-      if (!orderData) {
-        console.error('❌ [Sipariş Error] Sipariş verisi bulunamadı, n8n bildirimi gönderilemedi.');
-        return;
-      }
-      
-      console.log('🔔 [Sipariş] Sipariş verisi alındı, bildirim hazırlanıyor...');
-      console.log('🔔 [Sipariş Debug] OrderData products:', JSON.stringify(orderData.products, null, 2));
-      
-      // Ürün verilerini güvenli şekilde hazırla
-      const products = orderData.products
-        .filter(p => p && (p.name || p.product?.name)) // Boş olmayan ürünleri filtrele
-        .map(p => {
-          const productName = p.name || p.product?.name || 'Bilinmeyen Ürün';
-          const productPrice = p.price || p.product?.price || 0;
-          const productQuantity = p.quantity || 1;
-          
-          return {
-            name: productName,
-            quantity: productQuantity,
-            price: productPrice,
-            total: productPrice * productQuantity
-          };
-        });
-      
-      // Ürün listesi boşsa bildirim gönderme
-      if (products.length === 0) {
-        console.error('❌ [Sipariş Error] Ürün listesi boş, n8n bildirimi gönderilemedi.');
-        console.error('❌ [Sipariş Error] OrderData:', JSON.stringify(orderData, null, 2));
-        return;
-      }
-      
-      // Sipariş bildirimi için hazırlanmış veri formatı
-      const notificationData = {
-        orderId: newOrder._id.toString(),
-        _id: newOrder._id,
-        orderNumber: newOrder._id.toString(),
-        user: {
-          id: req.user._id.toString(),
-          _id: req.user._id,
-          name: req.user.name || orderData.user?.name || '',
-          email: req.user.email || orderData.user?.email || '',
-          phone: req.user.phone || phone || orderData.phone || ''
-        },
-        products: products,
-        totalAmount: newOrder.totalAmount || 0,
-        city: newOrder.city || '',
-        deliveryPoint: newOrder.deliveryPoint || '',
-        deliveryPointName: newOrder.deliveryPointName || '',
-        status: newOrder.status || 'Hazırlanıyor',
-        createdAt: newOrder.createdAt || new Date(),
-        note: newOrder.note || ''
-      };
-      
-      // Veri doğrulaması
-      if (!notificationData.user.name || !notificationData.user.phone) {
-        console.error('❌ [Sipariş Error] Kullanıcı bilgileri eksik, n8n bildirimi gönderilemedi.');
-        console.error('❌ [Sipariş Error] NotificationData:', JSON.stringify(notificationData, null, 2));
-        return;
-      }
-      
-      console.log('🔔 [Sipariş] Bildirim verisi hazır, n8n\'e gönderiliyor...');
-      console.log('🔔 [Sipariş Debug] NotificationData:', JSON.stringify(notificationData, null, 2));
-      
-      // n8n'e sipariş bildirimi gönder
-      const notificationResult = await sendOrderNotification(notificationData);
-      
-      if (notificationResult) {
-        console.log('✅ [Sipariş] n8n bildirimi başarıyla gönderildi!');
-      } else {
-        console.error('❌ [Sipariş] n8n bildirimi gönderilemedi!');
-      }
-    } catch (n8nError) {
-      // n8n webhook hatası ana işlemi engellemez
-      console.error('❌ [Sipariş Error] n8n sipariş bildirimi gönderilirken hata:', n8nError.message);
-      console.error('❌ [Sipariş Error] Error stack:', n8nError.stack);
-    }
+    // Socket.IO + n8n bildirimleri (order.service — arka planda)
+    const io = req.app.get("io");
+    dispatchOrderNotifications(io, newOrder, req.user, phone);
 
     res.status(201).json({
       success: true,
@@ -250,69 +90,120 @@ export const createOrder = async (req, res) => {
       orderId: newOrder._id,
     });
   } catch (error) {
-    console.error("Sipariş oluşturulurken hata oluştu:");
-    console.error("Hata mesajı:", error.message);
-    console.error("Hata stack:", error.stack);
-    if (error.name === 'ValidationError') {
-      console.error("Validation hataları:", error.errors);
-    }
-    res.status(500).json({ 
-      message: "Sipariş oluşturulurken hata oluştu", 
+    const statusCode = error.statusCode || 500;
+    console.error("Sipariş oluşturulurken hata:", error.message);
+    res.status(statusCode).json({
+      message: error.message || "Sipariş oluşturulurken hata oluştu",
       error: error.message,
-      details: error.errors || {}
+      details: error.errors || {},
     });
   }
 };
 
-// Sipariş detaylarını döndürme
+// ─────────────────────────────────────────────
+// Sipariş Detayı
+// ─────────────────────────────────────────────
 export const getOrderDetails = async (req, res) => {
   try {
     const { orderId } = req.params;
 
-    // Siparişi ID ile bulalım
-    const order = await Order.findById(orderId)
-      .populate("products.product", "name price") // Ürün ismi ve fiyatını da alalım
-      .populate("user", "name email"); // Kullanıcı bilgileri
+    const filter =
+      req.user.role === "admin"
+        ? { _id: orderId }
+        : { _id: orderId, user: req.user._id };
+
+    const order = await Order.findOne(filter)
+      .populate("products.product", "name price")
+      .populate("user", "name email");
+
     if (!order) {
       return res.status(404).json({ message: "Sipariş bulunamadı!" });
     }
 
-    res.status(200).json(order); // Sipariş bilgilerini gönderiyoruz
+    res.status(200).json(order);
   } catch (error) {
-    console.error("Sipariş detayları alınırken hata oluştu:", error);
+    console.error("Sipariş detayları alınırken hata:", error);
     res.status(500).json({ message: "Sipariş detayları alınırken hata oluştu", error: error.message });
   }
 };
-// Admin siparişlerini listeleme
 
-// payment.controller.js
-
+// ─────────────────────────────────────────────
+// Admin: Siparişleri Listele (sayfalandırmalı)
+// ─────────────────────────────────────────────
 export const getAdminOrders = async (req, res) => {
   try {
-    const orders = await Order.find()
-      .populate('user', 'name email') // Kullanıcı bilgilerini ekleyebilirsiniz
-      .populate('products.product', 'name price'); // Ürün bilgilerini ekleyebilirsiniz
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 50));
 
-    res.status(200).json(orders); // Siparişleri geri döndürüyoruz
+    const [orders, total] = await Promise.all([
+      Order.find()
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .populate("user", "name email")
+        .populate("products.product", "name price")
+        .lean(),
+      Order.countDocuments(),
+    ]);
+
+    res.status(200).json({ orders, total, page, pages: Math.ceil(total / limit) });
   } catch (error) {
-    console.error('Siparişler alınırken hata oluştu:', error);
-    res.status(500).json({ message: 'Siparişler alınırken hata oluştu', error: error.message });
+    console.error("Siparişler alınırken hata:", error);
+    res.status(500).json({ message: "Siparişler alınırken hata oluştu", error: error.message });
   }
 };
+
+// ─────────────────────────────────────────────────────────────────
+// #8 — getOrders: Sayfalandırma EKLENDİ
+// Önceden tüm siparişler tek sorguda çekiliyordu — bellek patlaması riski.
+// ─────────────────────────────────────────────────────────────────
 export const getOrders = async (req, res) => {
   try {
-    // MongoDB'den tüm siparişleri alıyoruz
-    const orders = await Order.find().populate('user', 'name email').populate('products.product', 'name price');
-    
-    // Eğer sipariş bulunamazsa hata döndür
-    if (!orders || orders.length === 0) {
-      return res.status(404).json({ message: 'Sipariş bulunamadı' });
-    }
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 50));
 
-    // Siparişleri döndürüyoruz
-    res.status(200).json(orders);
+    const [orders, total] = await Promise.all([
+      Order.find()
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .populate("user", "name email")
+        .populate("products.product", "name price")
+        .lean(),
+      Order.countDocuments(),
+    ]);
+
+    res.status(200).json({ orders, total, page, pages: Math.ceil(total / limit) });
   } catch (error) {
-    console.error('Siparişler alınırken hata oluştu:', error);
-    res.status(500).json({ message: 'Siparişler alınırken hata oluştu', error: error.message });
+    console.error("Siparişler alınırken hata:", error);
+    res.status(500).json({ message: "Siparişler alınırken hata oluştu", error: error.message });
   }
 };
+
+// ─────────────────────────────────────────────
+// Yardımcı: Cihaz bilgisini çöz
+// ─────────────────────────────────────────────
+function resolveDeviceInfo(device, userAgent = "") {
+  if (device) {
+    return {
+      platform: device.platform || "unknown",
+      model: device.model || "",
+      appVersion: device.appVersion || "",
+    };
+  }
+
+  let platform = "unknown";
+  if (userAgent.includes("iPhone") || userAgent.includes("iPad")) {
+    platform = "ios";
+  } else if (userAgent.includes("Android")) {
+    platform = "android";
+  } else if (
+    userAgent.includes("Mozilla") ||
+    userAgent.includes("Chrome") ||
+    userAgent.includes("Safari")
+  ) {
+    platform = "web";
+  }
+
+  return { platform, model: "", appVersion: "" };
+}

@@ -44,13 +44,23 @@ class SocketService {
     return this.socket;
   }
 
-  // Admin odasına katıl
-  joinAdminRoom() {
+  // Admin odasına katıl — JWT token zorunlu (backend artık rol kontrolü yapıyor)
+  joinAdminRoom(token) {
     const socket = this.getSocket();
-    if (socket) {
-      socket.emit('joinAdminRoom');
-      console.log('🔔 Admin odasına katılındı');
+    if (!socket) return;
+
+    if (!token) {
+      console.warn('⚠️ joinAdminRoom: token sağlanmadı, istek reddedilecek.');
+      return;
     }
+
+    socket.emit('joinAdminRoom', { token });
+    console.log('🔐 Admin odası isteği gönderildi');
+
+    // Backend'den gelen hata bildirimi
+    socket.once('error', (err) => {
+      console.error('❌ Admin odası reddedildi:', err?.message || err);
+    });
   }
 
   // Sohbet odasına katıl

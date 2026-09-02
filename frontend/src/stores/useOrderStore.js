@@ -22,8 +22,8 @@ export const useOrderStore = create((set) => ({
 
   fetchAllOrders: async () => {
     try {
-      const res = await axios.get("/orders");
-      set({ orders: res.data });
+      const res = await axios.get("/orders/orders");
+      set({ orders: Array.isArray(res.data) ? res.data : (res.data.orders || []) });
     } catch (error) {
       console.error("Siparişler alınırken hata oluştu", error);
     }
@@ -60,7 +60,7 @@ export const useOrderStore = create((set) => ({
 
   createOrder: async (orderData) => {
     try {
-      const response = await axios.post("/orders", orderData);
+      const response = await axios.post("/orders/create-order", orderData);
       
       // Sipariş başarılı olduğunda ve ses açıksa çal
       if (response.data.success && useUserStore.getState().soundEnabled) {

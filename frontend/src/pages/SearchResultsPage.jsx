@@ -42,7 +42,7 @@ const SearchResultsPage = () => {
           return;
         }
         
-        const res = await axios.get(`/api/products/search?q=${encodeURIComponent(cleanQuery)}`);
+        const res = await axios.get(`/products/search?q=${encodeURIComponent(cleanQuery)}`);
         console.log("API Yanıtı:", res.data);
         
         if (!res.data || !res.data.success) {

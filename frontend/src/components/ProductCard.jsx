@@ -147,7 +147,7 @@ const ProductCard = ({ product, isAdmin }) => {
 
   const handleDiscountUpdate = async () => {
     try {
-      await axios.put(`/api/products/update-discount/${product?._id}`, {
+      await axios.put(`/products/update-discount/${product?._id}`, {
         discountedPrice: Number(discountedPrice)
       });
       setIsEditing(false);

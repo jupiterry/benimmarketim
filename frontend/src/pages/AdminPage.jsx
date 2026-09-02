@@ -76,13 +76,14 @@ const BulkUploadSection = ({ onUpload }) => (
 
 const AdminPage = () => {
   // State
-  const [activeTab, setActiveTab] = useState("orders");
+  const [activeTab, setActiveTab] = useState("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [lastSync, setLastSync] = useState(null);
+  const [adminBadges, setAdminBadges] = useState({ orders: 0, chats: 0 });
 
   // Stores
   const { fetchAllProducts, products } = useProductStore();
@@ -165,8 +166,26 @@ const AdminPage = () => {
   useEffect(() => {
     fetchAllProducts();
     fetchUsers();
+    fetchAdminBadges();
     updateLastSync();
   }, [fetchAllProducts]);
+
+  const fetchAdminBadges = async () => {
+    try {
+      const [ordersResponse, chatResponse] = await Promise.all([
+        axios.get('/orders-analytics'),
+        axios.get('/chat/unread-count'),
+      ]);
+      const usersOrders = ordersResponse.data?.orderAnalyticsData?.usersOrders || [];
+      const orders = usersOrders.flatMap((entry) => entry.orders || []);
+      setAdminBadges({
+        orders: orders.filter((order) => order.status === 'Hazırlanıyor').length,
+        chats: Number(chatResponse.data?.count || chatResponse.data?.unreadCount || 0),
+      });
+    } catch {
+      // Rozet verisi yardımcı bilgidir; ana paneli engellemez.
+    }
+  };
 
   const updateLastSync = () => {
     setLastSync(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }));
@@ -192,7 +211,8 @@ const AdminPage = () => {
     try {
       await Promise.all([
         fetchAllProducts(),
-        fetchUsers()
+        fetchUsers(),
+        fetchAdminBadges()
       ]);
       updateLastSync();
       toast.success("Veriler güncellendi");
@@ -317,8 +337,8 @@ const AdminPage = () => {
         mobileOpen={mobileMenuOpen}
         onMobileClose={() => setMobileMenuOpen(false)}
         user={user}
-        orderCount={0}
-        chatCount={0}
+        orderCount={adminBadges.orders}
+        chatCount={adminBadges.chats}
       />
 
       {/* Main Content */}

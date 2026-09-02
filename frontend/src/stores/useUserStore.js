@@ -54,7 +54,12 @@ export const useUserStore = create(
           toast.success("Giriş başarılı!");
         } catch (error) {
           set({ loading: false });
-          toast.error(error.response.data.message || "Bir hata oluştu");
+          toast.error(
+            error.response?.data?.message ||
+            (error.request
+              ? "Sunucuya bağlanılamadı. Backend'in çalıştığından emin olun."
+              : "Bir hata oluştu")
+          );
         }
       },
 

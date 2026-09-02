@@ -77,7 +77,7 @@ export const useCartStore = create((set, get) => ({
 		}
 	},
 	removeFromCart: async (productId) => {
-		await axios.delete(`/cart`, { data: { productId } });
+		await axios.delete(`/cart/${productId}`);
 		set((prevState) => {
 			const currentCart = Array.isArray(prevState.cart) ? prevState.cart : [];
 			return { cart: currentCart.filter((item) => item._id !== productId) };
@@ -111,7 +111,7 @@ export const useCartStore = create((set, get) => ({
 			// API'den gelen kupon yapısını kontrol et
 			const discountType = coupon.discountType || 'percentage';
 			const discountPercentage = coupon.discountPercentage || 0;
-			const discountAmount = coupon.discountAmount || coupon.calculatedDiscount || 0;
+			const discountAmount = coupon.calculatedDiscount ?? coupon.discountAmount ?? 0;
 			const maximumDiscount = coupon.maximumDiscount;
 			
 			if (discountType === 'percentage' && discountPercentage > 0) {

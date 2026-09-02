@@ -290,12 +290,30 @@ export const getAllReferralStats = async (req, res) => {
   }
 };
 
-// Helper: Referral kodu oluştur
-function generateReferralCode() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let code = 'REF';
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
+// ─────────────────────────────────────────────────────────────────
+// #10 — Referral Kodu Üreteci
+// Math.random() kriptografik olarak güvenli değildir ve çakışma
+// durumunda sessizce başarısız olabilir. crypto.randomBytes ile
+// benzersizlik döngüsü eklendi.
+// ─────────────────────────────────────────────────────────────────
+async function generateUniqueReferralCode(maxAttempts = 5) {
+  for (let i = 0; i < maxAttempts; i++) {
+    // 4 byte → 8 hex karakter, ilk 6'sını al → "REFXXXXXX"
+    const randomPart = crypto.randomBytes(4).toString("hex").toUpperCase().slice(0, 6);
+    const code = `REF${randomPart}`;
+    const exists = await Referral.exists({ referralCode: code });
+    if (!exists) return code;
   }
-  return code;
+  throw new Error("Benzersiz referral kodu üretilemedi. Lütfen tekrar deneyin.");
 }
+
+// Geriye dönük uyumluluk için senkron wrapper (pre-save hook'ta kullanılır)
+// Not: pre-save hook zaten crypto kullanıyor (referral.model.js).
+// Bu fonksiyon yalnızca getReferralInfo içinde kullanılır.
+function generateReferralCode() {
+  // Model pre-save hook'unda crypto.randomBytes zaten kullanılıyor.
+  // Bu fonksiyon artık yalnızca getReferralInfo'daki new Referral() çağrısı
+  // için placeholder; asıl kod model tarafından üretilir.
+  return crypto.randomBytes(4).toString("hex").toUpperCase().slice(0, 6);
+}
+

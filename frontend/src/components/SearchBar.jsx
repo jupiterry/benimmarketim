@@ -33,7 +33,7 @@ const SearchBar = () => {
       }
 
       try {
-        const response = await axios.get(`/api/products/search?q=${query}`);
+        const response = await axios.get(`/products/search?q=${encodeURIComponent(query)}`);
         const products = response.data?.products || [];
         setSuggestions(Array.isArray(products) ? products : []);
       } catch (error) {

@@ -156,6 +156,7 @@ const OrderNotification = () => {
     const [showNotifications, setShowNotifications] = useState(false);
     const [showSoundSettings, setShowSoundSettings] = useState(false);
     const { user } = useUserStore();
+    const accessToken = user?.accessToken;
     const [selectedSound, setSelectedSound] = useState(() => localStorage.getItem('notificationSound') || 'ringtone');
     const [currentAudio, setCurrentAudio] = useState(null);
     
@@ -200,7 +201,7 @@ const OrderNotification = () => {
             socket.removeAllListeners("newChatMessage");
             
             const handleConnect = () => {
-                socket.emit('joinAdminRoom');
+                socket.emit('joinAdminRoom', { token: accessToken });
             };
 
             socket.on('connect', handleConnect);
