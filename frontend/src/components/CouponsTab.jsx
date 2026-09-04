@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Tag, Plus, Trash2, Edit2, ToggleLeft, ToggleRight, Calendar, Percent,
   DollarSign, Users, Copy, X, Search, Filter, Clock, Package, Zap,
-  RefreshCw, Check, AlertTriangle
+  RefreshCw, Check, AlertTriangle, ChevronDown, ChevronUp, ShoppingBag
 } from "lucide-react";
 import toast from "react-hot-toast";
 import axios from "../lib/axios";
@@ -411,6 +411,7 @@ const CouponsTab = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingCoupon, setEditingCoupon] = useState(null);
   const [analytics, setAnalytics] = useState(null);
+  const [usageOpenId, setUsageOpenId] = useState(null);
 
   useEffect(() => {
     fetchCoupons();
@@ -666,6 +667,33 @@ const CouponsTab = () => {
                     </div>
                   </div>
                 </div>
+                {(coupon.usedBy?.length || 0) > 0 && (
+                  <div className="mt-4 border-t border-white/5 pt-3">
+                    <button
+                      onClick={() => setUsageOpenId(usageOpenId === coupon._id ? null : coupon._id)}
+                      className="flex w-full items-center justify-between rounded-xl bg-white/[.035] px-3 py-2 text-left text-xs font-semibold text-emerald-300 hover:bg-white/[.07]"
+                    >
+                      <span className="flex items-center gap-2"><Users className="h-4 w-4" /> Kullanım geçmişi ({coupon.usedBy.length})</span>
+                      {usageOpenId === coupon._id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </button>
+                    <AnimatePresence initial={false}>
+                      {usageOpenId === coupon._id && (
+                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                          <div className="mt-2 space-y-1.5">
+                            {coupon.usedBy.map((usage) => (
+                              <div key={`${usage.user?._id || usage.user}-${usage.usedAt}`} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-black/20 px-3 py-2 text-xs">
+                                <span className="font-medium text-white">{usage.user?.name || "Silinmiş kullanıcı"}</span>
+                                <span className="text-gray-400">{usage.user?.email || "E-posta yok"}</span>
+                                <span className="flex items-center gap-1 text-gray-400"><ShoppingBag className="h-3.5 w-3.5" /> #{String(usage.orderId?._id || usage.orderId || "").slice(-6).toUpperCase() || "-"}</span>
+                                <span className="text-emerald-300">{usage.usedAt ? new Date(usage.usedAt).toLocaleString("tr-TR") : "Tarih yok"}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
               </motion.div>
             );
           })

@@ -48,11 +48,18 @@ export const getCoupon = async (req, res) => {
       })
     );
     
+    // Mobil cüzdan yalnızca gerçekten kullanılabilir fırsatları göstermeli.
+    // Kullanılmış tek kullanımlık/referral kuponunu API'de elemek; istemcinin
+    // eski önbelleği yüzünden "kuponun var" mesajını tekrar göstermesini önler.
+    const availableCoupons = allCoupons.filter(
+      (coupon) => !coupon.isUsed && Number(coupon.remainingUses ?? 0) > 0
+    );
+
     res.json({ 
       success: true, 
-      coupons: allCoupons,
+      coupons: availableCoupons,
       // İlk kullanıcı kuponu (eski format için uyumluluk)
-      coupon: allCoupons.find((coupon) => coupon.userId) || null
+      coupon: availableCoupons.find((coupon) => coupon.userId) || null
     });
   } catch (error) {
     console.log("Error in getCoupon controller", error.message);
@@ -66,6 +73,8 @@ export const getAllCoupons = async (req, res) => {
     const coupons = await Coupon.find()
       .populate("referredBy", "name email")
       .populate("userId", "name email")
+      .populate("usedBy.user", "name email")
+      .populate("usedBy.orderId", "totalAmount couponDiscount createdAt status")
       .sort({ createdAt: -1 });
     
     res.json({ success: true, coupons });
