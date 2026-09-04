@@ -103,7 +103,13 @@ const FloatingChatWidget = () => {
   const { user } = useUserStore();
   const accessToken = user?.accessToken;
   
-  const messagesEndRef = useRef(null);
+  const messageListRef = useRef(null);
+
+  const scrollWidgetMessagesToBottom = () => {
+    const container = messageListRef.current;
+    if (!container) return;
+    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+  };
 
   // --- Logic ---
   const fetchChats = useCallback(async () => {
@@ -203,8 +209,6 @@ const FloatingChatWidget = () => {
     return () => Object.entries(handlers).forEach(([evt]) => socketService.off(evt));
   }, [fetchChats]); // Removed dynamic dependencies to prevent constant reconnects
 
-  useEffect(() => messagesEndRef.current?.scrollIntoView({behavior:"smooth"}), [messages]);
-
   const sendMessage = async () => {
      if(!newMessage.trim() || !selectedChat) return;
      try {
@@ -214,6 +218,7 @@ const FloatingChatWidget = () => {
         if(data.success) {
            setMessages(prev => [...prev, data.message]);
            fetchChats();
+           requestAnimationFrame(scrollWidgetMessagesToBottom);
         }
      } catch { toast.error("Gönderilemedi"); }
   };
@@ -227,11 +232,14 @@ const FloatingChatWidget = () => {
         {!isOpen && (
            <motion.button
              initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
-             whileHover={{ scale: 1.1, rotate: 5 }} whileTap={{ scale: 0.9 }}
+             whileHover={{ scale: 1.06, y: -3 }} whileTap={{ scale: 0.94 }}
              onClick={() => setIsOpen(true)}
-             className={`fixed bottom-6 right-6 w-16 h-16 ${GRADIENT_PRIMARY} rounded-full shadow-2xl shadow-emerald-500/40 flex items-center justify-center z-[50] group`}
+             aria-label="Canlı destek sohbetlerini aç"
+             className={`fixed bottom-6 right-6 w-16 h-16 ${GRADIENT_PRIMARY} rounded-[22px] shadow-[0_18px_45px_rgba(16,185,129,.34)] ring-1 ring-white/25 flex items-center justify-center z-[50] group`}
            >
-              <MessageCircle size={32} className="text-white group-hover:scale-110 transition-transform" />
+              <span className="absolute inset-1 rounded-[18px] border border-white/20" />
+              <MessageCircle size={29} className="relative text-white group-hover:scale-110 transition-transform" />
+              <span className="absolute -left-1 -top-1 h-4 w-4 rounded-full border-[3px] border-[#0a0a1a] bg-emerald-300 shadow-[0_0_16px_rgba(110,231,183,.9)]" />
               {totalUnread > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full ring-2 ring-gray-900 animate-pulse">
                   {totalUnread}
@@ -327,13 +335,12 @@ const FloatingChatWidget = () => {
                      </div>
 
                      {/* Messages */}
-                     <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                     <div ref={messageListRef} className="flex-1 overflow-y-auto p-4 custom-scrollbar">
                         {isLoading ? (
                            <div className="flex justify-center p-4"><div className="animate-spin text-emerald-500"><MessageCircle/></div></div>
                         ) : messages.map((m, i) => (
                            <MiniMessageBubble key={i} message={m} isOwn={m.sender === "admin"} />
                         ))}
-                        <div ref={messagesEndRef} />
                      </div>
 
                      {/* Input */}

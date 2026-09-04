@@ -202,8 +202,20 @@ const ChatTab = () => {
   const [showQuickEditor, setShowQuickEditor] = useState(false);
   const [newTag, setNewTag] = useState("");
 
-  const messagesEndRef = useRef(null);
   const chatContainerRef = useRef(null);
+  const shouldKeepAtBottomRef = useRef(false);
+
+  const scrollMessagesToBottom = (behavior = "smooth") => {
+    const container = chatContainerRef.current;
+    if (!container) return;
+    container.scrollTo({ top: container.scrollHeight, behavior });
+  };
+
+  const isNearMessageBottom = () => {
+    const container = chatContainerRef.current;
+    if (!container) return false;
+    return container.scrollHeight - container.scrollTop - container.clientHeight < 96;
+  };
 
   // --- Logic ---
   const fetchChats = async () => {
@@ -239,6 +251,7 @@ const ChatTab = () => {
       const { data } = await axios.post(`/chat/${selectedChat._id}/send`, {
         content, type: "text"
       });
+      shouldKeepAtBottomRef.current = true;
       setMessages(prev => [...prev, data.message]);
       setChats(prev => prev.map(c => 
         c._id === selectedChat._id 
@@ -279,6 +292,7 @@ const ChatTab = () => {
       },
       newMessage: (data) => {
         if (selectedChat?._id === data.chatId && data.message.sender !== "admin") {
+          shouldKeepAtBottomRef.current = isNearMessageBottom();
           setMessages(prev => [...prev, data.message]);
         }
       },
@@ -290,7 +304,7 @@ const ChatTab = () => {
 
     Object.entries(handlers).forEach(([event, handler]) => socket.on(event, handler));
     return () => Object.keys(handlers).forEach(event => socket.off(event));
-  }, [selectedChat]);
+  }, [accessToken, selectedChat?._id]);
 
   useEffect(() => {
     if (selectedChat) {
@@ -301,7 +315,9 @@ const ChatTab = () => {
   }, [selectedChat?._id]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!shouldKeepAtBottomRef.current) return;
+    shouldKeepAtBottomRef.current = false;
+    requestAnimationFrame(() => scrollMessagesToBottom());
   }, [messages]);
 
   // --- Render ---
@@ -454,7 +470,14 @@ const ChatTab = () => {
             </div>
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-b from-transparent to-black/20" ref={chatContainerRef}>
+            <div
+              className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-b from-transparent to-black/20"
+              ref={chatContainerRef}
+              onScroll={() => {
+                // Yönetici eski mesajları okurken yeni mesajlar ekranı zorla aşağı çekmez.
+                shouldKeepAtBottomRef.current = isNearMessageBottom();
+              }}
+            >
               <div className="text-center py-6">
                 <span className="px-4 py-1.5 rounded-full bg-white/5 text-xs text-gray-500 border border-white/5">
                   {new Date(selectedChat.createdAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', weekday: 'long' })}
@@ -472,7 +495,6 @@ const ChatTab = () => {
                    <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{animationDelay: "300ms"}}/>
                 </motion.div>
               )}
-              <div ref={messagesEndRef} />
             </div>
 
             {/* Quick Replies & Input */}

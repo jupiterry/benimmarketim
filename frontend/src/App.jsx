@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { HelmetProvider } from "react-helmet-async";
 import HomePage from "./pages/HomePage";
@@ -47,8 +47,10 @@ const ProtectedRoute = ({ children }) => {
 
 function App() {
   const { user, checkAuth, checkingAuth } = useUserStore();
+  const location = useLocation();
   const { getCartItems } = useCartStore();
   const { fetchSettings } = useSettingsStore();
+  const isAdminPanel = location.pathname === "/secret-dashboard";
 
   useEffect(() => {
     checkAuth();
@@ -142,7 +144,7 @@ function App() {
           </Routes>
         </div>
 
-        <Footer />
+        {!isAdminPanel && <Footer />}
         <Toaster />
         {user?.role === "admin" && <FloatingChatWidget />}
         <AppDownloadModal />

@@ -247,11 +247,21 @@ const AdminHeader = ({
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: idx * 0.05 }}
                         whileHover={{ backgroundColor: "rgba(0, 245, 255, 0.05)" }}
-                        onClick={() => { setShowNotifications(false); onViewNotifications?.(); }}
-                        className="flex gap-3 p-4 border-b border-white/5 cursor-pointer transition-colors"
+                        onClick={() => { setShowNotifications(false); onViewNotifications?.(n.order); }}
+                        className="group flex gap-3 border-b border-white/5 p-3.5 cursor-pointer transition-colors"
                       >
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-400/10"><Package2 className="h-4 w-4 text-emerald-400" /></div>
-                        <div className="min-w-0 flex-1"><p className="truncate text-white text-sm font-semibold">{n.order?.customerName || 'Yeni sipariş'}</p><p className="mt-0.5 text-xs font-bold text-emerald-400">₺{Number(n.order?.totalAmount || 0).toFixed(2)}</p><p className="text-gray-500 text-[11px] mt-1 flex items-center gap-1"><Clock className="w-3 h-3" />{n.time}</p></div>
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-400/10 ring-1 ring-emerald-300/10"><Package2 className="h-4 w-4 text-emerald-400" /></div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="truncate text-white text-sm font-bold">Yeni sipariş · {n.order?.customerName || 'Müşteri'}</p>
+                            <span className="shrink-0 text-[10px] text-gray-500">{n.time}</span>
+                          </div>
+                          <p className="mt-1 text-xs text-gray-400">#{String(n.order?.id || n.id || '').slice(-6).toUpperCase()} · {n.order?.products?.length || 0} ürün</p>
+                          <div className="mt-2 flex items-center justify-between gap-2">
+                            <p className="text-sm font-black text-emerald-400">₺{Number(n.order?.totalAmount || 0).toFixed(2)}</p>
+                            <span className="rounded-lg bg-white/5 px-2 py-1 text-[10px] font-bold text-cyan-300 transition group-hover:bg-cyan-400/10 group-hover:text-cyan-200">Siparişi aç →</span>
+                          </div>
+                        </div>
                       </motion.div>
                     ))
                   )}

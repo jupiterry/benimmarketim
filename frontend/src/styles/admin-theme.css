@@ -681,6 +681,8 @@
 .admin-main {
   margin-left: var(--admin-sidebar-width);
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   transition: margin-left var(--admin-transition-normal);
   position: relative;
   z-index: 1;
@@ -692,6 +694,8 @@
 
 .admin-content {
   padding: 1.5rem;
+  padding-bottom: calc(1.5rem + 32px);
+  flex: 1 0 auto;
   animation: slide-up-fade 0.3s ease-out;
 }
 
