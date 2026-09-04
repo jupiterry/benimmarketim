@@ -29,6 +29,7 @@ import chatRoutes from "./routes/chat.route.js";
 import weeklyProductRoutes from "./routes/weeklyProductRoutes.js";
 import Product from "./models/product.model.js";
 import User from "./models/user.model.js";
+import Chat from "./models/chat.model.js";
 import { connectDB } from "./lib/db.js";
 import { refreshOrderHoursCache } from "./controllers/cart.controller.js";
 import { startCartReminderJob } from "./jobs/cartReminder.job.js";
@@ -142,6 +143,23 @@ app.set('io', io);
 io.on('connection', (socket) => {
   console.log('Yeni bir kullanıcı bağlandtı. Socket ID:', socket.id);
 
+  const authenticateSocket = async () => {
+    if (socket.data.authUser) return socket.data.authUser;
+    const cookieHeader = socket.handshake.headers.cookie || '';
+    const cookieToken = cookieHeader
+      .split(';')
+      .map((part) => part.trim())
+      .find((part) => part.startsWith('accessToken='))
+      ?.slice('accessToken='.length);
+    const token = socket.handshake.auth?.token ||
+      (cookieToken ? decodeURIComponent(cookieToken) : null);
+    if (!token) return null;
+    const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+    const user = await User.findById(decoded.userId).select('_id role name').lean();
+    if (user) socket.data.authUser = user;
+    return user;
+  };
+
   // #9 — joinAdminRoom: JWT ve rol doğrulaması eklendi.
   // Önceden herhangi bir kullanıcı bu olaya emit gönderip admin bildirimlerini dinleyebiliyordu.
   socket.on('joinAdminRoom', async ({ token } = {}) => {
@@ -178,9 +196,19 @@ io.on('connection', (socket) => {
   // ========== CANLI SOHBET EVENT'LERİ ==========
   
   // Sohbet odasına katıl
-  socket.on('joinChat', (chatId) => {
-    socket.join(`chat_${chatId}`);
-    console.log(`Socket ${socket.id} sohbet odasına katıldı: chat_${chatId}`);
+  socket.on('joinChat', async (chatId) => {
+    try {
+      const user = await authenticateSocket();
+      if (!user) return socket.emit('error', { message: 'Sohbet için oturum gerekli' });
+      const chat = await Chat.findById(chatId).select('user').lean();
+      if (!chat || (user.role !== 'admin' && chat.user.toString() !== user._id.toString())) {
+        return socket.emit('error', { message: 'Bu sohbete erişim yetkiniz yok' });
+      }
+      socket.join(`chat_${chatId}`);
+      console.log(`Socket ${socket.id} sohbet odasına katıldı: chat_${chatId}`);
+    } catch {
+      socket.emit('error', { message: 'Sohbet yetkisi doğrulanamadı' });
+    }
   });
 
   // Sohbet odasından ayrıl
@@ -191,6 +219,7 @@ io.on('connection', (socket) => {
 
   // Kullanıcı sohbete girdi - Admin'e bildir
   socket.on('userInChat', ({ chatId, userId, userName, platform, appVersion }) => {
+    if (!socket.rooms.has(`chat_${chatId}`)) return;
     // Admin odasına bildir
     socket.to('adminRoom').emit('userInChat', { chatId, userId, userName, platform, appVersion });
     console.log(`Kullanıcı sohbete girdi: ${userName || userId} - Chat: ${chatId} - ${platform} v${appVersion}`);
@@ -198,6 +227,7 @@ io.on('connection', (socket) => {
 
   // Kullanıcı sohbetten çıktı - Admin'e bildir
   socket.on('userLeftChat', ({ chatId, userId }) => {
+    if (!socket.rooms.has(`chat_${chatId}`)) return;
     // Admin odasına bildir
     socket.to('adminRoom').emit('userLeftChat', { chatId, userId });
     console.log(`Kullanıcı sohbetten çıktı: ${userId} - Chat: ${chatId}`);
@@ -205,11 +235,13 @@ io.on('connection', (socket) => {
 
   // Yazıyor göstergesi
   socket.on('typing', ({ chatId, sender }) => {
+    if (!socket.rooms.has(`chat_${chatId}`)) return;
     socket.to(`chat_${chatId}`).emit('userTyping', { chatId, sender });
   });
 
   // Yazmayı bıraktı
   socket.on('stopTyping', ({ chatId, sender }) => {
+    if (!socket.rooms.has(`chat_${chatId}`)) return;
     socket.to(`chat_${chatId}`).emit('userStopTyping', { chatId, sender });
   });
 

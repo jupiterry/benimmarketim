@@ -31,6 +31,12 @@ export const getReferralInfo = async (req, res) => {
         totalReferrals: referral.totalReferrals,
         successfulReferrals: referral.successfulReferrals,
         totalRewardsEarned: referral.totalRewardsEarned,
+        isActive: referral.isActive,
+        maxReferrals: referral.maxReferrals,
+        remainingInvites: Math.max(0, referral.maxReferrals - referral.successfulReferrals),
+        inviteeDiscountPercent: 5,
+        rewardDiscountPercent: 5,
+        rewardExpiresInDays: 30,
         referredUsers: referral.referredUsers.map(r => ({
           name: r.user?.name,
           status: r.status,
@@ -245,6 +251,13 @@ export const regenerateReferralCode = async (req, res) => {
     if (!referral) {
       return res.status(404).json({ success: false, message: "Referral bulunamadı" });
     }
+
+    if (!referral.isActive || referral.successfulReferrals >= referral.maxReferrals) {
+		return res.status(409).json({
+			success: false,
+			message: "Davet hakkınız tamamlandığı için bu kod yenilenemez",
+		});
+	}
 
     referral.referralCode = generateReferralCode();
     await referral.save();

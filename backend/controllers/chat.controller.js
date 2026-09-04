@@ -116,7 +116,7 @@ export const getUserChats = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    const chats = await Chat.find({ user: userId })
+    const chats = await Chat.find({ user: userId, isDeleted: { $ne: true } })
       .populate("order", "_id totalAmount status createdAt")
       .sort({ lastMessageAt: -1 });
 
@@ -172,6 +172,13 @@ export const sendMessage = async (req, res) => {
     const { content, type = "text", fileUrl, fileName } = req.body;
     const userId = req.user._id;
     const isAdmin = req.user.role === "admin";
+    const cleanContent = String(content || "").trim();
+    if (type === "text" && !cleanContent) {
+      return res.status(400).json({ message: "Boş mesaj gönderilemez" });
+    }
+    if (cleanContent.length > 2000) {
+      return res.status(400).json({ message: "Mesaj en fazla 2000 karakter olabilir" });
+    }
 
     const chat = await Chat.findById(chatId);
     if (!chat) {
@@ -195,7 +202,7 @@ export const sendMessage = async (req, res) => {
       chat: chatId,
       sender,
       senderName,
-      content,
+      content: cleanContent,
       type,
       fileUrl: fileUrl || null,
       fileName: fileName || null,
@@ -203,7 +210,7 @@ export const sendMessage = async (req, res) => {
     });
 
     // Chat'i güncelle
-    chat.lastMessage = type === "text" ? content : (type === "image" ? "📷 Resim" : "📎 Dosya");
+    chat.lastMessage = type === "text" ? cleanContent : (type === "image" ? "📷 Resim" : "📎 Dosya");
     chat.lastMessageAt = message.createdAt;
     chat.lastMessageSender = sender;
     

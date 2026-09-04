@@ -25,13 +25,41 @@ const storage = multer.diskStorage({
 	},
 });
 
+const allowedMimeTypes = new Set([
+	"application/pdf",
+	"image/jpeg",
+	"image/png",
+	"application/msword",
+	"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
+
 const upload = multer({ 
     storage,
-    limits: { fileSize: 50 * 1024 * 1024 } // 50MB
+	limits: { fileSize: 20 * 1024 * 1024 },
+	fileFilter: (_req, file, cb) => {
+		if (!allowedMimeTypes.has(file.mimetype)) {
+			return cb(new Error("Yalnızca PDF, JPG, PNG, DOC ve DOCX yüklenebilir"));
+		}
+		cb(null, true);
+	},
 });
 
 // Kullanıcı
-router.post("/upload", protectRoute, upload.single("file"), uploadFile);
+const handleUpload = (req, res, next) => {
+	upload.single("file")(req, res, (error) => {
+		if (error) {
+			return res.status(400).json({
+				success: false,
+				message: error.code === "LIMIT_FILE_SIZE"
+					? "Dosya en fazla 20 MB olabilir"
+					: error.message,
+			});
+		}
+		next();
+	});
+};
+
+router.post("/upload", protectRoute, handleUpload, uploadFile);
 router.get("/my-files", protectRoute, getMyFiles);
 router.get("/download/:id", protectRoute, downloadFile);
 router.delete("/:id", protectRoute, deleteFile);
@@ -42,5 +70,3 @@ router.get("/admin/stats", protectRoute, adminRoute, adminStats);
 router.put("/admin/:id", protectRoute, adminRoute, adminUpdate);
 
 export default router;
-
-

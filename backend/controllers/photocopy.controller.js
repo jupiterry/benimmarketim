@@ -14,6 +14,15 @@ export const uploadFile = async (req, res) => {
 		}
 
 		const { copies = 1, color = "black_white", paperSize = "A4", notes = "" } = req.body;
+		const parsedCopies = Number.parseInt(copies, 10);
+		if (!Number.isInteger(parsedCopies) || parsedCopies < 1 || parsedCopies > 100) {
+			try { fs.unlinkSync(req.file.path); } catch {}
+			return res.status(400).json({ success: false, message: "Kopya sayısı 1-100 arasında olmalıdır" });
+		}
+		if (!["black_white", "color"].includes(color) || !["A4", "A3", "A5", "Letter"].includes(paperSize)) {
+			try { fs.unlinkSync(req.file.path); } catch {}
+			return res.status(400).json({ success: false, message: "Geçersiz fotokopi ayarı" });
+		}
 
 		const fileDoc = await PhotocopyFile.create({
 			user: req.user._id,
@@ -21,10 +30,10 @@ export const uploadFile = async (req, res) => {
 			filePath: req.file.path,
 			mimeType: req.file.mimetype,
 			fileSize: req.file.size,
-			copies,
+			copies: parsedCopies,
 			color,
 			paperSize,
-			notes,
+			notes: String(notes).trim().slice(0, 500),
 		});
 
 		res.status(201).json({ success: true, data: fileDoc });
@@ -46,7 +55,9 @@ export const getMyFiles = async (req, res) => {
 
 export const downloadFile = async (req, res) => {
 	try {
-		const file = await PhotocopyFile.findById(req.params.id);
+		const query = { _id: req.params.id };
+		if (req.user.role !== "admin") query.user = req.user._id;
+		const file = await PhotocopyFile.findOne(query);
 		if (!file) return res.status(404).json({ success: false, message: "Dosya bulunamadı" });
 
 		return res.download(file.filePath, file.originalName);
@@ -58,7 +69,9 @@ export const downloadFile = async (req, res) => {
 
 export const deleteFile = async (req, res) => {
 	try {
-		const file = await PhotocopyFile.findOne({ _id: req.params.id });
+		const query = { _id: req.params.id };
+		if (req.user.role !== "admin") query.user = req.user._id;
+		const file = await PhotocopyFile.findOne(query);
 		if (!file) return res.status(404).json({ success: false, message: "Dosya bulunamadı" });
 
 		try { fs.unlinkSync(file.filePath); } catch {}
@@ -121,5 +134,4 @@ export const adminUpdate = async (req, res) => {
 		res.status(500).json({ success: false, message: "Sunucu hatası" });
 	}
 };
-
 
