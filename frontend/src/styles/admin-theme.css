@@ -1527,6 +1527,149 @@
   background-clip: text;
 }
 
+/* ======================================
+   ADMIN PANEL V4 — CALM OPERATIONS UI
+   A shared visual layer for every tab.
+   ====================================== */
+.admin-layout {
+  --admin-bg-deep: #07110d;
+  --admin-bg-primary: #0b1712;
+  --admin-bg-secondary: #10211a;
+  --admin-bg-tertiary: #162b22;
+  --admin-bg-elevated: #1b3328;
+  --admin-glass-bg: rgba(17, 35, 27, .82);
+  --admin-glass-bg-dark: rgba(8, 20, 15, .92);
+  --admin-glass-border: rgba(218, 245, 227, .09);
+  --admin-glass-border-glow: rgba(103, 232, 158, .28);
+  --admin-text-secondary: #b4c2ba;
+  --admin-text-muted: #71867a;
+  background:
+    radial-gradient(70rem 36rem at 92% -10%, rgba(34, 197, 94, .13), transparent 60%),
+    radial-gradient(48rem 32rem at -10% 100%, rgba(20, 184, 166, .1), transparent 58%),
+    #07110d;
+}
+
+.admin-layout::before {
+  opacity: .48;
+  background:
+    radial-gradient(ellipse 70% 42% at 22% -12%, rgba(74, 222, 128, .11) 0%, transparent 65%),
+    radial-gradient(ellipse 42% 34% at 100% 20%, rgba(45, 212, 191, .08) 0%, transparent 66%);
+  animation: none;
+}
+
+.admin-layout::after { opacity: .32; filter: blur(28px); animation: none; }
+
+.admin-sidebar {
+  width: 292px;
+  background: linear-gradient(180deg, rgba(10, 25, 18, .98), rgba(7, 17, 13, .96));
+  border-right-color: rgba(200, 242, 215, .08);
+  box-shadow: 18px 0 48px rgba(0, 0, 0, .17);
+}
+
+.admin-sidebar::before {
+  width: 1px;
+  background: linear-gradient(180deg, transparent 4%, rgba(110, 231, 183, .45) 34%, rgba(45, 212, 191, .1) 68%, transparent 96%);
+  box-shadow: none;
+}
+
+.admin-sidebar-header {
+  min-height: 86px;
+  padding: 1.2rem 1.1rem;
+  border-bottom-color: rgba(218, 245, 227, .07);
+}
+
+.admin-sidebar-logo {
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #38c978, #119a69 58%, #087d5b);
+  box-shadow: 0 12px 26px rgba(16, 185, 129, .22), inset 0 1px 0 rgba(255,255,255,.26);
+}
+
+.admin-sidebar-content { padding: 1.05rem .8rem 1.2rem; }
+.admin-sidebar-group { margin-bottom: 1.25rem; }
+.admin-sidebar-group-title { padding: 0 .7rem .5rem; color: #6f8578; font-size: .64rem; letter-spacing: .12em; }
+
+.admin-sidebar-item {
+  min-height: 44px;
+  margin: 2px 0;
+  padding: .65rem .72rem;
+  border-radius: 13px;
+  color: #aabbb0;
+}
+
+.admin-sidebar-item:hover { background: rgba(177, 242, 201, .06); color: #f4fff7; }
+.admin-sidebar-item.active {
+  color: #ecfff3;
+  background: linear-gradient(90deg, rgba(40, 191, 114, .21), rgba(33, 143, 100, .07));
+  border-color: rgba(101, 231, 161, .17);
+  box-shadow: inset 3px 0 0 #55df9b, 0 8px 22px rgba(0,0,0,.12);
+}
+.admin-sidebar-item.active::before { display: none; }
+.admin-sidebar-item-badge { background: #e95968; box-shadow: 0 5px 12px rgba(233, 89, 104, .22); animation: none; }
+.admin-sidebar-footer { padding: .9rem; background: rgba(255,255,255,.015); }
+.admin-sidebar-user { border-radius: 15px; background: rgba(255,255,255,.035); }
+.admin-sidebar-avatar { background: linear-gradient(145deg, #2cc97d, #14865e); box-shadow: 0 8px 18px rgba(20,134,94,.24); }
+
+.admin-main { background: transparent; }
+.admin-main.sidebar-collapsed { margin-left: var(--admin-sidebar-collapsed-width); }
+.admin-content { width: min(100%, 1680px); margin: 0 auto; padding: 1.75rem; padding-bottom: calc(1.75rem + 32px); }
+
+.admin-header {
+  height: 78px;
+  padding: 0 1.75rem;
+  background: rgba(7, 17, 13, .78);
+  border-bottom-color: rgba(218, 245, 227, .08);
+  box-shadow: 0 8px 28px rgba(0,0,0,.08);
+}
+.admin-page-title { letter-spacing: -.025em; }
+.admin-header-breadcrumb { color: #7e9687; }
+.admin-header-search { max-width: 420px; }
+.admin-header-search-input { background: rgba(255,255,255,.045); border-color: rgba(218,245,227,.09); border-radius: 13px; }
+.admin-header-search-input:hover, .admin-header-search-input:focus { background: rgba(255,255,255,.065); border-color: rgba(111, 231, 162, .28); }
+.admin-header-action-btn { border-radius: 12px; background: rgba(255,255,255,.045); border: 1px solid rgba(218,245,227,.08); }
+.admin-header-live { align-items: center; gap: .5rem; padding: .5rem .72rem; margin-right: .1rem; border-radius: 999px; background: rgba(47, 203, 125, .1); border: 1px solid rgba(110,231,183,.16); color: #b7f7cf; font-size: .72rem; font-weight: 700; }
+.admin-header-live-dot { width: 7px; height: 7px; border-radius: 999px; background: #54e39a; box-shadow: 0 0 0 4px rgba(84,227,154,.11); }
+
+/* One surface language for legacy tab components as well. */
+.admin-content .glass,
+.admin-content .admin-card,
+.admin-content .stat-card {
+  background: linear-gradient(145deg, rgba(22, 42, 32, .87), rgba(12, 28, 21, .91));
+  border-color: rgba(218,245,227,.085);
+  box-shadow: 0 12px 32px rgba(0,0,0,.14);
+}
+.admin-content .glass:hover,
+.admin-content .admin-card:hover { border-color: rgba(110,231,183,.21); box-shadow: 0 16px 36px rgba(0,0,0,.18); }
+.admin-content input:not([type="checkbox"]):not([type="radio"]),
+.admin-content select,
+.admin-content textarea {
+  border-color: rgba(218,245,227,.1) !important;
+  background-color: rgba(3, 12, 8, .3) !important;
+  border-radius: 12px !important;
+}
+.admin-content input:not([type="checkbox"]):not([type="radio"]):focus,
+.admin-content select:focus,
+.admin-content textarea:focus { border-color: rgba(100,230,157,.52) !important; box-shadow: 0 0 0 3px rgba(76, 211, 133, .1) !important; }
+.admin-content button { -webkit-tap-highlight-color: transparent; }
+.admin-content .bg-emerald-500 { background-color: #1d9d62; }
+.admin-content .hover\:bg-emerald-400:hover { background-color: #35ba78; }
+.admin-content .text-emerald-400 { color: #5be39b; }
+
+.admin-status-bar { height: 34px; background: rgba(7, 17, 13, .92); border-top-color: rgba(218,245,227,.07); color: #789080; }
+
+@media (max-width: 1024px) {
+  .admin-content { padding: 1.15rem; padding-bottom: 5.8rem; }
+  .admin-sidebar { width: min(292px, 86vw); }
+}
+
+@media (max-width: 640px) {
+  .admin-header { height: 68px; padding: 0 1rem; }
+  .admin-content { padding: 1rem; padding-bottom: 5.8rem; }
+  .admin-content .admin-card-header { padding: 1rem; }
+  .admin-content .admin-card-body { padding: 1rem; }
+}
+
 /* Print Styles */
 @media print {
   .admin-sidebar,

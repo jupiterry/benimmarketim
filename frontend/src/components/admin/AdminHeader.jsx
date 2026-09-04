@@ -109,7 +109,7 @@ const AdminHeader = ({
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
-          className="text-lg sm:text-xl font-bold text-white mt-0.5"
+          className="admin-page-title text-lg sm:text-xl font-bold text-white mt-0.5"
         >
           {pageTitle}
         </motion.h1>
@@ -140,6 +140,10 @@ const AdminHeader = ({
 
       {/* Actions */}
       <div className="admin-header-actions">
+        <div className="admin-header-live hidden xl:flex">
+          <span className="admin-header-live-dot" />
+          <span>Operasyonlar canlı</span>
+        </div>
         {/* Refresh */}
         <motion.button
           whileHover={{ scale: 1.1, backgroundColor: "rgba(255,255,255,0.1)" }}
