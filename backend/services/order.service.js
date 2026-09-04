@@ -203,6 +203,13 @@ export function dispatchOrderNotifications(io, newOrder, requestUser, phone) {
           customerName: requestUser.name,
           city: newOrder.city,
           phone: newOrder.phone,
+          deliveryPoint: newOrder.deliveryPoint,
+          deliveryPointName: newOrder.deliveryPointName,
+          products: newOrder.products?.map((product) => ({
+            name: product.name,
+            quantity: product.quantity,
+            price: product.price,
+          })) || [],
         },
       });
     }

@@ -14,6 +14,8 @@ const AdminHeader = ({
   onRefresh,
   refreshing = false,
   notifications = [],
+  onViewNotifications,
+  onClearNotifications,
   user,
   collapsed
 }) => {
@@ -209,6 +211,15 @@ const AdminHeader = ({
                   <span className="text-xs text-gray-500 bg-white/5 px-2 py-0.5 rounded-full">
                     {notifications.length} yeni
                   </span>
+                  {notifications.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={onClearNotifications}
+                      className="text-[11px] text-gray-400 hover:text-white transition-colors"
+                    >
+                      Temizle
+                    </button>
+                  )}
                 </div>
                 
                 {/* Content */}
@@ -253,6 +264,7 @@ const AdminHeader = ({
                   <motion.button 
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
+                    onClick={onViewNotifications}
                     className="w-full py-2 text-sm text-[#00f5ff] hover:text-white transition-colors rounded-lg hover:bg-[rgba(0,245,255,0.1)]"
                   >
                     Tümünü Gör

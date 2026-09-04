@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { useProductStore } from "../stores/useProductStore";
 import { useUserStore } from "../stores/useUserStore";
 import { useNavigate } from "react-router-dom";
+import socketService from "../lib/socket";
 
 // Admin Theme CSS
 import "../styles/admin-theme.css";
@@ -30,7 +31,15 @@ import AdvancedAnalyticsTab from "../components/AdvancedAnalyticsTab";
 import ChatTab from "../components/ChatTab";
 import WeeklyProductsTab from "../components/WeeklyProductsTab";
 
-import { Upload } from "lucide-react";
+import { Package, Upload } from "lucide-react";
+
+const loadStoredNotifications = () => {
+  try {
+    return JSON.parse(localStorage.getItem("admin-order-notifications") || "[]");
+  } catch {
+    return [];
+  }
+};
 
 // Bulk Upload Section Component
 const BulkUploadSection = ({ onUpload }) => (
@@ -81,7 +90,7 @@ const AdminPage = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [notifications, setNotifications] = useState([]);
+  const [notifications, setNotifications] = useState(loadStoredNotifications);
   const [lastSync, setLastSync] = useState(null);
   const [adminBadges, setAdminBadges] = useState({ orders: 0, chats: 0 });
 
@@ -223,6 +232,103 @@ const AdminPage = () => {
     }
   }, [fetchAllProducts]);
 
+  // Yeni siparişleri yönetici panelinin hangi sekmesi açık olursa olsun dinle.
+  // Liste localStorage'da tutulduğu için sayfa yenilendiğinde de kaybolmaz.
+  useEffect(() => {
+    if (user?.role !== "admin") return undefined;
+
+    const socket = socketService.connect();
+    window.__adminGlobalOrderNotifications = true;
+
+    const joinAdminRoom = () => socketService.joinAdminRoom(user?.accessToken);
+    const handleNewOrder = (data) => {
+      if (!data?.order || data.order.id === "test") return;
+
+      const order = data.order;
+      const notification = {
+        id: order.id,
+        message: `${order.customerName || "Müşteri"} yeni sipariş verdi · ₺${Number(order.totalAmount || 0).toFixed(2)}`,
+        time: new Date(order.createdAt || Date.now()).toLocaleTimeString("tr-TR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        order,
+      };
+
+      setNotifications((current) => {
+        const next = [notification, ...current.filter((item) => item.id !== notification.id)].slice(0, 30);
+        localStorage.setItem("admin-order-notifications", JSON.stringify(next));
+        return next;
+      });
+      setAdminBadges((current) => ({ ...current, orders: current.orders + 1 }));
+      updateLastSync();
+
+      const selectedSound = localStorage.getItem("notificationSound") || "ringtone";
+      const audio = new Audio(`/${selectedSound}.mp3`);
+      audio.volume = 0.75;
+      audio.play().catch(() => {
+        // Tarayıcı ilk kullanıcı etkileşimine kadar otomatik sesi engelleyebilir.
+      });
+
+      toast.custom((t) => (
+        <div className={`${t.visible ? "animate-enter" : "animate-leave"} w-full max-w-sm rounded-2xl border border-emerald-400/25 bg-[#101a18]/95 p-4 text-white shadow-2xl backdrop-blur-xl`}>
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-400/15">
+              <Package className="h-5 w-5 text-emerald-400" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold">Yeni mobil sipariş</p>
+              <p className="mt-1 truncate text-sm text-gray-300">{order.customerName || "Müşteri"}</p>
+              <p className="mt-1 text-lg font-extrabold text-emerald-400">₺{Number(order.totalAmount || 0).toFixed(2)}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              toast.dismiss(t.id);
+              setActiveTab("orders");
+            }}
+            className="mt-3 w-full rounded-xl bg-emerald-500 px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-emerald-400"
+          >
+            Siparişi aç
+          </button>
+        </div>
+      ), { duration: 10000, position: "top-right" });
+
+      if ("Notification" in window && Notification.permission === "granted") {
+        const browserNotification = new Notification("Benim Marketim · Yeni Sipariş", {
+          body: `${order.customerName || "Müşteri"} · ₺${Number(order.totalAmount || 0).toFixed(2)}`,
+          icon: "/favicon.ico",
+          tag: `order-${order.id}`,
+        });
+        browserNotification.onclick = () => {
+          window.focus();
+          setActiveTab("orders");
+          browserNotification.close();
+        };
+      }
+    };
+
+    socket.on("connect", joinAdminRoom);
+    socket.on("newOrder", handleNewOrder);
+    if (socket.connected) joinAdminRoom();
+
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+
+    return () => {
+      socket.off("connect", joinAdminRoom);
+      socket.off("newOrder", handleNewOrder);
+      window.__adminGlobalOrderNotifications = false;
+    };
+  }, [user?.role, user?.accessToken]);
+
+  const clearNotifications = useCallback(() => {
+    setNotifications([]);
+    localStorage.removeItem("admin-order-notifications");
+  }, []);
+
   const handleEdit = (product) => {
     setEditingProduct(product);
   };
@@ -352,6 +458,8 @@ const AdminPage = () => {
           onRefresh={handleRefresh}
           refreshing={refreshing}
           notifications={notifications}
+          onClearNotifications={clearNotifications}
+          onViewNotifications={() => setActiveTab("orders")}
           user={user}
           collapsed={sidebarCollapsed}
         />

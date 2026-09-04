@@ -49,12 +49,9 @@ class SocketService {
     const socket = this.getSocket();
     if (!socket) return;
 
-    if (!token) {
-      console.warn('⚠️ joinAdminRoom: token sağlanmadı, istek reddedilecek.');
-      return;
-    }
-
-    socket.emit('joinAdminRoom', { token });
+    // Token web sayfası yenilendiğinde JS state'inde olmayabilir. Backend,
+    // HttpOnly accessToken cookie'sini Socket.IO handshake'inden doğrular.
+    socket.emit('joinAdminRoom', token ? { token } : {});
     console.log('🔐 Admin odası isteği gönderildi');
 
     // Backend'den gelen hata bildirimi

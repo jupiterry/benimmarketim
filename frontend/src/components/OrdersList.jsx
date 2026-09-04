@@ -892,6 +892,10 @@ const OrdersList = () => {
     const handleNewOrder = (data) => {
       console.log('Yeni sipariş bildirimi alındı:', data);
       fetchOrderAnalyticsData();
+
+      // Yeni admin kabuğu bildirimi global olarak gösterir. Siparişler sekmesi
+      // yalnızca listesini yeniler; böylece çift ses/toast oluşmaz.
+      if (window.__adminGlobalOrderNotifications) return;
       
       const order = data.order;
       const customerName = order?.customerName || 'Müşteri';

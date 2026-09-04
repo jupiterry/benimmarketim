@@ -146,11 +146,23 @@ io.on('connection', (socket) => {
   // Önceden herhangi bir kullanıcı bu olaya emit gönderip admin bildirimlerini dinleyebiliyordu.
   socket.on('joinAdminRoom', async ({ token } = {}) => {
     try {
-      if (!token) {
+      // Web panelinde access token HttpOnly cookie içinde tutulur. Sayfa
+      // yenilendiğinde token JS state'inde bulunmasa da Socket.IO handshake
+      // cookie'sinden güvenli biçimde okunabilir. Flutter/harici istemciler
+      // için payload token desteği korunur.
+      const cookieHeader = socket.handshake.headers.cookie || '';
+      const cookieToken = cookieHeader
+        .split(';')
+        .map((part) => part.trim())
+        .find((part) => part.startsWith('accessToken='))
+        ?.slice('accessToken='.length);
+      const accessToken = token || (cookieToken ? decodeURIComponent(cookieToken) : null);
+
+      if (!accessToken) {
         socket.emit('error', { message: 'Yetki hatası: Token gerekli' });
         return;
       }
-      const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+      const decoded = jwt.verify(accessToken, process.env.ACCESS_TOKEN_SECRET);
       const user = await User.findById(decoded.userId).select('role').lean();
       if (!user || user.role !== 'admin') {
         socket.emit('error', { message: 'Yetki hatası: Sadece adminler bu odaya katılabilir' });
