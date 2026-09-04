@@ -37,6 +37,9 @@ export const getCoupon = async (req, res) => {
           isUsed: usageCount >= coupon.userUsageLimit,
           userUsageCount: usageCount,
           remainingUses: Math.max(0, coupon.userUsageLimit - usageCount),
+          remainingGlobalUses: coupon.usageLimit === null
+            ? null
+            : Math.max(0, coupon.usageLimit - coupon.usageCount),
           expiresInSeconds: Math.max(
             0,
             Math.floor((coupon.expirationDate.getTime() - now.getTime()) / 1000)
@@ -136,6 +139,7 @@ export const validateCoupon = async (req, res) => {
       orderProducts,
       deliveryPoint,
       channel,
+      deferDeliveryPoint: true,
     });
     if (!validation.valid) {
       return res.status(400).json({ success: false, message: validation.message });
@@ -178,6 +182,7 @@ export const recommendCoupons = async (req, res) => {
           orderProducts,
           deliveryPoint,
           channel,
+          deferDeliveryPoint: true,
         });
         return couponPublicData(coupon, evaluation);
       })

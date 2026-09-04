@@ -58,9 +58,11 @@ export async function evaluateCoupon(
     orderProducts = [],
     deliveryPoint,
     channel,
+    deferDeliveryPoint = false,
     now = new Date(),
   } = {}
 ) {
+  const requirements = [];
   const fail = (message, reason) => ({
     valid: false,
     message,
@@ -93,9 +95,13 @@ export async function evaluateCoupon(
 
   if (coupon.deliveryPoints?.length) {
     if (!deliveryPoint) {
-      return fail("Bu kupon için teslimat noktası seçmelisiniz", "delivery_point");
+      if (deferDeliveryPoint) {
+        requirements.push("delivery_point");
+      } else {
+        return fail("Bu kupon için teslimat noktası seçmelisiniz", "delivery_point");
+      }
     }
-    if (!coupon.deliveryPoints.includes(deliveryPoint)) {
+    if (deliveryPoint && !coupon.deliveryPoints.includes(deliveryPoint)) {
       return fail("Bu kupon seçtiğiniz teslimat noktasında geçerli değil", "delivery_point");
     }
   }
@@ -147,6 +153,8 @@ export async function evaluateCoupon(
     reason: null,
     calculatedDiscount,
     eligibleSubtotal,
+    requirements,
+    requiresDeliveryPoint: requirements.includes("delivery_point"),
   };
 }
 
