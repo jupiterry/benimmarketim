@@ -92,7 +92,6 @@ referralSchema.pre("save", async function(next) {
 
 // İndeksleme
 referralSchema.index({ referrer: 1 });
-referralSchema.index({ referralCode: 1 });
 
 const Referral = mongoose.model("Referral", referralSchema);
 
