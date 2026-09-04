@@ -1,6 +1,7 @@
 import { redis } from "../lib/redis.js";
 import cloudinary from "../lib/cloudinary.js";
 import Product from "../models/product.model.js";
+import Order from "../models/order.model.js";
 import WeeklyProduct from "../models/weeklyProduct.model.js";
 import { Parser } from 'json2csv';
 import { detectBrand } from '../services/brandDetection.js';
@@ -235,6 +236,65 @@ export const getRecommendedProducts = async (req, res) => {
   } catch (error) {
     console.error("Error in getRecommendedProducts controller:", error.message);
     res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// Sipariş geçmişine göre kişisel ürün önerileri.
+// Kullanıcı hiç sipariş vermediyse öne çıkan/indirimli ürünlerle güvenli fallback döner.
+export const getPersonalizedProducts = async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 12, 4), 24);
+    const orders = await Order.find({
+      user: req.user._id,
+      status: { $ne: "İptal Edildi" },
+    })
+      .sort({ createdAt: -1 })
+      .limit(40)
+      .select("products")
+      .lean();
+
+    const purchaseWeight = new Map();
+    for (const order of orders) {
+      for (const item of order.products || []) {
+        const id = item.product?.toString();
+        if (id) purchaseWeight.set(id, (purchaseWeight.get(id) || 0) + Number(item.quantity || 1));
+      }
+    }
+
+    const purchasedIds = [...purchaseWeight.keys()];
+    const boughtProducts = purchasedIds.length
+      ? await Product.find({ _id: { $in: purchasedIds } }).select("category").lean()
+      : [];
+    const categoryWeight = new Map();
+    for (const product of boughtProducts) {
+      categoryWeight.set(product.category, (categoryWeight.get(product.category) || 0) + 1);
+    }
+
+    const candidates = await Product.find({ isHidden: false, isOutOfStock: false })
+      .limit(300)
+      .lean();
+    const ranked = candidates
+      .map((product) => {
+        const id = product._id.toString();
+        const repurchase = purchaseWeight.get(id) || 0;
+        const categoryAffinity = categoryWeight.get(product.category) || 0;
+        const score = repurchase * 16 + categoryAffinity * 5 +
+          (product.isDiscounted ? 4 : 0) + (product.isFeatured ? 2 : 0);
+        return { product, score };
+      })
+      .sort((a, b) => b.score - a.score || Number(b.product.isDiscounted) - Number(a.product.isDiscounted))
+      .slice(0, limit)
+      .map(({ product }) => product);
+
+    const products = await applyWeeklyPricesToProducts(ranked);
+    res.json({
+      success: true,
+      strategy: orders.length ? "purchase_history" : "popular_fallback",
+      products,
+    });
+  } catch (error) {
+    console.error("Personalized recommendations error:", error.message);
+    res.status(500).json({ message: "Öneriler getirilemedi" });
   }
 };
 

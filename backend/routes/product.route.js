@@ -11,6 +11,7 @@ import {
   getFeaturedProducts,
   getProducts,
   getRecommendedProducts,
+  getPersonalizedProducts,
   toggleFeaturedProduct,
   updateProductPrice,
   updateProduct,
@@ -223,6 +224,7 @@ router.delete("/:id/discount", protectRoute, adminRoute, removeProductDiscount);
 router.get("/", getProducts); // Admin için tüm ürünleri getir
 router.get("/featured", getFeaturedProducts);
 router.get("/recommendations", getRecommendedProducts);
+router.get("/personalized", protectRoute, getPersonalizedProducts);
 router.get("/:id/similar", getSimilarProducts); // Similar products endpoint
 router.get("/:id", getProductById);
 router.post("/", protectRoute, adminRoute, createProduct);
