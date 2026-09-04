@@ -8,6 +8,7 @@ import {
 import toast from "react-hot-toast";
 import axios from "../lib/axios";
 import { useConfirm } from "./ConfirmModal";
+import CouponRequestCampaignPanel from "./CouponRequestCampaignPanel";
 
 // Stat Card Component
 const StatCard = ({ icon: Icon, title, value, color, subtext }) => (
@@ -518,6 +519,8 @@ const CouponsTab = () => {
           Yeni Kupon
         </motion.button>
       </div>
+
+      <CouponRequestCampaignPanel />
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
