@@ -11,7 +11,7 @@ import { isWithinOrderHours, getOrderHoursStatus, getOrderHoursCountdown, getOrd
 import FeedbackForm from "./FeedbackForm";
 
 const OrderSummary = () => {
-  const { total, subtotal, coupon, isCouponApplied, cart, clearCart } = useCartStore();
+  const { total, subtotal, coupon, isCouponApplied, cart, clearCart, syncCoupons } = useCartStore();
   const { settings, fetchSettings } = useSettingsStore();
   const [phone, setPhone] = useState("");
   const [note, setNote] = useState("");
@@ -192,6 +192,8 @@ const OrderSummary = () => {
         deliveryPointName: deliveryPointName
       });
   
+    await syncCoupons(selectedDeliveryPoint, { silent: false });
+    const latestCartState = useCartStore.getState();
     const res = await axios.post("/cart/place-order", {
       products: orderItems,
         city: deliveryPointName,
@@ -200,7 +202,8 @@ const OrderSummary = () => {
         deliveryPoint: selectedDeliveryPoint,
         deliveryPointName: deliveryPointName,
       // Sadece kupon kodu gönderilir; indirim tutarı backend tarafından hesaplanır.
-      couponCode: isCouponApplied && coupon ? coupon.code : null
+      couponCode: latestCartState.isCouponApplied && latestCartState.coupon ? latestCartState.coupon.code : null,
+      channel: "web"
     });
     
       console.log("Sipariş yanıtı:", res.data);

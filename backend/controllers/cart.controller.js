@@ -330,7 +330,12 @@ export const placeOrder = async (req, res) => {
     const { appliedCoupon, couponDiscount } = await validateAndCalculateCoupon(
       couponCode,
       req.user._id,
-      totalAmount
+      totalAmount,
+      {
+        orderProducts,
+        deliveryPoint,
+        channel: req.body.channel || req.body.device?.platform || "web",
+      }
     );
 
     const finalTotalAmount = Math.max(0, totalAmount - couponDiscount);

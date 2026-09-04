@@ -11,6 +11,10 @@ import WeeklyProduct from "../models/weeklyProduct.model.js";
 import Coupon from "../models/coupon.model.js";
 import Order from "../models/order.model.js";
 import { sendOrderNotification } from "./n8n.service.js";
+import {
+  commitCouponAtomically,
+  evaluateCoupon,
+} from "./coupon.service.js";
 
 // ─────────────────────────────────────────────
 // Fiyat Hesaplama
@@ -68,6 +72,7 @@ export async function buildOrderProducts(cartProducts) {
       price: effectivePrice,
       originalPrice: product.price,
       isWeeklyDiscount: weeklyPrice !== undefined,
+      category: product.category,
     };
   });
 
@@ -88,7 +93,12 @@ export async function buildOrderProducts(cartProducts) {
  * @returns {{ appliedCoupon, couponDiscount }} couponCode yoksa discount=0
  * @throws {Error} Kupon geçersizse
  */
-export async function validateAndCalculateCoupon(couponCode, userId, totalAmount) {
+export async function validateAndCalculateCoupon(
+  couponCode,
+  userId,
+  totalAmount,
+  context = {}
+) {
   if (!couponCode) {
     return { appliedCoupon: null, couponDiscount: 0 };
   }
@@ -102,19 +112,17 @@ export async function validateAndCalculateCoupon(couponCode, userId, totalAmount
     throw Object.assign(new Error("Geçersiz kupon kodu"), { statusCode: 400 });
   }
 
-  const validation = coupon.isValid(userId, totalAmount);
+  const validation = await evaluateCoupon(coupon, {
+    userId,
+    totalAmount,
+    orderProducts: context.orderProducts || [],
+    deliveryPoint: context.deliveryPoint,
+    channel: context.channel,
+  });
   if (!validation.valid) {
     throw Object.assign(new Error(validation.message), { statusCode: 400 });
   }
-
-  if (coupon.firstOrderOnly && (await Order.exists({ user: userId }))) {
-    throw Object.assign(
-      new Error("Bu kupon sadece ilk siparişiniz için geçerlidir"),
-      { statusCode: 400 }
-    );
-  }
-
-  const couponDiscount = coupon.calculateDiscount(totalAmount);
+  const couponDiscount = validation.calculatedDiscount;
   return { appliedCoupon: coupon, couponDiscount };
 }
 
@@ -134,23 +142,10 @@ export async function validateAndCalculateCoupon(couponCode, userId, totalAmount
  * @throws {Error} Kupon aynı anda kullanılmışsa
  */
 export async function commitCouponUsage(appliedCoupon, userId, orderId) {
-  const now = new Date();
-
-  const updatedCoupon = await Coupon.findOneAndUpdate(
-    {
-      _id: appliedCoupon._id,
-      isActive: true,
-      expirationDate: { $gt: now },
-      $or: [
-        { usageLimit: null },
-        { $expr: { $lt: ["$usageCount", "$usageLimit"] } },
-      ],
-    },
-    {
-      $inc: { usageCount: 1 },
-      $push: { usedBy: { user: userId, orderId, usedAt: now } },
-    },
-    { new: true }
+  const updatedCoupon = await commitCouponAtomically(
+    appliedCoupon,
+    userId,
+    orderId
   );
 
   if (!updatedCoupon) {

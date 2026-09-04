@@ -2,12 +2,23 @@ import { create } from "zustand";
 import axios from "../lib/axios";
 import { toast } from "react-hot-toast";
 
+let couponSyncTimer;
+
+const cartPayload = (cart) =>
+	(Array.isArray(cart) ? cart : []).map((item) => ({
+		product: item._id,
+		quantity: item.quantity,
+	}));
+
 export const useCartStore = create((set, get) => ({
 	cart: [],
 	coupon: null,
 	total: 0,
 	subtotal: 0,
 	isCouponApplied: false,
+	bestCoupon: null,
+	eligibleCoupons: [],
+	isCouponSyncing: false,
 
 	getMyCoupon: async () => {
 		try {
@@ -17,10 +28,16 @@ export const useCartStore = create((set, get) => ({
 			console.error("Kupon getirilirken hata:", error);
 		}
 	},
-	applyCoupon: async (code) => {
+	applyCoupon: async (code, deliveryPoint) => {
 		try {
-			const { subtotal } = get();
-			const response = await axios.post("/coupons/validate", { code, orderAmount: subtotal });
+			const { subtotal, cart } = get();
+			const response = await axios.post("/coupons/validate", {
+				code,
+				orderAmount: subtotal,
+				products: cartPayload(cart),
+				deliveryPoint,
+				channel: "web",
+			});
 			// API returns { success: true, coupon: { code, discountType, discountPercentage, ... } }
 			const couponData = response.data.coupon || response.data;
 			set({ coupon: couponData, isCouponApplied: true });
@@ -29,6 +46,42 @@ export const useCartStore = create((set, get) => ({
 		} catch (error) {
 			toast.error(error.response?.data?.message || "Kupon uygulanırken bir hata oluştu");
 		}
+	},
+	syncCoupons: async (deliveryPoint, { silent = true } = {}) => {
+		const { cart, subtotal, coupon, isCouponApplied } = get();
+		if (!cart.length) {
+			set({ bestCoupon: null, eligibleCoupons: [] });
+			return;
+		}
+		set({ isCouponSyncing: true });
+		try {
+			const payload = {
+				orderAmount: subtotal,
+				products: cartPayload(cart),
+				deliveryPoint,
+				channel: "web",
+			};
+			if (isCouponApplied && coupon?.code) {
+				const { data } = await axios.post("/coupons/validate", { ...payload, code: coupon.code });
+				set({ coupon: data.coupon });
+				get().calculateTotals();
+			} else {
+				const { data } = await axios.post("/coupons/recommend", payload);
+				set({ bestCoupon: data.bestCoupon || null, eligibleCoupons: data.eligibleCoupons || [] });
+			}
+		} catch (error) {
+			if (isCouponApplied) {
+				set({ coupon: null, isCouponApplied: false });
+				get().calculateTotals();
+				if (!silent) toast.error(error.response?.data?.message || "Kupon artık sepetiniz için geçerli değil");
+			}
+		} finally {
+			set({ isCouponSyncing: false });
+		}
+	},
+	scheduleCouponSync: (deliveryPoint) => {
+		clearTimeout(couponSyncTimer);
+		couponSyncTimer = setTimeout(() => get().syncCoupons(deliveryPoint), 350);
 	},
 	removeCoupon: () => {
 		set({ coupon: null, isCouponApplied: false });
@@ -41,6 +94,7 @@ export const useCartStore = create((set, get) => ({
 			const res = await axios.get("/cart");
 			set({ cart: res.data });
 			get().calculateTotals();
+			get().scheduleCouponSync();
 		} catch (error) {
 			set({ cart: [] });
 			if (error.response?.status === 401) {
@@ -50,7 +104,7 @@ export const useCartStore = create((set, get) => ({
 		}
 	},
 	clearCart: async () => {
-		set({ cart: [], coupon: null, total: 0, subtotal: 0 });
+		set({ cart: [], coupon: null, total: 0, subtotal: 0, bestCoupon: null, eligibleCoupons: [], isCouponApplied: false });
 		localStorage.removeItem('cart');
 	},
 	addToCart: async (product) => {
@@ -69,6 +123,7 @@ export const useCartStore = create((set, get) => ({
 			return { cart: newCart };
 		});
 			get().calculateTotals();
+			get().scheduleCouponSync();
 			return Promise.resolve();
 		} catch (error) {
 			const errorMessage = error.response?.data?.error || error.response?.data?.message || "Lütfen saati kontrol ediniz.";
@@ -83,6 +138,7 @@ export const useCartStore = create((set, get) => ({
 			return { cart: currentCart.filter((item) => item._id !== productId) };
 		});
 		get().calculateTotals();
+		get().scheduleCouponSync();
 	},
 	updateQuantity: async (productId, quantity) => {
 		if (quantity === 0) {
@@ -98,6 +154,7 @@ export const useCartStore = create((set, get) => ({
 			};
 		});
 		get().calculateTotals();
+		get().scheduleCouponSync();
 	},
 	calculateTotals: () => {
 		const { cart, coupon } = get();
@@ -107,6 +164,12 @@ export const useCartStore = create((set, get) => ({
 
 		if (coupon) {
 			let discount = 0;
+			if (coupon.calculatedDiscount !== undefined && coupon.calculatedDiscount !== null) {
+				discount = Number(coupon.calculatedDiscount) || 0;
+				total = Math.max(0, subtotal - discount);
+				set({ subtotal, total });
+				return;
+			}
 			
 			// API'den gelen kupon yapısını kontrol et
 			const discountType = coupon.discountType || 'percentage';

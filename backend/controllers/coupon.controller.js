@@ -1,6 +1,20 @@
 import Coupon from "../models/coupon.model.js";
 import User from "../models/user.model.js";
 import Order from "../models/order.model.js";
+import { buildOrderProducts } from "../services/order.service.js";
+import {
+  couponPublicData,
+  evaluateCoupon,
+} from "../services/coupon.service.js";
+
+const findUserCoupons = async (userId) => {
+  const now = new Date();
+  return Coupon.find({
+    isActive: true,
+    expirationDate: { $gt: now },
+    $or: [{ userId }, { userId: null }, { userId: { $exists: false } }],
+  }).sort({ userId: -1, createdAt: -1 });
+};
 
 // NOT: createReferralRewardCoupon bu dosyanın alt kısmında tanımlıdır.
 // useCoupon içindeki çağrı aynı modül kapsamında olduğu için çalışır.
@@ -13,28 +27,29 @@ export const getCoupon = async (req, res) => {
     const userId = req.user._id;
     const now = new Date();
     
-    // Kullanıcıya özel kuponlar (referral dahil)
-    const userCoupons = await Coupon.find({ 
-      userId: userId, 
-      isActive: true,
-      expirationDate: { $gt: now }
-    }).sort({ createdAt: -1 });
-    
-    // Genel aktif kuponlar (herkes için geçerli)
-    const generalCoupons = await Coupon.find({
-      isActive: true,
-      expirationDate: { $gt: now },
-      userId: { $exists: false }
-    }).sort({ createdAt: -1 });
-    
-    // Kuponları birleştir, kullanıcının kendi kuponları önce
-    const allCoupons = [...userCoupons, ...generalCoupons];
+    const coupons = await findUserCoupons(userId);
+    const allCoupons = await Promise.all(
+      coupons.map(async (coupon) => {
+        const usageCount = coupon.usedBy.filter(
+          (entry) => entry.user?.toString() === userId.toString()
+        ).length;
+        return couponPublicData(coupon, {
+          isUsed: usageCount >= coupon.userUsageLimit,
+          userUsageCount: usageCount,
+          remainingUses: Math.max(0, coupon.userUsageLimit - usageCount),
+          expiresInSeconds: Math.max(
+            0,
+            Math.floor((coupon.expirationDate.getTime() - now.getTime()) / 1000)
+          ),
+        });
+      })
+    );
     
     res.json({ 
       success: true, 
       coupons: allCoupons,
       // İlk kullanıcı kuponu (eski format için uyumluluk)
-      coupon: userCoupons.length > 0 ? userCoupons[0] : null
+      coupon: allCoupons.find((coupon) => coupon.userId) || null
     });
   } catch (error) {
     console.log("Error in getCoupon controller", error.message);
@@ -65,7 +80,7 @@ export const getActiveCoupons = async (req, res) => {
       isActive: true,
       expirationDate: { $gt: now },
       isReferralCoupon: { $ne: true }, // Referral kuponları hariç
-      userId: { $exists: false } // Kullanıcıya özel olmayanlar
+      $or: [{ userId: null }, { userId: { $exists: false } }]
     }).select("code description discountType discountPercentage discountAmount minimumOrderAmount expirationDate");
     
     res.json({ success: true, coupons });
@@ -78,7 +93,13 @@ export const getActiveCoupons = async (req, res) => {
 // Kupon kodu kontrol et
 export const validateCoupon = async (req, res) => {
   try {
-    const { code, orderAmount } = req.body;
+    const {
+      code,
+      orderAmount,
+      products = [],
+      deliveryPoint,
+      channel,
+    } = req.body;
     const userId = req.user?._id;
 
     if (!code) {
@@ -101,49 +122,136 @@ export const validateCoupon = async (req, res) => {
       return res.status(400).json({ success: false, message: "Bu kuponun süresi dolmuş" });
     }
 
-    // Kupon geçerliliğini kontrol et (isValid her zaman Mongoose metodunda tanımlıdır)
-    const validation = coupon.isValid(userId, orderAmount || 0);
+    let orderProducts = [];
+    let verifiedAmount = Number(orderAmount || 0);
+    if (Array.isArray(products) && products.length > 0) {
+      const built = await buildOrderProducts(products);
+      orderProducts = built.orderProducts;
+      verifiedAmount = built.totalAmount;
+    }
+
+    const validation = await evaluateCoupon(coupon, {
+      userId,
+      totalAmount: verifiedAmount,
+      orderProducts,
+      deliveryPoint,
+      channel,
+    });
     if (!validation.valid) {
       return res.status(400).json({ success: false, message: validation.message });
-    }
-
-    // İlk sipariş kontrolü
-    if (coupon.firstOrderOnly && userId) {
-      const existingOrders = await Order.countDocuments({ user: userId });
-      if (existingOrders > 0) {
-        return res.status(400).json({ 
-          success: false, 
-          message: "Bu kupon sadece ilk siparişiniz için geçerlidir" 
-        });
-      }
-    }
-
-    // İndirim hesapla
-    let calculatedDiscount = 0;
-    if (coupon.calculateDiscount) {
-      calculatedDiscount = coupon.calculateDiscount(orderAmount || 0);
-    } else {
-      // Eski format için
-      calculatedDiscount = orderAmount ? (orderAmount * coupon.discountPercentage / 100) : 0;
     }
 
     res.json({
       success: true,
       message: "Kupon geçerli",
-      coupon: {
-        code: coupon.code,
-        description: coupon.description,
-        discountType: coupon.discountType || "percentage",
-        discountPercentage: coupon.discountPercentage,
-        discountAmount: coupon.discountAmount,
-        minimumOrderAmount: coupon.minimumOrderAmount,
-        maximumDiscount: coupon.maximumDiscount,
-        calculatedDiscount
-      }
+      coupon: couponPublicData(coupon, validation),
     });
   } catch (error) {
     console.error("Kupon doğrulanırken hata:", error);
     res.status(500).json({ success: false, message: "Sunucu hatası" });
+  }
+};
+
+export const recommendCoupons = async (req, res) => {
+  try {
+    const {
+      products = [],
+      orderAmount = 0,
+      deliveryPoint,
+      channel,
+    } = req.body;
+    const userId = req.user._id;
+    let orderProducts = [];
+    let verifiedAmount = Number(orderAmount || 0);
+    if (Array.isArray(products) && products.length > 0) {
+      const built = await buildOrderProducts(products);
+      orderProducts = built.orderProducts;
+      verifiedAmount = built.totalAmount;
+    }
+
+    const coupons = await findUserCoupons(userId);
+    const evaluated = await Promise.all(
+      coupons.map(async (coupon) => {
+        const evaluation = await evaluateCoupon(coupon, {
+          userId,
+          totalAmount: verifiedAmount,
+          orderProducts,
+          deliveryPoint,
+          channel,
+        });
+        return couponPublicData(coupon, evaluation);
+      })
+    );
+    const eligible = evaluated
+      .filter((coupon) => coupon.valid)
+      .sort((a, b) => b.calculatedDiscount - a.calculatedDiscount);
+
+    res.json({
+      success: true,
+      bestCoupon: eligible[0] || null,
+      eligibleCoupons: eligible,
+      unavailableCoupons: evaluated.filter((coupon) => !coupon.valid),
+    });
+  } catch (error) {
+    console.error("Kupon önerileri hazırlanırken hata:", error);
+    res.status(500).json({
+      success: false,
+      message: "Kupon önerileri hazırlanamadı",
+    });
+  }
+};
+
+export const getCouponAnalytics = async (req, res) => {
+  try {
+    const [coupons, usage] = await Promise.all([
+      Coupon.find().lean(),
+      Order.aggregate([
+        { $match: { couponCode: { $ne: null } } },
+        {
+          $group: {
+            _id: "$couponCode",
+            orders: { $sum: 1 },
+            discount: { $sum: "$couponDiscount" },
+            revenue: { $sum: "$totalAmount" },
+            grossRevenue: { $sum: "$subtotalAmount" },
+            lastUsedAt: { $max: "$createdAt" },
+          },
+        },
+        { $sort: { orders: -1 } },
+      ]),
+    ]);
+    const usageMap = new Map(usage.map((item) => [item._id, item]));
+    const campaigns = coupons.map((coupon) => {
+      const stats = usageMap.get(coupon.code) || {};
+      return {
+        code: coupon.code,
+        description: coupon.description,
+        isActive: coupon.isActive,
+        usageCount: stats.orders || coupon.usageCount || 0,
+        discount: stats.discount || 0,
+        revenue: stats.revenue || 0,
+        grossRevenue: stats.grossRevenue || 0,
+        lastUsedAt: stats.lastUsedAt || null,
+        usageLimit: coupon.usageLimit,
+        redemptionRate: coupon.usageLimit
+          ? Math.min(100, ((stats.orders || 0) / coupon.usageLimit) * 100)
+          : null,
+      };
+    });
+    res.json({
+      success: true,
+      summary: {
+        totalCampaigns: coupons.length,
+        activeCampaigns: coupons.filter((coupon) => coupon.isActive).length,
+        couponOrders: usage.reduce((sum, item) => sum + item.orders, 0),
+        totalDiscount: usage.reduce((sum, item) => sum + item.discount, 0),
+        attributedRevenue: usage.reduce((sum, item) => sum + item.revenue, 0),
+      },
+      campaigns,
+    });
+  } catch (error) {
+    console.error("Kupon analitiği alınırken hata:", error);
+    res.status(500).json({ success: false, message: "Analitik alınamadı" });
   }
 };
 
@@ -230,7 +338,14 @@ export const createCoupon = async (req, res) => {
       expirationDate,
       applicableCategories,
       newUsersOnly,
-      firstOrderOnly
+      firstOrderOnly,
+      applicableProducts,
+      validDays,
+      startTime,
+      endTime,
+      deliveryPoints,
+      channels,
+      newUserDays
     } = req.body;
 
     // Validasyon
@@ -239,6 +354,18 @@ export const createCoupon = async (req, res) => {
         success: false, 
         message: "Kupon kodu ve son kullanma tarihi gerekli" 
       });
+    }
+    if (new Date(expirationDate) <= new Date()) {
+      return res.status(400).json({ success: false, message: "Son kullanma tarihi gelecekte olmalı" });
+    }
+    if (
+      (discountType === "fixed" && Number(discountAmount) <= 0) ||
+      ((discountType || "percentage") === "percentage" && Number(discountPercentage) <= 0)
+    ) {
+      return res.status(400).json({ success: false, message: "İndirim değeri sıfırdan büyük olmalı" });
+    }
+    if ((startTime && !endTime) || (!startTime && endTime)) {
+      return res.status(400).json({ success: false, message: "Başlangıç ve bitiş saatini birlikte seçin" });
     }
 
     // Kupon kodu benzersiz mi kontrol et
@@ -259,11 +386,18 @@ export const createCoupon = async (req, res) => {
       minimumOrderAmount: minimumOrderAmount || 0,
       maximumDiscount: maximumDiscount || null,
       usageLimit: usageLimit || null,
-      userUsageLimit: userUsageLimit || 1,
+      userUsageLimit: firstOrderOnly ? 1 : userUsageLimit || 1,
       expirationDate: new Date(expirationDate),
       applicableCategories: applicableCategories || [],
       newUsersOnly: newUsersOnly || false,
-      firstOrderOnly: firstOrderOnly || false
+      firstOrderOnly: firstOrderOnly || false,
+      applicableProducts: applicableProducts || [],
+      validDays: validDays || [],
+      startTime: startTime || "",
+      endTime: endTime || "",
+      deliveryPoints: deliveryPoints || [],
+      channels: channels || [],
+      newUserDays: newUserDays || 30
     });
 
     await newCoupon.save();
@@ -275,7 +409,11 @@ export const createCoupon = async (req, res) => {
     });
   } catch (error) {
     console.error("Kupon oluşturulurken hata:", error);
-    res.status(500).json({ success: false, message: "Sunucu hatası" });
+    const validationError = error?.name === "ValidationError" || error?.name === "CastError";
+    res.status(validationError ? 400 : 500).json({
+      success: false,
+      message: validationError ? "Kupon alanlarından biri geçersiz" : "Sunucu hatası",
+    });
   }
 };
 
@@ -294,7 +432,9 @@ export const updateCoupon = async (req, res) => {
     const allowedFields = [
       'code', 'description', 'discountType', 'discountPercentage', 'discountAmount',
       'minimumOrderAmount', 'maximumDiscount', 'usageLimit', 'userUsageLimit',
-      'expirationDate', 'isActive', 'applicableCategories', 'newUsersOnly', 'firstOrderOnly'
+      'expirationDate', 'isActive', 'applicableCategories', 'applicableProducts',
+      'validDays', 'startTime', 'endTime', 'deliveryPoints', 'channels',
+      'newUsersOnly', 'newUserDays', 'firstOrderOnly'
     ];
     
     allowedFields.forEach(field => {
@@ -302,6 +442,12 @@ export const updateCoupon = async (req, res) => {
         coupon[field] = updateData[field];
       }
     });
+
+    coupon.code = coupon.code.toUpperCase().trim();
+    if (coupon.firstOrderOnly) coupon.userUsageLimit = 1;
+    if ((coupon.startTime && !coupon.endTime) || (!coupon.startTime && coupon.endTime)) {
+      return res.status(400).json({ success: false, message: "Başlangıç ve bitiş saatini birlikte seçin" });
+    }
 
     await coupon.save();
 
@@ -312,7 +458,11 @@ export const updateCoupon = async (req, res) => {
     });
   } catch (error) {
     console.error("Kupon güncellenirken hata:", error);
-    res.status(500).json({ success: false, message: "Sunucu hatası" });
+    const validationError = error?.name === "ValidationError" || error?.name === "CastError";
+    res.status(validationError ? 400 : 500).json({
+      success: false,
+      message: validationError ? "Kupon alanlarından biri geçersiz" : "Sunucu hatası",
+    });
   }
 };
 

@@ -5,7 +5,7 @@ import { Gift, X, Check, Ticket, Sparkles, Clock, Tag, ChevronDown, ChevronUp } 
 import axios from "../lib/axios";
 
 const GiftCouponCard = () => {
-	const { applyCoupon, removeCoupon, coupon, isCouponApplied } = useCartStore();
+	const { applyCoupon, removeCoupon, coupon, isCouponApplied, bestCoupon, isCouponSyncing } = useCartStore();
 	const [code, setCode] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
 	const [availableCoupons, setAvailableCoupons] = useState([]);
@@ -101,6 +101,21 @@ const GiftCouponCard = () => {
 						className="space-y-4"
 					>
 						{/* Mevcut Kuponlar */}
+						{bestCoupon && (
+							<button
+								onClick={() => handleApplyCoupon(bestCoupon.code)}
+								disabled={isCouponSyncing || isLoading}
+								className="w-full mb-4 p-4 rounded-xl text-left bg-gradient-to-r from-emerald-500/20 to-lime-500/10 border border-emerald-400/40 hover:border-emerald-300 transition-colors disabled:opacity-60"
+							>
+								<div className="flex items-center justify-between gap-3">
+									<div>
+										<p className="text-xs font-semibold uppercase tracking-wider text-emerald-300">Sepetin için en iyi kupon</p>
+										<p className="mt-1 font-mono font-bold text-white">{bestCoupon.code}</p>
+									</div>
+									<span className="font-bold text-emerald-300">₺{Number(bestCoupon.calculatedDiscount || 0).toFixed(2)} kazanç</span>
+								</div>
+							</button>
+						)}
 						{availableCoupons.length > 0 && (
 							<div className="mb-4">
 								<button
@@ -128,7 +143,7 @@ const GiftCouponCard = () => {
 											exit={{ opacity: 0, height: 0 }}
 											className="mt-3 space-y-2"
 										>
-											{availableCoupons.slice(0, 3).map((c) => (
+											{availableCoupons.filter((c) => !c.isUsed).slice(0, 6).map((c) => (
 												<motion.div
 													key={c._id}
 													whileHover={{ scale: 1.02 }}

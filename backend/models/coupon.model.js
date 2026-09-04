@@ -75,10 +75,40 @@ const couponSchema = new mongoose.Schema(
     applicableCategories: [{
       type: String
     }],
+    applicableProducts: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Product"
+    }],
+    validDays: [{
+      type: Number,
+      min: 0,
+      max: 6
+    }],
+    startTime: {
+      type: String,
+      default: ""
+    },
+    endTime: {
+      type: String,
+      default: ""
+    },
+    deliveryPoints: [{
+      type: String,
+      enum: ["girlsDorm", "boysDorm"]
+    }],
+    channels: [{
+      type: String,
+      enum: ["web", "android", "ios"]
+    }],
     // Yeni kullanıcılara özel
     newUsersOnly: {
       type: Boolean,
       default: false
+    },
+    newUserDays: {
+      type: Number,
+      min: 1,
+      default: 30
     },
     // İlk siparişe özel
     firstOrderOnly: {
@@ -106,7 +136,6 @@ const couponSchema = new mongoose.Schema(
 );
 
 // İndeksleme
-couponSchema.index({ code: 1 });
 couponSchema.index({ isActive: 1, expirationDate: 1 });
 couponSchema.index({ isReferralCoupon: 1, referredBy: 1 });
 // userId sparse index - null değerlere izin verir (genel kuponlar için)

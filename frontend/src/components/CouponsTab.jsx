@@ -42,7 +42,15 @@ const CouponModal = ({ isOpen, onClose, coupon, onSave }) => {
     userUsageLimit: 1,
     expirationDate: "",
     newUsersOnly: false,
-    firstOrderOnly: false
+    firstOrderOnly: false,
+    newUserDays: 30,
+    applicableCategories: [],
+    applicableProducts: [],
+    validDays: [],
+    startTime: "",
+    endTime: "",
+    deliveryPoints: [],
+    channels: []
   });
   const [saving, setSaving] = useState(false);
 
@@ -60,7 +68,15 @@ const CouponModal = ({ isOpen, onClose, coupon, onSave }) => {
         userUsageLimit: coupon.userUsageLimit || 1,
         expirationDate: coupon.expirationDate ? new Date(coupon.expirationDate).toISOString().split('T')[0] : "",
         newUsersOnly: coupon.newUsersOnly || false,
-        firstOrderOnly: coupon.firstOrderOnly || false
+        firstOrderOnly: coupon.firstOrderOnly || false,
+        newUserDays: coupon.newUserDays || 30,
+        applicableCategories: coupon.applicableCategories || [],
+        applicableProducts: (coupon.applicableProducts || []).map(String),
+        validDays: coupon.validDays || [],
+        startTime: coupon.startTime || "",
+        endTime: coupon.endTime || "",
+        deliveryPoints: coupon.deliveryPoints || [],
+        channels: coupon.channels || []
       });
     } else {
       // Default for new coupon
@@ -108,6 +124,15 @@ const CouponModal = ({ isOpen, onClose, coupon, onSave }) => {
       code += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     setFormData(prev => ({ ...prev, code }));
+  };
+
+  const toggleArrayValue = (field, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: prev[field].includes(value)
+        ? prev[field].filter((item) => item !== value)
+        : [...prev[field], value]
+    }));
   };
 
   if (!isOpen) return null;
@@ -229,6 +254,56 @@ const CouponModal = ({ isOpen, onClose, coupon, onSave }) => {
             )}
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm text-gray-400 mb-1 block">Kullanıcı Başına Limit</label>
+              <input type="number" min="1" value={formData.userUsageLimit}
+                onChange={(e) => setFormData(prev => ({ ...prev, userUsageLimit: Number(e.target.value) || 1 }))}
+                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-white/10" />
+            </div>
+            {formData.newUsersOnly && (
+              <div>
+                <label className="text-sm text-gray-400 mb-1 block">Yeni Kullanıcı Süresi (gün)</label>
+                <input type="number" min="1" value={formData.newUserDays}
+                  onChange={(e) => setFormData(prev => ({ ...prev, newUserDays: Number(e.target.value) || 30 }))}
+                  className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-white/10" />
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="text-sm text-gray-400 mb-1 block">Geçerli Kategoriler</label>
+            <input value={formData.applicableCategories.join(", ")}
+              onChange={(e) => setFormData(prev => ({ ...prev, applicableCategories: e.target.value.split(",").map(v => v.trim()).filter(Boolean) }))}
+              placeholder="Örn: İçecekler, Atıştırmalık (boşsa tümü)"
+              className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-white/10" />
+          </div>
+          <div>
+            <label className="text-sm text-gray-400 mb-1 block">Geçerli Ürün ID'leri</label>
+            <input value={formData.applicableProducts.join(", ")}
+              onChange={(e) => setFormData(prev => ({ ...prev, applicableProducts: e.target.value.split(",").map(v => v.trim()).filter(Boolean) }))}
+              placeholder="Virgülle ayırın (boşsa tümü)"
+              className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-white/10" />
+          </div>
+
+          <div>
+            <label className="text-sm text-gray-400 mb-2 block">Geçerli Günler (boşsa her gün)</label>
+            <div className="grid grid-cols-4 gap-2">
+              {[['Paz',0],['Pzt',1],['Sal',2],['Çar',3],['Per',4],['Cum',5],['Cmt',6]].map(([label, day]) => (
+                <button key={day} type="button" onClick={() => toggleArrayValue('validDays', day)}
+                  className={`p-2 rounded-lg border ${formData.validDays.includes(day) ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300' : 'bg-gray-800 border-white/10 text-gray-400'}`}>{label}</button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="text-sm text-gray-400 mb-1 block">Başlangıç Saati</label><input type="time" value={formData.startTime} onChange={(e) => setFormData(prev => ({...prev,startTime:e.target.value}))} className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-white/10" /></div>
+            <div><label className="text-sm text-gray-400 mb-1 block">Bitiş Saati</label><input type="time" value={formData.endTime} onChange={(e) => setFormData(prev => ({...prev,endTime:e.target.value}))} className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-white/10" /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="text-sm text-gray-400 mb-2 block">Teslimat Noktaları</label>{[['Kız Yurdu','girlsDorm'],['Erkek Yurdu','boysDorm']].map(([label,value]) => <label key={value} className="flex gap-2 text-gray-300 mb-2"><input type="checkbox" checked={formData.deliveryPoints.includes(value)} onChange={() => toggleArrayValue('deliveryPoints',value)} />{label}</label>)}</div>
+            <div><label className="text-sm text-gray-400 mb-2 block">Kanallar</label>{[['Web','web'],['Android','android'],['iOS','ios']].map(([label,value]) => <label key={value} className="flex gap-2 text-gray-300 mb-2"><input type="checkbox" checked={formData.channels.includes(value)} onChange={() => toggleArrayValue('channels',value)} />{label}</label>)}</div>
+          </div>
+
           {/* Limitler */}
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -325,6 +400,7 @@ const CouponsTab = () => {
   const [filter, setFilter] = useState("all"); // all, active, expired
   const [showModal, setShowModal] = useState(false);
   const [editingCoupon, setEditingCoupon] = useState(null);
+  const [analytics, setAnalytics] = useState(null);
 
   useEffect(() => {
     fetchCoupons();
@@ -333,8 +409,12 @@ const CouponsTab = () => {
   const fetchCoupons = async () => {
     try {
       setLoading(true);
-      const response = await axios.get("/coupons/all");
+      const [response, analyticsResponse] = await Promise.all([
+        axios.get("/coupons/all"),
+        axios.get("/coupons/analytics")
+      ]);
       setCoupons(response.data.coupons || []);
+      setAnalytics(analyticsResponse.data);
     } catch (error) {
       toast.error("Kuponlar yüklenirken hata oluştu");
     } finally {
@@ -435,6 +515,12 @@ const CouponsTab = () => {
         <StatCard icon={Clock} title="Süresi Dolmuş" value={stats.expired} color="from-red-500/10 to-orange-500/10" />
         <StatCard icon={Users} title="Toplam Kullanım" value={stats.totalUsage} color="from-purple-500/10 to-pink-500/10" />
       </div>
+      {analytics?.summary && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <StatCard icon={DollarSign} title="Kuponlu Sipariş Geliri" value={`₺${Number(analytics.summary.attributedRevenue || 0).toFixed(2)}`} color="from-emerald-500/10 to-cyan-500/10" subtext={`${analytics.summary.couponOrders || 0} sipariş`} />
+          <StatCard icon={Percent} title="Sağlanan Toplam İndirim" value={`₺${Number(analytics.summary.totalDiscount || 0).toFixed(2)}`} color="from-purple-500/10 to-pink-500/10" />
+        </div>
+      )}
 
       {/* Search & Filter */}
       <div className="flex flex-col md:flex-row gap-4">
@@ -479,6 +565,7 @@ const CouponsTab = () => {
         ) : (
           filteredCoupons.map(coupon => {
             const isExpired = new Date(coupon.expirationDate) < new Date();
+            const campaignStats = analytics?.campaigns?.find(item => item.code === coupon.code);
             
             return (
               <motion.div
@@ -533,6 +620,10 @@ const CouponsTab = () => {
                     <div className="text-center">
                       <p className="text-white font-bold">{coupon.usageCount || 0}</p>
                       <p className="text-gray-500 text-xs">Kullanım</p>
+                    </div>
+                    <div className="text-center hidden lg:block">
+                      <p className="text-white font-bold">₺{Number(campaignStats?.revenue || 0).toFixed(0)}</p>
+                      <p className="text-gray-500 text-xs">Sipariş Geliri</p>
                     </div>
                     <div className="text-center">
                       <p className="text-white text-sm">

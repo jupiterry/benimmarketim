@@ -50,7 +50,12 @@ export const createOrder = async (req, res) => {
     const { appliedCoupon, couponDiscount } = await validateAndCalculateCoupon(
       couponCode,
       req.user._id,
-      totalAmount
+      totalAmount,
+      {
+        orderProducts,
+        deliveryPoint,
+        channel: device?.platform || req.body.channel || "unknown",
+      }
     );
 
     const finalAmount = Math.max(0, totalAmount - couponDiscount);
