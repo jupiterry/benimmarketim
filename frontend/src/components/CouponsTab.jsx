@@ -53,6 +53,14 @@ const CouponModal = ({ isOpen, onClose, coupon, onSave }) => {
     channels: []
   });
   const [saving, setSaving] = useState(false);
+  const [productOptions, setProductOptions] = useState([]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    axios.get('/products?limit=5000')
+      .then(({ data }) => setProductOptions(data.products || []))
+      .catch(() => setProductOptions([]));
+  }, [isOpen]);
 
   useEffect(() => {
     if (coupon) {
@@ -279,11 +287,13 @@ const CouponModal = ({ isOpen, onClose, coupon, onSave }) => {
               className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-white/10" />
           </div>
           <div>
-            <label className="text-sm text-gray-400 mb-1 block">Geçerli Ürün ID'leri</label>
-            <input value={formData.applicableProducts.join(", ")}
-              onChange={(e) => setFormData(prev => ({ ...prev, applicableProducts: e.target.value.split(",").map(v => v.trim()).filter(Boolean) }))}
-              placeholder="Virgülle ayırın (boşsa tümü)"
-              className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-white/10" />
+            <label className="text-sm text-gray-400 mb-1 block">Geçerli Ürünler (boşsa tümü)</label>
+            <select multiple value={formData.applicableProducts}
+              onChange={(e) => setFormData(prev => ({ ...prev, applicableProducts: Array.from(e.target.selectedOptions, option => option.value) }))}
+              className="w-full min-h-32 bg-gray-800 text-white rounded-xl px-3 py-2 border border-white/10">
+              {productOptions.map(product => <option key={product._id} value={product._id}>{product.name} — {product.category}</option>)}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">Birden fazla ürün için Ctrl/Command tuşuyla seçim yapın.</p>
           </div>
 
           <div>
