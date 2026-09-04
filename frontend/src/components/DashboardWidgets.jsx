@@ -19,7 +19,11 @@ import {
   Box,
   Truck,
   Percent,
-  Calculator
+  Calculator,
+  ClipboardList,
+  MessageCircle,
+  ArrowRight,
+  PackageCheck
 } from "lucide-react";
 import axios from "../lib/axios";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell } from 'recharts';
@@ -125,11 +129,12 @@ const QuickAction = ({ icon: Icon, label, onClick, color = "emerald" }) => (
 );
 
 // Recent Order Item
-const RecentOrderItem = ({ order, index }) => (
+const RecentOrderItem = ({ order, index, onOpen }) => (
   <motion.div
     initial={{ opacity: 0, x: -20 }}
     animate={{ opacity: 1, x: 0 }}
     transition={{ delay: index * 0.1 }}
+    onClick={onOpen}
     className="flex items-center justify-between p-3 bg-gray-800/30 hover:bg-gray-700/30 rounded-xl border border-gray-700/30 transition-colors cursor-pointer group"
   >
     <div className="flex items-center gap-3">
@@ -320,7 +325,7 @@ const ProfitMarginCard = ({ allOrders }) => {
 };
 
 // Main Dashboard Component
-const DashboardWidgets = () => {
+const DashboardWidgets = ({ onNavigate }) => {
   const [stats, setStats] = useState({
     todaySales: 0,
     todayOrders: 0,
@@ -493,6 +498,18 @@ const DashboardWidgets = () => {
     return last7Days;
   };
 
+  const operations = useMemo(() => {
+    const activeOrders = stats.allOrders.filter((order) =>
+      ["Hazırlanıyor", "Yolda"].includes(order.status)
+    );
+    const delayedOrders = stats.allOrders.filter((order) =>
+      order.status === "Hazırlanıyor" && (Date.now() - new Date(order.createdAt).getTime()) / 60000 >= 20
+    );
+    const averageBasket = stats.todayOrders ? stats.todaySales / stats.todayOrders : 0;
+
+    return { activeOrders, delayedOrders, averageBasket };
+  }, [stats.allOrders, stats.todayOrders, stats.todaySales]);
+
   if (loading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -516,7 +533,7 @@ const DashboardWidgets = () => {
             <Zap className="w-6 h-6 text-[#00f5ff]" style={{ filter: 'drop-shadow(0 0 8px #00f5ff)' }} />
             <span className="admin-gradient-text">Dashboard</span>
           </h1>
-          <p className="text-gray-400 text-sm mt-1">Gerçek zamanlı mağaza istatistikleri</p>
+          <p className="text-gray-400 text-sm mt-1">Mağazanın bugünkü operasyon özeti ve öncelikli işler</p>
         </div>
         <div className="flex items-center gap-3">
           <LiveClock />
@@ -576,6 +593,33 @@ const DashboardWidgets = () => {
           delay={0.3}
         />
       </div>
+
+      {/* Operations focus: turns the dashboard into an action centre */}
+      <section className="admin-card overflow-hidden">
+        <div className="admin-card-body p-0">
+          <div className="flex flex-col gap-4 border-b border-white/5 px-5 py-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-400/10 text-emerald-300 ring-1 ring-emerald-300/15"><ClipboardList className="h-5 w-5" /></div>
+              <div><p className="text-sm font-extrabold text-white">Operasyon merkezi</p><p className="text-xs text-gray-500">Şu an öncelik gerektiren işler</p></div>
+            </div>
+            <button onClick={() => onNavigate?.("orders")} className="inline-flex items-center gap-2 self-start rounded-xl bg-emerald-500 px-3.5 py-2 text-xs font-extrabold text-white transition hover:bg-emerald-400 md:self-auto">Siparişleri yönet <ArrowRight className="h-3.5 w-3.5" /></button>
+          </div>
+          <div className="grid grid-cols-1 divide-y divide-white/5 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+            <button onClick={() => onNavigate?.("orders")} className="group flex items-center gap-3 p-5 text-left transition hover:bg-white/[.035]">
+              <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${operations.delayedOrders.length ? "bg-rose-500/15 text-rose-300" : "bg-emerald-500/15 text-emerald-300"}`}><AlertTriangle className="h-5 w-5" /></span>
+              <span><span className="block text-2xl font-black text-white">{operations.delayedOrders.length}</span><span className="text-xs text-gray-400">20 dk+ bekleyen sipariş</span></span>
+            </button>
+            <button onClick={() => onNavigate?.("orders")} className="group flex items-center gap-3 p-5 text-left transition hover:bg-white/[.035]">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-400/15 text-amber-300"><PackageCheck className="h-5 w-5" /></span>
+              <span><span className="block text-2xl font-black text-white">{operations.activeOrders.length}</span><span className="text-xs text-gray-400">aktif sipariş yönetiliyor</span></span>
+            </button>
+            <button onClick={() => onNavigate?.("chat")} className="group flex items-center gap-3 p-5 text-left transition hover:bg-white/[.035]">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-cyan-400/15 text-cyan-300"><MessageCircle className="h-5 w-5" /></span>
+              <span><span className="block text-2xl font-black text-white">₺{operations.averageBasket.toFixed(0)}</span><span className="text-xs text-gray-400">bugünkü ortalama sepet</span></span>
+            </button>
+          </div>
+        </div>
+      </section>
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -645,7 +689,7 @@ const DashboardWidgets = () => {
           <div className="admin-card-body space-y-2">
             <AnimatePresence>
               {stats.recentOrders.map((order, index) => (
-                <RecentOrderItem key={order.orderId} order={order} index={index} />
+                <RecentOrderItem key={order.orderId} order={order} index={index} onOpen={() => onNavigate?.("orders")} />
               ))}
             </AnimatePresence>
             {stats.recentOrders.length === 0 && (

@@ -1208,6 +1208,11 @@ const OrdersList = () => {
     cancelled: filteredOrders.filter(o => o.status === "İptal Edildi").length
   };
 
+  const priorityOrders = filteredOrders
+    .filter((order) => order.status === "Hazırlanıyor" || order.status === "Yolda")
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+    .slice(0, 3);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -1332,6 +1337,46 @@ const OrdersList = () => {
           delay={0.4}
         />
       </div>
+
+      {/* Operations queue: the next actions are visible without opening each card */}
+      <motion.section
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="overflow-hidden rounded-2xl border border-white/[.08] bg-[#101827]/75 shadow-[0_18px_50px_rgba(0,0,0,.18)]"
+      >
+        <div className="flex flex-col gap-3 border-b border-white/[.07] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-400/15 text-amber-300"><Timer className="h-5 w-5" /></span>
+            <div><h3 className="font-extrabold text-white">Operasyon kuyruğu</h3><p className="text-xs text-gray-500">Sıradaki aksiyon gerektiren siparişler</p></div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => { setStatusFilter("Hazırlanıyor"); setCurrentPage(1); }} className="rounded-xl bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-300 transition hover:bg-emerald-400/20">{stats.preparing} hazırlanıyor</button>
+            <button onClick={() => { setStatusFilter("Yolda"); setCurrentPage(1); }} className="rounded-xl bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-300 transition hover:bg-amber-400/20">{stats.onWay} yolda</button>
+          </div>
+        </div>
+        {priorityOrders.length > 0 ? (
+          <div className="grid grid-cols-1 divide-y divide-white/[.06] lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+            {priorityOrders.map((order) => {
+              const waitingMinutes = getWaitingMinutes(order.createdAt);
+              const needsAttention = order.status === "Hazırlanıyor" && waitingMinutes >= 20;
+              const nextStatus = order.status === "Hazırlanıyor" ? "Yolda" : "Teslim Edildi";
+              const nextLabel = order.status === "Hazırlanıyor" ? "Yola çıkar" : "Teslim edildi";
+              return (
+                <div key={`priority-${order.orderId}`} className="p-4">
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <div className="min-w-0"><p className="truncate font-bold text-white">{order.user?.name || "Müşteri"}</p><p className="mt-1 text-xs text-gray-500">#{String(order.orderId).slice(-6).toUpperCase()} · {order.products?.length || 0} ürün</p></div>
+                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-extrabold ${needsAttention ? "bg-rose-400/15 text-rose-300" : "bg-white/[.06] text-gray-300"}`}>{getOrderDuration(order.createdAt, order.updatedAt, order.status)}</span>
+                  </div>
+                  <div className="mb-4 flex items-center justify-between text-sm"><span className="flex min-w-0 items-center gap-1.5 truncate text-gray-400"><MapPin className="h-3.5 w-3.5 shrink-0 text-cyan-300" />{order.deliveryPointName || order.deliveryPoint || "Teslimat noktası"}</span><span className="shrink-0 font-black text-emerald-400">₺{Number(order.totalAmount || 0).toFixed(2)}</span></div>
+                  <div className="flex gap-2"><button onClick={() => setDetailModalOrder(order)} className="flex-1 rounded-xl bg-white/[.055] px-3 py-2 text-xs font-bold text-gray-200 transition hover:bg-white/[.1]">Detay</button><button onClick={() => updateOrderStatus(order.orderId, nextStatus)} className="flex-1 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-extrabold text-white transition hover:bg-emerald-400">{nextLabel}</button></div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 px-5 py-7 text-sm text-gray-400"><CheckCircle2 className="h-5 w-5 text-emerald-400" />Şu an aksiyon bekleyen aktif sipariş bulunmuyor.</div>
+        )}
+      </motion.section>
 
       {/* Filters */}
       <motion.div 

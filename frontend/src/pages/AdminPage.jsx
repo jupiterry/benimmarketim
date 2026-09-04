@@ -379,7 +379,7 @@ const AdminPage = () => {
   const renderContent = () => {
     switch (activeTab) {
       case "dashboard":
-        return <DashboardWidgets />;
+        return <DashboardWidgets onNavigate={handleTabChange} />;
       case "analytics":
         return <AdvancedAnalyticsTab />;
       case "orders":
@@ -424,7 +424,7 @@ const AdminPage = () => {
       case "settings":
         return <SettingsTab />;
       default:
-        return <DashboardWidgets />;
+        return <DashboardWidgets onNavigate={handleTabChange} />;
     }
   };
 
