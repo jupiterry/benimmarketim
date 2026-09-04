@@ -17,6 +17,10 @@ const getOrderDuration = (createdAt, updatedAt, status) => {
   const end = status === "Teslim Edildi" || status === "İptal Edildi" 
     ? new Date(updatedAt) 
     : new Date();
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return "Yeni";
+  }
   
   const diffMs = end - start;
   const diffMins = Math.floor(diffMs / 60000);
@@ -40,7 +44,21 @@ const getWarningLevel = (createdAt, status) => {
 
 // Helper: Dakika cinsinden bekleme süresi
 const getWaitingMinutes = (createdAt) => {
-  return Math.floor((new Date() - new Date(createdAt)) / 60000);
+  const date = new Date(createdAt);
+  if (Number.isNaN(date.getTime())) return 0;
+  return Math.max(0, Math.floor((new Date() - date) / 60000));
+};
+
+const formatOrderDate = (date) => {
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return "Tarih bilgisi yok";
+  return parsed.toLocaleString("tr-TR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 };
 
 // Skeleton Loading Component
@@ -341,8 +359,10 @@ const OrderCard = forwardRef(({ order, index, onStatusUpdate, onPrint, onAddItem
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.3, delay: index * 0.03 }}
       layout
-      className={`relative overflow-hidden rounded-2xl border ${statusStyle.border} bg-gradient-to-br ${statusStyle.bg} backdrop-blur-xl shadow-xl hover:shadow-2xl transition-all duration-300`}
+      whileHover={{ y: -3 }}
+      className={`group relative overflow-hidden rounded-[22px] border ${statusStyle.border} bg-gradient-to-br ${statusStyle.bg} backdrop-blur-xl shadow-xl shadow-black/20 hover:shadow-2xl hover:shadow-black/35 transition-all duration-300`}
     >
+      <div className={`absolute inset-x-0 top-0 h-px bg-gradient-to-r ${statusStyle.bg} opacity-90`} />
       {/* Glow Effect for Warning */}
       {warningLevel && (
         <div className={`absolute inset-0 pointer-events-none ${warningLevel === 'critical' ? 'animate-pulse' : ''}`}>
@@ -351,10 +371,10 @@ const OrderCard = forwardRef(({ order, index, onStatusUpdate, onPrint, onAddItem
       )}
       
       {/* Header Section */}
-      <div className="p-4 border-b border-white/5">
+      <div className="p-4 pb-3 border-b border-white/5">
         <div className="flex items-center gap-3">
           {/* Avatar */}
-          <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${statusStyle.bg} ${statusStyle.border} border flex items-center justify-center flex-shrink-0`}>
+          <div className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${statusStyle.bg} ${statusStyle.border} border flex items-center justify-center flex-shrink-0 shadow-lg shadow-black/10`}>
             <span className={`text-lg font-bold ${statusStyle.text}`}>
               {order.user?.name?.[0]?.toUpperCase() || '?'}
             </span>
@@ -385,16 +405,16 @@ const OrderCard = forwardRef(({ order, index, onStatusUpdate, onPrint, onAddItem
           
           {/* Actions */}
           <div className="flex items-center gap-1">
-            <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => onViewDetail(order)}
-              className="p-1.5 rounded-lg bg-white/5 hover:bg-purple-500/20 text-gray-400 hover:text-purple-400 transition-colors">
+            <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.94 }} onClick={() => onViewDetail(order)} title="Sipariş detayını aç"
+              className="p-2 rounded-xl bg-white/[.055] hover:bg-purple-500/20 text-gray-400 hover:text-purple-300 transition-colors">
               <Eye className="w-4 h-4" />
             </motion.button>
-            <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => onPrint(order)}
-              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors">
+            <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.94 }} onClick={() => onPrint(order)} title="Siparişi yazdır"
+              className="p-2 rounded-xl bg-white/[.055] hover:bg-white/10 text-gray-400 hover:text-white transition-colors">
               <Printer className="w-4 h-4" />
             </motion.button>
-            <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => onDelete(order.orderId)}
-              className="p-1.5 rounded-lg bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition-colors">
+            <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.94 }} onClick={() => onDelete(order.orderId)} title="Siparişi sil"
+              className="p-2 rounded-xl bg-white/[.055] hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition-colors">
               <Trash2 className="w-4 h-4" />
             </motion.button>
           </div>
@@ -402,7 +422,7 @@ const OrderCard = forwardRef(({ order, index, onStatusUpdate, onPrint, onAddItem
         
         {/* Status & Duration Row */}
         <div className="flex items-center gap-2 mt-3">
-          <span className={`text-xs font-medium px-2.5 py-1 rounded-lg ${statusStyle.text} bg-black/20`}>
+          <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${statusStyle.text} bg-black/20 border border-white/[.04]`}>
             {statusStyle.icon} {order.status}
           </span>
           <span className="text-[11px] text-gray-500 bg-black/20 px-2 py-1 rounded-lg flex items-center gap-1">
@@ -418,29 +438,29 @@ const OrderCard = forwardRef(({ order, index, onStatusUpdate, onPrint, onAddItem
             </span>
           )}
           <div className="flex-1" />
-          <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => onAddItem(order.orderId)}
-            className={`text-xs font-medium px-2.5 py-1 rounded-lg ${statusStyle.text} bg-black/20 hover:bg-black/30 transition-colors flex items-center gap-1`}>
+          <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }} onClick={() => onAddItem(order.orderId)}
+            className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${statusStyle.text} bg-black/20 hover:bg-black/30 transition-colors flex items-center gap-1`}>
             <Plus className="w-3 h-3" /> Ekle
           </motion.button>
         </div>
       </div>
 
       {/* Body Section */}
-      <div className="p-4 space-y-3">
+      <div className="p-4 space-y-3.5">
         {/* Quick Info Row */}
-        <div className="flex items-center justify-between text-[11px]">
-          <div className="flex items-center gap-3 text-gray-400">
-            <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {order.user?.email?.split('@')[0]}@...</span>
-            <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {order.user?.phone || '-'}</span>
+        <div className="flex items-center justify-between gap-3 text-[11px]">
+          <div className="flex min-w-0 items-center gap-3 text-gray-400">
+            <span className="flex min-w-0 items-center gap-1 truncate"><Mail className="w-3 h-3 shrink-0" /> {order.user?.email ? `${order.user.email.split('@')[0]}@...` : "E-posta yok"}</span>
+            <span className="hidden lg:flex items-center gap-1"><Phone className="w-3 h-3" /> {order.user?.phone || '-'}</span>
           </div>
-          <span className="flex items-center gap-1 text-gray-500">
+          <span className="flex shrink-0 items-center gap-1 text-gray-500">
             <MapPin className="w-3 h-3" /> {order.deliveryPointName || order.city || 'Belirtilmemiş'}
           </span>
         </div>
 
         {/* Order Summary Compact */}
-        <div className={`flex items-center justify-between p-3 rounded-xl bg-black/20 border ${statusStyle.border}`}>
-          <div className="flex items-center gap-3">
+        <div className={`flex items-center justify-between gap-3 p-3.5 rounded-2xl bg-black/20 border ${statusStyle.border}`}>
+          <div className="flex min-w-0 items-center gap-3">
             <div className="text-center">
               <p className="text-lg font-bold text-white">{order.products?.length || 0}</p>
               <p className="text-[10px] text-gray-500 uppercase">Ürün</p>
@@ -453,15 +473,15 @@ const OrderCard = forwardRef(({ order, index, onStatusUpdate, onPrint, onAddItem
             {order.couponCode && (
               <>
                 <div className="w-px h-8 bg-white/10" />
-                <div className="text-center">
-                  <p className="text-sm font-bold text-purple-400">🎟️ {order.couponCode}</p>
-                  <p className="text-[10px] text-purple-300">-₺{(order.couponDiscount || 0).toFixed(0)}</p>
+                <div className="min-w-0 text-left">
+                  <p className="truncate text-sm font-bold text-purple-300">🎟️ {order.couponCode}</p>
+                  <p className="text-[10px] text-purple-300/80">₺{(order.couponDiscount || 0).toFixed(0)} indirim</p>
                 </div>
               </>
             )}
           </div>
           <div className="text-right">
-            <p className={`text-2xl font-bold ${statusStyle.text}`}>₺{order.totalAmount?.toFixed(2)}</p>
+            <p className={`text-2xl font-extrabold tracking-tight ${statusStyle.text}`}>₺{order.totalAmount?.toFixed(2)}</p>
             {order.couponCode && order.subtotalAmount > 0 && (
               <p className="text-[10px] text-gray-500 line-through">₺{order.subtotalAmount?.toFixed(2)}</p>
             )}
@@ -469,12 +489,13 @@ const OrderCard = forwardRef(({ order, index, onStatusUpdate, onPrint, onAddItem
         </div>
 
         {/* Status Change Row */}
-        <div className="flex gap-2">
+        <div className="grid grid-cols-4 gap-2">
           {['Hazırlanıyor', 'Yolda', 'Teslim Edildi', 'İptal Edildi'].map(status => (
             <button
               key={status}
               onClick={() => onStatusUpdate(order.orderId, status)}
-              className={`flex-1 py-2 text-xs font-medium rounded-lg transition-all ${
+              title={`${status} olarak güncelle`}
+              className={`min-h-10 py-2 text-xs font-medium rounded-xl transition-all ${
                 order.status === status 
                   ? `${statusStyle.text} bg-black/30 ring-1 ring-current` 
                   : 'text-gray-500 bg-black/10 hover:bg-black/20 hover:text-gray-300'
@@ -488,14 +509,14 @@ const OrderCard = forwardRef(({ order, index, onStatusUpdate, onPrint, onAddItem
         {/* Date */}
         <div className="flex items-center gap-2 text-[10px] text-gray-500">
           <Calendar className="w-3 h-3" />
-          {new Date(order.createdAt).toLocaleString("tr-TR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+          {formatOrderDate(order.createdAt)}
         </div>
       </div>
 
       {/* Products Toggle */}
       <motion.button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full py-2 text-sm text-gray-400 hover:text-white transition-colors flex items-center justify-center gap-2"
+        className="mx-4 mb-3 w-[calc(100%-2rem)] rounded-xl border border-white/[.06] bg-white/[.025] py-2.5 text-sm text-gray-400 hover:bg-white/[.05] hover:text-white transition-colors flex items-center justify-center gap-2"
       >
         <Package2 className="w-4 h-4" />
         {isExpanded ? "Ürünleri Gizle" : "Ürünleri Göster"}
@@ -517,7 +538,7 @@ const OrderCard = forwardRef(({ order, index, onStatusUpdate, onPrint, onAddItem
             transition={{ duration: 0.3 }}
             className="overflow-hidden"
           >
-            <div className="pt-4 space-y-2">
+            <div className="px-4 pb-4 space-y-2">
               {order.products.map((product, idx) => (
                 <motion.div
                   key={idx}
@@ -595,13 +616,13 @@ const OrderCard = forwardRef(({ order, index, onStatusUpdate, onPrint, onAddItem
         <motion.div 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl"
+          className="mx-4 mb-4 rounded-2xl border border-amber-400/20 bg-amber-500/[.08] p-3.5"
         >
           <div className="flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-xs text-amber-400/70 font-medium mb-1">Müşteri Notu</p>
-              <p className="text-sm text-amber-200">{order.note}</p>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-300/80">Müşteri Notu</p>
+              <p className="line-clamp-2 text-sm leading-relaxed text-amber-100">{order.note}</p>
             </div>
           </div>
         </motion.div>

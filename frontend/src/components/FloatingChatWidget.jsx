@@ -3,7 +3,7 @@ import axios from "../lib/axios";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   MessageCircle, Send, X, User, Minimize2,
-  Maximize2, Volume2, VolumeX, Search, ChevronUp, ChevronDown
+  Maximize2, Volume2, VolumeX, Search, ArrowLeft, Inbox
 } from "lucide-react";
 import toast from "react-hot-toast";
 import socketService from "../lib/socket.js";
@@ -28,42 +28,54 @@ const playNotificationSound = () => {
 // --- Components ---
 
 // Mini Chat Item
-const MiniChatItem = ({ chat, isSelected, onClick, isTyping }) => (
+const MiniChatItem = ({ chat, isSelected, onClick, isTyping }) => {
+  const hasUnread = (chat.unreadCount || 0) > 0;
+  const lastActivity = chat.updatedAt || chat.lastMessageAt || chat.createdAt;
+  const timeLabel = lastActivity
+    ? new Date(lastActivity).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })
+    : "";
+
+  return (
   <motion.div
-    whileHover={{ scale: 1.02, x: 2 }}
+    whileHover={{ x: 2 }}
     whileTap={{ scale: 0.98 }}
     onClick={onClick}
-    className={`p-3 rounded-xl cursor-pointer mb-1 transition-all ${
+    role="button"
+    tabIndex={0}
+    onKeyDown={(event) => event.key === "Enter" && onClick()}
+    className={`group relative p-3 rounded-2xl cursor-pointer mb-1.5 border transition-all ${
       isSelected 
-        ? "bg-white/10 border-l-2 border-emerald-500" 
-        : "hover:bg-white/5 border-l-2 border-transparent"
+        ? "bg-emerald-500/10 border-emerald-400/30 shadow-[0_8px_22px_rgba(16,185,129,.10)]"
+        : "bg-transparent border-transparent hover:bg-white/[.045] hover:border-white/[.06]"
     }`}
   >
     <div className="flex items-center gap-3">
-      <div className={`w-9 h-9 rounded-full ${GRADIENT_PRIMARY} p-[1px]`}>
-        <div className="w-full h-full bg-gray-900 rounded-full flex items-center justify-center">
+      <div className={`relative w-10 h-10 rounded-2xl ${GRADIENT_PRIMARY} p-[1px] shadow-lg shadow-emerald-950/30`}>
+        <div className="w-full h-full bg-[#111a27] rounded-[15px] flex items-center justify-center">
            <User size={16} className="text-white" />
         </div>
+        {hasUnread && <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-rose-500 ring-2 ring-[#101925]" />}
       </div>
       
       <div className="flex-1 min-w-0">
-        <div className="flex justify-between items-center">
-            <span className={`text-sm font-medium truncate ${isSelected ? 'text-emerald-400' : 'text-gray-200'}`}>
+        <div className="flex justify-between items-center gap-2">
+            <span className={`text-sm truncate ${hasUnread ? 'font-bold text-white' : isSelected ? 'font-semibold text-emerald-300' : 'font-medium text-gray-200'}`}>
               {chat.user?.name || "Misafir"}
             </span>
-            {chat.unreadCount > 0 && (
-              <span className="bg-emerald-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-emerald-500/20 shadow-lg">
+            {hasUnread ? (
+              <span className="min-w-5 h-5 px-1.5 bg-emerald-400 text-emerald-950 text-[10px] leading-5 text-center font-extrabold rounded-full shadow-lg shadow-emerald-500/20">
                 {chat.unreadCount}
               </span>
-            )}
+            ) : <span className="text-[10px] text-gray-600 shrink-0">{timeLabel}</span>}
         </div>
-        <p className="text-xs text-gray-500 truncate">
+        <p className={`mt-0.5 text-xs truncate ${hasUnread ? 'text-gray-300' : 'text-gray-500'}`}>
           {isTyping ? <span className="text-emerald-400 animate-pulse">Yazıyor...</span> : (chat.lastMessage || "Sohbet başladı")}
         </p>
       </div>
     </div>
   </motion.div>
-);
+  );
+};
 
 // Mini Message Bubble
 const MiniMessageBubble = ({ message, isOwn }) => (
@@ -134,6 +146,20 @@ const FloatingChatWidget = () => {
     } finally { setIsLoading(false); }
   }, [fetchChats]);
 
+  const openChat = useCallback((chat) => {
+    if (!chat?._id) return;
+    setIsOpen(true);
+    setSelectedChat(chat);
+    fetchMessages(chat._id);
+    socketService.joinChat(chat._id);
+  }, [fetchMessages]);
+
+  useEffect(() => {
+    if (!selectedChat || isLoading) return;
+    const frame = requestAnimationFrame(scrollWidgetMessagesToBottom);
+    return () => cancelAnimationFrame(frame);
+  }, [selectedChat?._id, messages.length, isLoading]);
+
   // Refs for stable access in socket listeners
   const selectedChatRef = useRef(selectedChat);
   const soundEnabledRef = useRef(soundEnabled);
@@ -182,13 +208,8 @@ const FloatingChatWidget = () => {
                </div>
                <button onClick={() => {
                   toast.dismiss(t.id);
-                  setIsOpen(true);
                   const chat = chatsRef.current.find(c => c._id === data.chatId);
-                  if(chat) { 
-                    setSelectedChat(chat); 
-                    // fetchMessages will be called by effect change, but we can't rely on effect inside listener easily
-                    // we will trigger select logic:
-                  }
+                  if(chat) openChat(chat);
                }} className="text-emerald-400 text-xs font-bold hover:underline">AÇ</button>
              </motion.div>
            ), {duration: 4000});
@@ -207,7 +228,7 @@ const FloatingChatWidget = () => {
 
     Object.entries(handlers).forEach(([evt, handler]) => socketService.on(evt, handler));
     return () => Object.entries(handlers).forEach(([evt]) => socketService.off(evt));
-  }, [fetchChats]); // Removed dynamic dependencies to prevent constant reconnects
+  }, [fetchChats, openChat]);
 
   const sendMessage = async () => {
      if(!newMessage.trim() || !selectedChat) return;
@@ -223,7 +244,19 @@ const FloatingChatWidget = () => {
      } catch { toast.error("Gönderilemedi"); }
   };
 
-  const filteredChats = chats.filter(c => c.user?.name?.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredChats = chats
+    .filter(c => {
+      const query = searchQuery.trim().toLowerCase();
+      if (!query) return true;
+      return [c.user?.name, c.user?.email, c.lastMessage]
+        .filter(Boolean)
+        .some(value => value.toLowerCase().includes(query));
+    })
+    .sort((a, b) => {
+      const unreadDifference = (b.unreadCount || 0) - (a.unreadCount || 0);
+      if (unreadDifference) return unreadDifference;
+      return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
+    });
 
   // --- Render ---
   return (
@@ -256,19 +289,20 @@ const FloatingChatWidget = () => {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 50 }}
             transition={{ type: "spring", bounce: 0.3 }}
-            className={`fixed z-[50] ${GLASS_PANEL} overflow-hidden flex flex-col transition-all duration-300 ${
-               isMaximized ? "inset-4 rounded-2xl" : "bottom-6 right-6 w-[380px] h-[600px] rounded-3xl"
+            className={`fixed z-[50] overflow-hidden flex flex-col border border-white/10 bg-[#101925]/95 backdrop-blur-2xl shadow-[0_28px_80px_rgba(0,0,0,.5)] transition-all duration-300 ${
+               isMaximized ? "inset-4 rounded-[28px]" : "bottom-6 right-6 w-[400px] h-[640px] rounded-[28px]"
             }`}
           >
             {/* Header */}
-            <div className={`px-4 py-3 border-b border-white/5 flex items-center justify-between ${GRADIENT_PRIMARY}`}>
+            <div className={`relative px-5 py-4 border-b border-white/10 flex items-center justify-between ${GRADIENT_PRIMARY}`}>
+               <div className="absolute inset-x-0 bottom-0 h-px bg-white/30" />
                <div className="flex items-center gap-3">
                   <div className="p-1.5 bg-white/10 rounded-lg">
                     <MessageCircle size={18} className="text-white" />
                   </div>
                   <div>
-                     <h3 className="text-white font-bold text-sm">Canlı Destek</h3>
-                     {totalUnread > 0 && <span className="text-[10px] text-white/90 font-medium">{totalUnread} okunmamış mesaj</span>}
+                    <h3 className="text-white font-bold">Canlı Destek</h3>
+                     <span className="text-[11px] text-white/90 font-medium">{totalUnread ? `${totalUnread} yeni mesaj seni bekliyor` : "Tüm konuşmalar güncel"}</span>
                   </div>
                </div>
                
@@ -288,30 +322,34 @@ const FloatingChatWidget = () => {
             <div className="flex-1 flex overflow-hidden">
                {/* Left List (Visible if chat not selected or maximized) */}
                <div className={`${(selectedChat && !isMaximized) ? 'hidden' : 'flex'} flex-col w-full ${isMaximized ? 'w-80 border-r border-white/10' : ''}`}>
-                  <div className="p-3 border-b border-white/5">
+                  <div className="p-3.5 border-b border-white/5 bg-black/10">
                      <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={14}/>
                         <input 
-                           placeholder="Ara..." 
+                           placeholder="Müşteri veya mesaj ara..."
                            value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                           className="w-full bg-black/20 border border-white/5 rounded-xl pl-9 pr-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500/30"
+                           className="w-full bg-black/20 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-emerald-400/50 focus:ring-4 focus:ring-emerald-500/10"
                         />
+                     </div>
+                     <div className="mt-3 flex items-center justify-between px-1">
+                       <span className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">Açık konuşmalar</span>
+                       <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-bold text-emerald-300">{filteredChats.length}</span>
                      </div>
                   </div>
                   
                   <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
                      {filteredChats.length === 0 ? (
-                        <div className="text-center py-10 text-gray-500 text-sm">Sohbet yok</div>
+                        <div className="flex flex-col items-center text-center py-16 text-gray-500">
+                          <div className="mb-3 rounded-2xl bg-white/5 p-4"><Inbox size={24} className="text-gray-600" /></div>
+                          <p className="text-sm font-semibold text-gray-400">Sohbet bulunamadı</p>
+                          <p className="mt-1 text-xs">Aramanı değiştir veya yeni mesaj bekle.</p>
+                        </div>
                      ) : (
                         filteredChats.map(chat => (
                            <MiniChatItem 
                               key={chat._id} chat={chat} isTyping={typingChats[chat._id]}
                               isSelected={selectedChat?._id === chat._id} 
-                              onClick={() => { 
-                                 setSelectedChat(chat); 
-                                 fetchMessages(chat._id);
-                                 socketService.joinChat(chat._id); 
-                               }}
+                              onClick={() => openChat(chat)}
                            />
                         ))
                      )}
@@ -322,20 +360,20 @@ const FloatingChatWidget = () => {
                {selectedChat && (
                   <div className={`flex flex-col flex-1 bg-black/20 ${(isMaximized && !selectedChat) ? 'hidden' : 'flex'}`}>
                      {/* Chat Header */}
-                     <div className="p-3 border-b border-white/5 flex items-center justify-between bg-white/5">
+                     <div className="p-3.5 border-b border-white/5 flex items-center justify-between bg-white/[.035]">
                         <div className="flex items-center gap-3">
                            {!isMaximized && (
-                             <button onClick={() => setSelectedChat(null)} className="p-1 -ml-1 text-gray-400 hover:text-white"><X size={16}/></button>
+                             <button onClick={() => setSelectedChat(null)} aria-label="Sohbet listesine dön" className="p-2 -ml-1 rounded-lg text-gray-400 hover:bg-white/5 hover:text-white"><ArrowLeft size={16}/></button>
                            )}
                            <div className="flex flex-col">
                               <span className="text-white font-bold text-sm">{selectedChat.user?.name}</span>
-                              <span className="text-[10px] text-gray-400">{selectedChat.user?.email}</span>
+                              <span className="text-[10px] text-gray-400">{selectedChat.user?.email || "Destek talebi"}</span>
                            </div>
                         </div>
                      </div>
 
                      {/* Messages */}
-                     <div ref={messageListRef} className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                     <div ref={messageListRef} className="flex-1 overflow-y-auto p-4 custom-scrollbar scroll-smooth">
                         {isLoading ? (
                            <div className="flex justify-center p-4"><div className="animate-spin text-emerald-500"><MessageCircle/></div></div>
                         ) : messages.map((m, i) => (
@@ -347,7 +385,6 @@ const FloatingChatWidget = () => {
                      <div className="p-3 border-t border-white/5 bg-gray-900/50">
                         <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }} className="flex gap-2">
                            <input 
-                              autoFocus
                               placeholder="Mesaj yaz..."
                               value={newMessage} onChange={e => setNewMessage(e.target.value)}
                               className="flex-1 bg-black/20 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500/50"
