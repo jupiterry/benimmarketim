@@ -61,7 +61,18 @@ export async function buildOrderProducts(cartProducts) {
     }
 
     const weeklyPrice = weeklyPriceMap.get(product._id.toString());
-    const effectivePrice = weeklyPrice !== undefined ? weeklyPrice : product.price;
+    const productDiscountPrice =
+      product.isDiscounted &&
+      Number.isFinite(Number(product.discountedPrice)) &&
+      Number(product.discountedPrice) >= 0 &&
+      Number(product.discountedPrice) < Number(product.price)
+        ? Number(product.discountedPrice)
+        : undefined;
+    const effectivePrice = weeklyPrice !== undefined
+      ? weeklyPrice
+      : productDiscountPrice !== undefined
+        ? productDiscountPrice
+        : product.price;
 
     totalAmount += effectivePrice * quantity;
 
@@ -72,6 +83,7 @@ export async function buildOrderProducts(cartProducts) {
       price: effectivePrice,
       originalPrice: product.price,
       isWeeklyDiscount: weeklyPrice !== undefined,
+      isProductDiscount: weeklyPrice === undefined && productDiscountPrice !== undefined,
       category: product.category,
     };
   });

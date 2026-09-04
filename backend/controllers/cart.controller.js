@@ -181,11 +181,30 @@ export const getCartProducts = async (req, res) => {
       _id: { $in: validCartItems.map((item) => item.product) },
     });
 
+    const { orderProducts } = await buildOrderProducts(
+      validCartItems.map((item) => ({
+        product: item.product.toString(),
+        quantity: item.quantity,
+      }))
+    );
+    const pricingMap = new Map(
+      orderProducts.map((item) => [item.product.toString(), item])
+    );
+
     const cartItems = products.map((product) => {
       const item = validCartItems.find(
         (cartItem) => cartItem.product.toString() === product._id.toString()
       );
-      return { ...product.toJSON(), quantity: item.quantity };
+      const pricing = pricingMap.get(product._id.toString());
+      return {
+        ...product.toJSON(),
+        price: pricing?.price ?? product.price,
+        originalPrice: product.price,
+        actualPrice: pricing?.price ?? product.price,
+        isDiscounted: Boolean(pricing && pricing.price < product.price),
+        discountedPrice: pricing && pricing.price < product.price ? pricing.price : null,
+        quantity: item.quantity,
+      };
     });
 
     res.json(cartItems);
