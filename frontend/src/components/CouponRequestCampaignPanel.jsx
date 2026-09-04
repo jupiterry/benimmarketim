@@ -72,7 +72,12 @@ const CouponRequestCampaignPanel = () => {
     event.preventDefault();
     setSaving(true);
     try {
-      const { data } = await axios.post("/coupon-requests/admin", form);
+      const payload = {
+        ...form,
+        startsAt: new Date(form.startsAt).toISOString(),
+        endsAt: new Date(form.endsAt).toISOString(),
+      };
+      const { data } = await axios.post("/coupon-requests/admin", payload);
       toast.success(data.campaign?.isActive ? "Kampanya yayına alındı" : "Kampanya kaydedildi");
       setForm(freshForm());
       await load();
