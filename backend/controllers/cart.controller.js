@@ -406,6 +406,7 @@ export const placeOrder = async (req, res) => {
       success: true,
       message: "Sipariş başarıyla oluşturuldu.",
       orderId: newOrder._id,
+      order: newOrder,
     });
   } catch (error) {
     // commitCouponUsage'dan gelen 409 hatası

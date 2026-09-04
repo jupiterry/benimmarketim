@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
   Search, Bell, Menu, ChevronRight, RefreshCw, 
   Command, Settings, LogOut, User, X,
-  Clock, Wifi, Sparkles, Moon, Sun
+  Clock, Wifi, Sparkles, Moon, Sun, Package2
 } from "lucide-react";
 
 const AdminHeader = ({ 
@@ -242,18 +242,16 @@ const AdminHeader = ({
                   ) : (
                     notifications.map((n, idx) => (
                       <motion.div
-                        key={idx}
+                        key={n.id || idx}
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: idx * 0.05 }}
                         whileHover={{ backgroundColor: "rgba(0, 245, 255, 0.05)" }}
-                        className="p-4 border-b border-white/5 cursor-pointer transition-colors"
+                        onClick={() => { setShowNotifications(false); onViewNotifications?.(); }}
+                        className="flex gap-3 p-4 border-b border-white/5 cursor-pointer transition-colors"
                       >
-                        <p className="text-white text-sm">{n.message}</p>
-                        <p className="text-gray-500 text-xs mt-1 flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {n.time}
-                        </p>
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-400/10"><Package2 className="h-4 w-4 text-emerald-400" /></div>
+                        <div className="min-w-0 flex-1"><p className="truncate text-white text-sm font-semibold">{n.order?.customerName || 'Yeni sipariş'}</p><p className="mt-0.5 text-xs font-bold text-emerald-400">₺{Number(n.order?.totalAmount || 0).toFixed(2)}</p><p className="text-gray-500 text-[11px] mt-1 flex items-center gap-1"><Clock className="w-3 h-3" />{n.time}</p></div>
                       </motion.div>
                     ))
                   )}

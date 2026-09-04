@@ -193,7 +193,7 @@ const AdminSidebar = ({
                         className="flex-1 flex items-center justify-between min-w-0"
                       >
                         <span className="truncate text-left">{item.label}</span>
-                        <div className="flex items-center gap-2">
+                        <div className="flex shrink-0 items-center gap-2">
                           {item.badge > 0 && (
                             <motion.span 
                               initial={{ scale: 0 }}
