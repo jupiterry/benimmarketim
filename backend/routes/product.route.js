@@ -225,6 +225,8 @@ router.get("/", getProducts); // Admin için tüm ürünleri getir
 router.get("/featured", getFeaturedProducts);
 router.get("/recommendations", getRecommendedProducts);
 router.get("/personalized", protectRoute, getPersonalizedProducts);
+// Static search routes must precede the dynamic /:id route.
+router.get("/search", searchProducts);
 router.get("/:id/similar", getSimilarProducts); // Similar products endpoint
 router.get("/:id", getProductById);
 router.post("/", protectRoute, adminRoute, createProduct);
@@ -232,7 +234,6 @@ router.patch("/:id", protectRoute, adminRoute, toggleFeaturedProduct);
 router.delete("/:id", protectRoute, adminRoute, deleteProduct);
 router.put("/update-price/:id", protectRoute, adminRoute, updateProductPrice);
 router.put("/:id", protectRoute, adminRoute, updateProduct); // Ürün güncelleme endpoint'i
-router.get("/search", searchProducts);
 router.patch("/toggle-hidden/:id", protectRoute, adminRoute, toggleHiddenProduct);
 router.patch("/toggle-out-of-stock/:id", protectRoute, adminRoute, toggleOutOfStock);
 router.get('/export-csv', protectRoute, adminRoute, exportProductsToCSV);

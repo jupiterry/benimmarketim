@@ -484,7 +484,7 @@ export const updateProductPrice = async (req, res) => {
 };
 
 export const searchProducts = async (req, res) => {
-  const { q } = req.query;
+  const { q, category, minPrice, maxPrice, sort = "createdAt" } = req.query;
 
   try {
     if (!q || q.trim() === '') {
@@ -493,6 +493,8 @@ export const searchProducts = async (req, res) => {
 
     // Arama terimini güvenli hale getir
     const searchTerm = q.trim();
+    const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const safeTerm = escapeRegex(searchTerm);
     const searchWords = searchTerm.split(' ').filter(word => word.length > 0);
 
     // Gelişmiş arama sorgusu
@@ -502,26 +504,36 @@ export const searchProducts = async (req, res) => {
         {
           $or: [
             // Tam eşleşme (en yüksek öncelik)
-            { name: { $regex: `^${searchTerm}$`, $options: 'i' } },
+            { name: { $regex: `^${safeTerm}$`, $options: 'i' } },
             // Başlangıç eşleşmesi
-            { name: { $regex: `^${searchTerm}`, $options: 'i' } },
+            { name: { $regex: `^${safeTerm}`, $options: 'i' } },
             // İçerik eşleşmesi
-            { name: { $regex: searchTerm, $options: 'i' } },
-            { description: { $regex: searchTerm, $options: 'i' } },
-            { category: { $regex: searchTerm, $options: 'i' } },
+            { name: { $regex: safeTerm, $options: 'i' } },
+            { description: { $regex: safeTerm, $options: 'i' } },
+            { category: { $regex: safeTerm, $options: 'i' } },
             // Kelime bazlı arama (sadece birden fazla kelime varsa)
-            ...(searchWords.length > 1 ? [{ name: { $regex: searchWords.join('|'), $options: 'i' } }] : [])
+            ...(searchWords.length > 1 ? [{ name: { $regex: searchWords.map(escapeRegex).join('|'), $options: 'i' } }] : [])
           ]
         }
       ]
     };
 
-    const products = await Product.find(searchQuery)
-      .sort({ 
-        // Önce tam eşleşmeler, sonra başlangıç eşleşmeleri, sonra içerik eşleşmeleri
-        name: 1,
-        price: 1 
-      });
+    if (category) searchQuery.$and.push({ category: category.trim() });
+    const parsedMin = Number(minPrice);
+    const parsedMax = Number(maxPrice);
+    if (Number.isFinite(parsedMin) || Number.isFinite(parsedMax)) {
+      const price = {};
+      if (Number.isFinite(parsedMin)) price.$gte = parsedMin;
+      if (Number.isFinite(parsedMax)) price.$lte = parsedMax;
+      searchQuery.$and.push({ price });
+    }
+
+    const products = await Product.find(searchQuery).sort(
+      sort === "price_low" ? { price: 1 } :
+      sort === "price_high" ? { price: -1 } :
+      sort === "name_asc" ? { name: 1 } :
+      sort === "name_desc" ? { name: -1 } : { createdAt: -1 }
+    );
 
     // Arama sonuçlarını skorlama
     const scoredProducts = products.map(product => {
