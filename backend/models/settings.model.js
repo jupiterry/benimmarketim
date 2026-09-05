@@ -110,15 +110,15 @@ const settingsSchema = new mongoose.Schema(
     appVersion: {
       latestVersion: {
         type: String,
-        default: "2.1.0"
+        default: "4.0.3"
       },
       minimumVersion: {
         type: String,
-        default: "2.1.0"
+        default: "4.0.3"
       },
       forceUpdate: {
         type: Boolean,
-        default: false
+        default: true
       },
       androidStoreUrl: {
         type: String,
@@ -146,4 +146,4 @@ settingsSchema.statics.getSettings = async function () {
 
 const Settings = mongoose.model("Settings", settingsSchema);
 
-export default Settings; 
+export default Settings;

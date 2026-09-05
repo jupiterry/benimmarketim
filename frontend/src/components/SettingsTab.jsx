@@ -19,6 +19,7 @@ const SettingsSection = ({ icon: Icon, title, color, children, defaultOpen = tru
       animate={{ opacity: 1, y: 0 }}
     >
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
         className="w-full p-5 flex items-center justify-between hover:bg-white/5 transition-colors"
       >
@@ -81,9 +82,9 @@ const SettingsTab = () => {
       }
     },
     appVersion: {
-      latestVersion: "2.1.0",
-      minimumVersion: "2.1.0",
-      forceUpdate: false,
+      latestVersion: "4.0.3",
+      minimumVersion: "4.0.3",
+      forceUpdate: true,
       androidStoreUrl: "https://play.google.com/store/apps/details?id=com.jupi.benimapp.benimmarketim_app",
       iosStoreUrl: "https://apps.apple.com/tr/app/benim-marketim/id6755792336?l=tr"
     }
@@ -176,7 +177,7 @@ const SettingsTab = () => {
       const success = await updateSettings(settings);
       if (success) {
         toast.success("Ayarlar başarıyla güncellendi!");
-        fetchLiveVersion(); // Canlı versiyon bilgisini yenile
+        await fetchLiveVersion(); // Kaydedilen versiyon bilgisini yenile
       } else {
         toast.error("Ayarlar güncellenirken hata oluştu");
       }
