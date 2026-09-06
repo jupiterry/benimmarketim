@@ -1,194 +1,363 @@
-import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
+import { Helmet } from "react-helmet-async";
 import {
-  Apple,
+  ArrowDown,
   ArrowRight,
-  CheckCircle2,
-  Clock3,
+  ArrowUpRight,
+  Check,
+  ChevronDown,
   Download,
   MapPin,
   ShieldCheck,
+  ShoppingBag,
   Smartphone,
-  Sparkles,
+  UserRound,
 } from "lucide-react";
 import { useUserStore } from "../stores/useUserStore";
+import "../styles/landing.css";
 
-const highlights = [
+const stores = [
   {
-    icon: Clock3,
-    title: "Hızlı ve pratik",
-    description: "Ürünleri keşfedin, sepetinizi hazırlayın ve siparişinizi mobil uygulamadan tamamlayın.",
+    id: "apple",
+    name: "App Store",
+    hint: "iPhone için indirin",
+    url: "https://apps.apple.com/tr/app/benim-marketim/id6755792336?l=tr",
   },
   {
-    icon: ShieldCheck,
-    title: "Güvenli üyelik",
-    description: "Web üzerinden hesabınızı oluşturabilir, giriş yapabilir ve profil bilgilerinizi yönetebilirsiniz.",
-  },
-  {
-    icon: MapPin,
-    title: "Marketiniz cebinizde",
-    description: "Benim Marketim alışveriş deneyimi artık tamamen mobil uygulamada sizi bekliyor.",
+    id: "google",
+    name: "Google Play",
+    hint: "Android için indirin",
+    url: "https://play.google.com/store/apps/details?id=com.jupi.benimapp.benimmarketim_app",
   },
 ];
 
-const StoreButton = ({ type }) => {
-  const isApple = type === "apple";
-  const Icon = isApple ? Apple : Smartphone;
+const steps = [
+  {
+    icon: Download,
+    title: "Uygulamayı indir.",
+    description: "Telefonuna uygun mağazayı seç, Benim Marketim’i indir.",
+  },
+  {
+    icon: UserRound,
+    title: "Hesabınla giriş yap.",
+    description:
+      "Web’de oluşturduğun hesabı uygulamada da kullan. Henüz üye değilsen kolayca kayıt ol.",
+  },
+  {
+    icon: ShoppingBag,
+    title: "Alışverişe başla.",
+    description:
+      "İhtiyaçlarını keşfet, sepetini oluştur ve siparişini uygulamadan tamamla.",
+  },
+];
 
-  return (
-    <button
-      type="button"
-      className="group flex min-w-[210px] items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.07] px-5 py-3.5 text-left transition hover:-translate-y-0.5 hover:border-emerald-400/40 hover:bg-white/10"
-      aria-label={`${isApple ? "App Store" : "Google Play"} indirme bağlantısı yakında`}
-    >
-      <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-gray-950">
-        <Icon className="h-6 w-6" />
-      </span>
-      <span>
-        <span className="block text-xs font-medium uppercase tracking-[0.18em] text-gray-400">
-          {isApple ? "App Store" : "Google Play"}
-        </span>
-        <span className="mt-0.5 block font-semibold text-white">Çok yakında</span>
-      </span>
-    </button>
+const questions = [
+  {
+    title: "Web sitesinden sipariş verebilir miyim?",
+    answer:
+      "Alışveriş ve sipariş işlemleri yalnızca Benim Marketim mobil uygulamasında yapılır. Web sitemizden hesap oluşturabilir, giriş yapabilir ve profil bilgilerini yönetebilirsin.",
+  },
+  {
+    title: "Mevcut hesabımı uygulamada kullanabilir miyim?",
+    answer:
+      "Evet. Web’de kullandığın e-posta adresi ve şifrenle mobil uygulamaya da giriş yapabilirsin. Yeniden hesap oluşturmana gerek yok.",
+  },
+  {
+    title: "Uygulamayı nereden indirebilirim?",
+    answer:
+      "iPhone için App Store, Android telefonlar için Google Play butonunu kullanabilirsin. Butonlar seni doğrudan Benim Marketim’in mağaza sayfasına götürür.",
+  },
+];
+
+const StoreIcon = ({ type }) =>
+  type === "apple" ? (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83ZM13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11Z" />
+    </svg>
+  ) : (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="#46c9f3" d="M3 2.2v19.6L13.3 12Z" />
+      <path fill="#57d58c" d="m3 2.2 13.2 7.5-2.9 2.3Z" />
+      <path fill="#ffd466" d="m16.2 9.7 3.5 2c.3.2.3.4 0 .6l-3.5 2-2.9-2.3Z" />
+      <path fill="#ff7f87" d="M3 21.8 16.2 14.3 13.3 12Z" />
+    </svg>
   );
-};
+
+const StoreLinks = ({ light = false }) => (
+  <div className={`landing-stores${light ? " landing-stores-light" : ""}`}>
+    {stores.map((store) => (
+      <a
+        key={store.id}
+        className="landing-store"
+        href={store.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`Benim Marketim’i ${store.name} üzerinden indir (yeni sekmede açılır)`}
+      >
+        <StoreIcon type={store.id} />
+        <span>
+          <small>{store.hint}</small>
+          <strong>{store.name}</strong>
+        </span>
+        <ArrowUpRight className="landing-store-arrow" aria-hidden="true" />
+      </a>
+    ))}
+  </div>
+);
 
 const HomePage = () => {
   const { user } = useUserStore();
 
   return (
-    <main className="relative overflow-hidden pt-20">
-      <section className="relative isolate min-h-[calc(100vh-5rem)] overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(16,185,129,0.22),transparent_32%),radial-gradient(circle_at_85%_25%,rgba(20,184,166,0.16),transparent_28%),linear-gradient(180deg,#071019_0%,#0b111b_100%)]" />
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:64px_64px]" />
+    <main className="landing">
+      <Helmet>
+        <title>Benim Marketim | Marketin artık cebinde</title>
+        <meta
+          name="description"
+          content="Benim Marketim ile alışverişe mobil uygulamada devam et. App Store veya Google Play’den indir; mevcut hesabınla giriş yap ya da web’den üye ol."
+        />
+      </Helmet>
 
-        <div className="relative mx-auto grid min-h-[calc(100vh-5rem)] max-w-7xl items-center gap-14 px-5 py-16 lg:grid-cols-[1.05fr_.95fr] lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="max-w-3xl"
-          >
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-sm font-medium text-emerald-300">
-              <Sparkles className="h-4 w-4" />
-              Benim Marketim artık mobilde
-            </div>
-
-            <h1 className="text-4xl font-black leading-[1.08] text-white sm:text-5xl md:text-6xl xl:text-7xl">
-              Alışverişe devam etmek için
-              <span className="block bg-gradient-to-r from-emerald-300 via-emerald-400 to-teal-300 bg-clip-text text-transparent">
-                mobil uygulamamızı indirin.
-              </span>
+      <section className="landing-hero" aria-labelledby="landing-title">
+        <div className="landing-shell landing-hero-grid">
+          <div className="landing-hero-copy">
+            <span className="landing-eyebrow">
+              <span className="landing-live-dot" /> DEVREK’İN MOBİL MARKETİ
+            </span>
+            <h1 id="landing-title">
+              Bildiğin market.
+              <br />
+              <span>Şimdi cebinde.</span>
             </h1>
-
-            <p className="mt-7 max-w-2xl text-base leading-8 text-gray-300 sm:text-lg">
-              Web sitemiz artık Benim Marketim&apos;i tanımak ve üyeliğinizi yönetmek için burada.
-              Ürün keşfi, sepet ve sipariş işlemleri mobil uygulamamız üzerinden devam ediyor.
+            <p className="landing-intro">
+              Günün koşturmacasında alışverişe bir mola ver.
+              <br className="landing-desktop-break" /> İhtiyaçların için Benim
+              Marketim’i aç, gerisini bize bırak.
             </p>
-
-            <div className="mt-9 flex flex-wrap gap-4" id="uygulamayi-indir">
-              <StoreButton type="apple" />
-              <StoreButton type="google" />
-            </div>
-
-            <div className="mt-8 flex flex-wrap items-center gap-4">
+            <p className="landing-download-prompt" id="uygulamayi-indir">
+              Alışverişe devam etmek için mobil uygulamamızı indir.
+            </p>
+            <StoreLinks />
+            <div className="landing-account-link">
+              <ShieldCheck size={17} aria-hidden="true" />
               {user ? (
-                <Link
-                  to="/profile"
-                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400"
-                >
-                  Hesabımı yönet
-                  <ArrowRight className="h-4 w-4" />
+                <Link to="/profile">
+                  Hesabını yönet <ArrowRight size={16} aria-hidden="true" />
                 </Link>
               ) : (
                 <>
-                  <Link
-                    to="/signup"
-                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400"
-                  >
-                    Ücretsiz hesap oluştur
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                  <Link
-                    to="/login"
-                    className="rounded-xl border border-white/10 bg-white/5 px-5 py-3 font-semibold text-white transition hover:bg-white/10"
-                  >
-                    Giriş yap
+                  <span>Hesabın hazır olsun.</span>{" "}
+                  <Link to="/signup">
+                    Ücretsiz kayıt ol{" "}
+                    <ArrowRight size={16} aria-hidden="true" />
                   </Link>
                 </>
               )}
             </div>
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, scale: 0.94, x: 24 }}
-            animate={{ opacity: 1, scale: 1, x: 0 }}
-            transition={{ duration: 0.7, delay: 0.1 }}
-            className="relative mx-auto w-full max-w-xl"
+          <div
+            className="landing-visual"
+            role="img"
+            aria-label="Benim Marketim’i cebine taşı: telefon ve market alışverişi illüstrasyonu"
           >
-            <div className="absolute -inset-8 rounded-[3rem] bg-gradient-to-br from-emerald-500/20 to-teal-400/5 blur-3xl" />
-            <div className="relative rounded-[2.5rem] border border-white/10 bg-white/[0.06] p-4 shadow-2xl shadow-black/40 backdrop-blur-xl sm:p-6">
-              <div className="rounded-[2rem] border border-white/10 bg-gray-950/80 p-6 sm:p-8">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-emerald-300">Benim Marketim</p>
-                    <h2 className="mt-1 text-2xl font-bold text-white">Cebindeki market</h2>
-                  </div>
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 shadow-lg shadow-emerald-500/20">
-                    <Smartphone className="h-7 w-7 text-white" />
-                  </div>
-                </div>
-
-                <div className="mt-8 space-y-3">
-                  {["Ürünleri uygulamada keşfet", "Sepetini mobilde oluştur", "Siparişini uygulamadan tamamla"].map((item) => (
-                    <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/5 bg-white/[0.04] p-4">
-                      <CheckCircle2 className="h-5 w-5 flex-none text-emerald-400" />
-                      <span className="text-sm font-medium text-gray-200">{item}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-7 rounded-2xl bg-gradient-to-r from-emerald-500/15 to-teal-500/10 p-5">
-                  <div className="flex items-center gap-3 text-emerald-200">
-                    <Download className="h-5 w-5" />
-                    <span className="font-semibold">Uygulama mağazası bağlantıları yakında eklenecek.</span>
-                  </div>
-                </div>
+            <div
+              className="landing-orbit landing-orbit-one"
+              aria-hidden="true"
+            />
+            <div
+              className="landing-orbit landing-orbit-two"
+              aria-hidden="true"
+            />
+            <span className="landing-visual-note" aria-hidden="true">
+              HER GÜN, YANINDA.
+            </span>
+            <div className="landing-phone" aria-hidden="true">
+              <div className="landing-phone-camera" />
+              <div className="landing-phone-brand">
+                <ShoppingBag size={19} /> benim marketim
+              </div>
+              <div className="landing-phone-copy">
+                Bir uygulama.
+                <br />
+                <strong>Bir dolu kolaylık.</strong>
+              </div>
+              <img
+                className="landing-basket"
+                src="/food2.png"
+                alt=""
+                width="1024"
+                height="1024"
+                fetchPriority="high"
+              />
+              <div className="landing-phone-bottom">
+                <span>Marketin hep yanında.</span>
+                <ArrowUpRight size={22} />
+              </div>
+              <div className="landing-phone-home" />
+            </div>
+            <div
+              className="landing-float landing-float-location"
+              aria-hidden="true"
+            >
+              <span>
+                <MapPin size={21} />
+              </span>
+              <div>
+                <small>Uzağa gitmene gerek yok.</small>
+                <strong>Devrek’te, kapında.</strong>
               </div>
             </div>
-          </motion.div>
+            <div className="landing-float landing-float-app" aria-hidden="true">
+              <span>
+                <Check size={20} />
+              </span>
+              <div>
+                <strong>iOS & Android</strong>
+                <small>Alışverişin yeni adresi.</small>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="landing-shell landing-hero-foot">
+          <span>
+            <Smartphone size={16} aria-hidden="true" /> Alışveriş uygulamada.
+            Hesabın her yerde.
+          </span>
+          <a href="#nasil-calisir">
+            Tanışalım <ArrowDown size={17} aria-hidden="true" />
+          </a>
         </div>
       </section>
 
-      <section className="border-y border-white/5 bg-gray-950/60 py-20">
-        <div className="mx-auto max-w-7xl px-5 lg:px-8">
-          <div className="mx-auto max-w-2xl text-center">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-400">Yeni deneyim</p>
-            <h2 className="mt-3 text-3xl font-bold text-white sm:text-4xl">Web üyelik için, alışveriş mobil uygulamada.</h2>
-            <p className="mt-4 leading-7 text-gray-400">
-              Hesabınızı web üzerinden oluşturun veya yönetin; alışveriş yapmak istediğinizde mobil uygulamaya geçin.
+      <section
+        className="landing-how"
+        id="nasil-calisir"
+        aria-labelledby="landing-how-title"
+      >
+        <div className="landing-shell">
+          <div className="landing-section-heading">
+            <div>
+              <span className="landing-eyebrow">
+                KÜÇÜK BİR ADIM, BÜYÜK KOLAYLIK
+              </span>
+              <h2 id="landing-how-title">
+                Alışverişin yeni yolu.
+                <br />
+                <span>Başlamak bu kadar kolay.</span>
+              </h2>
+            </div>
+            <p>
+              Yeni bir hesapla ya da mevcut üyeliğinle.
+              <br />
+              Benim Marketim’e geçmek sadece üç adım.
             </p>
           </div>
-
-          <div className="mt-12 grid gap-5 md:grid-cols-3">
-            {highlights.map(({ icon: Icon, title, description }, index) => (
-              <motion.article
-                key={title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.2 }}
-                transition={{ delay: index * 0.08 }}
-                className="rounded-3xl border border-white/10 bg-white/[0.04] p-6"
-              >
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-300">
-                  <Icon className="h-6 w-6" />
+          <ol className="landing-steps">
+            {steps.map(({ icon: Icon, title, description }, index) => (
+              <li key={title}>
+                <div className="landing-step-top">
+                  <span>0{index + 1}</span>
+                  <Icon size={25} strokeWidth={1.5} aria-hidden="true" />
                 </div>
-                <h3 className="mt-5 text-xl font-bold text-white">{title}</h3>
-                <p className="mt-3 leading-7 text-gray-400">{description}</p>
-              </motion.article>
+                <h3>{title}</h3>
+                <p>{description}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      <section
+        className="landing-membership"
+        aria-labelledby="landing-member-title"
+      >
+        <div className="landing-shell landing-member-grid">
+          <div className="landing-member-art" aria-hidden="true">
+            <div className="landing-member-card">
+              <div className="landing-member-card-top">
+                <ShoppingBag size={24} />
+                <span>BENİM MARKETİM</span>
+              </div>
+              <div className="landing-member-avatar">
+                <UserRound size={34} strokeWidth={1.5} />
+              </div>
+              <strong>
+                Bir hesap.
+                <br />
+                Her yerde senin.
+              </strong>
+              <div className="landing-member-card-bottom">
+                <span>WEB + MOBİL</span>
+                <ShieldCheck size={23} />
+              </div>
+            </div>
+            <div className="landing-member-stamp">
+              <Check size={16} /> Aynı hesapla devam et
+            </div>
+          </div>
+          <div className="landing-member-copy">
+            <span className="landing-eyebrow">ÜYELİĞİN SENİNLE</span>
+            <h2 id="landing-member-title">
+              Telefonun değişir.
+              <br />
+              <span>Hesabın seninle kalır.</span>
+            </h2>
+            <p>
+              Hesabını web’den oluştur, uygulamada aynı e-posta ve şifreyle
+              devam et. Zaten üyeysen yeni bir başlangıca gerek yok.
+            </p>
+            {user ? (
+              <Link className="landing-primary-link" to="/profile">
+                Hesabıma git <ArrowRight size={19} aria-hidden="true" />
+              </Link>
+            ) : (
+              <div className="landing-member-actions">
+                <Link className="landing-primary-link" to="/signup">
+                  Hesap oluştur <ArrowRight size={19} aria-hidden="true" />
+                </Link>
+                <Link className="landing-secondary-link" to="/login">
+                  Zaten üyeyim, giriş yap
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="landing-faq" aria-labelledby="landing-faq-title">
+        <div className="landing-shell landing-faq-grid">
+          <div>
+            <span className="landing-eyebrow">AKLINDA KALMASIN</span>
+            <h2 id="landing-faq-title">Merak ettiklerin.</h2>
+            <p>Uygulamaya geçerken bilmen gerekenler.</p>
+          </div>
+          <div>
+            {questions.map(({ title, answer }) => (
+              <details key={title}>
+                <summary>
+                  {title}
+                  <ChevronDown size={20} aria-hidden="true" />
+                </summary>
+                <p>{answer}</p>
+              </details>
             ))}
           </div>
+        </div>
+      </section>
+
+      <section className="landing-final" aria-labelledby="landing-final-title">
+        <div className="landing-shell">
+          <span className="landing-eyebrow">
+            BENİM MARKETİM, BENİM CEBİMDE.
+          </span>
+          <h2 id="landing-final-title">
+            Hadi, alışverişi
+            <br />
+            <span>kolaylaştıralım.</span>
+          </h2>
+          <p>Uygulamayı indir. İhtiyaçların için ilk adımı at.</p>
+          <StoreLinks light />
         </div>
       </section>
     </main>

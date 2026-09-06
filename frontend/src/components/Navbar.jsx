@@ -21,7 +21,7 @@ const Navbar = () => {
   };
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-gray-950/80 backdrop-blur-xl">
+    <header className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-[#062f28]/95 backdrop-blur-xl">
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 lg:px-8">
         <Link to="/" onClick={closeMenu} className="flex items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 shadow-lg shadow-emerald-500/20">
@@ -71,6 +71,8 @@ const Navbar = () => {
           onClick={() => setIsOpen((value) => !value)}
           className="rounded-xl border border-white/10 bg-white/5 p-2.5 text-gray-200 md:hidden"
           aria-label="Menüyü aç veya kapat"
+          aria-expanded={isOpen}
+          aria-controls="mobile-navigation"
         >
           {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
@@ -79,10 +81,11 @@ const Navbar = () => {
       <AnimatePresence>
         {isOpen && (
           <motion.nav
+            id="mobile-navigation"
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden border-t border-white/10 bg-gray-950/95 md:hidden"
+            className="overflow-hidden border-t border-white/10 bg-[#062f28] md:hidden"
           >
             <div className="mx-auto flex max-w-7xl flex-col gap-2 px-5 py-4">
               <NavLink to="/" onClick={closeMenu} className={navClass}>
