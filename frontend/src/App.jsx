@@ -4,20 +4,14 @@ import { HelmetProvider } from "react-helmet-async";
 import HomePage from "./pages/HomePage";
 import SignUpPage from "./pages/SignUpPage";
 import LoginPage from "./pages/LoginPage";
+import ProfilePage from "./pages/ProfilePage";
 import AdminPage from "./pages/AdminPage";
-import CategoryPage from "./pages/CategoryPage";
-import UserOrders from "./pages/UserOrders";
 import Navbar from "./components/Navbar";
 import { Toaster } from "react-hot-toast";
 import { useUserStore } from "./stores/useUserStore";
 import LoadingSpinner from "./components/LoadingSpinner";
-import CartPage from "./pages/CartPage";
-import { useCartStore } from "./stores/useCartStore";
 import { useSettingsStore } from "./stores/useSettingsStore";
-import PurchaseSuccessPage from "./pages/PurchaseSuccessPage";
-import OrderCreated from "./pages/OrderCreated";
 import Footer from "./components/Footer";
-import SearchResultsPage from "./pages/SearchResultsPage";
 import BulkUpload from "./components/BulkUpload";
 import FeedbackPage from "./pages/FeedbackPage";
 import PrivacyPage from "./pages/PrivacyPage";
@@ -33,7 +27,6 @@ import KVKKPage from "./pages/KVKKPage";
 import AccountDeletionPage from "./pages/AccountDeletionPage";
 import ReferralPage from "./pages/ReferralPage";
 import ScrollToTop from "./components/ScrollToTop";
-import AppDownloadModal from "./components/AppDownloadModal";
 import { ConfirmProvider } from "./components/ConfirmModal";
 import FloatingChatWidget from "./components/FloatingChatWidget";
 
@@ -48,18 +41,12 @@ const ProtectedRoute = ({ children }) => {
 function App() {
   const { user, checkAuth, checkingAuth } = useUserStore();
   const location = useLocation();
-  const { getCartItems } = useCartStore();
   const { fetchSettings } = useSettingsStore();
   const isAdminPanel = location.pathname === "/secret-dashboard";
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
-
-  useEffect(() => {
-    if (!user) return;
-    getCartItems();
-  }, [getCartItems, user]);
 
   useEffect(() => {
     fetchSettings();
@@ -85,24 +72,27 @@ function App() {
             <Route path="/signup" element={!user ? <SignUpPage /> : <Navigate to="/" />} />
             <Route path="/login" element={!user ? <LoginPage /> : <Navigate to="/" />} />
             <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <ProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/secret-dashboard"
               element={user?.role === "admin" ? <AdminPage /> : <Navigate to="/login" />}
             />
-            <Route path="/category/:category" element={<CategoryPage />} />
-            <Route path="/cart" element={user ? <CartPage /> : <Navigate to="/login" />} />
-            <Route
-              path="/order-summary/"
-              element={user ? <PurchaseSuccessPage /> : <Navigate to="/login" />}
-            />
-            <Route
-              path="/siparisolusturuldu"
-              element={user ? <OrderCreated /> : <Navigate to="/login" />}
-            />
-            <Route
-              path="/siparislerim"
-              element={user ? <UserOrders /> : <Navigate to="/login" />}
-            />
-            <Route path="/search" element={<SearchResultsPage />} />
+            <Route path="/cart" element={<Navigate to="/" replace />} />
+            <Route path="/checkout/*" element={<Navigate to="/" replace />} />
+            <Route path="/products/*" element={<Navigate to="/" replace />} />
+            <Route path="/product/*" element={<Navigate to="/" replace />} />
+            <Route path="/categories" element={<Navigate to="/" replace />} />
+            <Route path="/category/*" element={<Navigate to="/" replace />} />
+            <Route path="/search" element={<Navigate to="/" replace />} />
+            <Route path="/order-summary/*" element={<Navigate to="/" replace />} />
+            <Route path="/siparisolusturuldu" element={<Navigate to="/" replace />} />
+            <Route path="/siparislerim" element={<Navigate to="/" replace />} />
             <Route
               path="/bulk-upload"
               element={user?.role === "admin" ? <BulkUpload /> : <Navigate to="/login" />}
@@ -141,13 +131,13 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
 
         {!isAdminPanel && <Footer />}
         <Toaster />
         {user?.role === "admin" && !isAdminPanel && <FloatingChatWidget />}
-        {!isAdminPanel && <AppDownloadModal />}
       </div>
       </ConfirmProvider>
     </HelmetProvider>

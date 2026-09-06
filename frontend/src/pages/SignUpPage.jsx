@@ -4,7 +4,6 @@ import { UserPlus, Mail, Lock, User, ArrowRight, Loader, Phone, ShoppingCart, Sp
 import { motion } from "framer-motion";
 import { useUserStore } from "../stores/useUserStore";
 import axios from "../lib/axios";
-import toast from "react-hot-toast";
 
 const SignUpPage = () => {
 	const [searchParams] = useSearchParams();
@@ -83,8 +82,8 @@ const SignUpPage = () => {
 
 	// Features
 	const features = [
-		{ icon: "🎁", text: "Özel İndirimler" },
-		{ icon: "🚀", text: "Hızlı Teslimat" },
+		{ icon: "👤", text: "Kolay Üyelik" },
+		{ icon: "🔐", text: "Güvenli Hesap" },
 		{ icon: "📱", text: "Mobil Uygulama" }
 	];
 
@@ -115,7 +114,7 @@ const SignUpPage = () => {
 						</div>
 						<div>
 							<h1 className="text-3xl font-bold text-white">Benim Marketim</h1>
-							<p className="text-emerald-400 text-sm">Online Alışveriş</p>
+							<p className="text-emerald-400 text-sm">Mobil Alışveriş</p>
 						</div>
 					</div>
 					
@@ -127,7 +126,7 @@ const SignUpPage = () => {
 					</h2>
 					
 					<p className="text-gray-400 text-lg mb-8">
-						Ücretsiz hesap oluşturun ve ayrıcalıklı fırsatlardan yararlanın. Alışverişin keyfini çıkarın!
+						Ücretsiz hesabınızı web üzerinden oluşturun, alışverişe mobil uygulamamızdan devam edin.
 					</p>
 					
 					<div className="space-y-4">
@@ -182,7 +181,7 @@ const SignUpPage = () => {
 								</div>
 								<div>
 									<h1 className="text-xl font-bold text-white">Benim Marketim</h1>
-									<p className="text-emerald-400 text-xs">Online Alışveriş</p>
+									<p className="text-emerald-400 text-xs">Mobil Alışveriş</p>
 								</div>
 							</div>
 						</div>
@@ -199,7 +198,7 @@ const SignUpPage = () => {
 								<span className="text-teal-400 text-sm font-medium">Ücretsiz Kayıt</span>
 							</motion.div>
 							<h2 className="text-2xl font-bold text-white mb-2">Hesap Oluştur</h2>
-							<p className="text-gray-400 text-sm">Hemen üye ol, alışverişe başla!</p>
+							<p className="text-gray-400 text-sm">Hemen üye ol, uygulamaya hazır ol!</p>
 						</div>
 
 						<form onSubmit={handleSubmit} className="space-y-4">

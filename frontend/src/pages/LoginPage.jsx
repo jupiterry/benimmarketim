@@ -17,9 +17,9 @@ const LoginPage = () => {
 
 	// Features list
 	const features = [
-		{ icon: "🚀", text: "Hızlı Teslimat" },
-		{ icon: "🛡️", text: "Güvenli Ödeme" },
-		{ icon: "💯", text: "Kaliteli Ürünler" }
+		{ icon: "📱", text: "Mobil Alışveriş" },
+		{ icon: "🛡️", text: "Güvenli Üyelik" },
+		{ icon: "⚡", text: "Hızlı Hesap Erişimi" }
 	];
 
 	return (
@@ -49,19 +49,19 @@ const LoginPage = () => {
 						</div>
 						<div>
 							<h1 className="text-3xl font-bold text-white">Benim Marketim</h1>
-							<p className="text-emerald-400 text-sm">Online Alışveriş</p>
+							<p className="text-emerald-400 text-sm">Mobil Alışveriş</p>
 						</div>
 					</div>
 					
 					<h2 className="text-4xl font-bold text-white mb-4 leading-tight">
-						Alışverişin En <br />
+						Hesabına <br />
 						<span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
-							Kolay Hali
+							Kolayca Ulaş
 						</span>
 					</h2>
 					
 					<p className="text-gray-400 text-lg mb-8">
-						Taze ürünler, hızlı teslimat ve kaliteli hizmet. Hesabınıza giriş yapın ve alışverişe başlayın.
+						Hesabınıza giriş yapın; alışverişe mobil uygulamamız üzerinden devam edin.
 					</p>
 					
 					<div className="space-y-4">
@@ -98,7 +98,7 @@ const LoginPage = () => {
 								</div>
 								<div>
 									<h1 className="text-xl font-bold text-white">Benim Marketim</h1>
-									<p className="text-emerald-400 text-xs">Online Alışveriş</p>
+									<p className="text-emerald-400 text-xs">Mobil Alışveriş</p>
 								</div>
 							</div>
 						</div>
