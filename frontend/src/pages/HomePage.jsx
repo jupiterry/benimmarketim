@@ -15,6 +15,34 @@ import {
 } from "lucide-react";
 import { useUserStore } from "../stores/useUserStore";
 import "../styles/landing.css";
+import MarketCategories from "../components/MarketCategories";
+import { homeTitle, homeDescription, homeKeywords, siteUrl } from "../data/seo";
+
+const businessAddress =
+  "Ağalar Mahallesi, 760. Sokak, TOKİ Konutları, No: 19 Devrek / Zonguldak";
+const locationQuery = encodeURIComponent(businessAddress);
+const coverageQuery = encodeURIComponent("Devrek, Zonguldak, Türkiye");
+const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${locationQuery}`;
+const locationUrl = `https://www.google.com/maps/search/?api=1&query=${locationQuery}`;
+const businessData = {
+  "@context": "https://schema.org",
+  "@type": "GroceryStore",
+  name: "Benim Marketim",
+  url: "https://devrekbenimmarketim.com",
+  address: {
+    "@type": "PostalAddress",
+    streetAddress: "Ağalar Mahallesi, 760. Sokak, TOKİ Konutları, No: 19",
+    addressLocality: "Devrek",
+    addressRegion: "Zonguldak",
+    addressCountry: "TR",
+  },
+  areaServed: {
+    "@type": "AdministrativeArea",
+    name: "Devrek",
+    containedInPlace: { "@type": "AdministrativeArea", name: "Zonguldak" },
+  },
+  hasMap: locationUrl,
+};
 
 const stores = [
   {
@@ -52,6 +80,11 @@ const steps = [
 ];
 
 const questions = [
+  {
+    title: "Hangi bölgelere teslimat yapıyorsunuz?",
+    answer:
+      "Hizmet bölgemiz yalnızca Zonguldak ilinin Devrek ilçesidir. Market siparişini Benim Marketim mobil uygulamasından verebilirsin.",
+  },
   {
     title: "Web sitesinden sipariş verebilir miyim?",
     answer:
@@ -111,11 +144,19 @@ const HomePage = () => {
   return (
     <main className="landing">
       <Helmet>
-        <title>Benim Marketim | Marketin artık cebinde</title>
+        <title>{homeTitle}</title>
         <meta
           name="description"
-          content="Benim Marketim ile alışverişe mobil uygulamada devam et. App Store veya Google Play’den indir; mevcut hesabınla giriş yap ya da web’den üye ol."
+          content={homeDescription}
         />
+        <meta name="keywords" content={homeKeywords} />
+        <link rel="canonical" href={`${siteUrl}/`} />
+        <meta property="og:title" content={homeTitle} />
+        <meta property="og:description" content={homeDescription} />
+        <meta property="og:url" content={`${siteUrl}/`} />
+        <meta name="twitter:title" content={homeTitle} />
+        <meta name="twitter:description" content={homeDescription} />
+        <script type="application/ld+json">{JSON.stringify(businessData)}</script>
       </Helmet>
 
       <section className="landing-hero" aria-labelledby="landing-title">
@@ -125,14 +166,14 @@ const HomePage = () => {
               <span className="landing-live-dot" /> DEVREK’İN MOBİL MARKETİ
             </span>
             <h1 id="landing-title">
-              Bildiğin market.
+              Devrek Benim Marketim.
               <br />
               <span>Şimdi cebinde.</span>
             </h1>
             <p className="landing-intro">
-              Günün koşturmacasında alışverişe bir mola ver.
-              <br className="landing-desktop-break" /> İhtiyaçların için Benim
-              Marketim’i aç, gerisini bize bırak.
+              Devrek’te online market alışverişi ve eve teslimat.
+              <br className="landing-desktop-break" /> Gıda, içecek, temizlik ve
+              günlük ihtiyaçların için Benim Marketim’i aç, siparişini uygulamadan ver.
             </p>
             <p className="landing-download-prompt" id="uygulamayi-indir">
               Alışverişe devam etmek için mobil uygulamamızı indir.
@@ -268,6 +309,8 @@ const HomePage = () => {
         </div>
       </section>
 
+      <MarketCategories />
+
       <section
         className="landing-membership"
         aria-labelledby="landing-member-title"
@@ -321,6 +364,58 @@ const HomePage = () => {
                 </Link>
               </div>
             )}
+          </div>
+        </div>
+      </section>
+
+      <section
+        className="landing-location"
+        id="konum-ve-hizmet-bolgesi"
+        aria-labelledby="landing-location-title"
+      >
+        <div className="landing-shell">
+          <div className="landing-section-heading">
+            <div>
+              <span className="landing-eyebrow">DEVREK’TE, YANINDA</span>
+              <h2 id="landing-location-title">Adresimiz ve hizmet bölgemiz.</h2>
+            </div>
+            <p>Benim Marketim, Zonguldak’ın Devrek ilçesinde hizmet veriyor.</p>
+          </div>
+          <div className="landing-location-grid">
+            <article className="landing-map-card">
+              <div className="landing-map-copy">
+                <span className="landing-map-label"><MapPin size={16} aria-hidden="true" /> MAĞAZAMIZ</span>
+                <h3>Benim Marketim</h3>
+                <address>{businessAddress}</address>
+                <div className="landing-map-actions">
+                  <a className="landing-primary-link" href={directionsUrl} target="_blank" rel="noopener noreferrer">
+                    Yol tarifi al <ArrowUpRight size={18} aria-hidden="true" />
+                  </a>
+                  <a className="landing-secondary-link" href={locationUrl} target="_blank" rel="noopener noreferrer">
+                    Google Haritalar’da aç
+                  </a>
+                </div>
+              </div>
+            </article>
+            <article className="landing-map-card landing-coverage-card">
+              <div className="landing-map-copy">
+                <span className="landing-map-label"><ShoppingBag size={16} aria-hidden="true" /> HİZMET BÖLGEMİZ</span>
+                <h3>Yalnızca Devrek, Zonguldak.</h3>
+                <p>Market siparişlerini Devrek’te adresine getiriyoruz. Hizmet kapsamımız Zonguldak’ın Devrek ilçesiyle sınırlıdır.</p>
+                <a className="landing-secondary-link" href={`https://www.google.com/maps/search/?api=1&query=${coverageQuery}`} target="_blank" rel="noopener noreferrer">
+                  Devrek’i haritada incele <ArrowUpRight size={16} aria-hidden="true" />
+                </a>
+              </div>
+              <iframe
+                title="Hizmet bölgesi haritası — Devrek ilçesi, Zonguldak"
+                src={`https://www.google.com/maps?q=${coverageQuery}&z=12&output=embed&hl=tr`}
+                width="600"
+                height="340"
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                allowFullScreen
+              />
+            </article>
           </div>
         </div>
       </section>

@@ -1,0 +1,22 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { marketCategories, homeTitle, siteUrl } from "../src/data/seo.js";
+const dist = new URL('../dist/', import.meta.url);
+for (const category of [null, ...marketCategories]) {
+  const file = category ? `${category.path.slice(1)}/index.html` : 'seo-home/index.html';
+  const html = await readFile(new URL(file, dist), 'utf8');
+  assert.equal((html.match(/<title[^>]*>/g) ?? []).length, 1, `${file}: duplicate title`);
+  assert.equal((html.match(/name="description"/g) ?? []).length, 1, `${file}: duplicate description`);
+  assert.equal((html.match(/rel="canonical"/g) ?? []).length, 1, `${file}: duplicate canonical`);
+  assert.ok(html.includes(`href="${siteUrl}${category?.path ?? '/'}"`), `${file}: canonical`);
+  assert.ok(html.includes(category ? `Devrek ${category.name.replaceAll('&', '&amp;')}` : homeTitle), `${file}: title`);
+  assert.ok(html.includes('<h1'), `${file}: no initial content`);
+  assert.ok(!html.includes('noindex'), `${file}: blocked`);
+  for (const item of marketCategories) assert.ok(html.includes(`href="${item.path}"`), `${file}: missing category link`);
+}
+const sitemap = await readFile(new URL('sitemap.xml', dist), 'utf8');
+assert.ok(!sitemap.includes('/hakkimizda'));
+for (const item of marketCategories) assert.ok(sitemap.includes(`${siteUrl}${item.path}`));
+const shell = await readFile(new URL('index.html', dist), 'utf8');
+assert.ok(shell.includes('<div id="root"></div>'), 'Application routes must keep their original shell');
+console.log('SEO checks passed: 20 initial HTML pages, metadata, category links, sitemap and application shell.');

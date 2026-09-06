@@ -2,6 +2,8 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { HelmetProvider } from "react-helmet-async";
 import HomePage from "./pages/HomePage";
+import CategoryLandingPage from "./pages/CategoryLandingPage";
+import { marketCategories, publicPages } from "./data/seo";
 import SignUpPage from "./pages/SignUpPage";
 import LoginPage from "./pages/LoginPage";
 import ProfilePage from "./pages/ProfilePage";
@@ -52,7 +54,10 @@ function App() {
     fetchSettings();
   }, [fetchSettings]);
 
-  if (checkingAuth) return <LoadingSpinner />;
+  const publicPath = location.pathname.replace(/\/+$/, "") || "/";
+  const isPublicPage = publicPages.includes(publicPath) ||
+    marketCategories.some((category) => category.path === publicPath);
+  if (checkingAuth && !isPublicPage) return <LoadingSpinner />;
 
   return (
     <HelmetProvider>
@@ -69,6 +74,9 @@ function App() {
           {!isAdminPanel && <Navbar />}
           <Routes>
             <Route path="/" element={<HomePage />} />
+            {marketCategories.map((category) => (
+              <Route key={category.slug} path={category.path} element={<CategoryLandingPage category={category} />} />
+            ))}
             <Route path="/signup" element={!user ? <SignUpPage /> : <Navigate to="/" />} />
             <Route path="/login" element={!user ? <LoginPage /> : <Navigate to="/" />} />
             <Route
