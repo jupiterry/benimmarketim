@@ -35,8 +35,9 @@ const money = (value) =>
   });
 const number = (value) => Number(value || 0).toLocaleString("tr-TR");
 
-const PREVIOUS_ACTIVITY_START = new Date("2025-09-01T00:00:00");
-const NEW_ACTIVITY_YEAR_START = new Date("2026-08-01T00:00:00");
+const PREVIOUS_ACTIVITY_START = new Date("2025-09-01T00:00:00+03:00");
+const PREVIOUS_ACTIVITY_END = new Date("2026-08-01T00:00:00+03:00");
+const NEW_ACTIVITY_YEAR_START = new Date("2026-09-06T00:00:00+03:00");
 
 const ProfitMarginCard = ({ allOrders }) => {
   const [profitMargin, setProfitMargin] = useState(() => {
@@ -101,7 +102,7 @@ const ProfitMarginCard = ({ allOrders }) => {
             Yeni Faaliyet Yılı
           </h3>
           <p className="mt-1 text-xs text-gray-400">
-            Ağustos 2026 itibarıyla kâr marjı ve kazanç görünümü
+            6 Eylül 2026 itibarıyla kâr marjı ve kazanç görünümü
           </p>
         </div>
         <div className="flex items-center gap-2 bg-gray-800/50 rounded-lg px-3 py-1.5">
@@ -118,6 +119,11 @@ const ProfitMarginCard = ({ allOrders }) => {
         </div>
       </div>
       <div className="admin-card-body space-y-4">
+        <p className="text-sm text-gray-400">
+          Yeni dönem 6 Eylül 2026’da başlar. Ciro ve tahmini kazanç yalnızca
+          bu tarihten itibaren alınan siparişlerle oluşur; önceki dönem
+          satışları bu hesaba dahil değildir.
+        </p>
         {/* Total With Manual */}
         <div className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl">
           <div className="flex items-center gap-2">
@@ -216,7 +222,7 @@ const DashboardWidgets = ({ onNavigate }) => {
         if (
           Number.isNaN(orderDate.getTime()) ||
           orderDate < PREVIOUS_ACTIVITY_START ||
-          orderDate >= NEW_ACTIVITY_YEAR_START ||
+          orderDate >= PREVIOUS_ACTIVITY_END ||
           order.status === "İptal Edildi"
         ) {
           return sum;
