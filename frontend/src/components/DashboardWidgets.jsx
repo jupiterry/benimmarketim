@@ -34,6 +34,10 @@ const money = (value) =>
     maximumFractionDigits: 0,
   });
 const number = (value) => Number(value || 0).toLocaleString("tr-TR");
+
+const PREVIOUS_ACTIVITY_START = new Date("2025-09-01T00:00:00");
+const NEW_ACTIVITY_YEAR_START = new Date("2026-08-01T00:00:00");
+
 const ProfitMarginCard = ({ allOrders }) => {
   const [profitMargin, setProfitMargin] = useState(() => {
     const saved = localStorage.getItem("profitMargin");
@@ -46,6 +50,15 @@ const ProfitMarginCard = ({ allOrders }) => {
     let manualProductsTotal = 0;
 
     allOrders.forEach((order) => {
+      const orderDate = new Date(order.createdAt);
+
+      if (
+        Number.isNaN(orderDate.getTime()) ||
+        orderDate < NEW_ACTIVITY_YEAR_START
+      ) {
+        return;
+      }
+
       // İptal edilen siparişleri hariç tut (gerçek satış değil)
       if (order.status !== "İptal Edildi") {
         totalWithManual += order.totalAmount || 0;
@@ -82,10 +95,15 @@ const ProfitMarginCard = ({ allOrders }) => {
       className="admin-card bg-gradient-to-br from-emerald-900/30 to-teal-900/20 border-emerald-500/30"
     >
       <div className="admin-card-header">
-        <h3 className="admin-card-title">
-          <Calculator className="w-5 h-5 text-emerald-400" />
-          Kar Marjı Hesaplaması
-        </h3>
+        <div>
+          <h3 className="admin-card-title">
+            <Calculator className="w-5 h-5 text-emerald-400" />
+            Yeni Faaliyet Yılı
+          </h3>
+          <p className="mt-1 text-xs text-gray-400">
+            Ağustos 2026 itibarıyla kâr marjı ve kazanç görünümü
+          </p>
+        </div>
         <div className="flex items-center gap-2 bg-gray-800/50 rounded-lg px-3 py-1.5">
           <Percent className="w-4 h-4 text-emerald-400" />
           <input
@@ -104,7 +122,7 @@ const ProfitMarginCard = ({ allOrders }) => {
         <div className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl">
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-blue-400" />
-            <span className="text-gray-400 text-sm">Manuel Dahil Toplam</span>
+            <span className="text-gray-400 text-sm">Yeni Dönem Cirosu</span>
           </div>
           <span className="text-white font-bold">
             ₺
@@ -118,7 +136,7 @@ const ProfitMarginCard = ({ allOrders }) => {
         <div className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl">
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-purple-400" />
-            <span className="text-gray-400 text-sm">Manuel Hariç Toplam</span>
+            <span className="text-gray-400 text-sm">Kâr Hesabına Esas Ciro</span>
           </div>
           <span className="text-white font-bold">
             ₺
@@ -133,7 +151,7 @@ const ProfitMarginCard = ({ allOrders }) => {
           <div className="flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-emerald-400" />
             <span className="text-emerald-300 font-medium">
-              Tahmini Net Kâr
+              Yeni Dönem Tahmini Net Kâr
             </span>
           </div>
           <span className="text-2xl font-bold text-emerald-400">
@@ -177,16 +195,13 @@ const DashboardWidgets = ({ onNavigate }) => {
 
   const fetchDashboardData = useCallback(async () => {
     try {
-      const [analyticsRes, productsRes, ordersRes, usersRes] =
-        await Promise.all([
-          axios.get("/analytics"),
-          axios.get("/products"),
-          axios.get("/orders-analytics"),
-          axios.get("/users"),
-        ]);
+      const [productsRes, ordersRes, usersRes] = await Promise.all([
+        axios.get("/products"),
+        axios.get("/orders-analytics"),
+        axios.get("/users"),
+      ]);
 
       setError(false);
-      const analytics = analyticsRes.data;
       const products = productsRes.data.products || [];
       const orders = ordersRes.data.orderAnalyticsData?.usersOrders || [];
       const users = usersRes.data.users || [];
@@ -195,6 +210,20 @@ const DashboardWidgets = ({ onNavigate }) => {
       today.setHours(0, 0, 0, 0);
 
       const allOrders = orders.flatMap((user) => user.orders || []);
+      const previousPeriodRevenue = allOrders.reduce((sum, order) => {
+        const orderDate = new Date(order.createdAt);
+
+        if (
+          Number.isNaN(orderDate.getTime()) ||
+          orderDate < PREVIOUS_ACTIVITY_START ||
+          orderDate >= NEW_ACTIVITY_YEAR_START ||
+          order.status === "İptal Edildi"
+        ) {
+          return sum;
+        }
+
+        return sum + (order.totalAmount || 0);
+      }, 0);
       const todayOrders = allOrders.filter((order) => {
         const orderDate = new Date(order.createdAt);
         return orderDate >= today;
@@ -268,7 +297,7 @@ const DashboardWidgets = ({ onNavigate }) => {
       setStats({
         todaySales,
         todayOrders: todayOrders.length,
-        totalRevenue: analytics.totalRevenue || 0,
+        totalRevenue: previousPeriodRevenue,
         salesTrend,
         popularProducts,
         lowStockProducts,
@@ -447,9 +476,9 @@ const DashboardWidgets = ({ onNavigate }) => {
             accent: true,
           },
           {
-            label: "Toplam gelir",
+            label: "Gerçekleşen ciro",
             value: money(stats.totalRevenue),
-            note: "Tüm zamanlar",
+            note: "Eylül 2025 – Temmuz 2026 dönemi",
             icon: TrendingUp,
           },
           {
