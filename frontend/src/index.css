@@ -308,27 +308,7 @@
   display: none;
 }
 
-/* Admin specific overrides */
-.admin-layout .glass {
-  background: rgba(15, 23, 42, 0.8);
-}
-
-.admin-layout .glass-dark {
-  background: rgba(3, 7, 18, 0.9);
-}
-
-/* Focus visible for accessibility */
-.admin-layout button:focus-visible,
-.admin-layout a:focus-visible,
-.admin-layout input:focus-visible {
-  outline: 2px solid rgba(16, 185, 129, 0.5);
-  outline-offset: 2px;
-}
-
-/* Smooth scroll behavior */
-.admin-layout {
-  scroll-behavior: smooth;
-}
+/* Admin surfaces and focus states live in styles/admin-theme.css. */
 
 /* Print styles */
 @media print {
@@ -342,4 +322,3 @@
     margin-left: 0 !important;
   }
 }
-

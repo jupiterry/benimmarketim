@@ -6,6 +6,16 @@ import Feedback from "../models/feedback.model.js";
 // Kullanıcı bilgilerini getir
 export const getUserInfo = async (req, res) => {
   try {
+    const isAdmin = req.user?.role === "admin";
+    const requesterId = req.user?._id;
+    const isSelf = requesterId?.equals
+      ? requesterId.equals(req.params.id)
+      : requesterId?.toString() === req.params.id;
+
+    if (!isAdmin && !isSelf) {
+      return res.status(403).json({ message: "Bu kullanıcı bilgilerine erişim yetkiniz yok" });
+    }
+
     const user = await User.findById(req.params.id).select("-password");
     if (!user) {
       return res.status(404).json({ message: "Kullanıcı bulunamadı" });
@@ -161,4 +171,4 @@ export const deleteAccount = async (req, res) => {
     console.error("Hesap silme hatası:", error);
     res.status(500).json({ message: "Veri silinirken hata oluştu", error: error.message });
   }
-}; 
+};

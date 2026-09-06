@@ -79,7 +79,7 @@ function App() {
         </div>
 
         <div className="relative z-50 flex-grow">
-          <Navbar />
+          {!isAdminPanel && <Navbar />}
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/signup" element={!user ? <SignUpPage /> : <Navigate to="/" />} />
@@ -146,8 +146,8 @@ function App() {
 
         {!isAdminPanel && <Footer />}
         <Toaster />
-        {user?.role === "admin" && <FloatingChatWidget />}
-        <AppDownloadModal />
+        {user?.role === "admin" && !isAdminPanel && <FloatingChatWidget />}
+        {!isAdminPanel && <AppDownloadModal />}
       </div>
       </ConfirmProvider>
     </HelmetProvider>

@@ -28,6 +28,9 @@ export const getCoupon = async (req, res) => {
     const now = new Date();
     
     const coupons = await findUserCoupons(userId);
+    const hasOrder = coupons.some((coupon) => coupon.firstOrderOnly)
+      ? Boolean(await Order.exists({ user: userId }))
+      : false;
     const allCoupons = await Promise.all(
       coupons.map(async (coupon) => {
         const usageCount = coupon.usedBy.filter(
@@ -52,7 +55,9 @@ export const getCoupon = async (req, res) => {
     // Kullanılmış tek kullanımlık/referral kuponunu API'de elemek; istemcinin
     // eski önbelleği yüzünden "kuponun var" mesajını tekrar göstermesini önler.
     const availableCoupons = allCoupons.filter(
-      (coupon) => !coupon.isUsed && Number(coupon.remainingUses ?? 0) > 0
+      (coupon) => !coupon.isUsed && Number(coupon.remainingUses ?? 0) > 0 &&
+        !(coupon.firstOrderOnly && hasOrder) &&
+        (coupon.remainingGlobalUses === null || coupon.remainingGlobalUses > 0)
     );
 
     res.json({ 

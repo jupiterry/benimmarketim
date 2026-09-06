@@ -1,3 +1,5 @@
+import Settings from "../models/settings.model.js";
+
 /**
  * Version Check Controller
  * Mobil uygulama için sürüm kontrolü API endpoint'i
@@ -21,17 +23,17 @@ export const checkVersion = async (req, res) => {
   try {
     const platform = req.query.platform || 'android'; // 'android' veya 'ios'
     
-    // Platform URL'leri
-    const androidUrl = "https://play.google.com/store/apps/details?id=com.jupi.benimapp.benimmarketim_app";
-    const iosUrl = "https://apps.apple.com/tr/app/benim-marketim/id6755792336?l=tr";
+    const { appVersion } = await Settings.getSettings();
     
-    // Sürüm bilgileri (burayı yeni sürüm çıktıkça güncelleyin)
+    // Yönetim panelinde kaydedilen güncel sürüm bilgileri.
     const response = {
-      latest_version: "3.0.2",      // En son yayınlanan sürüm
-      minimum_version: "3.0.1",     // Eski sürüm çalışmaya devam eder; zorunlu güncelleme gerektiğinde bunu 3.0.2 yapın.
-      url: platform === 'ios' ? iosUrl : androidUrl
+      latest_version: appVersion.latestVersion,
+      minimum_version: appVersion.minimumVersion,
+      force_update: appVersion.forceUpdate,
+      url: platform === 'ios' ? appVersion.iosStoreUrl : appVersion.androidStoreUrl
     };
     
+    res.set("Cache-Control", "no-store");
     res.status(200).json(response);
   } catch (error) {
     console.error('Version check endpoint hatası:', error);

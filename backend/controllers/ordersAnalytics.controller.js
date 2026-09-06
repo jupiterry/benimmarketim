@@ -90,7 +90,7 @@ export const updateOrderStatus = async (req, res) => {
     try {
         const io = req.app.get('io');
         if (io) {
-            io.emit('orderStatusUpdated', {
+            io.to(`user_${order.user.toString()}`).to('adminRoom').emit('orderStatusUpdated', {
                 orderId: order._id,
                 newStatus: status,
                 message: `Sipariş durumu güncellendi: ${status}`
@@ -160,8 +160,10 @@ function getDatesInRange(startDate, endDate) {
 // Kullanıcının siparişlerini getiren fonksiyon (admin için userId query desteği)
 export const getUserOrders = async (req, res) => {
   try {
-    // Admin userId query parametresi gönderebilir, yoksa kendi userId'sini kullan
-    const userId = req.query.userId || req.user._id;
+    // Sadece admin başka bir kullanıcı için sorgu yapabilir.
+    const userId = req.user.role === "admin" && req.query.userId
+      ? req.query.userId
+      : req.user._id;
     
     const orders = await Order.find({ user: userId })
       .populate({

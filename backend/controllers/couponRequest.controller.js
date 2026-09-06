@@ -166,3 +166,12 @@ export const saveCouponRequestCampaign = async (req, res) => {
   const updatedCampaign = campaign.isActive ? await issueRewardsIfReached(campaign) : campaign;
   res.json({ success: true, campaign: await serialize(updatedCampaign) });
 };
+
+export const deleteCouponRequestCampaign = async (req, res) => {
+  const campaign = await CouponRequest.findByIdAndDelete(req.params.id);
+  if (!campaign) {
+    return res.status(404).json({ success: false, message: "Kampanya bulunamadı." });
+  }
+
+  res.json({ success: true, message: "Kampanya silindi." });
+};

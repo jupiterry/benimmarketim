@@ -93,12 +93,9 @@ export const useSettingsStore = create((set, get) => ({
   updateSettings: async (newSettings) => {
     try {
       set({ loading: true });
-      await axios.put("/settings", newSettings);
+      const res = await axios.put("/settings", newSettings);
       set({ 
-        settings: {
-          ...get().settings,
-          ...newSettings
-        },
+        settings: res.data.settings,
         loading: false 
       });
       return true;
@@ -128,4 +125,4 @@ export const useSettingsStore = create((set, get) => ({
   getMinimumOrderAmount: () => {
     return get().settings.minimumOrderAmount;
   }
-})); 
+}));

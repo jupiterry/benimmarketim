@@ -24,9 +24,7 @@ export const useUserStore = create(
 
         try {
           const deviceType = detectDeviceType();
-          console.log("Gönderilen kayıt verileri:", { name, email, password, phone, deviceType, referralCode });
           const res = await axios.post("/auth/signup", { name, email, password, phone, deviceType, referralCode });
-          console.log("Backend'den dönen yanıt:", res.data);
           
           const userData = { ...res.data, phone };
           set({ user: userData, loading: false });
@@ -38,7 +36,7 @@ export const useUserStore = create(
             toast.success("Kayıt başarılı!");
           }
         } catch (error) {
-          console.error("Kayıt hatası:", error.response?.data || error);
+          console.error("Kayıt hatası:", error.message);
           set({ loading: false });
           toast.error(error.response?.data?.message || "Bir hata oluştu");
         }

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, Gift, Save, Target, Users } from "lucide-react";
+import { ChevronDown, ChevronUp, Gift, Power, Save, Target, Trash2, Users } from "lucide-react";
 import toast from "react-hot-toast";
 import axios from "../lib/axios";
+import { useConfirm } from "./ConfirmModal";
 
 const toLocalInput = (value) => {
   if (!value) return "";
@@ -37,6 +38,7 @@ const CouponRequestCampaignPanel = () => {
   const [form, setForm] = useState(freshForm);
   const [saving, setSaving] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
+  const { confirm } = useConfirm();
 
   const load = async () => {
     try {
@@ -85,6 +87,42 @@ const CouponRequestCampaignPanel = () => {
       toast.error(error.response?.data?.message || "Kampanya kaydedilemedi");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const deactivateCampaign = async (campaign) => {
+    try {
+      await axios.post("/coupon-requests/admin", {
+        ...campaign,
+        isActive: false,
+        startsAt: new Date(campaign.startsAt).toISOString(),
+        endsAt: new Date(campaign.endsAt).toISOString(),
+      });
+      toast.success("Kampanya pasife alındı");
+      await load();
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Kampanya pasife alınamadı");
+    }
+  };
+
+  const deleteCampaign = async (campaign) => {
+    const confirmed = await confirm({
+      title: "Kampanyayı Sil",
+      message: `"${campaign.title}" kampanyasını silmek istediğinize emin misiniz?`,
+      confirmText: "Evet, Sil",
+      cancelText: "İptal",
+      type: "danger",
+    });
+    if (!confirmed) return;
+
+    try {
+      await axios.delete(`/coupon-requests/admin/${campaign._id}`);
+      toast.success("Kampanya silindi");
+      if (expandedId === campaign._id) setExpandedId(null);
+      if (form._id === campaign._id) setForm(freshForm());
+      await load();
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Kampanya silinemedi");
     }
   };
 
@@ -163,7 +201,11 @@ const CouponRequestCampaignPanel = () => {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={() => editCampaign(campaign)} className="px-3 py-2 rounded-lg bg-blue-500/10 text-blue-300 text-sm">Düzenle</button>
+                  {campaign.isActive && (
+                    <button type="button" onClick={() => deactivateCampaign(campaign)} className="px-3 py-2 rounded-lg bg-amber-500/10 text-amber-300 text-sm flex items-center gap-2"><Power className="w-4 h-4" /> Pasife al</button>
+                  )}
                   <button type="button" onClick={() => setExpandedId(open ? null : campaign._id)} className="px-3 py-2 rounded-lg bg-white/5 text-slate-300 text-sm flex items-center gap-2"><Users className="w-4 h-4" /> Katılımcılar {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</button>
+                  <button type="button" onClick={() => deleteCampaign(campaign)} className="px-3 py-2 rounded-lg bg-red-500/10 text-red-300 text-sm flex items-center gap-2"><Trash2 className="w-4 h-4" /> Sil</button>
                 </div>
               </div>
               {open && (

@@ -417,7 +417,7 @@ export const updateOrderStatus = async (req, res) => {
 		// Socket.IO ile gerçek zamanlı güncelleme gönder
 		const io = req.app.get('io');
 		if (io) {
-			io.emit('orderStatusUpdated', {
+			io.to(`user_${order.user.toString()}`).to('adminRoom').emit('orderStatusUpdated', {
 				orderId: order._id,
 				newStatus: newStatus,
 				userId: order.user.toString(),

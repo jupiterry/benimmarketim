@@ -1,12 +1,20 @@
 import Chat from "../models/chat.model.js";
 import Message from "../models/message.model.js";
 import User from "../models/user.model.js";
+import Order from "../models/order.model.js";
 
 // Yeni sohbet oluştur veya mevcut aktif sohbeti getir
 export const createChat = async (req, res) => {
   try {
     const userId = req.user._id;
     const { orderId, type = "general" } = req.body;
+
+    if (orderId) {
+      const ownedOrder = await Order.exists({ _id: orderId, user: userId });
+      if (!ownedOrder) {
+        return res.status(403).json({ message: "Bu sipariş için sohbet oluşturma yetkiniz yok" });
+      }
+    }
 
     // Aynı kullanıcı ve sipariş için aktif sohbet var mı kontrol et
     let existingChat = await Chat.findOne({

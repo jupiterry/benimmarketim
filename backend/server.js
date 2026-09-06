@@ -161,6 +161,18 @@ io.on('connection', (socket) => {
     return user;
   };
 
+  // Bağlanan kullanıcıyı yalnızca sunucunun doğruladığı kimliğe ait odaya al.
+  // Web HttpOnly cookie, native istemci ise mevcut handshake auth token'ını kullanır.
+  authenticateSocket()
+    .then((user) => {
+      if (!user) return;
+      socket.join(`user_${user._id.toString()}`);
+      if (user.role === 'admin') socket.join('adminRoom');
+    })
+    .catch(() => {
+      // Kimliği doğrulanamayan socket bağlı kalabilir ancak özel odalara katılmaz.
+    });
+
   // #9 — joinAdminRoom: JWT ve rol doğrulaması eklendi.
   // Önceden herhangi bir kullanıcı bu olaya emit gönderip admin bildirimlerini dinleyebiliyordu.
   socket.on('joinAdminRoom', async ({ token } = {}) => {

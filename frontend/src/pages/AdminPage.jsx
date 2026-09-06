@@ -4,7 +4,6 @@ import axios from "../lib/axios";
 import toast from "react-hot-toast";
 import { useProductStore } from "../stores/useProductStore";
 import { useUserStore } from "../stores/useUserStore";
-import { useNavigate } from "react-router-dom";
 import socketService from "../lib/socket";
 
 // Admin Theme CSS
@@ -31,11 +30,13 @@ import AdvancedAnalyticsTab from "../components/AdvancedAnalyticsTab";
 import ChatTab from "../components/ChatTab";
 import WeeklyProductsTab from "../components/WeeklyProductsTab";
 
-import { Package, Upload } from "lucide-react";
+import { Package, Upload, ArrowUpRight } from "lucide-react";
 
 const loadStoredNotifications = () => {
   try {
-    return JSON.parse(localStorage.getItem("admin-order-notifications") || "[]");
+    return JSON.parse(
+      localStorage.getItem("admin-order-notifications") || "[]",
+    );
   } catch {
     return [];
   }
@@ -54,21 +55,29 @@ const BulkUploadSection = ({ onUpload }) => (
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-violet-500/30">
             <Upload className="w-8 h-8 text-white" />
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Toplu Ürün Yükleme</h2>
-          <p className="text-gray-400">CSV dosyası ile ürünleri toplu olarak yükleyin</p>
+          <h2 className="text-2xl font-bold text-white mb-2">
+            Toplu Ürün Yükleme
+          </h2>
+          <p className="text-gray-400">
+            CSV dosyası ile ürünleri toplu olarak yükleyin
+          </p>
         </div>
-        
+
         <div className="bg-gray-800/50 rounded-xl p-4 mb-6 border border-gray-700/50">
-          <p className="text-sm text-gray-400 mb-2">CSV dosyası aşağıdaki başlıklara sahip olmalıdır:</p>
+          <p className="text-sm text-gray-400 mb-2">
+            CSV dosyası aşağıdaki başlıklara sahip olmalıdır:
+          </p>
           <code className="block text-xs text-emerald-400 bg-gray-900/50 p-3 rounded-lg overflow-x-auto font-mono">
             name,description,price,image,category,stock,isOutOfStock,isHidden,discountedPrice
           </code>
         </div>
-        
+
         <label className="block">
           <div className="border-2 border-dashed border-gray-600 hover:border-emerald-500/50 rounded-2xl p-8 text-center cursor-pointer transition-all group hover:bg-emerald-500/5">
             <Upload className="w-10 h-10 text-gray-500 group-hover:text-emerald-400 mx-auto mb-3 transition-colors" />
-            <p className="text-white font-medium mb-1">CSV dosyası seçin veya sürükleyin</p>
+            <p className="text-white font-medium mb-1">
+              CSV dosyası seçin veya sürükleyin
+            </p>
             <p className="text-gray-500 text-sm">Maksimum 10MB</p>
           </div>
           <input
@@ -98,77 +107,108 @@ const AdminPage = () => {
   // Stores
   const { fetchAllProducts, products } = useProductStore();
   const { user } = useUserStore();
-  const navigate = useNavigate();
 
   // Product edit state
   const [editingProduct, setEditingProduct] = useState(null);
-  
+
   // Users state
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [errorUsers, setErrorUsers] = useState(null);
 
   // Tab labels for breadcrumbs
-  const tabLabels = useMemo(() => ({
-    dashboard: "Dashboard",
-    analytics: "Gelişmiş Analiz",
-    orders: "Siparişler",
-    chat: "Canlı Sohbet",
-    products: "Ürünler",
-    create: "Ürün Ekle",
-    users: "Kullanıcılar",
-    coupons: "Kuponlar",
-    referrals: "Referral",
-    feedback: "Geri Bildirimler",
-    photocopy: "Fotokopi",
-    "weekly-products": "Haftalık Ürünler",
-    banners: "Banner'lar",
-    "bulk-upload": "Toplu Yükleme",
-    settings: "Ayarlar",
-  }), []);
+  const tabLabels = useMemo(
+    () => ({
+      dashboard: "Genel bakış",
+      analytics: "Satış analizi",
+      orders: "Siparişler",
+      chat: "Mesajlar",
+      products: "Ürün kataloğu",
+      create: "Ürün Ekle",
+      users: "Müşteriler",
+      coupons: "Kuponlar",
+      referrals: "Davet sistemi",
+      feedback: "Geri Bildirimler",
+      photocopy: "Fotokopi",
+      "weekly-products": "Haftalık fırsatlar",
+      banners: "Vitrin görselleri",
+      "bulk-upload": "Toplu Yükleme",
+      settings: "Ayarlar",
+    }),
+    [],
+  );
+
+  const tabDescriptions = {
+    analytics:
+      "Satış verilerinizden mağazanızın büyümesine uzanan net bir bakış.",
+    orders: "Yeni siparişten teslimata, tüm süreci tek yerden yönetin.",
+    products:
+      "Mağazanızın ürünlerini, fiyatlarını ve görünürlüğünü düzenleyin.",
+    create: "Kataloğunuza yeni bir ürün ekleyin, müşterilerinizle buluşturun.",
+    users: "Müşterilerinizi tanıyın ve hesaplarını kolayca yönetin.",
+    coupons:
+      "Doğru fırsatı sunun. Kuponları ve kullanım geçmişlerini takip edin.",
+    referrals:
+      "Davetleri, kazanılan ödülleri ve müşteri bağlantılarını inceleyin.",
+    chat: "Müşterilerinizle iletişimde kalın, sorularını yanıtlayın.",
+    feedback: "Müşterilerinizin sesini dinleyin, deneyimlerini iyileştirin.",
+    photocopy: "Fotokopi taleplerini ve dosyalarını buradan yönetin.",
+    "weekly-products":
+      "Haftanın fırsatlarını seçin ve mağazanızı güncel tutun.",
+    banners: "Mağazanızın vitrinini kampanyalarınıza uygun şekilde düzenleyin.",
+    "bulk-upload": "Ürün kataloğunuzu CSV dosyasıyla toplu olarak güncelleyin.",
+    settings: "Mağazanızın çalışma düzenini ve tercihlerini belirleyin.",
+  };
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
       // Command Palette: Ctrl/Cmd + K
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
         e.preventDefault();
         setCommandPaletteOpen(true);
       }
-      
+
       // Quick navigation shortcuts (when not in input)
-      if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
-        if (e.key === 'g') {
+      if (
+        !e.target.closest(
+          'input, textarea, select, [contenteditable="true"], [role="dialog"]',
+        )
+      ) {
+        if (e.key === "g") {
           const nextKey = (e2) => {
             e2.preventDefault();
-            if (e2.key === 'd') setActiveTab('dashboard');
-            else if (e2.key === 'o') setActiveTab('orders');
-            else if (e2.key === 'p') setActiveTab('products');
-            else if (e2.key === 'u') setActiveTab('users');
-            else if (e2.key === 's') setActiveTab('settings');
-            else if (e2.key === 'c') setActiveTab('chat');
-            window.removeEventListener('keydown', nextKey);
+            if (e2.key === "d") setActiveTab("dashboard");
+            else if (e2.key === "o") setActiveTab("orders");
+            else if (e2.key === "p") setActiveTab("products");
+            else if (e2.key === "u") setActiveTab("users");
+            else if (e2.key === "s") setActiveTab("settings");
+            else if (e2.key === "c") setActiveTab("chat");
+            window.removeEventListener("keydown", nextKey);
           };
-          window.addEventListener('keydown', nextKey, { once: true });
-          setTimeout(() => window.removeEventListener('keydown', nextKey), 1000);
+          window.addEventListener("keydown", nextKey, { once: true });
+          setTimeout(
+            () => window.removeEventListener("keydown", nextKey),
+            1000,
+          );
         }
-        if (e.key === 'n') {
-          setActiveTab('create');
+        if (e.key === "n") {
+          setActiveTab("create");
         }
       }
     };
 
     // Mobile menu toggle event handler
     const handleMobileMenuToggle = () => {
-      setMobileMenuOpen(prev => !prev);
+      setMobileMenuOpen((prev) => !prev);
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('toggleMobileMenu', handleMobileMenuToggle);
-    
+    window.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("toggleMobileMenu", handleMobileMenuToggle);
+
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('toggleMobileMenu', handleMobileMenuToggle);
+      window.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("toggleMobileMenu", handleMobileMenuToggle);
     };
   }, []);
 
@@ -183,14 +223,18 @@ const AdminPage = () => {
   const fetchAdminBadges = async () => {
     try {
       const [ordersResponse, chatResponse] = await Promise.all([
-        axios.get('/orders-analytics'),
-        axios.get('/chat/unread-count'),
+        axios.get("/orders-analytics"),
+        axios.get("/chat/unread-count"),
       ]);
-      const usersOrders = ordersResponse.data?.orderAnalyticsData?.usersOrders || [];
+      const usersOrders =
+        ordersResponse.data?.orderAnalyticsData?.usersOrders || [];
       const orders = usersOrders.flatMap((entry) => entry.orders || []);
       setAdminBadges({
-        orders: orders.filter((order) => order.status === 'Hazırlanıyor').length,
-        chats: Number(chatResponse.data?.count || chatResponse.data?.unreadCount || 0),
+        orders: orders.filter((order) => order.status === "Hazırlanıyor")
+          .length,
+        chats: Number(
+          chatResponse.data?.count || chatResponse.data?.unreadCount || 0,
+        ),
       });
     } catch {
       // Rozet verisi yardımcı bilgidir; ana paneli engellemez.
@@ -198,7 +242,12 @@ const AdminPage = () => {
   };
 
   const updateLastSync = () => {
-    setLastSync(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }));
+    setLastSync(
+      new Date().toLocaleTimeString("tr-TR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    );
   };
 
   const fetchUsers = async () => {
@@ -210,7 +259,10 @@ const AdminPage = () => {
     } catch (error) {
       console.error("Kullanıcılar getirilirken hata:", error);
       setErrorUsers("Kullanıcılar yüklenemedi.");
-      toast.error(error.response?.data?.message || "Kullanıcılar yüklenirken hata oluştu.");
+      toast.error(
+        error.response?.data?.message ||
+          "Kullanıcılar yüklenirken hata oluştu.",
+      );
     } finally {
       setLoadingUsers(false);
     }
@@ -219,11 +271,7 @@ const AdminPage = () => {
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await Promise.all([
-        fetchAllProducts(),
-        fetchUsers(),
-        fetchAdminBadges()
-      ]);
+      await Promise.all([fetchAllProducts(), fetchUsers(), fetchAdminBadges()]);
       updateLastSync();
       toast.success("Veriler güncellendi");
     } catch (error) {
@@ -248,63 +296,111 @@ const AdminPage = () => {
       const order = data.order;
       if (handledOrderIdsRef.current.has(order.id)) return;
       handledOrderIdsRef.current.add(order.id);
-      window.setTimeout(() => handledOrderIdsRef.current.delete(order.id), 60000);
+      window.setTimeout(
+        () => handledOrderIdsRef.current.delete(order.id),
+        60000,
+      );
       const notification = {
         id: order.id,
         message: `${order.customerName || "Müşteri"} yeni sipariş verdi · ₺${Number(order.totalAmount || 0).toFixed(2)}`,
-        time: new Date(order.createdAt || Date.now()).toLocaleTimeString("tr-TR", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
+        time: new Date(order.createdAt || Date.now()).toLocaleTimeString(
+          "tr-TR",
+          {
+            hour: "2-digit",
+            minute: "2-digit",
+          },
+        ),
         order,
       };
 
       setNotifications((current) => {
-        const next = [notification, ...current.filter((item) => item.id !== notification.id)].slice(0, 30);
+        const next = [
+          notification,
+          ...current.filter((item) => item.id !== notification.id),
+        ].slice(0, 30);
         localStorage.setItem("admin-order-notifications", JSON.stringify(next));
         return next;
       });
       setAdminBadges((current) => ({ ...current, orders: current.orders + 1 }));
       updateLastSync();
 
-      const selectedSound = localStorage.getItem("notificationSound") || "ringtone";
+      const selectedSound =
+        localStorage.getItem("notificationSound") || "ringtone";
       const audio = new Audio(`/${selectedSound}.mp3`);
       audio.volume = 0.75;
       audio.play().catch(() => {
         // Tarayıcı ilk kullanıcı etkileşimine kadar otomatik sesi engelleyebilir.
       });
 
-      toast.custom((t) => (
-        <div className={`${t.visible ? "animate-enter" : "animate-leave"} w-[380px] max-w-[calc(100vw-24px)] overflow-hidden rounded-3xl border border-emerald-400/25 bg-[#0d1816]/95 text-white shadow-[0_24px_80px_rgba(0,0,0,.48)] backdrop-blur-xl`}>
-          <div className="h-1 bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400" />
-          <div className="p-4">
-          <div className="flex items-start gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-400/15 ring-1 ring-emerald-300/20">
-              <Package className="h-5 w-5 text-emerald-400" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-extrabold">Yeni sipariş alındı</p>
-                <button type="button" onClick={() => toast.dismiss(t.id)} className="rounded-lg px-2 py-1 text-xs text-gray-400 hover:bg-white/10 hover:text-white">Kapat</button>
+      toast.custom(
+        (t) => (
+          <div
+            className={`${t.visible ? "animate-enter" : "animate-leave"} w-[380px] max-w-[calc(100vw-24px)] overflow-hidden rounded-3xl border border-emerald-400/25 bg-[#0d1816]/95 text-white shadow-[0_24px_80px_rgba(0,0,0,.48)] backdrop-blur-xl`}
+          >
+            <div className="h-1 bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400" />
+            <div className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-400/15 ring-1 ring-emerald-300/20">
+                  <Package className="h-5 w-5 text-emerald-400" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-extrabold">
+                      Yeni sipariş alındı
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => toast.dismiss(t.id)}
+                      className="rounded-lg px-2 py-1 text-xs text-gray-400 hover:bg-white/10 hover:text-white"
+                    >
+                      Kapat
+                    </button>
+                  </div>
+                  <p className="mt-1 truncate text-sm font-semibold text-gray-200">
+                    {order.customerName || "Müşteri"}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-400">
+                    #{String(order.id).slice(-6).toUpperCase()} ·{" "}
+                    {order.products?.length || 0} ürün ·{" "}
+                    {order.deliveryPointName || order.city || "Teslimat"}
+                  </p>
+                </div>
               </div>
-              <p className="mt-1 truncate text-sm font-semibold text-gray-200">{order.customerName || "Müşteri"}</p>
-              <p className="mt-1 text-xs text-gray-400">#{String(order.id).slice(-6).toUpperCase()} · {order.products?.length || 0} ürün · {order.deliveryPointName || order.city || "Teslimat"}</p>
+              <div className="mt-4 flex items-center justify-between rounded-2xl bg-white/[.055] p-3 ring-1 ring-white/[.07]">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-gray-500">
+                    Sipariş tutarı
+                  </p>
+                  <p className="text-xl font-black text-emerald-400">
+                    ₺{Number(order.totalAmount || 0).toFixed(2)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    toast.dismiss(t.id);
+                    setActiveTab("orders");
+                  }}
+                  className="rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-emerald-400"
+                >
+                  Siparişi incele
+                </button>
+              </div>
             </div>
           </div>
-          <div className="mt-4 flex items-center justify-between rounded-2xl bg-white/[.055] p-3 ring-1 ring-white/[.07]">
-            <div><p className="text-[10px] uppercase tracking-wider text-gray-500">Sipariş tutarı</p><p className="text-xl font-black text-emerald-400">₺{Number(order.totalAmount || 0).toFixed(2)}</p></div>
-            <button type="button" onClick={() => { toast.dismiss(t.id); setActiveTab("orders"); }} className="rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-emerald-400">Siparişi incele</button>
-          </div>
-          </div>
-        </div>
-      ), { id: `order-${order.id}`, duration: 9000, position: "top-right" });
+        ),
+        { id: `order-${order.id}`, duration: 9000, position: "top-right" },
+      );
 
       if ("Notification" in window && Notification.permission === "granted") {
-        const browserNotification = new Notification("Benim Marketim · Yeni Sipariş", {
-          body: `${order.customerName || "Müşteri"} · ₺${Number(order.totalAmount || 0).toFixed(2)}`,
-          icon: "/favicon.ico",
-          tag: `order-${order.id}`,
-        });
+        const browserNotification = new Notification(
+          "Benim Marketim · Yeni Sipariş",
+          {
+            body: `${order.customerName || "Müşteri"} · ₺${Number(order.totalAmount || 0).toFixed(2)}`,
+            icon: "/favicon.ico",
+            tag: `order-${order.id}`,
+          },
+        );
         browserNotification.onclick = () => {
           window.focus();
           setActiveTab("orders");
@@ -347,7 +443,9 @@ const AdminPage = () => {
       }
     } catch (error) {
       console.error("Güncelleme hatası:", error);
-      toast.error(error.response?.data?.message || "Ürün güncellenirken hata oluştu");
+      toast.error(
+        error.response?.data?.message || "Ürün güncellenirken hata oluştu",
+      );
     }
   };
 
@@ -368,7 +466,9 @@ const AdminPage = () => {
         fetchAllProducts();
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || "Yükleme sırasında hata oluştu");
+      toast.error(
+        error.response?.data?.message || "Yükleme sırasında hata oluştu",
+      );
     }
   };
 
@@ -430,8 +530,11 @@ const AdminPage = () => {
 
   return (
     <div className="admin-layout">
+      <a className="studio-skip-link" href="#admin-workspace">
+        İçeriğe geç
+      </a>
       {/* Command Palette */}
-      <CommandPalette 
+      <CommandPalette
         isOpen={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}
         onNavigate={handleTabChange}
@@ -452,7 +555,9 @@ const AdminPage = () => {
       />
 
       {/* Main Content */}
-      <main className={`admin-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+      <main
+        className={`admin-main ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}
+      >
         {/* Header */}
         <AdminHeader
           pageTitle={tabLabels[activeTab] || "Dashboard"}
@@ -464,12 +569,39 @@ const AdminPage = () => {
           notifications={notifications}
           onClearNotifications={clearNotifications}
           onViewNotifications={() => setActiveTab("orders")}
+          onNavigate={handleTabChange}
           user={user}
           collapsed={sidebarCollapsed}
         />
 
         {/* Content Area */}
-        <div className="admin-content pb-20 lg:pb-8">
+        <div
+          id="admin-workspace"
+          tabIndex={-1}
+          className="admin-content pb-20 lg:pb-8"
+        >
+          {activeTab !== "dashboard" && (
+            <div className="studio-page-intro">
+              <div>
+                <div className="studio-eyebrow">
+                  <span /> MAĞAZA YÖNETİMİ
+                </div>
+                <h1>
+                  {tabLabels[activeTab]}
+                  <span>.</span>
+                </h1>
+                <p>{tabDescriptions[activeTab]}</p>
+              </div>
+              <a
+                className="studio-secondary studio-visit"
+                href="/"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Mağazayı görüntüle <ArrowUpRight size={16} />
+              </a>
+            </div>
+          )}
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -484,7 +616,7 @@ const AdminPage = () => {
         </div>
 
         {/* Status Bar (Desktop) */}
-        <AdminStatusBar 
+        <AdminStatusBar
           collapsed={sidebarCollapsed}
           serverStatus="online"
           lastSync={lastSync}

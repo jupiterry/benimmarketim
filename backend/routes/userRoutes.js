@@ -20,7 +20,7 @@ router.get("/:id", protectRoute, updateLastActive, getUserInfo);
 // Hesap silme (kullanıcı kendi hesabını silebilir)
 router.post("/delete-account", protectRoute, deleteAccount);
 
-// Herkesin erişebileceği endpoint
-router.post("/add-phone-field", addPhoneFieldToAllUsers);
+// Yalnızca adminlerin çalıştırabileceği bakım endpoint'i
+router.post("/add-phone-field", protectRoute, adminRoute, addPhoneFieldToAllUsers);
 
 export default router;
