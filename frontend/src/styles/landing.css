@@ -536,7 +536,7 @@ a.landing-category-card:hover { background: #e7ebdd; }
 .landing-category-detail { padding-block: 55px; }
 .landing-category-detail > a { display: inline-block; margin-top: 20px; text-decoration: underline; text-underline-offset: 4px; }
 @media (max-width: 850px) { .landing-category-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 600px) { .landing-categories { padding-bottom: 55px; } .landing-category-grid { gap: 10px; } .landing-category-grid a { padding: 16px; } .landing-category-grid h3 { font-size: 15px; } }
+@media (max-width: 600px) { .landing-categories { padding-bottom: 55px; } .landing-category-grid { gap: 10px; } .landing-category-card { padding: 16px; } .landing-category-grid h3 { font-size: 15px; } }
 .landing-location-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

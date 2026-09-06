@@ -5,6 +5,11 @@ const dist = new URL('../dist/', import.meta.url);
 for (const category of [null, ...marketCategories]) {
   const file = category ? `${category.path.slice(1)}/index.html` : 'seo-home/index.html';
   const html = await readFile(new URL(file, dist), 'utf8');
+  const inlineStyles = html.match(/<style data-initial-styles>([\s\S]*?)<\/style>/)?.[1];
+  assert.ok(inlineStyles?.includes('.landing{'), `${file}: initial content missing landing styles`);
+  assert.ok(html.indexOf('<style data-initial-styles>') < html.indexOf('</head>'), `${file}: styles must precede first paint`);
+  assert.ok(!/<link\b[^>]*rel="stylesheet"/.test(html), `${file}: first paint must not depend on a CSS request`);
+  if (!category) assert.ok(html.includes('<svg width="28" height="28"'), 'Store icons need intrinsic dimensions');
   assert.equal((html.match(/<title[^>]*>/g) ?? []).length, 1, `${file}: duplicate title`);
   assert.equal((html.match(/name="description"/g) ?? []).length, 1, `${file}: duplicate description`);
   assert.equal((html.match(/rel="canonical"/g) ?? []).length, 1, `${file}: duplicate canonical`);

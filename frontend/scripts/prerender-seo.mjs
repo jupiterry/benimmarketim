@@ -7,7 +7,21 @@ import { marketCategories, publicPages, siteUrl } from "../src/data/seo.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const dist = resolve(root, "dist");
-const template = await readFile(resolve(dist, "index.html"), "utf8");
+let template = await readFile(resolve(dist, "index.html"), "utf8");
+// Prerendered content must be styled on the first paint, even when the
+// external stylesheet is delayed or unavailable. Use the actual compiled
+// CSS so its reset, responsive rules and asset URLs stay in sync with React.
+const stylesheetTags = [...template.matchAll(/<link\b[^>]*rel="stylesheet"[^>]*>/g)];
+if (!stylesheetTags.length) throw new Error("Build contains no stylesheet to inline");
+for (const [tag] of stylesheetTags) {
+  const href = tag.match(/href="([^"]+)"/)?.[1];
+  if (!href || !/^\/assets\/[\w.-]+\.css$/.test(href)) {
+    throw new Error(`Unexpected build stylesheet: ${href}`);
+  }
+  const css = await readFile(resolve(dist, `.${href}`), "utf8");
+  if (/<\/style/i.test(css)) throw new Error("Unsafe closing style tag in compiled CSS");
+  template = template.replace(tag, () => `<style data-initial-styles>${css}</style>`);
+}
 const server = await createServer({ root, configFile: false, plugins: [react()], ssr: { noExternal: ["react-helmet-async"] }, server: { middlewareMode: true, watch: null }, appType: "custom" });
 try {
   const { renderSeoPage } = await server.ssrLoadModule("/src/seo-render.jsx");
