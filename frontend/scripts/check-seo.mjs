@@ -12,7 +12,10 @@ for (const category of [null, ...marketCategories]) {
   assert.ok(html.includes(category ? `Devrek ${category.name.replaceAll('&', '&amp;')}` : homeTitle), `${file}: title`);
   assert.ok(html.includes('<h1'), `${file}: no initial content`);
   assert.ok(!html.includes('noindex'), `${file}: blocked`);
-  for (const item of marketCategories) assert.ok(html.includes(`href="${item.path}"`), `${file}: missing category link`);
+  for (const item of marketCategories) {
+    if (category) assert.ok(html.includes(`href="${item.path}"`), `${file}: missing category link`);
+    else assert.ok(!html.includes(`href="${item.path}"`), `${file}: homepage category should not be clickable`);
+  }
 }
 const sitemap = await readFile(new URL('sitemap.xml', dist), 'utf8');
 assert.ok(!sitemap.includes('/hakkimizda'));

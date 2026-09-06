@@ -309,7 +309,7 @@ const HomePage = () => {
         </div>
       </section>
 
-      <MarketCategories />
+      <MarketCategories clickable={false} />
 
       <section
         className="landing-membership"

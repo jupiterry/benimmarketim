@@ -528,8 +528,8 @@
 .landing-categories { padding-block: 30px 85px; scroll-margin-top: 105px; }
 .landing-category-intro { margin-top: 20px !important; max-width: 750px; color: #526657; line-height: 1.85; }
 .landing-category-grid { list-style: none; padding: 0; margin: 30px 0 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
-.landing-category-grid a { display: flex; flex-direction: column; align-items: flex-start; height: 100%; padding: 22px; border: 1px solid #d6dcd0; border-radius: 18px; background: #fffdf4; }
-.landing-category-grid a:hover { background: #e7ebdd; }
+.landing-category-card { display: flex; flex-direction: column; align-items: flex-start; height: 100%; padding: 22px; border: 1px solid #d6dcd0; border-radius: 18px; background: #fffdf4; }
+a.landing-category-card:hover { background: #e7ebdd; }
 .landing-category-grid img { object-fit: contain; margin-bottom: 16px; }
 .landing-category-grid h3 { font-size: 17px; font-weight: 650; }
 .landing-category-grid span { margin-top: 12px; font-size: 12px; color: #526657; }
