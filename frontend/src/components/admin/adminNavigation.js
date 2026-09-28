@@ -14,6 +14,8 @@ import {
   Settings,
   Plus,
   MessageSquare,
+  BrainCircuit,
+  Headphones,
 } from "lucide-react";
 
 export const adminMenuGroups = [
@@ -44,6 +46,8 @@ export const adminMenuGroups = [
     items: [
       { id: "users", label: "Müşteriler", icon: Users },
       { id: "chat", label: "Mesajlar", icon: MessageCircle, badge: "chats" },
+      { id: "support-queue", label: "Bekleyen Destekler", icon: Headphones },
+      { id: "ai-knowledge", label: "Yapay Zekâ Bilgi Merkezi", icon: BrainCircuit },
       { id: "referrals", label: "Davet sistemi", icon: Gift },
       { id: "feedback", label: "Geri bildirimler", icon: MessageSquare },
     ],

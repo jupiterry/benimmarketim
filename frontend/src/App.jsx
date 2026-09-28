@@ -31,6 +31,7 @@ import ReferralPage from "./pages/ReferralPage";
 import ScrollToTop from "./components/ScrollToTop";
 import { ConfirmProvider } from "./components/ConfirmModal";
 import FloatingChatWidget from "./components/FloatingChatWidget";
+import CustomerAiChatWidget from "./components/CustomerAiChatWidget";
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useUserStore();
@@ -146,6 +147,7 @@ function App() {
         {!isAdminPanel && <Footer />}
         <Toaster />
         {user?.role === "admin" && !isAdminPanel && <FloatingChatWidget />}
+        {user && user.role !== "admin" && <CustomerAiChatWidget />}
       </div>
       </ConfirmProvider>
     </HelmetProvider>

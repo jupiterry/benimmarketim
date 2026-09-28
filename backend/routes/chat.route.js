@@ -11,6 +11,7 @@ import {
   getUnreadCount,
   deleteChat,
 } from "../controllers/chat.controller.js";
+import { aiRateLimit } from "../middleware/aiRateLimit.js";
 
 const router = express.Router();
 
@@ -30,7 +31,7 @@ router.get("/unread-count", protectRoute, adminRoute, getUnreadCount);
 router.get("/:chatId", protectRoute, getChatMessages);
 
 // Mesaj gönder (hem admin hem kullanıcı)
-router.post("/:chatId/send", protectRoute, sendMessage);
+router.post("/:chatId/send", protectRoute, aiRateLimit, sendMessage);
 
 // Mesajları okundu işaretle (hem admin hem kullanıcı)
 router.put("/:chatId/read", protectRoute, markAsRead);

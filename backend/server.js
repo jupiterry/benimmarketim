@@ -24,9 +24,12 @@ import bannerRoutes from "./routes/banner.route.js";
 import categoryRoutes from "./routes/category.route.js";
 import cartReminderRoutes from "./routes/cartReminder.route.js";
 import n8nRoutes from "./routes/n8n.route.js";
+import telegramRoutes from "./routes/telegram.route.js";
 import versionRoutes from "./routes/version.route.js";
 import referralRoutes from "./routes/referral.route.js";
 import chatRoutes from "./routes/chat.route.js";
+import aiRoutes from "./routes/ai.route.js";
+import supportRequestRoutes from "./routes/supportRequest.route.js";
 import weeklyProductRoutes from "./routes/weeklyProductRoutes.js";
 import Product from "./models/product.model.js";
 import User from "./models/user.model.js";
@@ -287,9 +290,12 @@ app.use("/api/banners", bannerRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/cart-reminders", cartReminderRoutes);
 app.use("/api/n8n", n8nRoutes);
+app.use("/api/telegram", telegramRoutes);
 app.use("/api", versionRoutes);
 app.use("/api/referrals", referralRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/ai", aiRoutes);
+app.use("/api/support-requests", supportRequestRoutes);
 app.use("/api/weekly-products", weeklyProductRoutes);
 
 // ============ SEO ENDPOINTS ============

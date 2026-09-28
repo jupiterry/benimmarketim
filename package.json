@@ -6,7 +6,9 @@
 	"scripts": {
 		"dev": "nodemon backend/server.js",
 		"start": "node backend/server.js",
-		"build": "npm install && npm install --prefix frontend && npm run build --prefix frontend"
+		"build": "npm install && npm install --prefix frontend && npm run build --prefix frontend",
+		"migrate:ai-support": "node backend/scripts/migrate-ai-support.js",
+		"test:ai-support": "node --test backend/tests/ai-support.test.js backend/tests/ai-routing.integration.test.js"
 	},
 	"keywords": [],
 	"author": "",

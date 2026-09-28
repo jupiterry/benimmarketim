@@ -2,6 +2,8 @@ import Chat from "../models/chat.model.js";
 import Message from "../models/message.model.js";
 import User from "../models/user.model.js";
 import Order from "../models/order.model.js";
+import SupportRequest from "../models/supportRequest.model.js";
+import { answerUserMessage } from "../services/ai/assistant.service.js";
 
 // Yeni sohbet oluştur veya mevcut aktif sohbeti getir
 export const createChat = async (req, res) => {
@@ -21,6 +23,7 @@ export const createChat = async (req, res) => {
       user: userId,
       order: orderId || null,
       status: "active",
+      mode: "AI",
     });
 
     if (existingChat) {
@@ -42,9 +45,9 @@ export const createChat = async (req, res) => {
     // Otomatik karşılama mesajı
     const welcomeMessage = await Message.create({
       chat: chat._id,
-      sender: "admin",
-      senderName: "Destek Ekibi",
-      content: "Merhaba! 👋 Size nasıl yardımcı olabiliriz?",
+      sender: "ai",
+      senderName: "Benim Marketim AI",
+      content: "Merhaba 👋 Ben Benim Marketim yapay zekâ asistanıyım. Ürünlerimiz, siparişiniz, teslimat, kampanyalar ve hizmetlerimiz hakkında bana soru sorabilirsiniz.",
       type: "system",
       isRead: false,
     });
@@ -52,21 +55,9 @@ export const createChat = async (req, res) => {
     // Chat'i güncelle
     chat.lastMessage = welcomeMessage.content;
     chat.lastMessageAt = welcomeMessage.createdAt;
-    chat.lastMessageSender = "admin";
+    chat.lastMessageSender = "ai";
     chat.userUnreadCount = 1;
     await chat.save();
-
-    // Socket.IO ile admin'lere bildir
-    const io = req.app.get("io");
-    if (io) {
-      const user = await User.findById(userId).select("name email");
-      io.to("adminRoom").emit("newChat", {
-        chat: {
-          ...chat.toObject(),
-          user: user,
-        },
-      });
-    }
 
     res.status(201).json({ 
       success: true, 
@@ -99,6 +90,7 @@ export const getChats = async (req, res) => {
     const chats = await Chat.find(query)
       .populate("user", "name email phone")
       .populate("order", "_id totalAmount status createdAt")
+      .populate("assignedAgent", "name email")
       .sort({ lastMessageAt: -1 });
 
     // Arama varsa filtrele (kullanıcı adı veya email)
@@ -203,6 +195,10 @@ export const sendMessage = async (req, res) => {
       return res.status(400).json({ message: "Bu sohbet kapatılmış!" });
     }
 
+    if (isAdmin && (chat.mode !== "HUMAN" || String(chat.assignedAgent || "") !== String(userId))) {
+      return res.status(409).json({ message: "Mesaj göndermeden önce bekleyen desteği Görüşmeyi Al düğmesiyle üstlenin." });
+    }
+
     const sender = isAdmin ? "admin" : "user";
     const senderName = isAdmin ? "Destek Ekibi" : req.user.name;
 
@@ -224,7 +220,7 @@ export const sendMessage = async (req, res) => {
     
     // Okunmamış sayısını artır
     if (sender === "user") {
-      chat.unreadCount += 1;
+      if (chat.mode !== "AI") chat.unreadCount += 1;
     } else {
       chat.userUnreadCount += 1;
     }
@@ -241,7 +237,7 @@ export const sendMessage = async (req, res) => {
       });
 
       // Admin'lere bildir (kullanıcı mesaj gönderdiğinde)
-      if (sender === "user") {
+      if (sender === "user" && chat.mode !== "AI") {
         io.to("adminRoom").emit("chatUpdate", {
           chatId,
           lastMessage: chat.lastMessage,
@@ -259,7 +255,12 @@ export const sendMessage = async (req, res) => {
       }
     }
 
-    res.status(201).json({ success: true, message });
+    let aiMessage = null;
+    if (!isAdmin && sender === "user" && chat.mode === "AI" && type === "text") {
+      aiMessage = await answerUserMessage({ chat, query: cleanContent, io });
+    }
+
+    res.status(201).json({ success: true, message, aiMessage });
   } catch (error) {
     console.error("Mesaj gönderilirken hata:", error.message);
     res.status(500).json({ message: "Server hatası", error: error.message });
@@ -284,10 +285,10 @@ export const markAsRead = async (req, res) => {
     }
 
     // Karşı tarafın mesajlarını okundu olarak işaretle
-    const senderToMark = isAdmin ? "user" : "admin";
-    
+    const senderFilter = isAdmin ? { sender: "user" } : { sender: { $in: ["admin", "ai", "system"] } };
+
     await Message.updateMany(
-      { chat: chatId, sender: senderToMark, isRead: false },
+      { chat: chatId, ...senderFilter, isRead: false },
       { isRead: true, readAt: new Date() }
     );
 
@@ -326,7 +327,9 @@ export const closeChat = async (req, res) => {
     }
 
     chat.status = "closed";
+    chat.mode = "CLOSED";
     await chat.save();
+    await SupportRequest.updateMany({ conversation: chatId, status: { $in: ["waiting", "accepted", "in_progress"] } }, { $set: { status: "closed", closedAt: new Date() } });
 
     // Kapanış mesajı ekle
     await Message.create({

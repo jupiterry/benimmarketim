@@ -222,7 +222,13 @@ const ChatTab = () => {
     try {
       setIsLoading(true);
       const { data } = await axios.get(`/chat/list?status=${statusFilter}`);
-      setChats(data.chats || []);
+      const nextChats = data.chats || [];
+      setChats(nextChats);
+      const requestedChatId = new URLSearchParams(window.location.search).get("chatId");
+      if (requestedChatId) {
+        const requested = nextChats.find((chat) => chat._id === requestedChatId);
+        if (requested) { setSelectedChat(requested); setShowMobileChat(true); }
+      }
     } catch (error) {
       toast.error("Sohbetler yüklenemedi");
     } finally {

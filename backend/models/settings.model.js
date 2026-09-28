@@ -128,6 +128,12 @@ const settingsSchema = new mongoose.Schema(
         type: String,
         default: "https://apps.apple.com/tr/app/benim-marketim/id6755792336?l=tr"
       }
+    },
+    ai: {
+      enabled: { type: Boolean, default: true },
+      provider: { type: String, enum: ["groq", "openrouter", "gemini"], default: () => process.env.AI_DEFAULT_PROVIDER || "openrouter" },
+      model: { type: String, default: () => process.env.AI_DEFAULT_MODEL || "openai/gpt-4o" },
+      maxHistoryMessages: { type: Number, default: 12, min: 2, max: 30 },
     }
   },
   { timestamps: true }

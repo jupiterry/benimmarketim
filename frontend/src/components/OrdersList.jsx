@@ -262,12 +262,12 @@ const OrderDetailModal = ({ order, isOpen, onClose, onStatusUpdate, onPrint, onD
 
             {/* Order Note */}
             {order.note && (
-              <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+              <div className="order-note p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl">
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-xs text-amber-400/70 font-medium mb-1">Müşteri Notu</p>
-                    <p className="text-sm text-amber-200">{order.note}</p>
+                    <p className="order-note-label mb-1">Müşteri Notu</p>
+                    <p className="order-note-body">{order.note}</p>
                   </div>
                 </div>
               </div>
@@ -383,7 +383,7 @@ const OrderCard = forwardRef(({ order, index, onStatusUpdate, onPrint, onAddItem
           {/* Name & Meta */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <h3 className="text-white font-semibold truncate">{order.user?.name}</h3>
+              <h3 className="order-customer-name text-white font-semibold">{order.user?.name}</h3>
               {order.isFirstOrder && (
                 <span className="px-1.5 py-0.5 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-[9px] font-bold rounded-md uppercase tracking-wide">
                   Yeni
@@ -448,12 +448,12 @@ const OrderCard = forwardRef(({ order, index, onStatusUpdate, onPrint, onAddItem
       {/* Body Section */}
       <div className="p-4 space-y-3.5">
         {/* Quick Info Row */}
-        <div className="flex items-center justify-between gap-3 text-[11px]">
-          <div className="flex min-w-0 items-center gap-3 text-gray-400">
-            <span className="flex min-w-0 items-center gap-1 truncate"><Mail className="w-3 h-3 shrink-0" /> {order.user?.email ? `${order.user.email.split('@')[0]}@...` : "E-posta yok"}</span>
-            <span className="hidden lg:flex items-center gap-1"><Phone className="w-3 h-3" /> {order.user?.phone || '-'}</span>
+        <div className="order-contact flex flex-wrap items-center justify-between gap-3 text-[11px]">
+          <div className="flex min-w-0 flex-wrap items-center gap-3 text-gray-400">
+            <span className="order-contact-email flex min-w-0 items-center gap-1"><Mail className="w-3 h-3 shrink-0" /> {order.user?.email || "E-posta yok"}</span>
+            <span className="flex items-center gap-1"><Phone className="w-3 h-3 shrink-0" /> {order.user?.phone || '-'}</span>
           </div>
-          <span className="flex shrink-0 items-center gap-1 text-gray-500">
+          <span className="flex min-w-0 items-center gap-1 text-gray-500">
             <MapPin className="w-3 h-3" /> {order.deliveryPointName || order.city || 'Belirtilmemiş'}
           </span>
         </div>
@@ -616,13 +616,13 @@ const OrderCard = forwardRef(({ order, index, onStatusUpdate, onPrint, onAddItem
         <motion.div 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="mx-4 mb-4 rounded-2xl border border-amber-400/20 bg-amber-500/[.08] p-3.5"
+          className="order-note mx-4 mb-4 rounded-2xl border border-amber-400/20 bg-amber-500/[.08] p-3.5"
         >
           <div className="flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-300/80">Müşteri Notu</p>
-              <p className="line-clamp-2 text-sm leading-relaxed text-amber-100">{order.note}</p>
+              <p className="order-note-label mb-1">Müşteri Notu</p>
+              <p className="order-note-body">{order.note}</p>
             </div>
           </div>
         </motion.div>
@@ -1235,7 +1235,7 @@ const OrdersList = () => {
     .slice(0, 3);
 
   return (
-    <div className="space-y-6">
+    <div className="admin-orders space-y-6">
       {/* Header */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}

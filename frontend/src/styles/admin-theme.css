@@ -584,6 +584,30 @@
 .studio-metric-top svg {
   color: #90a184;
 }
+.studio-revenue-select {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin-top: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--studio-line);
+  border-radius: 7px;
+  background: #f6f8f3;
+  color: #2a422f;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.studio-revenue-select:focus-visible {
+  outline: 2px solid #2d785c;
+  outline-offset: 2px;
+}
+.studio-revenue-detail {
+  margin: 8px 0 0;
+  color: #6f816b;
+  font-size: 11px;
+  line-height: 1.5;
+}
 .studio-metric > strong {
   display: block;
   margin: 12px 0 11px;
@@ -2019,4 +2043,68 @@
 .admin-content .hover\:bg-gray-700:hover,
 .admin-content .hover\:bg-gray-800:hover {
   background: #e8efdf;
+}
+
+/* Orders use readable type and contrast on the daylight admin surfaces. */
+.admin-content .admin-orders {
+  font-size: 15px;
+  line-height: 1.6;
+}
+.admin-content .admin-orders :is(.text-gray-400, .text-gray-500, .text-gray-600, .text-gray-700) {
+  color: #526150;
+}
+.admin-content .admin-orders :is(.text-xs, [class~="text-[9px]"], [class~="text-[10px]"], [class~="text-[11px]"]) {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.admin-content .admin-orders .text-sm {
+  font-size: 14px;
+  line-height: 1.6;
+}
+.admin-content .admin-orders :is(.text-amber-300, .text-amber-400, .text-orange-300, .text-orange-400) {
+  color: #80551b;
+}
+.admin-content .admin-orders :is(.text-red-300, .text-red-400, .text-rose-300, .text-rose-400) {
+  color: #a33e32;
+}
+.admin-content .admin-orders :is(input, textarea)::placeholder {
+  color: #626f60;
+  opacity: 1;
+}
+.admin-content .admin-orders .order-customer-name {
+  font-size: 16px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.admin-content .admin-orders .order-contact {
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.admin-content .admin-orders .order-contact-email {
+  overflow-wrap: anywhere;
+}
+.admin-content .admin-orders .order-note {
+  background: #fff8e9;
+  border-color: #e7ca89;
+  border-left: 4px solid #b7791f;
+}
+.admin-content .admin-orders .order-note .flex > div {
+  min-width: 0;
+}
+.admin-content .admin-orders .order-note svg {
+  color: #80551b;
+}
+.admin-content .admin-orders .order-note-label {
+  color: #80551b;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.admin-content .admin-orders .order-note-body {
+  color: #493719;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }

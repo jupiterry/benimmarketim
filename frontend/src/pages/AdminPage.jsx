@@ -29,6 +29,8 @@ import ReferralsTab from "../components/ReferralsTab";
 import AdvancedAnalyticsTab from "../components/AdvancedAnalyticsTab";
 import ChatTab from "../components/ChatTab";
 import WeeklyProductsTab from "../components/WeeklyProductsTab";
+import AiKnowledgeCenter from "../components/AiKnowledgeCenter";
+import SupportQueueTab from "../components/SupportQueueTab";
 
 import { Package, Upload, ArrowUpRight } from "lucide-react";
 
@@ -94,7 +96,10 @@ const BulkUploadSection = ({ onUpload }) => (
 
 const AdminPage = () => {
   // State
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    return ["orders", "chat", "support-queue", "ai-knowledge"].includes(tab) ? tab : "dashboard";
+  });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -123,6 +128,8 @@ const AdminPage = () => {
       analytics: "Satış analizi",
       orders: "Siparişler",
       chat: "Mesajlar",
+      "support-queue": "Bekleyen Destekler",
+      "ai-knowledge": "Yapay Zekâ Bilgi Merkezi",
       products: "Ürün kataloğu",
       create: "Ürün Ekle",
       users: "Müşteriler",
@@ -151,6 +158,8 @@ const AdminPage = () => {
     referrals:
       "Davetleri, kazanılan ödülleri ve müşteri bağlantılarını inceleyin.",
     chat: "Müşterilerinizle iletişimde kalın, sorularını yanıtlayın.",
+    "support-queue": "Yapay zekânın ekibinize aktardığı görüşmeleri yönetin.",
+    "ai-knowledge": "Asistanın kullanacağı doğrulanmış mağaza bilgilerini yönetin.",
     feedback: "Müşterilerinizin sesini dinleyin, deneyimlerini iyileştirin.",
     photocopy: "Fotokopi taleplerini ve dosyalarını buradan yönetin.",
     "weekly-products":
@@ -486,6 +495,10 @@ const AdminPage = () => {
         return <OrdersList />;
       case "chat":
         return <ChatTab />;
+      case "support-queue":
+        return <SupportQueueTab onOpenChat={(chatId) => { const url = new URL(window.location.href); url.searchParams.set("tab", "chat"); url.searchParams.set("chatId", chatId); window.history.replaceState({}, "", url); setActiveTab("chat"); }} />;
+      case "ai-knowledge":
+        return <AiKnowledgeCenter />;
       case "products":
         return (
           <ProductsList

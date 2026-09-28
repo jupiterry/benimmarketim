@@ -27,6 +27,8 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import axios from "../lib/axios";
+import TelegramNotificationsCard from "./TelegramNotificationsCard";
+import { NEW_ACTIVITY_YEAR_START, REVENUE_PERIODS, summarizeRevenue } from "../lib/revenuePeriods";
 const money = (value) =>
   Number(value || 0).toLocaleString("tr-TR", {
     style: "currency",
@@ -34,10 +36,10 @@ const money = (value) =>
     maximumFractionDigits: 0,
   });
 const number = (value) => Number(value || 0).toLocaleString("tr-TR");
-
-const PREVIOUS_ACTIVITY_START = new Date("2025-09-01T00:00:00+03:00");
-const PREVIOUS_ACTIVITY_END = new Date("2026-08-01T00:00:00+03:00");
-const NEW_ACTIVITY_YEAR_START = new Date("2026-09-06T00:00:00+03:00");
+const isCurrentActivityOrder = (order) => {
+  const orderDate = new Date(order.createdAt);
+  return !Number.isNaN(orderDate.getTime()) && orderDate >= NEW_ACTIVITY_YEAR_START;
+};
 
 const ProfitMarginCard = ({ allOrders }) => {
   const [profitMargin, setProfitMargin] = useState(() => {
@@ -184,7 +186,6 @@ const DashboardWidgets = ({ onNavigate }) => {
   const [stats, setStats] = useState({
     todaySales: 0,
     todayOrders: 0,
-    totalRevenue: 0,
     salesTrend: [],
     popularProducts: [],
     lowStockProducts: [],
@@ -198,6 +199,12 @@ const DashboardWidgets = ({ onNavigate }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
   const [chartMetric, setChartMetric] = useState("sales");
+  const [revenuePeriodId, setRevenuePeriodId] = useState("current");
+  const revenuePeriod = REVENUE_PERIODS.find((period) => period.id === revenuePeriodId);
+  const periodSummary = useMemo(
+    () => summarizeRevenue(stats.allOrders, revenuePeriod),
+    [stats.allOrders, revenuePeriod],
+  );
 
   const fetchDashboardData = useCallback(async () => {
     try {
@@ -216,20 +223,6 @@ const DashboardWidgets = ({ onNavigate }) => {
       today.setHours(0, 0, 0, 0);
 
       const allOrders = orders.flatMap((user) => user.orders || []);
-      const previousPeriodRevenue = allOrders.reduce((sum, order) => {
-        const orderDate = new Date(order.createdAt);
-
-        if (
-          Number.isNaN(orderDate.getTime()) ||
-          orderDate < PREVIOUS_ACTIVITY_START ||
-          orderDate >= PREVIOUS_ACTIVITY_END ||
-          order.status === "İptal Edildi"
-        ) {
-          return sum;
-        }
-
-        return sum + (order.totalAmount || 0);
-      }, 0);
       const todayOrders = allOrders.filter((order) => {
         const orderDate = new Date(order.createdAt);
         return orderDate >= today;
@@ -303,11 +296,10 @@ const DashboardWidgets = ({ onNavigate }) => {
       setStats({
         todaySales,
         todayOrders: todayOrders.length,
-        totalRevenue: previousPeriodRevenue,
         salesTrend,
         popularProducts,
         lowStockProducts,
-        liveOrderCount: allOrders.filter((o) => o.status === "Hazırlanıyor")
+        liveOrderCount: allOrders.filter((o) => o.status === "Hazırlanıyor" && isCurrentActivityOrder(o))
           .length,
         recentOrders,
         totalUsers: users.length,
@@ -339,7 +331,7 @@ const DashboardWidgets = ({ onNavigate }) => {
       const orders = res.data.orderAnalyticsData?.usersOrders || [];
       const allOrders = orders.flatMap((user) => user.orders || []);
       const liveCount = allOrders.filter(
-        (o) => o.status === "Hazırlanıyor",
+        (o) => o.status === "Hazırlanıyor" && isCurrentActivityOrder(o),
       ).length;
 
       const recentOrders = allOrders
@@ -403,11 +395,11 @@ const DashboardWidgets = ({ onNavigate }) => {
 
   const operations = useMemo(() => {
     const activeOrders = stats.allOrders.filter((order) =>
-      ["Hazırlanıyor", "Yolda"].includes(order.status),
+      ["Hazırlanıyor", "Yolda"].includes(order.status) && isCurrentActivityOrder(order),
     );
     const delayedOrders = stats.allOrders.filter(
       (order) =>
-        order.status === "Hazırlanıyor" &&
+        order.status === "Hazırlanıyor" && isCurrentActivityOrder(order) &&
         (Date.now() - new Date(order.createdAt).getTime()) / 60000 >= 20,
     );
     const averageBasket = stats.todayOrders
@@ -483,8 +475,9 @@ const DashboardWidgets = ({ onNavigate }) => {
           },
           {
             label: "Gerçekleşen ciro",
-            value: money(stats.totalRevenue),
-            note: "Eylül 2025 – Temmuz 2026 dönemi",
+            value: money(periodSummary.revenue),
+            note: revenuePeriod.description,
+            revenue: true,
             icon: TrendingUp,
           },
           {
@@ -499,7 +492,7 @@ const DashboardWidgets = ({ onNavigate }) => {
             note: "Kayıtlı müşteri",
             icon: Users,
           },
-        ].map(({ label, value, note, icon: Icon, accent }) => (
+        ].map(({ label, value, note, icon: Icon, accent, revenue }) => (
           <article
             key={label}
             className={`studio-metric ${accent ? "is-featured" : ""}`}
@@ -508,11 +501,29 @@ const DashboardWidgets = ({ onNavigate }) => {
               <span>{label}</span>
               <Icon size={19} strokeWidth={1.6} />
             </div>
+            {revenue && (
+              <select
+                aria-label="Ciro dönemi"
+                className="studio-revenue-select"
+                value={revenuePeriodId}
+                onChange={(event) => setRevenuePeriodId(event.target.value)}
+              >
+                {REVENUE_PERIODS.map((period) => (
+                  <option key={period.id} value={period.id}>{period.label}</option>
+                ))}
+              </select>
+            )}
             <strong>{value}</strong>
             <div className="studio-metric-note">
               <span className="studio-metric-dot" />
               {note}
             </div>
+            {revenue && (
+              <p className="studio-revenue-detail" aria-live="polite">
+                {number(periodSummary.count)} sipariş · İptaller hariç
+                {periodSummary.count === 0 && " · Henüz satış yok"}
+              </p>
+            )}
           </article>
         ))}
       </div>
@@ -827,6 +838,7 @@ const DashboardWidgets = ({ onNavigate }) => {
         </section>
         <ProfitMarginCard allOrders={stats.allOrders} />
       </div>
+      <TelegramNotificationsCard />
       <section className="studio-bottom-summary">
         <div>
           <h2>Sipariş dağılımı</h2>

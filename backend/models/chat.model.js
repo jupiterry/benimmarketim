@@ -22,6 +22,17 @@ const chatSchema = new mongoose.Schema(
       enum: ["active", "closed"],
       default: "active",
     },
+    mode: {
+      type: String,
+      enum: ["AI", "WAITING_FOR_AGENT", "HUMAN", "CLOSED"],
+      default: "AI",
+      index: true,
+    },
+    assignedAgent: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
     unreadCount: {
       type: Number,
       default: 0, // Admin için okunmamış mesaj sayısı
@@ -40,7 +51,7 @@ const chatSchema = new mongoose.Schema(
     },
     lastMessageSender: {
       type: String,
-      enum: ["user", "admin"],
+      enum: ["user", "admin", "ai", "system"],
       default: "user",
     },
     isDeleted: {
