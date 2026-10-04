@@ -701,6 +701,1096 @@
   height: 16px;
 }
 
+/* ── Yerleşim yardımcıları (tüm ekranlar) ─────────────────────────── */
+.admin-layout .ui-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-size: var(--ui-fs-md);
+  color: var(--ui-text);
+}
+.admin-layout .ui-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.admin-layout .ui-stack--sm {
+  gap: 8px;
+}
+.admin-layout .ui-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.admin-layout .ui-between {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+.admin-layout .ui-grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.admin-layout .ui-grid-2,
+.admin-layout .ui-grid-3,
+.admin-layout .ui-grid-4 {
+  display: grid;
+  gap: 14px;
+}
+.admin-layout .ui-grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.admin-layout .ui-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.admin-layout .ui-grid-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.admin-layout .ui-span-all {
+  grid-column: 1 / -1;
+}
+.admin-layout .ui-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}
+.admin-layout .ui-divider {
+  margin: 14px 0;
+  border: 0;
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .ui-hint {
+  margin-top: 5px;
+  font-size: var(--ui-fs-xs);
+  line-height: 1.45;
+  color: var(--ui-text-3);
+}
+.admin-layout .ui-text-sm {
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .ui-text-xs {
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .ui-strong {
+  font-weight: 650;
+  color: var(--ui-text);
+}
+.admin-layout .ui-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-layout .ui-wrap-anywhere {
+  overflow-wrap: anywhere;
+}
+.admin-layout .ui-scroll-x {
+  overflow-x: auto;
+}
+.admin-layout textarea.ui-field {
+  min-height: 84px;
+  padding: 9px 12px;
+  line-height: 1.5;
+  resize: vertical;
+}
+.admin-layout .ui-field--sm {
+  min-height: 32px;
+  padding: 0 8px;
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .ui-field-prefix {
+  position: relative;
+}
+.admin-layout .ui-field-prefix > span {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  transform: translateY(-50%);
+  color: var(--ui-text-3);
+  pointer-events: none;
+}
+.admin-layout .ui-field-prefix > .ui-field {
+  padding-left: 28px;
+}
+/* Tıklanabilir durum rozeti (aç/kapat) */
+.admin-layout button.ui-badge {
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition:
+    border-color var(--ui-ease),
+    filter var(--ui-ease);
+}
+.admin-layout button.ui-badge:hover {
+  border-color: currentColor;
+}
+.admin-layout button.ui-badge:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.admin-layout .ui-icon-btn[aria-pressed="true"] {
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+.admin-layout .ui-icon-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+.admin-layout .ui-icon-btn--sm {
+  width: 28px;
+  height: 28px;
+}
+.admin-layout .ui-icon-btn--sm svg {
+  width: 14px;
+  height: 14px;
+}
+.admin-layout .ui-btn--warn {
+  border-color: #e6cf9b;
+  color: var(--ui-warn-ink);
+}
+.admin-layout .ui-btn--warn:hover {
+  background: var(--ui-warn-bg);
+  border-color: var(--ui-warn);
+}
+.admin-layout .ui-btn--lg {
+  min-height: 42px;
+  padding: 0 18px;
+  font-size: var(--ui-fs-md);
+}
+/* Seçenek satırı: açıklamalı aç/kapat düğmesi */
+.admin-layout .ui-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  text-align: left;
+  transition:
+    background-color var(--ui-ease),
+    border-color var(--ui-ease);
+}
+.admin-layout .ui-option:hover {
+  background: var(--ui-surface-2);
+}
+.admin-layout .ui-option svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.admin-layout .ui-option[aria-pressed="true"] {
+  background: var(--ui-brand-soft);
+  border-color: #b9d6c6;
+  color: var(--ui-brand-ink);
+}
+.admin-layout .ui-option[data-tone="danger"] {
+  background: var(--ui-danger-bg);
+  border-color: #ecc9c3;
+  color: var(--ui-danger-ink);
+}
+.admin-layout .ui-option[data-tone="warn"] {
+  background: var(--ui-warn-bg);
+  border-color: #e6cf9b;
+  color: var(--ui-warn-ink);
+}
+/* Dosya bırakma alanı */
+.admin-layout .ui-dropzone {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 150px;
+  padding: 20px;
+  overflow: hidden;
+  border: 1px dashed var(--ui-line-strong);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-2);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color var(--ui-ease),
+    background-color var(--ui-ease);
+}
+.admin-layout .ui-dropzone:hover {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand-soft);
+}
+.admin-layout .ui-dropzone > svg {
+  width: 26px;
+  height: 26px;
+  color: var(--ui-text-3);
+}
+.admin-layout .ui-dropzone > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: var(--ui-surface);
+}
+.admin-layout .ui-dropzone-overlay {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  background: rgba(29, 43, 36, 0.72);
+  color: #fff;
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+}
+.admin-layout .ui-dropzone-overlay svg {
+  width: 14px;
+  height: 14px;
+}
+.admin-layout .ui-code {
+  display: block;
+  padding: 10px 12px;
+  overflow-x: auto;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-2);
+  color: var(--ui-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--ui-fs-xs);
+  white-space: nowrap;
+}
+/* Bilgi şeridi */
+.admin-layout .ui-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+  font-size: var(--ui-fs-sm);
+  font-weight: 550;
+}
+.admin-layout .ui-banner svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+.admin-layout .ui-banner--warn {
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+.admin-layout .ui-banner--danger {
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+}
+.admin-layout .ui-banner--info {
+  background: var(--ui-info-bg);
+  color: var(--ui-info-ink);
+}
+/* Yükleniyor göstergesi */
+.admin-layout .ui-loader {
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--ui-line-strong);
+  border-top-color: var(--ui-brand);
+  border-radius: 50%;
+  animation: ui-spin 0.8s linear infinite;
+}
+.admin-layout .ui-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 28px 16px;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+}
+/* Satır listesi: tablo benzeri, hızlı taranabilir */
+.admin-layout .ui-list-head,
+.admin-layout .ui-list-row {
+  display: grid;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+}
+.admin-layout .ui-list-head {
+  min-height: 38px;
+  border-bottom: 1px solid var(--ui-line);
+  background: var(--ui-surface-2);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+}
+.admin-layout .ui-list-row {
+  min-height: 60px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--ui-line);
+  background: var(--ui-surface);
+  transition: background-color var(--ui-ease);
+}
+.admin-layout .ui-list-row:hover {
+  background: var(--ui-surface-2);
+}
+.admin-layout .ui-list-row[data-muted="true"] .ui-list-title {
+  color: var(--ui-text-2);
+}
+.admin-layout .ui-list-title {
+  font-size: var(--ui-fs-md);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ui-text);
+}
+.admin-layout .ui-list-sub {
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-2);
+}
+.admin-layout .ui-cell-label {
+  display: none;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+}
+.admin-layout .ui-right {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+/* Toplu işlem çubuğu: yalnızca seçim varken görünür */
+.admin-layout .ui-bulkbar {
+  position: sticky;
+  top: 76px;
+  z-index: 40;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 10px 14px;
+  border: 1px solid #b9d6c6;
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-brand-soft);
+  box-shadow: var(--ui-shadow);
+}
+.admin-layout .ui-bulkbar-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+  color: var(--ui-brand-ink);
+  white-space: nowrap;
+}
+.admin-layout .ui-bulkbar-count svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ══ Ürün kataloğu ════════════════════════════════════════════════════ */
+.admin-layout .products-cols {
+  grid-template-columns: minmax(220px, 2.4fr) minmax(120px, 1fr) minmax(150px, 1.1fr) 104px 104px 132px;
+}
+.admin-layout .products-product {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.admin-layout .products-thumb {
+  position: relative;
+  display: block;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-2);
+  cursor: pointer;
+}
+.admin-layout .products-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.admin-layout .products-thumb-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(29, 43, 36, 0.62);
+  color: #fff;
+  opacity: 0;
+  transition: opacity var(--ui-ease);
+}
+.admin-layout .products-thumb:hover .products-thumb-overlay,
+.admin-layout .products-thumb-overlay[data-busy="true"] {
+  opacity: 1;
+}
+.admin-layout .products-thumb-overlay svg {
+  width: 16px;
+  height: 16px;
+}
+.admin-layout .products-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+}
+.admin-layout .products-price-now {
+  font-weight: 650;
+  color: var(--ui-text);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .products-price-old {
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+  text-decoration: line-through;
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .products-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+.admin-layout .products-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.admin-layout .products-inline > .ui-field {
+  width: 96px;
+}
+@media (max-width: 1100px) {
+  .admin-layout .ui-list-head.products-cols {
+    display: none;
+  }
+  .admin-layout .ui-list-row.products-cols {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+  .admin-layout .ui-list-row.products-cols > :first-child {
+    grid-column: 1 / -1;
+  }
+  .admin-layout .ui-list-row.products-cols .ui-cell-label {
+    display: block;
+  }
+  .admin-layout .ui-list-row.products-cols .products-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+/* Yeni ürün formu */
+.admin-layout .product-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr);
+  gap: 16px;
+  align-items: start;
+  max-width: 1080px;
+}
+@media (max-width: 900px) {
+  .admin-layout .product-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-layout .ui-grid-3,
+  .admin-layout .ui-grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 700px) {
+  .admin-layout .ui-grid-2,
+  .admin-layout .ui-grid-3,
+  .admin-layout .ui-grid-4 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Küçük ortak parçalar */
+.admin-layout .ui-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.02em;
+}
+.admin-layout .ui-checkbox,
+.admin-layout .ui-list-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  accent-color: var(--ui-brand);
+  cursor: pointer;
+}
+.admin-layout .ui-list-row[data-selected="true"] {
+  background: var(--ui-brand-soft);
+}
+.admin-layout .ui-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .ui-kv {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px 16px;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+}
+.admin-layout .ui-kv dt {
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+}
+.admin-layout .ui-kv dd {
+  margin: 2px 0 0;
+  font-size: var(--ui-fs-md);
+  font-weight: 600;
+  color: var(--ui-text);
+  overflow-wrap: anywhere;
+}
+.admin-layout .ui-kv dd svg {
+  width: 15px;
+  height: 15px;
+}
+.admin-layout .ui-progress {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--ui-surface-3);
+}
+.admin-layout .ui-progress > div {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ui-brand);
+}
+.admin-layout .ui-badge svg.w-4 {
+  width: 13px;
+  height: 13px;
+}
+
+/* ══ Müşteriler, Kuponlar ═════════════════════════════════════════════ */
+.admin-layout .users-cols {
+  grid-template-columns: minmax(240px, 2.4fr) 110px minmax(150px, 1.2fr) 130px 140px;
+}
+.admin-layout .users-best {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+.admin-layout .coupons-cols {
+  grid-template-columns: minmax(240px, 2.6fr) 90px 80px 110px 110px 120px;
+}
+.admin-layout .coupons-item {
+  border-bottom: 1px solid var(--ui-line);
+}
+.admin-layout .coupons-item[data-muted="true"] .ui-list-title {
+  color: var(--ui-text-2);
+}
+.admin-layout .coupons-usage {
+  padding: 0 16px 12px;
+}
+@media (max-width: 1100px) {
+  .admin-layout .ui-list-head.users-cols,
+  .admin-layout .ui-list-head.coupons-cols {
+    display: none;
+  }
+  .admin-layout .ui-list-row.users-cols,
+  .admin-layout .ui-list-row.coupons-cols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 12px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+  .admin-layout .ui-list-row.users-cols > :first-child,
+  .admin-layout .ui-list-row.coupons-cols > :first-child,
+  .admin-layout .ui-list-row.users-cols > .products-actions,
+  .admin-layout .ui-list-row.coupons-cols > .products-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+  .admin-layout .ui-list-row.users-cols .ui-cell-label,
+  .admin-layout .ui-list-row.coupons-cols .ui-cell-label {
+    display: block;
+  }
+}
+
+/* ══ Mesajlar ═════════════════════════════════════════════════════════ */
+.admin-layout .chat-layout {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 16px;
+  height: calc(100vh - 250px);
+  min-height: 460px;
+  font-size: var(--ui-fs-md);
+  color: var(--ui-text);
+}
+.admin-layout .chat-sidebar,
+.admin-layout .chat-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.admin-layout .chat-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+}
+.admin-layout .chat-item {
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--ui-line);
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  transition: background-color var(--ui-ease);
+}
+.admin-layout .chat-item:hover {
+  background: var(--ui-surface-2);
+}
+.admin-layout .chat-item[data-selected="true"] {
+  background: var(--ui-brand-soft);
+  border-left-color: var(--ui-brand);
+}
+.admin-layout .chat-avatar {
+  position: relative;
+  flex-shrink: 0;
+}
+.admin-layout .chat-online {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--ui-surface);
+  border-radius: 50%;
+  background: var(--ui-ok);
+}
+.admin-layout .chat-unread {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--ui-brand);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+.admin-layout .chat-messages {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  overflow-y: auto;
+  background: var(--ui-surface-2);
+}
+.admin-layout .chat-day {
+  display: flex;
+  justify-content: center;
+}
+.admin-layout .chat-message {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 76%;
+}
+.admin-layout .chat-message[data-own="true"] {
+  align-items: flex-end;
+  align-self: flex-end;
+}
+.admin-layout .chat-bubble {
+  padding: 9px 13px;
+  border: 1px solid var(--ui-line);
+  border-radius: 12px 12px 12px 3px;
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font-size: var(--ui-fs-md);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.admin-layout .chat-message[data-own="true"] .chat-bubble {
+  border-color: var(--ui-brand);
+  border-radius: 12px 12px 3px 12px;
+  background: var(--ui-brand);
+  color: #fff;
+}
+.admin-layout .chat-message-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--ui-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .chat-message-meta svg {
+  width: 12px;
+  height: 12px;
+  color: var(--ui-ok);
+}
+.admin-layout .chat-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .chat-quick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 2px;
+  overflow-x: auto;
+}
+.admin-layout .chat-back {
+  display: none;
+}
+@media (max-width: 900px) {
+  .admin-layout .chat-layout {
+    grid-template-columns: minmax(0, 1fr);
+    height: calc(100vh - 230px);
+  }
+  .admin-layout .chat-layout[data-mobile-view="list"] .chat-panel,
+  .admin-layout .chat-layout[data-mobile-view="chat"] .chat-sidebar {
+    display: none;
+  }
+  .admin-layout .chat-back {
+    display: inline-flex;
+  }
+  .admin-layout .chat-hide-narrow {
+    display: none;
+  }
+  .admin-layout .chat-message {
+    max-width: 90%;
+  }
+}
+
+/* ══ Analiz, Ayarlar, Fotokopi, Geri bildirim, Banner, Referans ══════════ */
+/* Sütun grafiği: tek renk, üstü yuvarlak, üzerine gelince değer */
+.admin-layout .ui-chart {
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+}
+.admin-layout .ui-chart > .ui-bars {
+  flex: 1;
+}
+.admin-layout .ui-chart-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex-shrink: 0;
+  padding-bottom: 22px;
+  color: var(--ui-text-3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.admin-layout .ui-bars {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+  border-bottom: 1px solid var(--ui-line);
+}
+.admin-layout .ui-bar-col {
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-width: 0;
+  outline: none;
+}
+.admin-layout .ui-bar-track {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  justify-content: center;
+  min-height: 0;
+}
+.admin-layout .ui-bar {
+  width: 100%;
+  max-width: 28px;
+  min-height: 2px;
+  border-radius: 4px 4px 0 0;
+  background: var(--ui-brand);
+}
+.admin-layout .ui-bar[data-empty="true"] {
+  background: var(--ui-line-strong);
+}
+.admin-layout .ui-bar[data-tone="ok"] { background: var(--ui-ok); }
+.admin-layout .ui-bar[data-tone="warn"] { background: var(--ui-warn); }
+.admin-layout .ui-bar[data-tone="danger"] { background: var(--ui-danger); }
+.admin-layout .ui-bar-col:hover .ui-bar,
+.admin-layout .ui-bar-col:focus-visible .ui-bar {
+  filter: brightness(0.88);
+}
+.admin-layout .ui-bar-label {
+  overflow: hidden;
+  height: 22px;
+  padding-top: 5px;
+  color: var(--ui-text-3);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+  text-align: center;
+  white-space: nowrap;
+}
+.admin-layout .ui-bar-tip {
+  position: absolute;
+  bottom: calc(100% - 12px);
+  left: 50%;
+  z-index: 5;
+  display: none;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 9px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-pop);
+  color: var(--ui-text-2);
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.admin-layout .ui-bar-tip strong {
+  color: var(--ui-text);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .ui-bar-col:hover .ui-bar-tip,
+.admin-layout .ui-bar-col:focus-visible .ui-bar-tip {
+  display: flex;
+}
+.admin-layout .ui-bar-col:first-child .ui-bar-tip,
+.admin-layout .ui-bar-col:nth-child(2) .ui-bar-tip {
+  left: 0;
+  transform: none;
+}
+.admin-layout .ui-bar-col:last-child .ui-bar-tip,
+.admin-layout .ui-bar-col:nth-last-child(2) .ui-bar-tip {
+  right: 0;
+  left: auto;
+  transform: none;
+}
+
+/* Açılır kapanır kart başlığı */
+.admin-layout .ui-collapse-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  border-top: 0;
+  border-right: 0;
+  border-left: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.admin-layout .ui-collapse-toggle:hover {
+  background: var(--ui-surface-2);
+}
+.admin-layout .ui-collapse-toggle > svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--ui-text-3);
+  transition: transform var(--ui-ease);
+}
+
+/* Aç/kapat düğmesi (ikon tabanlı) */
+.admin-layout .ui-switch {
+  width: 40px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--ui-text-3);
+}
+.admin-layout .ui-switch svg {
+  width: 28px;
+  height: 28px;
+}
+.admin-layout .ui-switch[data-on="true"] {
+  color: var(--ui-brand);
+}
+
+.admin-layout .ui-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  color: var(--ui-brand-ink);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  text-decoration: none;
+}
+.admin-layout .ui-link:hover {
+  text-decoration: underline;
+}
+.admin-layout .ui-link svg {
+  width: 13px;
+  height: 13px;
+}
+
+.admin-layout .ui-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.admin-layout .ui-star {
+  width: 15px;
+  height: 15px;
+  color: var(--ui-line-strong);
+}
+.admin-layout .ui-star[data-on="true"] {
+  color: var(--ui-warn);
+  fill: var(--ui-warn);
+}
+
+.admin-layout .ui-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  z-index: 30;
+  overflow: hidden;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-pop);
+}
+
+.admin-layout .photocopy-filters {
+  display: grid;
+  grid-template-columns: minmax(200px, 2fr) repeat(3, minmax(130px, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+}
+.admin-layout .photocopy-item {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--ui-line);
+}
+.admin-layout .photocopy-item:last-child {
+  border-bottom: 0;
+}
+
+.admin-layout .banner-preview {
+  display: block;
+  width: 100%;
+  max-height: 180px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  object-fit: cover;
+}
+.admin-layout .banner-image {
+  position: relative;
+  aspect-ratio: 16 / 7;
+  border-bottom: 1px solid var(--ui-line);
+  background: var(--ui-surface-3);
+}
+.admin-layout .banner-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.admin-layout .banner-flag {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+.admin-layout .referral-code {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 10px;
+}
+.admin-layout .referral-code > svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--ui-text-3);
+}
+.admin-layout .referral-nums {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  text-align: center;
+}
+.admin-layout .referral-nums > div {
+  padding: 8px 4px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-2);
+}
+.admin-layout .ui-title > svg {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  margin-right: 8px;
+  vertical-align: -3px;
+  color: var(--ui-text-3);
+}
+.admin-layout .referral-invited {
+  padding-top: 12px;
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout label.ui-label > .ui-field {
+  margin-top: 6px;
+  font-weight: 400;
+}
+.admin-layout .knowledge-row,
+.admin-layout .support-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+@media (max-width: 760px) {
+  .admin-layout .photocopy-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+  .admin-layout .photocopy-filters > :first-child {
+    grid-column: 1 / -1;
+  }
+  .admin-layout .ui-bar-label {
+    font-size: 9px;
+  }
+}
+
 /* ══ Siparişler ekranı ════════════════════════════════════════════════
    Yalnızca yerleşim. Renk ve tipografi yukarıdaki ortak sınıflardan gelir. */
 .admin-layout .orders {
@@ -1138,4 +2228,45 @@
   .admin-layout .ui-skeleton {
     animation: none;
   }
+}
+
+/* ══ Genel Bakış: yeni sistemle görsel uyum (yalnızca yüzey, yapı aynı) ══ */
+.admin-layout .studio-metric,
+.admin-layout .studio-panel {
+  border-color: var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow);
+}
+.admin-layout .studio-primary,
+.admin-layout .studio-secondary,
+.admin-layout .studio-date,
+.admin-layout .studio-revenue-select {
+  border-radius: var(--ui-radius);
+}
+.admin-layout .studio-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.admin-layout .studio-metric-note {
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .studio-order-status {
+  border-radius: 6px;
+  font-weight: 600;
+}
+.admin-layout .studio-order-status.pending {
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+.admin-layout .studio-order-status.transit {
+  background: var(--ui-info-bg);
+  color: var(--ui-info-ink);
+}
+.admin-layout .studio-order-status.delivered {
+  background: var(--ui-ok-bg);
+  color: var(--ui-ok-ink);
+}
+.admin-layout .studio-order-status.cancelled {
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
 }

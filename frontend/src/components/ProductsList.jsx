@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   Trash,
   Star,
@@ -10,21 +9,9 @@ import {
   Search,
   Filter,
   SlidersHorizontal,
-  AlertTriangle,
-  Eye,
-  EyeOff,
-  Package,
-  TrendingUp,
-  DollarSign,
-  CheckSquare,
-  Square,
-  Trash2,
-  ToggleLeft,
-  ToggleRight,
-  DollarSign as DollarIcon,
   Zap,
   Clock,
-  Calendar
+  Percent
 } from "lucide-react";
 import { useProductStore } from "../stores/useProductStore";
 import axios from "../lib/axios";
@@ -716,330 +703,243 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
   };
 
   return (
-    <motion.div
-      className="space-y-6"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.8 }}
-    >
+    <div className="ui-page">
       {/* İstatistik Kartları */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-gradient-to-br from-emerald-500/20 to-teal-500/20 backdrop-blur-xl p-5 rounded-2xl border border-emerald-500/30"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <div className="p-2 rounded-xl bg-emerald-500/20">
-              <Package className="w-5 h-5 text-emerald-400" />
-            </div>
-            <span className="text-emerald-400 text-xs font-semibold bg-emerald-500/10 px-2 py-1 rounded-full">Toplam</span>
-          </div>
-          <p className="text-gray-400 text-xs mb-1">Ürün Sayısı</p>
-          <p className="text-2xl font-bold text-white">{localProducts.length || products.length}</p>
-        </motion.div>
+      <div className="ui-stats">
+        <div className="ui-stat">
+          <span className="ui-stat-label">Ürün Sayısı</span>
+          <span className="ui-stat-value">{localProducts.length || products.length}</span>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-gradient-to-br from-blue-500/20 to-indigo-500/20 backdrop-blur-xl p-5 rounded-2xl border border-blue-500/30"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <div className="p-2 rounded-xl bg-blue-500/20">
-              <DollarSign className="w-5 h-5 text-blue-400" />
-            </div>
-            <span className="text-blue-400 text-xs font-semibold bg-blue-500/10 px-2 py-1 rounded-full">Değer</span>
-          </div>
-          <p className="text-gray-400 text-xs mb-1">Toplam Stok Değeri</p>
-          <p className="text-2xl font-bold text-white">
+        <div className="ui-stat">
+          <span className="ui-stat-label">Toplam Stok Değeri</span>
+          <span className="ui-stat-value">
             ₺{localProducts.reduce((sum, p) => sum + (p.price * (p.stock || 0)), 0).toLocaleString('tr-TR', { maximumFractionDigits: 0 })}
-          </p>
-        </motion.div>
+          </span>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-gradient-to-br from-amber-500/20 to-orange-500/20 backdrop-blur-xl p-5 rounded-2xl border border-amber-500/30"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <div className="p-2 rounded-xl bg-amber-500/20">
-              <Zap className="w-5 h-5 text-amber-400" />
-            </div>
-            <span className="text-amber-400 text-xs font-semibold bg-amber-500/10 px-2 py-1 rounded-full">Flash</span>
-          </div>
-          <p className="text-gray-400 text-xs mb-1">Aktif Flash Sale</p>
-          <p className="text-2xl font-bold text-white">{flashSales.filter(s => new Date(s.endDate) > new Date()).length}</p>
-        </motion.div>
+        <div className="ui-stat">
+          <span className="ui-stat-label"><span className="ui-dot ui-dot--warn" />Aktif Flash Sale</span>
+          <span className="ui-stat-value">{flashSales.filter(s => new Date(s.endDate) > new Date()).length}</span>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="bg-gradient-to-br from-red-500/20 to-pink-500/20 backdrop-blur-xl p-5 rounded-2xl border border-red-500/30"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <div className="p-2 rounded-xl bg-red-500/20">
-              <AlertTriangle className="w-5 h-5 text-red-400" />
-            </div>
-            <span className="text-red-400 text-xs font-semibold bg-red-500/10 px-2 py-1 rounded-full">Uyarı</span>
-          </div>
-          <p className="text-gray-400 text-xs mb-1">Düşük Stok</p>
-          <p className="text-2xl font-bold text-white">{localProducts.filter(p => (p.stock || 0) < 5 && (p.stock || 0) > 0).length}</p>
-        </motion.div>
+        <div className="ui-stat">
+          <span className="ui-stat-label"><span className="ui-dot ui-dot--danger" />Düşük Stok</span>
+          <span className="ui-stat-value">{localProducts.filter(p => (p.stock || 0) < 5 && (p.stock || 0) > 0).length}</span>
+        </div>
       </div>
 
       {/* Ana Ürün Listesi Kartı */}
-      <div className="bg-gray-800/30 shadow-2xl rounded-2xl overflow-hidden border border-gray-700/50">
+      <div className="ui-card" style={{ overflow: "hidden" }}>
         {/* Gelişmiş Filtreleme Paneli */}
-        <div className="p-6 bg-gray-900/50 space-y-4 backdrop-blur-xl border-b border-gray-700/50">
+        <div className="ui-card-body" style={{ borderBottom: "1px solid var(--ui-line)" }}>
           {/* Üst Arama ve Filtre Butonları */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="ui-cluster">
             {/* Arama */}
-            <div className="md:col-span-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Ürün adı ile ara..."
-                  className="w-full bg-gray-800/50 border border-gray-600/50 rounded-xl pl-10 pr-4 py-3 text-white 
-                  focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50
-                  transition-all duration-200"
-                />
-              </div>
+            <div className="ui-search ui-grow" style={{ flexBasis: 260 }}>
+              <Search />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Ürün adı ile ara..."
+                aria-label="Ürün ara"
+                className="ui-field"
+              />
             </div>
 
             {/* Filtre Toggle Butonu */}
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition-all ${showFilters
-                  ? "bg-emerald-500 text-white"
-                  : "bg-gray-700/50 text-gray-300 hover:bg-gray-700"
-                }`}
+              aria-pressed={showFilters}
+              aria-expanded={showFilters}
+              className="ui-btn"
+              style={{ minHeight: 38 }}
             >
-              <SlidersHorizontal className="w-5 h-5" />
+              <SlidersHorizontal />
               Gelişmiş Filtreler
               {(filters.stockStatus !== "all" || filters.visibility !== "all" || filters.featured !== "all" ||
                 filters.discount !== "all" || filters.priceRange.min || filters.priceRange.max) && (
-                  <span className="ml-2 bg-emerald-400 text-gray-900 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
-                    !
-                  </span>
+                  <span className="ui-dot ui-dot--warn" title="Etkin filtre var" />
                 )}
             </button>
           </div>
 
           {/* Genişletilebilir Filtre Paneli */}
-          <AnimatePresence>
-            {showFilters && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="overflow-hidden"
-              >
-                <div className="pt-6 space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {/* Kategori Filtresi */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        <Package className="w-4 h-4 inline mr-2" />
-                        Kategori
-                      </label>
-                      <select
-                        value={selectedCategory}
-                        onChange={handleFilterCategoryChange}
-                        className="w-full bg-gray-800/50 border border-gray-600/50 rounded-xl py-2.5 px-4 text-white 
-                        focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50
-                        transition-all duration-200"
-                      >
-                        <option value="">Tüm Kategoriler</option>
-                        {categories.map((category) => (
-                          <option key={category.href} value={category.href}>
-                            {category.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+          {showFilters && (
+            <div>
+              <hr className="ui-divider" />
+              <div className="ui-grid-4">
+                {/* Kategori Filtresi */}
+                <div>
+                  <label className="ui-label" htmlFor="products-filter-category">Kategori</label>
+                  <select
+                    id="products-filter-category"
+                    value={selectedCategory}
+                    onChange={handleFilterCategoryChange}
+                    className="ui-field"
+                  >
+                    <option value="">Tüm Kategoriler</option>
+                    {categories.map((category) => (
+                      <option key={category.href} value={category.href}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                    {/* Fiyat Aralığı */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        <DollarSign className="w-4 h-4 inline mr-2" />
-                        Fiyat Aralığı
-                      </label>
-                      <div className="flex gap-2">
-                        <input
-                          type="number"
-                          placeholder="Min"
-                          value={filters.priceRange.min}
-                          onChange={(e) => setFilters({
-                            ...filters,
-                            priceRange: { ...filters.priceRange, min: e.target.value }
-                          })}
-                          className="w-1/2 bg-gray-800/50 border border-gray-600/50 rounded-xl py-2.5 px-3 text-white 
-                          focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                        />
-                        <input
-                          type="number"
-                          placeholder="Max"
-                          value={filters.priceRange.max}
-                          onChange={(e) => setFilters({
-                            ...filters,
-                            priceRange: { ...filters.priceRange, max: e.target.value }
-                          })}
-                          className="w-1/2 bg-gray-800/50 border border-gray-600/50 rounded-xl py-2.5 px-3 text-white 
-                          focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Stok Durumu */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        <AlertTriangle className="w-4 h-4 inline mr-2" />
-                        Stok Durumu
-                      </label>
-                      <select
-                        value={filters.stockStatus}
-                        onChange={(e) => setFilters({ ...filters, stockStatus: e.target.value })}
-                        className="w-full bg-gray-800/50 border border-gray-600/50 rounded-xl py-2.5 px-4 text-white 
-                        focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                      >
-                        <option value="all">Tümü</option>
-                        <option value="inStock">Stokta</option>
-                        <option value="outOfStock">Tükendi</option>
-                      </select>
-                    </div>
-
-                    {/* Görünürlük */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        <Eye className="w-4 h-4 inline mr-2" />
-                        Görünürlük
-                      </label>
-                      <select
-                        value={filters.visibility}
-                        onChange={(e) => setFilters({ ...filters, visibility: e.target.value })}
-                        className="w-full bg-gray-800/50 border border-gray-600/50 rounded-xl py-2.5 px-4 text-white 
-                        focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                      >
-                        <option value="all">Tümü</option>
-                        <option value="visible">Görünür</option>
-                        <option value="hidden">Gizli</option>
-                      </select>
-                    </div>
-
-                    {/* Öne Çıkan */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        <Star className="w-4 h-4 inline mr-2" />
-                        Öne Çıkan
-                      </label>
-                      <select
-                        value={filters.featured}
-                        onChange={(e) => setFilters({ ...filters, featured: e.target.value })}
-                        className="w-full bg-gray-800/50 border border-gray-600/50 rounded-xl py-2.5 px-4 text-white 
-                        focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                      >
-                        <option value="all">Tümü</option>
-                        <option value="featured">Öne Çıkan</option>
-                        <option value="notFeatured">Öne Çıkmayan</option>
-                      </select>
-                    </div>
-
-                    {/* İndirim */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        <TrendingUp className="w-4 h-4 inline mr-2" />
-                        İndirim Durumu
-                      </label>
-                      <select
-                        value={filters.discount}
-                        onChange={(e) => setFilters({ ...filters, discount: e.target.value })}
-                        className="w-full bg-gray-800/50 border border-gray-600/50 rounded-xl py-2.5 px-4 text-white 
-                        focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                      >
-                        <option value="all">Tümü</option>
-                        <option value="discounted">İndirimli</option>
-                        <option value="notDiscounted">İndirimsiz</option>
-                      </select>
-                    </div>
-
-                    {/* Görsel Durumu */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        <Upload className="w-4 h-4 inline mr-2" />
-                        Görsel Durumu
-                      </label>
-                      <select
-                        value={filters.image}
-                        onChange={(e) => setFilters({ ...filters, image: e.target.value })}
-                        className="w-full bg-gray-800/50 border border-gray-600/50 rounded-xl py-2.5 px-4 text-white 
-                        focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                      >
-                        <option value="all">Tümü</option>
-                        <option value="hasImage">Görseli Var</option>
-                        <option value="noImage">🚨 Görseli Yok</option>
-                      </select>
-                    </div>
-
-                    {/* Sıralama */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
-                        <Filter className="w-4 h-4 inline mr-2" />
-                        Sıralama
-                      </label>
-                      <select
-                        value={filters.sortBy}
-                        onChange={(e) => setFilters({ ...filters, sortBy: e.target.value })}
-                        className="w-full bg-gray-800/50 border border-gray-600/50 rounded-xl py-2.5 px-4 text-white 
-                        focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                      >
-                        <option value="order">Varsayılan Sıralama</option>
-                        <option value="name">İsme Göre (A-Z)</option>
-                        <option value="price">Fiyata Göre (Düşük-Yüksek)</option>
-                        <option value="priceDesc">Fiyata Göre (Yüksek-Düşük)</option>
-                      </select>
-                    </div>
-
-                    {/* Temizle Butonu */}
-                    <div className="flex items-end">
-                      <button
-                        onClick={() => {
-                          setFilters({
-                            priceRange: { min: "", max: "" },
-                            stockStatus: "all",
-                            visibility: "all",
-                            featured: "all",
-                            discount: "all",
-                            sortBy: "order"
-                          });
-                          setSelectedCategory("");
-                        }}
-                        className="w-full bg-red-500/10 text-red-400 px-4 py-2.5 rounded-xl hover:bg-red-500/20 transition-all"
-                      >
-                        Filtreleri Temizle
-                      </button>
-                    </div>
+                {/* Fiyat Aralığı */}
+                <div>
+                  <label className="ui-label" htmlFor="products-filter-min">Fiyat Aralığı</label>
+                  <div className="products-inline">
+                    <input
+                      id="products-filter-min"
+                      type="number"
+                      placeholder="Min"
+                      value={filters.priceRange.min}
+                      onChange={(e) => setFilters({
+                        ...filters,
+                        priceRange: { ...filters.priceRange, min: e.target.value }
+                      })}
+                      className="ui-field"
+                      style={{ width: "50%" }}
+                    />
+                    <input
+                      type="number"
+                      placeholder="Max"
+                      aria-label="En yüksek fiyat"
+                      value={filters.priceRange.max}
+                      onChange={(e) => setFilters({
+                        ...filters,
+                        priceRange: { ...filters.priceRange, max: e.target.value }
+                      })}
+                      className="ui-field"
+                      style={{ width: "50%" }}
+                    />
                   </div>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+
+                {/* Stok Durumu */}
+                <div>
+                  <label className="ui-label" htmlFor="products-filter-stock">Stok Durumu</label>
+                  <select
+                    id="products-filter-stock"
+                    value={filters.stockStatus}
+                    onChange={(e) => setFilters({ ...filters, stockStatus: e.target.value })}
+                    className="ui-field"
+                  >
+                    <option value="all">Tümü</option>
+                    <option value="inStock">Stokta</option>
+                    <option value="outOfStock">Tükendi</option>
+                  </select>
+                </div>
+
+                {/* Görünürlük */}
+                <div>
+                  <label className="ui-label" htmlFor="products-filter-visibility">Görünürlük</label>
+                  <select
+                    id="products-filter-visibility"
+                    value={filters.visibility}
+                    onChange={(e) => setFilters({ ...filters, visibility: e.target.value })}
+                    className="ui-field"
+                  >
+                    <option value="all">Tümü</option>
+                    <option value="visible">Görünür</option>
+                    <option value="hidden">Gizli</option>
+                  </select>
+                </div>
+
+                {/* Öne Çıkan */}
+                <div>
+                  <label className="ui-label" htmlFor="products-filter-featured">Öne Çıkan</label>
+                  <select
+                    id="products-filter-featured"
+                    value={filters.featured}
+                    onChange={(e) => setFilters({ ...filters, featured: e.target.value })}
+                    className="ui-field"
+                  >
+                    <option value="all">Tümü</option>
+                    <option value="featured">Öne Çıkan</option>
+                    <option value="notFeatured">Öne Çıkmayan</option>
+                  </select>
+                </div>
+
+                {/* İndirim */}
+                <div>
+                  <label className="ui-label" htmlFor="products-filter-discount">İndirim Durumu</label>
+                  <select
+                    id="products-filter-discount"
+                    value={filters.discount}
+                    onChange={(e) => setFilters({ ...filters, discount: e.target.value })}
+                    className="ui-field"
+                  >
+                    <option value="all">Tümü</option>
+                    <option value="discounted">İndirimli</option>
+                    <option value="notDiscounted">İndirimsiz</option>
+                  </select>
+                </div>
+
+                {/* Görsel Durumu */}
+                <div>
+                  <label className="ui-label" htmlFor="products-filter-image">Görsel Durumu</label>
+                  <select
+                    id="products-filter-image"
+                    value={filters.image}
+                    onChange={(e) => setFilters({ ...filters, image: e.target.value })}
+                    className="ui-field"
+                  >
+                    <option value="all">Tümü</option>
+                    <option value="hasImage">Görseli Var</option>
+                    <option value="noImage">Görseli Yok</option>
+                  </select>
+                </div>
+
+                {/* Sıralama */}
+                <div>
+                  <label className="ui-label" htmlFor="products-filter-sort">Sıralama</label>
+                  <select
+                    id="products-filter-sort"
+                    value={filters.sortBy}
+                    onChange={(e) => setFilters({ ...filters, sortBy: e.target.value })}
+                    className="ui-field"
+                  >
+                    <option value="order">Varsayılan Sıralama</option>
+                    <option value="name">İsme Göre (A-Z)</option>
+                    <option value="price">Fiyata Göre (Düşük-Yüksek)</option>
+                    <option value="priceDesc">Fiyata Göre (Yüksek-Düşük)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Temizle Butonu */}
+              <div className="ui-cluster" style={{ marginTop: 14 }}>
+                <button
+                  onClick={() => {
+                    setFilters({
+                      priceRange: { min: "", max: "" },
+                      stockStatus: "all",
+                      visibility: "all",
+                      featured: "all",
+                      discount: "all",
+                      sortBy: "order"
+                    });
+                    setSelectedCategory("");
+                  }}
+                  className="ui-btn ui-btn--ghost ui-btn--sm"
+                >
+                  <X />
+                  Filtreleri Temizle
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Filtreleme Sonucu Bilgisi */}
         {filteredProducts.length !== localProducts.length && (
-          <div className="px-6 py-3 bg-emerald-500/10 border-y border-emerald-500/20">
-            <p className="text-emerald-400 text-sm">
-              <Filter className="w-4 h-4 inline mr-2" />
-              {filteredProducts.length} ürün gösteriliyor ({localProducts.length} ürün içinden)
-            </p>
+          <div className="ui-banner">
+            <Filter />
+            {filteredProducts.length} ürün gösteriliyor ({localProducts.length} ürün içinden)
           </div>
         )}
 
@@ -1048,12 +948,12 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
           next={loadMore}
           hasMore={hasMore}
           loader={
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mx-auto"></div>
+            <div className="ui-loading">
+              <div className="ui-loader"></div>
             </div>
           }
           endMessage={
-            <div className="text-center py-8 text-gray-400">
+            <div className="ui-loading">
               Tüm ürünler yüklendi
             </div>
           }
@@ -1063,334 +963,294 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
             <Droppable droppableId="products">
               {(provided) => (
                 <div
-                  className="min-w-full divide-y divide-gray-700/50"
                   {...provided.droppableProps}
                   ref={provided.innerRef}
                 >
-                  <div className="bg-gray-900/50 sticky top-0 z-10 backdrop-blur-xl">
-                    <div className="grid grid-cols-[2fr,1fr,1fr,0.5fr,0.5fr,0.5fr,1fr] gap-4 px-6 py-4">
-                      <div className="text-xs font-medium text-gray-300 uppercase tracking-wider">ÜRÜN</div>
-                      <div className="text-xs font-medium text-gray-300 uppercase tracking-wider">FİYAT</div>
-                      <div className="text-xs font-medium text-gray-300 uppercase tracking-wider">KATEGORİ</div>
-                      <div className="text-xs font-medium text-gray-300 uppercase tracking-wider text-center">ÖNE ÇIKANLAR</div>
-                      <div className="text-xs font-medium text-gray-300 uppercase tracking-wider text-center">GİZLİ</div>
-                      <div className="text-xs font-medium text-gray-300 uppercase tracking-wider text-center">TÜKENDİ</div>
-                      <div className="text-xs font-medium text-gray-300 uppercase tracking-wider text-center">İŞLEMLER</div>
-                    </div>
+                  <div className="ui-list-head products-cols">
+                    <div>Ürün</div>
+                    <div>Fiyat</div>
+                    <div>Kategori</div>
+                    <div>Görünürlük</div>
+                    <div>Stok</div>
+                    <div className="ui-right">İşlemler</div>
                   </div>
 
-                  <div className="divide-y divide-gray-700/50">
+                  <div>
                     {filteredProducts.map((product, index) => (
                       <Draggable key={product._id} draggableId={product._id} index={index}>
                         {(provided) => (
-                          <motion.div
+                          <div
                             ref={provided.innerRef}
                             {...provided.draggableProps}
                             {...provided.dragHandleProps}
-                            className="hover:bg-gray-800/30 transition-all duration-200 group"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ duration: 0.3 }}
+                            className="ui-list-row products-cols"
+                            data-muted={product.isHidden}
                           >
-                            <div className="grid grid-cols-[2fr,1fr,1fr,0.5fr,0.5fr,0.5fr,1fr] gap-4 px-6 py-4 items-center">
-                              <div className="flex items-center gap-4">
-                                <div className="relative flex-shrink-0 h-16 w-16 bg-gray-800/50 rounded-xl overflow-hidden border border-gray-700/50 group">
+                            <div className="products-product">
+                              <input
+                                type="file"
+                                id={`image-upload-${product._id}`}
+                                className="hidden"
+                                accept="image/*"
+                                onChange={(e) => handleImageUpload(product._id, e.target.files[0])}
+                              />
+                              <label
+                                htmlFor={`image-upload-${product._id}`}
+                                className="products-thumb"
+                                title="Görseli değiştir"
+                              >
+                                {imageUploading[product._id] ? (
+                                  <div className="products-thumb-overlay" data-busy="true">
+                                    <div className="ui-loader" style={{ width: 16, height: 16 }}></div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <img
+                                      src={product.image || '/placeholder.png'}
+                                      alt={product.name}
+                                    />
+                                    <div className="products-thumb-overlay">
+                                      <Upload />
+                                    </div>
+                                  </>
+                                )}
+                              </label>
+                              <div className="ui-grow">
+                                {editingProduct && editingProduct._id === product._id ? (
                                   <input
-                                    type="file"
-                                    id={`image-upload-${product._id}`}
-                                    className="hidden"
-                                    accept="image/*"
-                                    onChange={(e) => handleImageUpload(product._id, e.target.files[0])}
+                                    type="text"
+                                    name="name"
+                                    aria-label="Ürün adı"
+                                    value={editingProduct.name}
+                                    onChange={(e) => handleProductChange("name", e.target.value)}
+                                    className="ui-field ui-field--sm"
                                   />
-                                  <label
-                                    htmlFor={`image-upload-${product._id}`}
-                                    className="cursor-pointer w-full h-full flex items-center justify-center"
-                                  >
-                                    {imageUploading[product._id] ? (
-                                      <div className="absolute inset-0 bg-gray-900/80 flex items-center justify-center">
-                                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-500"></div>
-                                      </div>
-                                    ) : (
-                                      <>
-                                        <img
-                                          className="h-full w-full object-contain p-2"
-                                          src={product.image || '/placeholder.png'}
-                                          alt={product.name}
-                                        />
-                                        <div className="absolute inset-0 bg-gray-900/80 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-200">
-                                          <Upload className="h-5 w-5 text-white" />
-                                        </div>
-                                      </>
-                                    )}
-                                  </label>
-
-                                  {/* Flash Sale Süre Göstergesi */}
-                                  {getFlashSaleTimeRemaining(product._id) && (
-                                    <div className={`absolute -top-1 -right-1 px-2 py-1 rounded-lg text-xs font-bold text-white shadow-lg ${getFlashSaleStatus(product._id) === 'active' ? 'bg-gradient-to-r from-red-500 to-orange-500' :
-                                        getFlashSaleStatus(product._id) === 'upcoming' ? 'bg-gradient-to-r from-blue-500 to-purple-500' :
-                                          'bg-gray-500'
-                                      }`}>
-                                      <div className="flex items-center gap-1">
-                                        <Clock className="w-3 h-3" />
-                                        <span className="whitespace-nowrap">{getFlashSaleTimeRemaining(product._id)}</span>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  {editingProduct && editingProduct._id === product._id ? (
-                                    <input
-                                      type="text"
-                                      name="name"
-                                      value={editingProduct.name}
-                                      onChange={(e) => handleProductChange("name", e.target.value)}
-                                      className="bg-gray-800/50 text-white border border-gray-600/50 rounded-lg px-3 py-2 w-full
-                                      focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50
-                                      transition-all duration-200"
-                                    />
-                                  ) : (
-                                    <div
-                                      className="text-sm font-medium text-white truncate"
-                                      title={product.name}
-                                    >
-                                      {product.name}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-
-                              <div>
-                                {editingPrice[product._id] ? (
-                                  <div className="flex items-center gap-2">
-                                    <input
-                                      type="number"
-                                      value={newPrices[product._id] ?? product.price}
-                                      onChange={(e) => handlePriceChange(product._id, e.target.value)}
-                                      className="bg-gray-800/50 text-white border border-gray-600/50 rounded-lg px-3 py-2 w-24
-                                      focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50
-                                      transition-all duration-200"
-                                    />
-                                    <motion.button
-                                      whileHover={{ scale: 1.1 }}
-                                      whileTap={{ scale: 0.9 }}
-                                      onClick={() => savePrice(product._id)}
-                                      className="text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 p-2 rounded-lg
-                                      hover:bg-emerald-500/20 transition-all duration-200"
-                                    >
-                                      <Save className="h-4 w-4" />
-                                    </motion.button>
-                                  </div>
-                                ) : editingDiscount[product._id] ? (
-                                  <div className="flex items-center gap-2">
-                                    <input
-                                      type="number"
-                                      value={discountPrices[product._id] ?? product.price}
-                                      onChange={(e) => handleDiscountChange(product._id, e.target.value)}
-                                      className="bg-gray-800/50 text-white border border-gray-600/50 rounded-lg px-3 py-2 w-24
-                                      focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50
-                                      transition-all duration-200"
-                                    />
-                                    <motion.button
-                                      whileHover={{ scale: 1.1 }}
-                                      whileTap={{ scale: 0.9 }}
-                                      onClick={() => saveDiscount(product._id, product.price)}
-                                      className="text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 p-2 rounded-lg
-                                      hover:bg-emerald-500/20 transition-all duration-200"
-                                    >
-                                      <Save className="h-4 w-4" />
-                                    </motion.button>
-                                  </div>
                                 ) : (
-                                  <div className="flex flex-col">
-                                    {product.isDiscounted && (
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <span className="text-xs text-gray-400 line-through">
-                                          ₺{(product.price || 0).toFixed(2)}
-                                        </span>
-                                        <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full">
-                                          %{calculateDiscountPercentage(product.price, product.discountedPrice)} İndirim
-                                        </span>
-                                      </div>
-                                    )}
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-sm text-gray-300 font-medium">
-                                        ₺{((product.isDiscounted ? product.discountedPrice : product.price) || 0).toFixed(2)}
-                                      </span>
-                                      <div className="flex gap-1">
-                                        <motion.button
-                                          whileHover={{ scale: 1.1 }}
-                                          whileTap={{ scale: 0.9 }}
-                                          onClick={() => setEditingPrice({ ...editingPrice, [product._id]: true })}
-                                          className="text-yellow-400 hover:text-yellow-300 bg-yellow-500/10 p-2 rounded-lg
-                                          hover:bg-yellow-500/20 transition-all duration-200 opacity-0 group-hover:opacity-100"
-                                        >
-                                          <Edit className="h-4 w-4" />
-                                        </motion.button>
-                                        {product.isDiscounted ? (
-                                          <motion.button
-                                            whileHover={{ scale: 1.1 }}
-                                            whileTap={{ scale: 0.9 }}
-                                            onClick={() => removeDiscount(product._id)}
-                                            className="text-red-400 hover:text-red-300 bg-red-500/10 p-2 rounded-lg
-                                            hover:bg-red-500/20 transition-all duration-200 opacity-0 group-hover:opacity-100"
-                                          >
-                                            <X className="h-4 w-4" />
-                                          </motion.button>
-                                        ) : (
-                                          <motion.button
-                                            whileHover={{ scale: 1.1 }}
-                                            whileTap={{ scale: 0.9 }}
-                                            onClick={() => setEditingDiscount({ ...editingDiscount, [product._id]: true })}
-                                            className="text-purple-400 hover:text-purple-300 bg-purple-500/10 p-2 rounded-lg
-                                            hover:bg-purple-500/20 transition-all duration-200 opacity-0 group-hover:opacity-100"
-                                            title="İndirim Ekle"
-                                          >
-                                            %
-                                          </motion.button>
-                                        )}
-                                      </div>
-                                    </div>
+                                  <div
+                                    className="ui-list-title ui-truncate"
+                                    title={product.name}
+                                  >
+                                    {product.name}
                                   </div>
                                 )}
-                              </div>
 
-                              <div>
-                                {editingProduct && editingProduct._id === product._id ? (
-                                  <select
-                                    value={editingProduct.category ? `/${editingProduct.category}` : ""}
-                                    onChange={handleProductCategoryChange}
-                                    className="bg-gray-800/50 text-white border border-gray-600/50 rounded-lg px-3 py-2 w-full
-                                    focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50
-                                    transition-all duration-200"
-                                  >
-                                    <option value="">Kategori Seçin</option>
-                                    {categories.map((category) => (
-                                      <option key={category.href} value={category.href}>
-                                        {category.name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                ) : (
-                                  <div className="text-sm text-gray-300" title={product.category || "Kategori Yok"}>
-                                    {product.category || "Kategori Yok"}
-                                  </div>
-                                )}
-                              </div>
-
-                              <div className="flex justify-center">
-                                <motion.button
-                                  whileHover={{ scale: 1.1 }}
-                                  whileTap={{ scale: 0.9 }}
-                                  onClick={() => handleFeatureToggle(product._id)}
-                                  className={`p-2 rounded-xl transition-all duration-200 ${product.isFeatured
-                                      ? "bg-yellow-500/20 text-yellow-400"
-                                      : "bg-gray-800/50 text-gray-400 opacity-50 group-hover:opacity-100"
-                                    } hover:bg-yellow-500/30`}
-                                >
-                                  <Star className="h-5 w-5" />
-                                </motion.button>
-                              </div>
-
-                              <div className="flex justify-center">
-                                <motion.button
-                                  whileHover={{ scale: 1.1 }}
-                                  whileTap={{ scale: 0.9 }}
-                                  onClick={() => toggleProductHidden(product._id)}
-                                  className={`px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${product.isHidden
-                                      ? "bg-red-500/20 text-red-400 hover:bg-red-500/30"
-                                      : "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
-                                    }`}
-                                >
-                                  {product.isHidden ? "Gizli" : "Görünür"}
-                                </motion.button>
-                              </div>
-
-                              <div className="flex justify-center">
-                                <motion.button
-                                  whileHover={{ scale: 1.1 }}
-                                  whileTap={{ scale: 0.9 }}
-                                  onClick={() => toggleOutOfStock(product._id)}
-                                  className={`px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${product.isOutOfStock
-                                      ? "bg-red-500/20 text-red-400 hover:bg-red-500/30"
-                                      : "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
-                                    }`}
-                                >
-                                  {product.isOutOfStock ? "Tükendi" : "Stokta"}
-                                </motion.button>
-                              </div>
-
-                              <div className="flex justify-center gap-2">
-                                {editingProduct && editingProduct._id === product._id ? (
-                                  <>
-                                    <motion.button
-                                      whileHover={{ scale: 1.1 }}
-                                      whileTap={{ scale: 0.9 }}
-                                      onClick={() => onSave(product._id, editingProduct)}
-                                      className="text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 p-2 rounded-lg
-                                      hover:bg-emerald-500/20 transition-all duration-200"
-                                    >
-                                      <Save className="h-5 w-5" />
-                                    </motion.button>
-                                    <motion.button
-                                      whileHover={{ scale: 1.1 }}
-                                      whileTap={{ scale: 0.9 }}
-                                      onClick={() => setEditingProduct(null)}
-                                      className="text-red-400 hover:text-red-300 bg-red-500/10 p-2 rounded-lg
-                                      hover:bg-red-500/20 transition-all duration-200"
-                                    >
-                                      <X className="h-5 w-5" />
-                                    </motion.button>
-                                  </>
-                                ) : (
-                                  <>
-                                    {/* Flash Sale Butonu */}
-                                    {product.isDiscounted ? (
-                                      <motion.button
-                                        whileHover={{ scale: 1.1 }}
-                                        whileTap={{ scale: 0.9 }}
-                                        onClick={() => handleRemoveFlashSale(product._id)}
-                                        className="text-orange-400 hover:text-orange-300 bg-orange-500/10 p-2 rounded-lg
-                                        hover:bg-orange-500/20 transition-all duration-200 opacity-0 group-hover:opacity-100"
-                                        title="Flash Sale Kaldır"
-                                      >
-                                        <Zap className="h-5 w-5" />
-                                      </motion.button>
-                                    ) : (
-                                      <motion.button
-                                        whileHover={{ scale: 1.1 }}
-                                        whileTap={{ scale: 0.9 }}
-                                        onClick={() => handleFlashSale(product)}
-                                        className="text-yellow-400 hover:text-yellow-300 bg-yellow-500/10 p-2 rounded-lg
-                                        hover:bg-yellow-500/20 transition-all duration-200 opacity-0 group-hover:opacity-100"
-                                        title="Flash Sale Ekle"
-                                      >
-                                        <Zap className="h-5 w-5" />
-                                      </motion.button>
-                                    )}
-
-                                    <motion.button
-                                      whileHover={{ scale: 1.1 }}
-                                      whileTap={{ scale: 0.9 }}
-                                      onClick={() => onEdit(product)}
-                                      className="text-blue-400 hover:text-blue-300 bg-blue-500/10 p-2 rounded-lg
-                                      hover:bg-blue-500/20 transition-all duration-200 opacity-0 group-hover:opacity-100"
-                                    >
-                                      <Edit className="h-5 w-5" />
-                                    </motion.button>
-                                    <motion.button
-                                      whileHover={{ scale: 1.1 }}
-                                      whileTap={{ scale: 0.9 }}
-                                      onClick={() => handleDeleteProduct(product._id)}
-                                      className="text-red-400 hover:text-red-300 bg-red-500/10 p-2 rounded-lg
-                                      hover:bg-red-500/20 transition-all duration-200 opacity-0 group-hover:opacity-100"
-                                    >
-                                      <Trash className="h-5 w-5" />
-                                    </motion.button>
-                                  </>
+                                {/* Flash Sale Süre Göstergesi */}
+                                {getFlashSaleTimeRemaining(product._id) && (
+                                  <span className={`ui-badge ${getFlashSaleStatus(product._id) === 'active' ? 'ui-badge--warn' :
+                                      getFlashSaleStatus(product._id) === 'upcoming' ? 'ui-badge--info' :
+                                        ''
+                                    }`} style={{ marginTop: 4 }}>
+                                    <Clock />
+                                    {getFlashSaleTimeRemaining(product._id)}
+                                  </span>
                                 )}
                               </div>
                             </div>
-                          </motion.div>
+
+                            <div>
+                              <span className="ui-cell-label">Fiyat</span>
+                              {editingPrice[product._id] ? (
+                                <div className="products-inline">
+                                  <input
+                                    type="number"
+                                    aria-label="Yeni fiyat"
+                                    value={newPrices[product._id] ?? product.price}
+                                    onChange={(e) => handlePriceChange(product._id, e.target.value)}
+                                    className="ui-field ui-field--sm"
+                                  />
+                                  <button
+                                    onClick={() => savePrice(product._id)}
+                                    className="ui-icon-btn ui-icon-btn--sm"
+                                    title="Fiyatı kaydet"
+                                    aria-label="Fiyatı kaydet"
+                                  >
+                                    <Save />
+                                  </button>
+                                </div>
+                              ) : editingDiscount[product._id] ? (
+                                <div className="products-inline">
+                                  <input
+                                    type="number"
+                                    aria-label="İndirimli fiyat"
+                                    value={discountPrices[product._id] ?? product.price}
+                                    onChange={(e) => handleDiscountChange(product._id, e.target.value)}
+                                    className="ui-field ui-field--sm"
+                                  />
+                                  <button
+                                    onClick={() => saveDiscount(product._id, product.price)}
+                                    className="ui-icon-btn ui-icon-btn--sm"
+                                    title="İndirimi kaydet"
+                                    aria-label="İndirimi kaydet"
+                                  >
+                                    <Save />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="products-price">
+                                  <span className="products-price-now">
+                                    ₺{((product.isDiscounted ? product.discountedPrice : product.price) || 0).toFixed(2)}
+                                  </span>
+                                  {product.isDiscounted && (
+                                    <>
+                                      <span className="products-price-old">
+                                        ₺{(product.price || 0).toFixed(2)}
+                                      </span>
+                                      <span className="ui-badge ui-badge--danger">
+                                        %{calculateDiscountPercentage(product.price, product.discountedPrice)} İndirim
+                                      </span>
+                                    </>
+                                  )}
+                                  <span className="products-inline" style={{ gap: 0 }}>
+                                    <button
+                                      onClick={() => setEditingPrice({ ...editingPrice, [product._id]: true })}
+                                      className="ui-icon-btn ui-icon-btn--sm"
+                                      title="Fiyatı düzenle"
+                                      aria-label="Fiyatı düzenle"
+                                    >
+                                      <Edit />
+                                    </button>
+                                    {product.isDiscounted ? (
+                                      <button
+                                        onClick={() => removeDiscount(product._id)}
+                                        className="ui-icon-btn ui-icon-btn--sm ui-icon-btn--danger"
+                                        title="İndirimi kaldır"
+                                        aria-label="İndirimi kaldır"
+                                      >
+                                        <X />
+                                      </button>
+                                    ) : (
+                                      <button
+                                        onClick={() => setEditingDiscount({ ...editingDiscount, [product._id]: true })}
+                                        className="ui-icon-btn ui-icon-btn--sm"
+                                        title="İndirim Ekle"
+                                        aria-label="İndirim Ekle"
+                                      >
+                                        <Percent />
+                                      </button>
+                                    )}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            <div>
+                              <span className="ui-cell-label">Kategori</span>
+                              {editingProduct && editingProduct._id === product._id ? (
+                                <select
+                                  aria-label="Kategori"
+                                  value={editingProduct.category ? `/${editingProduct.category}` : ""}
+                                  onChange={handleProductCategoryChange}
+                                  className="ui-field ui-field--sm"
+                                >
+                                  <option value="">Kategori Seçin</option>
+                                  {categories.map((category) => (
+                                    <option key={category.href} value={category.href}>
+                                      {category.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <div className="ui-text-sm ui-muted ui-truncate" title={product.category || "Kategori Yok"}>
+                                  {product.category || "Kategori Yok"}
+                                </div>
+                              )}
+                            </div>
+
+                            <div>
+                              <span className="ui-cell-label">Görünürlük</span>
+                              <button
+                                onClick={() => toggleProductHidden(product._id)}
+                                className={`ui-badge ${product.isHidden ? "" : "ui-badge--ok"}`}
+                                title="Görünürlüğü değiştir"
+                              >
+                                {product.isHidden ? "Gizli" : "Görünür"}
+                              </button>
+                            </div>
+
+                            <div>
+                              <span className="ui-cell-label">Stok</span>
+                              <button
+                                onClick={() => toggleOutOfStock(product._id)}
+                                className={`ui-badge ${product.isOutOfStock ? "ui-badge--danger" : "ui-badge--ok"}`}
+                                title="Stok durumunu değiştir"
+                              >
+                                {product.isOutOfStock ? "Tükendi" : "Stokta"}
+                              </button>
+                            </div>
+
+                            <div className="products-actions">
+                              {editingProduct && editingProduct._id === product._id ? (
+                                <>
+                                  <button
+                                    onClick={() => onSave(product._id, editingProduct)}
+                                    className="ui-btn ui-btn--sm ui-btn--primary"
+                                  >
+                                    <Save />
+                                    Kaydet
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingProduct(null)}
+                                    className="ui-icon-btn"
+                                    title="Vazgeç"
+                                    aria-label="Vazgeç"
+                                  >
+                                    <X />
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => handleFeatureToggle(product._id)}
+                                    aria-pressed={!!product.isFeatured}
+                                    className="ui-icon-btn"
+                                    title={product.isFeatured ? "Öne çıkanlardan kaldır" : "Öne çıkar"}
+                                    aria-label="Öne çıkar"
+                                  >
+                                    <Star fill={product.isFeatured ? "currentColor" : "none"} />
+                                  </button>
+
+                                  {/* Flash Sale Butonu */}
+                                  {product.isDiscounted ? (
+                                    <button
+                                      onClick={() => handleRemoveFlashSale(product._id)}
+                                      className="ui-icon-btn"
+                                      aria-pressed="true"
+                                      title="Flash Sale Kaldır"
+                                      aria-label="Flash Sale Kaldır"
+                                    >
+                                      <Zap />
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleFlashSale(product)}
+                                      className="ui-icon-btn"
+                                      title="Flash Sale Ekle"
+                                      aria-label="Flash Sale Ekle"
+                                    >
+                                      <Zap />
+                                    </button>
+                                  )}
+
+                                  <button
+                                    onClick={() => onEdit(product)}
+                                    className="ui-icon-btn"
+                                    title="Ürünü düzenle"
+                                    aria-label="Ürünü düzenle"
+                                  >
+                                    <Edit />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteProduct(product._id)}
+                                    className="ui-icon-btn ui-icon-btn--danger"
+                                    title="Ürünü sil"
+                                    aria-label="Ürünü sil"
+                                  >
+                                    <Trash />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
                         )}
                       </Draggable>
                     ))}
@@ -1403,116 +1263,112 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
         </InfiniteScroll>
 
         {/* Flash Sale Modal */}
-        <AnimatePresence>
-          {showFlashSaleModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/60 backdrop-blur-sm">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="bg-gray-800 rounded-2xl p-6 max-w-md w-full border border-gray-700"
-              >
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                    <Zap className="w-6 h-6 text-yellow-400" />
-                    Flash Sale Ekle
-                  </h3>
-                  <button
-                    onClick={() => setShowFlashSaleModal(false)}
-                    className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
-                  >
-                    <X className="w-5 h-5 text-gray-400" />
-                  </button>
-                </div>
+        {showFlashSaleModal && (
+          <div className="ui-modal-backdrop">
+            <div className="ui-modal" role="dialog" aria-modal="true" aria-label="Flash Sale Ekle">
+              <div className="ui-modal-header">
+                <h3 className="ui-title">Flash Sale Ekle</h3>
+                <button
+                  onClick={() => setShowFlashSaleModal(false)}
+                  className="ui-icon-btn"
+                  aria-label="Kapat"
+                >
+                  <X />
+                </button>
+              </div>
 
+              <form onSubmit={handleFlashSaleSubmit} className="ui-modal-body ui-stack">
                 {flashSaleProduct && (
-                  <div className="mb-4 p-3 bg-gray-700/50 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      {flashSaleProduct.image && (
+                  <div className="ui-row">
+                    {flashSaleProduct.image && (
+                      <div className="ui-thumb">
                         <img
                           src={flashSaleProduct.image}
                           alt={flashSaleProduct.name}
-                          className="w-12 h-12 object-cover rounded-lg"
                         />
-                      )}
-                      <div>
-                        <h4 className="text-white font-semibold">{flashSaleProduct.name}</h4>
-                        <p className="text-gray-400 text-sm">₺{flashSaleProduct.price}</p>
                       </div>
+                    )}
+                    <div className="ui-grow">
+                      <h4 className="ui-list-title">{flashSaleProduct.name}</h4>
+                      <p className="ui-list-sub">₺{flashSaleProduct.price}</p>
                     </div>
                   </div>
                 )}
 
-                <form onSubmit={handleFlashSaleSubmit} className="space-y-4">
-                  <div>
-                    <label className="text-sm text-gray-400 mb-1 block">Kampanya Adı</label>
-                    <input
-                      type="text"
-                      value={flashSaleData.name}
-                      onChange={(e) => setFlashSaleData({ ...flashSaleData, name: e.target.value })}
-                      placeholder="Örn: Hafta Sonu Kampanyası"
-                      className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                    />
-                  </div>
+                <div>
+                  <label className="ui-label" htmlFor="flash-sale-name">Kampanya Adı</label>
+                  <input
+                    id="flash-sale-name"
+                    type="text"
+                    value={flashSaleData.name}
+                    onChange={(e) => setFlashSaleData({ ...flashSaleData, name: e.target.value })}
+                    placeholder="Örn: Hafta Sonu Kampanyası"
+                    className="ui-field"
+                  />
+                </div>
 
-                  <div>
-                    <label className="text-sm text-gray-400 mb-1 block">İndirim Oranı (%)</label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="99"
-                      value={flashSaleData.discountPercentage}
-                      onChange={(e) => setFlashSaleData({ ...flashSaleData, discountPercentage: e.target.value })}
-                      className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                      required
-                    />
-                  </div>
+                <div>
+                  <label className="ui-label" htmlFor="flash-sale-discount">İndirim Oranı (%)</label>
+                  <input
+                    id="flash-sale-discount"
+                    type="number"
+                    min="1"
+                    max="99"
+                    value={flashSaleData.discountPercentage}
+                    onChange={(e) => setFlashSaleData({ ...flashSaleData, discountPercentage: e.target.value })}
+                    className="ui-field"
+                    required
+                  />
+                </div>
 
+                <div className="ui-grid-2">
                   <div>
-                    <label className="text-sm text-gray-400 mb-1 block">Başlangıç Tarihi</label>
+                    <label className="ui-label" htmlFor="flash-sale-start">Başlangıç Tarihi</label>
                     <input
+                      id="flash-sale-start"
                       type="datetime-local"
                       value={flashSaleData.startDate}
                       onChange={(e) => setFlashSaleData({ ...flashSaleData, startDate: e.target.value })}
-                      className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                      className="ui-field"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="text-sm text-gray-400 mb-1 block">Bitiş Tarihi</label>
+                    <label className="ui-label" htmlFor="flash-sale-end">Bitiş Tarihi</label>
                     <input
+                      id="flash-sale-end"
                       type="datetime-local"
                       value={flashSaleData.endDate}
                       onChange={(e) => setFlashSaleData({ ...flashSaleData, endDate: e.target.value })}
-                      className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                      className="ui-field"
                       required
                     />
                   </div>
+                </div>
 
-                  <div className="flex gap-3 pt-4">
-                    <button
-                      type="button"
-                      onClick={() => setShowFlashSaleModal(false)}
-                      className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
-                    >
-                      İptal
-                    </button>
-                    <button
-                      type="submit"
-                      className="flex-1 px-4 py-2 bg-gradient-to-r from-yellow-500 to-orange-600 text-white rounded-lg hover:shadow-lg transition-all flex items-center justify-center gap-2"
-                    >
-                      <Zap className="w-4 h-4" />
-                      Flash Sale Oluştur
-                    </button>
-                  </div>
-                </form>
-              </motion.div>
+                <div className="orders-queue-actions">
+                  <button
+                    type="button"
+                    onClick={() => setShowFlashSaleModal(false)}
+                    className="ui-btn"
+                  >
+                    İptal
+                  </button>
+                  <button
+                    type="submit"
+                    className="ui-btn ui-btn--primary"
+                  >
+                    <Zap />
+                    Flash Sale Oluştur
+                  </button>
+                </div>
+              </form>
             </div>
-          )}
-        </AnimatePresence>
+          </div>
+        )}
       </div>
-    </motion.div>
+    </div>
   );
 };
 

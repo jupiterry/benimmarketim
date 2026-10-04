@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
-  Tag, Plus, Trash2, Edit2, ToggleLeft, ToggleRight, Calendar, Percent,
-  DollarSign, Users, Copy, X, Search, Filter, Clock, Package, Zap,
-  RefreshCw, Check, AlertTriangle, ChevronDown, ChevronUp, ShoppingBag
+  Tag, Plus, Trash2, Edit2, ToggleLeft, ToggleRight, Percent,
+  DollarSign, Users, Copy, X, Search, Zap,
+  RefreshCw, Check, ChevronDown, ChevronUp, ShoppingBag
 } from "lucide-react";
 import toast from "react-hot-toast";
 import axios from "../lib/axios";
@@ -11,22 +10,15 @@ import { useConfirm } from "./ConfirmModal";
 import CouponRequestCampaignPanel from "./CouponRequestCampaignPanel";
 
 // Stat Card Component
-const StatCard = ({ icon: Icon, title, value, color, subtext }) => (
-  <motion.div
-    whileHover={{ scale: 1.02 }}
-    className={`bg-gradient-to-br ${color} rounded-2xl p-5 border border-white/10`}
-  >
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-gray-400 text-sm">{title}</p>
-        <p className="text-2xl font-bold text-white mt-1">{value}</p>
-        {subtext && <p className="text-gray-500 text-xs mt-1">{subtext}</p>}
-      </div>
-      <div className={`p-3 rounded-xl bg-white/10`}>
-        <Icon className="w-6 h-6 text-white" />
-      </div>
-    </div>
-  </motion.div>
+const StatCard = ({ title, value, tone, subtext }) => (
+  <div className="ui-stat">
+    <span className="ui-stat-label">
+      {tone && <span className={`ui-dot ui-dot--${tone}`} />}
+      {title}
+    </span>
+    <span className="ui-stat-value">{value}</span>
+    {subtext && <span className="ui-text-xs ui-muted">{subtext}</span>}
+  </div>
 );
 
 // Coupon Creation/Edit Modal
@@ -147,102 +139,95 @@ const CouponModal = ({ isOpen, onClose, coupon, onSave }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-gray-900 rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto border border-white/10"
-      >
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-bold text-white">
+    <div className="ui-modal-backdrop">
+      <div className="ui-modal" style={{ maxWidth: 560 }} role="dialog" aria-modal="true" aria-label={coupon ? "Kupon Düzenle" : "Yeni Kupon Oluştur"}>
+        <div className="ui-modal-header">
+          <h3 className="ui-title">
             {coupon ? "Kupon Düzenle" : "Yeni Kupon Oluştur"}
           </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white">
-            <X className="w-6 h-6" />
+          <button onClick={onClose} className="ui-icon-btn" aria-label="Kapat">
+            <X />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="ui-modal-body ui-stack">
           {/* Kupon Kodu */}
           <div>
-            <label className="text-sm text-gray-400 mb-1 block">Kupon Kodu</label>
-            <div className="flex gap-2">
+            <label className="ui-label" htmlFor="coupon-code">Kupon Kodu</label>
+            <div className="order-detail-tracking">
               <input
+                id="coupon-code"
                 type="text"
                 value={formData.code}
                 onChange={(e) => setFormData(prev => ({ ...prev, code: e.target.value.toUpperCase() }))}
-                className="flex-1 bg-gray-800 text-white rounded-xl px-4 py-3 border border-white/10 focus:border-emerald-500 font-mono uppercase"
+                className="ui-field ui-mono"
                 required
                 placeholder="INDIRIM20"
               />
               <button
                 type="button"
                 onClick={generateRandomCode}
-                className="px-4 py-3 bg-white/5 rounded-xl text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                className="ui-btn"
+                style={{ minHeight: 38 }}
+                title="Rastgele kod üret"
               >
-                <Zap className="w-5 h-5" />
+                <Zap />
+                Üret
               </button>
             </div>
           </div>
 
           {/* Açıklama */}
           <div>
-            <label className="text-sm text-gray-400 mb-1 block">Açıklama</label>
+            <label className="ui-label" htmlFor="coupon-description">Açıklama</label>
             <input
+              id="coupon-description"
               type="text"
               value={formData.description}
               onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-white/10 focus:border-emerald-500"
+              className="ui-field"
               placeholder="Yaz indirimi kuponu"
             />
           </div>
 
           {/* İndirim Tipi */}
           <div>
-            <label className="text-sm text-gray-400 mb-1 block">İndirim Tipi</label>
-            <div className="grid grid-cols-2 gap-2">
+            <span className="ui-label">İndirim Tipi</span>
+            <div className="ui-segmented">
               <button
                 type="button"
                 onClick={() => setFormData(prev => ({ ...prev, discountType: "percentage" }))}
-                className={`p-3 rounded-xl border transition-all flex items-center justify-center gap-2 ${
-                  formData.discountType === "percentage"
-                    ? "bg-emerald-500/20 border-emerald-500 text-emerald-400"
-                    : "bg-gray-800 border-white/10 text-gray-400"
-                }`}
+                aria-pressed={formData.discountType === "percentage"}
               >
-                <Percent className="w-4 h-4" />
+                <Percent />
                 Yüzde
               </button>
               <button
                 type="button"
                 onClick={() => setFormData(prev => ({ ...prev, discountType: "fixed" }))}
-                className={`p-3 rounded-xl border transition-all flex items-center justify-center gap-2 ${
-                  formData.discountType === "fixed"
-                    ? "bg-emerald-500/20 border-emerald-500 text-emerald-400"
-                    : "bg-gray-800 border-white/10 text-gray-400"
-                }`}
+                aria-pressed={formData.discountType === "fixed"}
               >
-                <DollarSign className="w-4 h-4" />
+                <DollarSign />
                 Sabit Tutar
               </button>
             </div>
           </div>
 
           {/* İndirim Değeri */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="ui-grid-2">
             <div>
-              <label className="text-sm text-gray-400 mb-1 block">
+              <label className="ui-label" htmlFor="coupon-value">
                 {formData.discountType === "percentage" ? "İndirim Yüzdesi (%)" : "İndirim Tutarı (₺)"}
               </label>
               <input
+                id="coupon-value"
                 type="number"
                 value={formData.discountType === "percentage" ? formData.discountPercentage : formData.discountAmount}
                 onChange={(e) => setFormData(prev => ({
                   ...prev,
                   [formData.discountType === "percentage" ? "discountPercentage" : "discountAmount"]: parseFloat(e.target.value)
                 }))}
-                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-white/10 focus:border-emerald-500"
+                className="ui-field"
                 min="0"
                 max={formData.discountType === "percentage" ? 100 : undefined}
                 required
@@ -250,12 +235,13 @@ const CouponModal = ({ isOpen, onClose, coupon, onSave }) => {
             </div>
             {formData.discountType === "percentage" && (
               <div>
-                <label className="text-sm text-gray-400 mb-1 block">Maks. İndirim (₺)</label>
+                <label className="ui-label" htmlFor="coupon-max">Maks. İndirim (₺)</label>
                 <input
+                  id="coupon-max"
                   type="number"
                   value={formData.maximumDiscount || ""}
                   onChange={(e) => setFormData(prev => ({ ...prev, maximumDiscount: e.target.value ? parseFloat(e.target.value) : null }))}
-                  className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-white/10 focus:border-emerald-500"
+                  className="ui-field"
                   placeholder="Sınırsız"
                   min="0"
                 />
@@ -263,77 +249,44 @@ const CouponModal = ({ isOpen, onClose, coupon, onSave }) => {
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="ui-grid-2">
             <div>
-              <label className="text-sm text-gray-400 mb-1 block">Kullanıcı Başına Limit</label>
-              <input type="number" min="1" value={formData.userUsageLimit}
+              <label className="ui-label" htmlFor="coupon-user-limit">Kullanıcı Başına Limit</label>
+              <input id="coupon-user-limit" type="number" min="1" value={formData.userUsageLimit}
                 onChange={(e) => setFormData(prev => ({ ...prev, userUsageLimit: Number(e.target.value) || 1 }))}
-                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-white/10" />
+                className="ui-field" />
             </div>
             {formData.newUsersOnly && (
               <div>
-                <label className="text-sm text-gray-400 mb-1 block">Yeni Kullanıcı Süresi (gün)</label>
-                <input type="number" min="1" value={formData.newUserDays}
+                <label className="ui-label" htmlFor="coupon-new-days">Yeni Kullanıcı Süresi (gün)</label>
+                <input id="coupon-new-days" type="number" min="1" value={formData.newUserDays}
                   onChange={(e) => setFormData(prev => ({ ...prev, newUserDays: Number(e.target.value) || 30 }))}
-                  className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-white/10" />
+                  className="ui-field" />
               </div>
             )}
           </div>
 
-          <div>
-            <label className="text-sm text-gray-400 mb-1 block">Geçerli Kategoriler</label>
-            <input value={formData.applicableCategories.join(", ")}
-              onChange={(e) => setFormData(prev => ({ ...prev, applicableCategories: e.target.value.split(",").map(v => v.trim()).filter(Boolean) }))}
-              placeholder="Örn: İçecekler, Atıştırmalık (boşsa tümü)"
-              className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-white/10" />
-          </div>
-          <div>
-            <label className="text-sm text-gray-400 mb-1 block">Geçerli Ürünler (boşsa tümü)</label>
-            <select multiple value={formData.applicableProducts}
-              onChange={(e) => setFormData(prev => ({ ...prev, applicableProducts: Array.from(e.target.selectedOptions, option => option.value) }))}
-              className="w-full min-h-32 bg-gray-800 text-white rounded-xl px-3 py-2 border border-white/10">
-              {productOptions.map(product => <option key={product._id} value={product._id}>{product.name} — {product.category}</option>)}
-            </select>
-            <p className="text-xs text-gray-500 mt-1">Birden fazla ürün için Ctrl/Command tuşuyla seçim yapın.</p>
-          </div>
-
-          <div>
-            <label className="text-sm text-gray-400 mb-2 block">Geçerli Günler (boşsa her gün)</label>
-            <div className="grid grid-cols-4 gap-2">
-              {[['Paz',0],['Pzt',1],['Sal',2],['Çar',3],['Per',4],['Cum',5],['Cmt',6]].map(([label, day]) => (
-                <button key={day} type="button" onClick={() => toggleArrayValue('validDays', day)}
-                  className={`p-2 rounded-lg border ${formData.validDays.includes(day) ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300' : 'bg-gray-800 border-white/10 text-gray-400'}`}>{label}</button>
-              ))}
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div><label className="text-sm text-gray-400 mb-1 block">Başlangıç Saati</label><input type="time" value={formData.startTime} onChange={(e) => setFormData(prev => ({...prev,startTime:e.target.value}))} className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-white/10" /></div>
-            <div><label className="text-sm text-gray-400 mb-1 block">Bitiş Saati</label><input type="time" value={formData.endTime} onChange={(e) => setFormData(prev => ({...prev,endTime:e.target.value}))} className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-white/10" /></div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div><label className="text-sm text-gray-400 mb-2 block">Teslimat Noktaları</label>{[['Kız Yurdu','girlsDorm'],['Erkek Yurdu','boysDorm']].map(([label,value]) => <label key={value} className="flex gap-2 text-gray-300 mb-2"><input type="checkbox" checked={formData.deliveryPoints.includes(value)} onChange={() => toggleArrayValue('deliveryPoints',value)} />{label}</label>)}</div>
-            <div><label className="text-sm text-gray-400 mb-2 block">Kanallar</label>{[['Web','web'],['Android','android'],['iOS','ios']].map(([label,value]) => <label key={value} className="flex gap-2 text-gray-300 mb-2"><input type="checkbox" checked={formData.channels.includes(value)} onChange={() => toggleArrayValue('channels',value)} />{label}</label>)}</div>
-          </div>
-
           {/* Limitler */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="ui-grid-2">
             <div>
-              <label className="text-sm text-gray-400 mb-1 block">Min. Sipariş (₺)</label>
+              <label className="ui-label" htmlFor="coupon-min-order">Min. Sipariş (₺)</label>
               <input
+                id="coupon-min-order"
                 type="number"
                 value={formData.minimumOrderAmount}
                 onChange={(e) => setFormData(prev => ({ ...prev, minimumOrderAmount: parseFloat(e.target.value) }))}
-                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-white/10 focus:border-emerald-500"
+                className="ui-field"
                 min="0"
               />
             </div>
             <div>
-              <label className="text-sm text-gray-400 mb-1 block">Toplam Kullanım Limiti</label>
+              <label className="ui-label" htmlFor="coupon-usage-limit">Toplam Kullanım Limiti</label>
               <input
+                id="coupon-usage-limit"
                 type="number"
                 value={formData.usageLimit || ""}
                 onChange={(e) => setFormData(prev => ({ ...prev, usageLimit: e.target.value ? parseInt(e.target.value) : null }))}
-                className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-white/10 focus:border-emerald-500"
+                className="ui-field"
                 placeholder="Sınırsız"
                 min="1"
               />
@@ -342,63 +295,101 @@ const CouponModal = ({ isOpen, onClose, coupon, onSave }) => {
 
           {/* Son Kullanma Tarihi */}
           <div>
-            <label className="text-sm text-gray-400 mb-1 block">Son Kullanma Tarihi</label>
+            <label className="ui-label" htmlFor="coupon-expiration">Son Kullanma Tarihi</label>
             <input
+              id="coupon-expiration"
               type="date"
               value={formData.expirationDate}
               onChange={(e) => setFormData(prev => ({ ...prev, expirationDate: e.target.value }))}
-              className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-white/10 focus:border-emerald-500"
+              className="ui-field"
               required
             />
           </div>
 
+          <hr className="ui-divider" style={{ margin: 0 }} />
+          <h4 className="ui-overline">Kapsam ve zamanlama</h4>
+
+          <div>
+            <label className="ui-label" htmlFor="coupon-categories">Geçerli Kategoriler</label>
+            <input id="coupon-categories" value={formData.applicableCategories.join(", ")}
+              onChange={(e) => setFormData(prev => ({ ...prev, applicableCategories: e.target.value.split(",").map(v => v.trim()).filter(Boolean) }))}
+              placeholder="Örn: İçecekler, Atıştırmalık (boşsa tümü)"
+              className="ui-field" />
+          </div>
+          <div>
+            <label className="ui-label" htmlFor="coupon-products">Geçerli Ürünler (boşsa tümü)</label>
+            <select id="coupon-products" multiple value={formData.applicableProducts}
+              onChange={(e) => setFormData(prev => ({ ...prev, applicableProducts: Array.from(e.target.selectedOptions, option => option.value) }))}
+              className="ui-field" style={{ minHeight: 128, padding: "6px 8px" }}>
+              {productOptions.map(product => <option key={product._id} value={product._id}>{product.name} — {product.category}</option>)}
+            </select>
+            <p className="ui-hint">Birden fazla ürün için Ctrl/Command tuşuyla seçim yapın.</p>
+          </div>
+
+          <div>
+            <span className="ui-label">Geçerli Günler (boşsa her gün)</span>
+            <div className="ui-cluster" style={{ gap: 6 }}>
+              {[['Paz',0],['Pzt',1],['Sal',2],['Çar',3],['Per',4],['Cum',5],['Cmt',6]].map(([label, day]) => (
+                <button key={day} type="button" onClick={() => toggleArrayValue('validDays', day)}
+                  aria-pressed={formData.validDays.includes(day)}
+                  className="ui-btn ui-btn--sm">{label}</button>
+              ))}
+            </div>
+          </div>
+          <div className="ui-grid-2">
+            <div><label className="ui-label" htmlFor="coupon-start-time">Başlangıç Saati</label><input id="coupon-start-time" type="time" value={formData.startTime} onChange={(e) => setFormData(prev => ({...prev,startTime:e.target.value}))} className="ui-field" /></div>
+            <div><label className="ui-label" htmlFor="coupon-end-time">Bitiş Saati</label><input id="coupon-end-time" type="time" value={formData.endTime} onChange={(e) => setFormData(prev => ({...prev,endTime:e.target.value}))} className="ui-field" /></div>
+          </div>
+          <div className="ui-grid-2">
+            <div className="ui-stack ui-stack--sm"><span className="ui-label" style={{ marginBottom: 0 }}>Teslimat Noktaları</span>{[['Kız Yurdu','girlsDorm'],['Erkek Yurdu','boysDorm']].map(([label,value]) => <label key={value} className="ui-check"><input type="checkbox" checked={formData.deliveryPoints.includes(value)} onChange={() => toggleArrayValue('deliveryPoints',value)} />{label}</label>)}</div>
+            <div className="ui-stack ui-stack--sm"><span className="ui-label" style={{ marginBottom: 0 }}>Kanallar</span>{[['Web','web'],['Android','android'],['iOS','ios']].map(([label,value]) => <label key={value} className="ui-check"><input type="checkbox" checked={formData.channels.includes(value)} onChange={() => toggleArrayValue('channels',value)} />{label}</label>)}</div>
+          </div>
+
           {/* Özel Koşullar */}
-          <div className="space-y-2">
-            <label className="text-sm text-gray-400 mb-2 block">Özel Koşullar</label>
-            <label className="flex items-center gap-3 p-3 bg-gray-800 rounded-xl cursor-pointer">
+          <div className="ui-stack ui-stack--sm">
+            <span className="ui-label" style={{ marginBottom: 0 }}>Özel Koşullar</span>
+            <label className="ui-check">
               <input
                 type="checkbox"
                 checked={formData.firstOrderOnly}
                 onChange={(e) => setFormData(prev => ({ ...prev, firstOrderOnly: e.target.checked }))}
-                className="w-5 h-5 rounded accent-emerald-500"
               />
-              <span className="text-white">Sadece ilk sipariş için geçerli</span>
+              <span>Sadece ilk sipariş için geçerli</span>
             </label>
-            <label className="flex items-center gap-3 p-3 bg-gray-800 rounded-xl cursor-pointer">
+            <label className="ui-check">
               <input
                 type="checkbox"
                 checked={formData.newUsersOnly}
                 onChange={(e) => setFormData(prev => ({ ...prev, newUsersOnly: e.target.checked }))}
-                className="w-5 h-5 rounded accent-emerald-500"
               />
-              <span className="text-white">Sadece yeni kullanıcılar için</span>
+              <span>Sadece yeni kullanıcılar için</span>
             </label>
           </div>
 
           {/* Buttons */}
-          <div className="flex gap-3 pt-4">
+          <div className="orders-queue-actions">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl transition-colors"
+              className="ui-btn"
             >
               İptal
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 px-4 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              className="ui-btn ui-btn--primary"
             >
               {saving ? (
-                <RefreshCw className="w-5 h-5 animate-spin" />
+                <RefreshCw className="ui-spin" />
               ) : (
-                <Check className="w-5 h-5" />
+                <Check />
               )}
               {coupon ? "Güncelle" : "Oluştur"}
             </button>
           </div>
         </form>
-      </motion.div>
+      </div>
     </div>
   );
 };
@@ -491,89 +482,88 @@ const CouponsTab = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+      <div className="ui-loading">
+        <div className="ui-loader"></div>
       </div>
     );
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-6"
-    >
+    <div className="ui-page">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="ui-between">
         <div>
-          <h2 className="text-2xl font-bold text-white">Kupon Yönetimi</h2>
-          <p className="text-gray-400 text-sm">İndirim kuponları oluştur ve yönet</p>
+          <h2 className="ui-title">Kupon Yönetimi</h2>
+          <p className="ui-subtitle">İndirim kuponları oluştur ve yönet</p>
         </div>
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+        <button
           onClick={() => { setEditingCoupon(null); setShowModal(true); }}
-          className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl font-semibold flex items-center gap-2 shadow-lg"
+          className="ui-btn ui-btn--primary"
         >
-          <Plus className="w-5 h-5" />
+          <Plus />
           Yeni Kupon
-        </motion.button>
+        </button>
       </div>
 
       <CouponRequestCampaignPanel />
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard icon={Tag} title="Toplam Kupon" value={stats.total} color="from-blue-500/10 to-indigo-500/10" />
-        <StatCard icon={Check} title="Aktif" value={stats.active} color="from-emerald-500/10 to-teal-500/10" />
-        <StatCard icon={Clock} title="Süresi Dolmuş" value={stats.expired} color="from-red-500/10 to-orange-500/10" />
-        <StatCard icon={Users} title="Toplam Kullanım" value={stats.totalUsage} color="from-purple-500/10 to-pink-500/10" />
-      </div>
-      {analytics?.summary && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <StatCard icon={DollarSign} title="Kuponlu Sipariş Geliri" value={`₺${Number(analytics.summary.attributedRevenue || 0).toFixed(2)}`} color="from-emerald-500/10 to-cyan-500/10" subtext={`${analytics.summary.couponOrders || 0} sipariş`} />
-          <StatCard icon={Percent} title="Sağlanan Toplam İndirim" value={`₺${Number(analytics.summary.totalDiscount || 0).toFixed(2)}`} color="from-purple-500/10 to-pink-500/10" />
-        </div>
-      )}
-
-      {/* Search & Filter */}
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Kupon kodu veya açıklama ara..."
-            className="w-full pl-12 pr-4 py-3 bg-gray-800/50 border border-white/10 rounded-xl text-white focus:border-emerald-500"
-          />
-        </div>
-        <div className="flex gap-2">
-          {[
-            { key: "all", label: "Tümü" },
-            { key: "active", label: "Aktif" },
-            { key: "expired", label: "Süresi Dolmuş" }
-          ].map(f => (
-            <button
-              key={f.key}
-              onClick={() => setFilter(f.key)}
-              className={`px-4 py-3 rounded-xl transition-colors ${
-                filter === f.key
-                  ? "bg-emerald-500 text-white"
-                  : "bg-gray-800 text-gray-400 hover:text-white"
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
+      <div className="ui-stats">
+        <StatCard title="Toplam Kupon" value={stats.total} />
+        <StatCard title="Aktif" value={stats.active} tone="ok" />
+        <StatCard title="Süresi Dolmuş" value={stats.expired} tone="danger" />
+        <StatCard title="Toplam Kullanım" value={stats.totalUsage} />
+        {analytics?.summary && (
+          <>
+            <StatCard title="Kuponlu Sipariş Geliri" value={`₺${Number(analytics.summary.attributedRevenue || 0).toFixed(2)}`} subtext={`${analytics.summary.couponOrders || 0} sipariş`} />
+            <StatCard title="Sağlanan Toplam İndirim" value={`₺${Number(analytics.summary.totalDiscount || 0).toFixed(2)}`} />
+          </>
+        )}
       </div>
 
       {/* Coupons List */}
-      <div className="space-y-3">
+      <section className="ui-card" style={{ overflow: "hidden" }}>
+        {/* Search & Filter */}
+        <div className="ui-card-body ui-cluster" style={{ borderBottom: "1px solid var(--ui-line)" }}>
+          <div className="ui-search ui-grow" style={{ flexBasis: 240 }}>
+            <Search />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Kupon kodu veya açıklama ara..."
+              aria-label="Kupon ara"
+              className="ui-field"
+            />
+          </div>
+          <div className="ui-segmented">
+            {[
+              { key: "all", label: "Tümü" },
+              { key: "active", label: "Aktif" },
+              { key: "expired", label: "Süresi Dolmuş" }
+            ].map(f => (
+              <button
+                key={f.key}
+                onClick={() => setFilter(f.key)}
+                aria-pressed={filter === f.key}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="ui-list-head coupons-cols">
+          <div>Kupon</div>
+          <div>İndirim</div>
+          <div>Kullanım</div>
+          <div>Sipariş Geliri</div>
+          <div>Son Tarih</div>
+          <div className="ui-right">İşlemler</div>
+        </div>
         {filteredCoupons.length === 0 ? (
-          <div className="text-center py-12 text-gray-400">
-            <Tag className="w-12 h-12 mx-auto mb-3 opacity-50" />
+          <div className="ui-empty">
+            <Tag />
             <p>Kupon bulunamadı</p>
           </div>
         ) : (
@@ -582,139 +572,121 @@ const CouponsTab = () => {
             const campaignStats = analytics?.campaigns?.find(item => item.code === coupon.code);
             
             return (
-              <motion.div
-                key={coupon._id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`bg-gradient-to-br ${
-                  isExpired 
-                    ? "from-gray-800/50 to-gray-900/50" 
-                    : coupon.isActive 
-                      ? "from-gray-800/50 to-gray-900/50" 
-                      : "from-red-900/20 to-gray-900/50"
-                } rounded-2xl p-5 border ${isExpired ? "border-gray-700" : "border-white/10"}`}
-              >
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <div className={`p-3 rounded-xl ${
-                      isExpired ? "bg-gray-700" : coupon.isActive ? "bg-emerald-500/20" : "bg-red-500/20"
-                    }`}>
-                      <Tag className={`w-6 h-6 ${
-                        isExpired ? "text-gray-400" : coupon.isActive ? "text-emerald-400" : "text-red-400"
-                      }`} />
+              <div key={coupon._id} className="coupons-item" data-muted={isExpired || !coupon.isActive}>
+                <div className="ui-list-row coupons-cols" style={{ borderBottom: 0 }}>
+                  <div className="ui-grow">
+                    <div className="ui-cluster" style={{ gap: 6 }}>
+                      <span className="ui-list-title ui-mono">{coupon.code}</span>
+                      <button
+                        onClick={() => handleCopyCode(coupon.code)}
+                        className="ui-icon-btn ui-icon-btn--sm"
+                        title="Kodu kopyala"
+                        aria-label="Kodu kopyala"
+                      >
+                        <Copy />
+                      </button>
+                      {isExpired ? (
+                        <span className="ui-badge ui-badge--danger">Süresi Dolmuş</span>
+                      ) : coupon.isActive ? (
+                        <span className="ui-badge ui-badge--ok">Aktif</span>
+                      ) : (
+                        <span className="ui-badge">Pasif</span>
+                      )}
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg font-bold text-white font-mono">{coupon.code}</span>
-                        <button
-                          onClick={() => handleCopyCode(coupon.code)}
-                          className="text-gray-400 hover:text-white"
-                        >
-                          <Copy className="w-4 h-4" />
-                        </button>
-                        {isExpired && (
-                          <span className="px-2 py-0.5 bg-red-500/20 text-red-400 text-xs rounded-full">
-                            Süresi Dolmuş
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-gray-400 text-sm">{coupon.description || "Açıklama yok"}</p>
-                    </div>
+                    <p className="ui-list-sub ui-truncate">{coupon.description || "Açıklama yok"}</p>
                   </div>
 
-                  <div className="flex items-center gap-6">
-                    <div className="text-center">
-                      <p className="text-emerald-400 font-bold text-lg">
-                        {coupon.discountType === "percentage" 
-                          ? `%${coupon.discountPercentage}` 
-                          : `₺${coupon.discountAmount}`}
-                      </p>
-                      <p className="text-gray-500 text-xs">İndirim</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-white font-bold">{coupon.usageCount || 0}</p>
-                      <p className="text-gray-500 text-xs">Kullanım</p>
-                    </div>
-                    <div className="text-center hidden lg:block">
-                      <p className="text-white font-bold">₺{Number(campaignStats?.revenue || 0).toFixed(0)}</p>
-                      <p className="text-gray-500 text-xs">Sipariş Geliri</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-white text-sm">
-                        {new Date(coupon.expirationDate).toLocaleDateString('tr-TR')}
-                      </p>
-                      <p className="text-gray-500 text-xs">Son Tarih</p>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleToggleStatus(coupon._id)}
-                        className={`p-2 rounded-lg transition-colors ${
-                          coupon.isActive ? "bg-emerald-500/20 text-emerald-400" : "bg-gray-700 text-gray-400"
-                        }`}
-                      >
-                        {coupon.isActive ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
-                      </button>
-                      <button
-                        onClick={() => { setEditingCoupon(coupon); setShowModal(true); }}
-                        className="p-2 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"
-                      >
-                        <Edit2 className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(coupon._id)}
-                        className="p-2 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
+                  <div>
+                    <span className="ui-cell-label">İndirim</span>
+                    <span className="ui-strong ui-num">
+                      {coupon.discountType === "percentage" 
+                        ? `%${coupon.discountPercentage}` 
+                        : `₺${coupon.discountAmount}`}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="ui-cell-label">Kullanım</span>
+                    <span className="ui-num">{coupon.usageCount || 0}</span>
+                  </div>
+                  <div>
+                    <span className="ui-cell-label">Sipariş Geliri</span>
+                    <span className="ui-num">₺{Number(campaignStats?.revenue || 0).toFixed(0)}</span>
+                  </div>
+                  <div>
+                    <span className="ui-cell-label">Son Tarih</span>
+                    <span className="ui-num ui-text-sm">
+                      {new Date(coupon.expirationDate).toLocaleDateString('tr-TR')}
+                    </span>
+                  </div>
+
+                  <div className="products-actions">
+                    <button
+                      onClick={() => handleToggleStatus(coupon._id)}
+                      className="ui-icon-btn"
+                      style={coupon.isActive ? { color: "var(--ui-ok)" } : undefined}
+                      title={coupon.isActive ? "Pasife al" : "Aktifleştir"}
+                      aria-label={coupon.isActive ? "Pasife al" : "Aktifleştir"}
+                    >
+                      {coupon.isActive ? <ToggleRight style={{ width: 22, height: 22 }} /> : <ToggleLeft style={{ width: 22, height: 22 }} />}
+                    </button>
+                    <button
+                      onClick={() => { setEditingCoupon(coupon); setShowModal(true); }}
+                      className="ui-icon-btn"
+                      title="Düzenle"
+                      aria-label="Düzenle"
+                    >
+                      <Edit2 />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(coupon._id)}
+                      className="ui-icon-btn ui-icon-btn--danger"
+                      title="Sil"
+                      aria-label="Sil"
+                    >
+                      <Trash2 />
+                    </button>
                   </div>
                 </div>
                 {(coupon.usedBy?.length || 0) > 0 && (
-                  <div className="mt-4 border-t border-white/5 pt-3">
+                  <div className="coupons-usage">
                     <button
                       onClick={() => setUsageOpenId(usageOpenId === coupon._id ? null : coupon._id)}
-                      className="flex w-full items-center justify-between rounded-xl bg-white/[.035] px-3 py-2 text-left text-xs font-semibold text-emerald-300 hover:bg-white/[.07]"
+                      aria-expanded={usageOpenId === coupon._id}
+                      className="ui-btn ui-btn--ghost ui-btn--sm"
                     >
-                      <span className="flex items-center gap-2"><Users className="h-4 w-4" /> Kullanım geçmişi ({coupon.usedBy.length})</span>
-                      {usageOpenId === coupon._id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      <Users /> Kullanım geçmişi ({coupon.usedBy.length})
+                      {usageOpenId === coupon._id ? <ChevronUp /> : <ChevronDown />}
                     </button>
-                    <AnimatePresence initial={false}>
-                      {usageOpenId === coupon._id && (
-                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                          <div className="mt-2 space-y-1.5">
-                            {coupon.usedBy.map((usage) => (
-                              <div key={`${usage.user?._id || usage.user}-${usage.usedAt}`} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-black/20 px-3 py-2 text-xs">
-                                <span className="font-medium text-white">{usage.user?.name || "Silinmiş kullanıcı"}</span>
-                                <span className="text-gray-400">{usage.user?.email || "E-posta yok"}</span>
-                                <span className="flex items-center gap-1 text-gray-400"><ShoppingBag className="h-3.5 w-3.5" /> #{String(usage.orderId?._id || usage.orderId || "").slice(-6).toUpperCase() || "-"}</span>
-                                <span className="text-emerald-300">{usage.usedAt ? new Date(usage.usedAt).toLocaleString("tr-TR") : "Tarih yok"}</span>
-                              </div>
-                            ))}
+                    {usageOpenId === coupon._id && (
+                      <div className="ui-stack ui-stack--sm" style={{ marginTop: 8 }}>
+                        {coupon.usedBy.map((usage) => (
+                          <div key={`${usage.user?._id || usage.user}-${usage.usedAt}`} className="ui-row ui-between ui-text-xs">
+                            <span className="ui-strong">{usage.user?.name || "Silinmiş kullanıcı"}</span>
+                            <span className="ui-muted ui-wrap-anywhere">{usage.user?.email || "E-posta yok"}</span>
+                            <span className="orders-meta ui-text-xs"><ShoppingBag /> #{String(usage.orderId?._id || usage.orderId || "").slice(-6).toUpperCase() || "-"}</span>
+                            <span className="ui-muted ui-num">{usage.usedAt ? new Date(usage.usedAt).toLocaleString("tr-TR") : "Tarih yok"}</span>
                           </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
-              </motion.div>
+              </div>
             );
           })
         )}
-      </div>
+      </section>
 
       {/* Modal */}
-      <AnimatePresence>
-        {showModal && (
-          <CouponModal
-            isOpen={showModal}
-            onClose={() => { setShowModal(false); setEditingCoupon(null); }}
-            coupon={editingCoupon}
-            onSave={fetchCoupons}
-          />
-        )}
-      </AnimatePresence>
-    </motion.div>
+      {showModal && (
+        <CouponModal
+          isOpen={showModal}
+          onClose={() => { setShowModal(false); setEditingCoupon(null); }}
+          coupon={editingCoupon}
+          onSave={fetchCoupons}
+        />
+      )}
+    </div>
   );
 };
 

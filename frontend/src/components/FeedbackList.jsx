@@ -1,19 +1,11 @@
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { 
   Star, 
   ChevronDown, 
   ChevronUp, 
-  Lightbulb, 
-  TrendingUp, 
-  ThumbsUp, 
-  ThumbsDown, 
   MessageSquare, 
-  BarChart2,
-  User,
   Mail,
   Calendar,
-  Filter,
   Search,
   X,
   Eye,
@@ -171,11 +163,8 @@ const FeedbackList = () => {
     return [...Array(5)].map((_, index) => (
       <Star
         key={index}
-        className={`w-4 h-4 ${
-          index < rating
-            ? "text-amber-400 fill-current"
-            : "text-gray-600"
-        }`}
+        className="ui-star"
+        data-on={index < rating ? "true" : undefined}
       />
     ));
   };
@@ -183,15 +172,15 @@ const FeedbackList = () => {
   const getStatusInfo = (status) => {
     switch (status) {
       case "Yeni":
-        return { color: "from-blue-500/20 to-cyan-500/20 border-blue-500/30 text-blue-400", icon: <Clock className="w-4 h-4" /> };
+        return { color: "ui-badge--info", icon: <Clock /> };
       case "İnceleniyor":
-        return { color: "from-yellow-500/20 to-orange-500/20 border-yellow-500/30 text-yellow-400", icon: <Eye className="w-4 h-4" /> };
+        return { color: "ui-badge--warn", icon: <Eye /> };
       case "Çözüldü":
-        return { color: "from-emerald-500/20 to-green-500/20 border-emerald-500/30 text-emerald-400", icon: <CheckCircle className="w-4 h-4" /> };
+        return { color: "ui-badge--ok", icon: <CheckCircle /> };
       case "Kapatıldı":
-        return { color: "from-gray-500/20 to-gray-600/20 border-gray-500/30 text-gray-400", icon: <X className="w-4 h-4" /> };
+        return { color: "", icon: <X /> };
       default:
-        return { color: "from-gray-500/20 to-gray-600/20 border-gray-500/30 text-gray-400", icon: <Clock className="w-4 h-4" /> };
+        return { color: "", icon: <Clock /> };
     }
   };
 
@@ -235,456 +224,326 @@ const FeedbackList = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-col justify-center items-center min-h-[400px] space-y-4">
-        <motion.div
-          className="relative"
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-        >
-          <div className="w-16 h-16 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full"></div>
-        </motion.div>
-        <motion.p
-          className="text-gray-400 text-lg"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-        >
-          Geri bildirimler yükleniyor...
-        </motion.p>
+      <div className="ui-loading">
+        <div className="ui-loader"></div>
+        <p>Geri bildirimler yükleniyor...</p>
       </div>
     );
   }
 
   return (
-    <motion.div 
-      className="space-y-6"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-    >
+    <div className="ui-page">
       {/* Başlık */}
-      <motion.div 
-        className="text-center mb-8"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <div className="inline-flex items-center gap-4 mb-4">
-          <div className="w-12 h-12 bg-gradient-to-r from-emerald-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
-            <MessageSquare className="w-6 h-6 text-white" />
-          </div>
-          <h2 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 via-green-500 to-teal-500 bg-clip-text text-transparent">
-            Geri Bildirimler
-          </h2>
-          <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-teal-500 rounded-xl flex items-center justify-center shadow-lg shadow-green-500/20">
-            <Star className="w-6 h-6 text-white" />
-          </div>
-        </div>
-        <p className="text-gray-400 text-lg">Müşteri geri bildirimlerini yönetin ve analiz edin</p>
-      </motion.div>
+      <div>
+        <h2 className="ui-title">Geri Bildirimler</h2>
+        <p className="ui-subtitle">Müşteri geri bildirimlerini yönetin ve analiz edin</p>
+      </div>
 
       {/* İstatistikler */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="ui-grid-3" style={{ gap: 16 }}>
         {/* Genel İstatistikler */}
-        <motion.div
-          className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-2xl p-6 border border-gray-700/50 shadow-xl"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-gradient-to-r from-emerald-500/20 to-green-500/20 rounded-lg">
-              <BarChart2 className="w-5 h-5 text-emerald-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-white">Genel İstatistikler</h3>
+        <section className="ui-card">
+          <div className="ui-card-header">
+            <h3 className="ui-title">Genel İstatistikler</h3>
           </div>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-3 bg-gray-700/30 rounded-xl">
-              <span className="text-gray-300">Toplam Geri Bildirim</span>
-              <span className="text-2xl font-bold text-emerald-400">{stats.totalFeedbacks}</span>
+          <div className="ui-card-body ui-stack ui-stack--sm">
+            <div className="ui-between">
+              <span className="ui-muted">Toplam Geri Bildirim</span>
+              <span className="ui-stat-value">{stats.totalFeedbacks}</span>
             </div>
             {Object.entries(stats.averageRatings).slice(0, 3).map(([key, value]) => (
-              <div key={key} className="flex items-center justify-between">
-                <span className="text-sm text-gray-400">
+              <div key={key} className="ui-between ui-text-sm">
+                <span className="ui-muted">
                   {key === "usability" ? "Kullanıcı Dostu" :
                    key === "expectations" ? "Beklenti Karşılama" :
                    key === "repeat" ? "Tekrar Tercih" : "Genel"}
                 </span>
-                <div className="flex items-center gap-2">
+                <div className="ui-stars">
                   {renderStars(Math.round(value))}
-                  <span className="text-sm text-gray-400">({value.toFixed(1)})</span>
+                  <span className="ui-muted ui-num">({value.toFixed(1)})</span>
                 </div>
               </div>
             ))}
           </div>
-        </motion.div>
+        </section>
 
         {/* Kategori Analizi */}
-        <motion.div
-          className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-2xl p-6 border border-gray-700/50 shadow-xl"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 rounded-lg">
-              <BarChart2 className="w-5 h-5 text-blue-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-white">Kategori Analizi</h3>
+        <section className="ui-card">
+          <div className="ui-card-header">
+            <h3 className="ui-title">Kategori Analizi</h3>
           </div>
-          <div className="space-y-3">
+          <div className="ui-card-body ui-stack ui-stack--sm">
             {Object.entries(stats.categoryDistribution).map(([category, count]) => {
               const percentage = stats.totalFeedbacks > 0 ? (count / stats.totalFeedbacks) * 100 : 0;
               return (
-                <div key={category} className="space-y-1">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-300">{category}</span>
-                    <span className="text-emerald-400 font-medium">{count} ({percentage.toFixed(0)}%)</span>
+                <div key={category}>
+                  <div className="ui-between ui-text-sm" style={{ marginBottom: 4 }}>
+                    <span>{category}</span>
+                    <span className="ui-strong ui-num">{count} ({percentage.toFixed(0)}%)</span>
                   </div>
-                  <div className="w-full h-2 bg-gray-700/30 rounded-full overflow-hidden">
-                    <motion.div
-                      className="h-full bg-gradient-to-r from-emerald-500 to-green-500 rounded-full"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${percentage}%` }}
-                      transition={{ duration: 1, delay: 0.2 }}
-                    />
+                  <div className="ui-progress">
+                    <div style={{ width: `${percentage}%` }} />
                   </div>
                 </div>
               );
             })}
             {Object.keys(stats.categoryDistribution).length === 0 && (
-              <p className="text-gray-500 text-center py-4">Henüz kategori verisi yok</p>
+              <p className="ui-loading">Henüz kategori verisi yok</p>
             )}
           </div>
-        </motion.div>
+        </section>
 
         {/* Müşteri Duyguları */}
-        <motion.div
-          className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-2xl p-6 border border-gray-700/50 shadow-xl"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-lg">
-              <TrendingUp className="w-5 h-5 text-purple-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-white">Müşteri Duyguları</h3>
+        <section className="ui-card">
+          <div className="ui-card-header">
+            <h3 className="ui-title">Müşteri Duyguları</h3>
           </div>
-          
-          <div className="grid grid-cols-3 gap-2">
-            <motion.div 
-              className="bg-emerald-500/10 rounded-xl p-3 text-center border border-emerald-500/20"
-              whileHover={{ scale: 1.05 }}
-            >
-              <ThumbsUp className="w-5 h-5 text-emerald-400 mx-auto mb-1" />
-              <div className="text-lg font-bold text-emerald-400">
-                {stats.totalFeedbacks > 0 ? ((stats.sentimentAnalysis.positive / stats.totalFeedbacks) * 100).toFixed(0) : 0}%
+          <div className="ui-card-body">
+            <div className="ui-grid-3" style={{ gap: 8, gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+              <div className="ui-stat" style={{ boxShadow: "none", padding: "10px 12px" }}>
+                <span className="ui-stat-label"><span className="ui-dot ui-dot--ok" />Olumlu</span>
+                <span className="ui-stat-value" style={{ fontSize: 20 }}>
+                  {stats.totalFeedbacks > 0 ? ((stats.sentimentAnalysis.positive / stats.totalFeedbacks) * 100).toFixed(0) : 0}%
+                </span>
               </div>
-              <div className="text-xs text-gray-400">Olumlu</div>
-            </motion.div>
-            <motion.div 
-              className="bg-yellow-500/10 rounded-xl p-3 text-center border border-yellow-500/20"
-              whileHover={{ scale: 1.05 }}
-            >
-              <MessageSquare className="w-5 h-5 text-yellow-400 mx-auto mb-1" />
-              <div className="text-lg font-bold text-yellow-400">
-                {stats.totalFeedbacks > 0 ? ((stats.sentimentAnalysis.neutral / stats.totalFeedbacks) * 100).toFixed(0) : 0}%
+              <div className="ui-stat" style={{ boxShadow: "none", padding: "10px 12px" }}>
+                <span className="ui-stat-label"><span className="ui-dot ui-dot--warn" />Nötr</span>
+                <span className="ui-stat-value" style={{ fontSize: 20 }}>
+                  {stats.totalFeedbacks > 0 ? ((stats.sentimentAnalysis.neutral / stats.totalFeedbacks) * 100).toFixed(0) : 0}%
+                </span>
               </div>
-              <div className="text-xs text-gray-400">Nötr</div>
-            </motion.div>
-            <motion.div 
-              className="bg-red-500/10 rounded-xl p-3 text-center border border-red-500/20"
-              whileHover={{ scale: 1.05 }}
-            >
-              <ThumbsDown className="w-5 h-5 text-red-400 mx-auto mb-1" />
-              <div className="text-lg font-bold text-red-400">
-                {stats.totalFeedbacks > 0 ? ((stats.sentimentAnalysis.negative / stats.totalFeedbacks) * 100).toFixed(0) : 0}%
+              <div className="ui-stat" style={{ boxShadow: "none", padding: "10px 12px" }}>
+                <span className="ui-stat-label"><span className="ui-dot ui-dot--danger" />Olumsuz</span>
+                <span className="ui-stat-value" style={{ fontSize: 20 }}>
+                  {stats.totalFeedbacks > 0 ? ((stats.sentimentAnalysis.negative / stats.totalFeedbacks) * 100).toFixed(0) : 0}%
+                </span>
               </div>
-              <div className="text-xs text-gray-400">Olumsuz</div>
-            </motion.div>
-          </div>
-
-          {/* Trend Chart */}
-          <div className="mt-4">
-            <div className="text-sm text-gray-400 mb-2">Son 10 Gün Trendi</div>
-            <div className="h-16 flex items-end gap-1">
-              {Array.isArray(stats.recentTrends) && stats.recentTrends.slice(-10).map((trend, index) => {
-                const height = (trend.averageRating / 5) * 100;
-                const color = trend.averageRating >= 4 ? 'bg-emerald-500' :
-                             trend.averageRating <= 2 ? 'bg-red-500' : 'bg-yellow-500';
-                
-                return (
-                  <motion.div
-                    key={trend.date}
-                    className="flex-1 flex flex-col items-center"
-                    initial={{ height: 0 }}
-                    animate={{ height: `${height}%` }}
-                    transition={{ duration: 0.5, delay: index * 0.05 }}
-                  >
-                    <div className={`w-full ${color} rounded-t opacity-70 hover:opacity-100 transition-opacity cursor-pointer`} style={{ height: '100%' }} title={`${new Date(trend.date).toLocaleDateString('tr-TR')}: ${trend.averageRating.toFixed(1)}`} />
-                  </motion.div>
-                );
-              })}
-              {(!stats.recentTrends || stats.recentTrends.length === 0) && (
-                <div className="flex-1 flex items-center justify-center text-gray-500 text-xs">
-                  Henüz trend verisi yok
-                </div>
-              )}
             </div>
-          </div>
-        </motion.div>
-      </div>
 
-      {/* Filtreler */}
-      <motion.div 
-        className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-2xl p-6 border border-gray-700/50 shadow-xl"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-      >
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 bg-gradient-to-r from-emerald-500/20 to-green-500/20 rounded-lg">
-            <Filter className="w-5 h-5 text-emerald-400" />
-          </div>
-          <h3 className="text-lg font-semibold text-white">Filtreler</h3>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Durum</label>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
-            >
-              <option value="">Tümü</option>
-              <option value="Yeni">Yeni</option>
-              <option value="İnceleniyor">İnceleniyor</option>
-              <option value="Çözüldü">Çözüldü</option>
-              <option value="Kapatıldı">Kapatıldı</option>
-            </select>
-          </div>
-          
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-300 mb-2">Arama</label>
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input
-                type="text"
-                placeholder="Kullanıcı, başlık veya mesaj ara..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-11 pr-4 py-3 bg-gray-700/50 border border-gray-600/50 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
-              />
-            </div>
-          </div>
-          
-          <div className="flex items-end gap-2">
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => { setFilterStatus(""); setSearchTerm(""); }}
-              className="flex-1 px-4 py-3 bg-gray-600/50 hover:bg-gray-500/50 text-gray-200 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 font-medium"
-            >
-              <X className="w-4 h-4" />
-              Temizle
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={fetchFeedbacks}
-              className="px-4 py-3 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-xl transition-all duration-300"
-            >
-              <RefreshCw className="w-5 h-5" />
-            </motion.button>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Geri Bildirim Listesi */}
-      <motion.div 
-        className="space-y-4"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.4 }}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-            <MessageSquare className="w-5 h-5 text-emerald-400" />
-            Geri Bildirim Listesi
-            <span className="px-3 py-1 bg-emerald-500/20 text-emerald-400 rounded-full text-sm font-medium">
-              {filteredFeedbacks.length} sonuç
-            </span>
-          </h3>
-        </div>
-
-        {filteredFeedbacks.length === 0 ? (
-          <motion.div 
-            className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-2xl p-12 border border-gray-700/50 text-center"
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-          >
-            <div className="w-20 h-20 bg-gradient-to-r from-emerald-500/20 to-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-              <MessageSquare className="w-10 h-10 text-emerald-400" />
-            </div>
-            <h4 className="text-xl font-semibold text-white mb-2">Geri Bildirim Bulunamadı</h4>
-            <p className="text-gray-400">Henüz geri bildirim yok veya filtrelere uygun sonuç bulunamadı</p>
-          </motion.div>
-        ) : (
-          <AnimatePresence>
-            {filteredFeedbacks.map((feedback, index) => {
-              const statusInfo = getStatusInfo(feedback.status);
-              const isExpanded = expandedFeedback === feedback._id;
-              const avgRating = Object.values(feedback.ratings).reduce((a, b) => a + b, 0) / Object.values(feedback.ratings).filter(r => r > 0).length;
-
-              return (
-                <motion.div
-                  key={feedback._id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-2xl border border-gray-700/50 shadow-xl overflow-hidden hover:border-emerald-500/30 transition-all duration-300"
-                >
-                  <div className="p-6">
-                    <div className="flex flex-col lg:flex-row lg:items-start gap-4">
-                      {/* Avatar ve Kullanıcı Bilgisi */}
-                      <div className="flex items-start gap-4 flex-1">
-                        <motion.div 
-                          className="w-12 h-12 bg-gradient-to-r from-emerald-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 flex-shrink-0"
-                          whileHover={{ scale: 1.1, rotate: 5 }}
-                        >
-                          <span className="text-white text-lg font-bold">
-                            {feedback.user?.name?.charAt(0).toUpperCase() || "K"}
-                          </span>
-                        </motion.div>
-                        
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2 mb-2">
-                            <h4 className="text-lg font-semibold text-white">
-                              {feedback.user?.name || "Kullanıcı"}
-                            </h4>
-                            <span className="px-2 py-1 bg-gray-700/50 text-gray-300 rounded-lg text-xs flex items-center gap-1">
-                              <Mail className="w-3 h-3" />
-                              {feedback.user?.email}
-                            </span>
-                          </div>
-                          
-                          <div className="flex flex-wrap items-center gap-3 text-sm text-gray-400 mb-3">
-                            <div className="flex items-center gap-1">
-                              <Calendar className="w-4 h-4" />
-                              {new Date(feedback.createdAt).toLocaleDateString('tr-TR', {
-                                day: 'numeric',
-                                month: 'long',
-                                year: 'numeric'
-                              })}
-                            </div>
-                            <span className="px-2 py-1 bg-gray-700/50 text-gray-300 rounded-lg text-xs">
-                              {feedback.category}
-                            </span>
-                            <div className="flex items-center gap-1 px-2 py-1 bg-amber-500/10 rounded-lg">
-                              <Star className="w-4 h-4 text-amber-400 fill-current" />
-                              <span className="text-amber-400 font-medium">{avgRating.toFixed(1)}/5</span>
-                            </div>
-                          </div>
-
-                          {feedback.title && (
-                            <h5 className="text-base font-medium text-white mb-2">{feedback.title}</h5>
-                          )}
-
-                          {/* Rating Grid */}
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
-                            {Object.entries(feedback.ratings).map(([key, rating]) => {
-                              if (rating === 0) return null;
-                              return (
-                                <div key={key} className="bg-gray-700/30 rounded-lg p-2">
-                                  <div className="text-xs text-gray-400 mb-1">
-                                    {key === "usability" ? "Kullanıcı Dostu" :
-                                     key === "expectations" ? "Beklenti" :
-                                     key === "repeat" ? "Tekrar Tercih" : "Genel"}
-                                  </div>
-                                  <div className="flex items-center gap-0.5">
-                                    {renderStars(rating)}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Sağ Taraf - Durum ve Aksiyonlar */}
-                      <div className="flex flex-wrap items-center gap-3 lg:flex-nowrap">
-                        <motion.div 
-                          className={`flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r ${statusInfo.color} border`}
-                          whileHover={{ scale: 1.05 }}
-                        >
-                          {statusInfo.icon}
-                          <span className="text-sm font-medium">{feedback.status}</span>
-                        </motion.div>
-
-                        <select
-                          value={feedback.status}
-                          onChange={(e) => handleStatusUpdate(feedback._id, e.target.value)}
-                          className="px-3 py-2 bg-gray-700/50 border border-gray-600/50 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all cursor-pointer"
-                        >
-                          <option value="Yeni">Yeni</option>
-                          <option value="İnceleniyor">İnceleniyor</option>
-                          <option value="Çözüldü">Çözüldü</option>
-                          <option value="Kapatıldı">Kapatıldı</option>
-                        </select>
-
-                        <div className="flex items-center gap-1">
-                          <motion.button
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={() => setExpandedFeedback(isExpanded ? null : feedback._id)}
-                            className="p-3 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-xl transition-all duration-300"
-                          >
-                            {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                          </motion.button>
-                          <motion.button
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={() => handleDelete(feedback._id)}
-                            className="p-3 text-red-400 hover:bg-red-500/20 rounded-xl transition-all duration-300"
-                          >
-                            <Trash2 className="w-5 h-5" />
-                          </motion.button>
+            {/* Trend Chart */}
+            <div style={{ marginTop: 14 }}>
+              <div className="ui-overline" style={{ marginBottom: 6 }}>Son 10 Gün Trendi (ortalama puan)</div>
+              <div className="ui-bars" style={{ height: 72 }}>
+                {Array.isArray(stats.recentTrends) && stats.recentTrends.slice(-10).map((trend) => {
+                  const height = (trend.averageRating / 5) * 100;
+                  const color = trend.averageRating >= 4 ? 'ok' :
+                               trend.averageRating <= 2 ? 'danger' : 'warn';
+                  
+                  return (
+                    <div key={trend.date} className="ui-bar-col" tabIndex={0}>
+                      <div className="ui-bar-track">
+                        <div className="ui-bar" data-tone={color} style={{ height: `${height}%` }} />
+                        <div className="ui-bar-tip">
+                          <strong>{trend.averageRating.toFixed(1)} / 5</strong>
+                          <span>{new Date(trend.date).toLocaleDateString('tr-TR')}</span>
                         </div>
                       </div>
                     </div>
-
-                    {/* Genişletilmiş İçerik */}
-                    <AnimatePresence>
-                      {isExpanded && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          transition={{ duration: 0.3 }}
-                          className="mt-6 pt-6 border-t border-gray-700/50 space-y-4"
-                        >
-                          {/* Mesaj */}
-                          {feedback.message && (
-                            <div className="bg-gray-700/30 rounded-xl p-4">
-                              <h6 className="text-sm font-medium text-gray-300 mb-2">Mesaj</h6>
-                              <p className="text-gray-300 whitespace-pre-wrap">{feedback.message}</p>
-                            </div>
-                          )}
-
-
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                  );
+                })}
+                {(!stats.recentTrends || stats.recentTrends.length === 0) && (
+                  <div className="ui-loading" style={{ flex: 1, padding: 0 }}>
+                    Henüz trend verisi yok
                   </div>
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {/* Filtreler */}
+      <div className="ui-card ui-card-body ui-cluster" style={{ alignItems: "flex-end" }}>
+        <div className="ui-grow" style={{ flexBasis: 260 }}>
+          <label className="ui-label" htmlFor="feedback-search">Arama</label>
+          <div className="ui-search">
+            <Search />
+            <input
+              id="feedback-search"
+              type="text"
+              placeholder="Kullanıcı, başlık veya mesaj ara..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="ui-field"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="ui-label" htmlFor="feedback-status">Durum</label>
+          <select
+            id="feedback-status"
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="ui-field ui-field--auto"
+          >
+            <option value="">Tümü</option>
+            <option value="Yeni">Yeni</option>
+            <option value="İnceleniyor">İnceleniyor</option>
+            <option value="Çözüldü">Çözüldü</option>
+            <option value="Kapatıldı">Kapatıldı</option>
+          </select>
+        </div>
+        
+        <button
+          onClick={() => { setFilterStatus(""); setSearchTerm(""); }}
+          className="ui-btn ui-btn--ghost"
+          style={{ minHeight: 38 }}
+        >
+          <X />
+          Temizle
+        </button>
+        <button
+          onClick={fetchFeedbacks}
+          className="ui-btn"
+          style={{ minHeight: 38 }}
+        >
+          <RefreshCw />
+          Yenile
+        </button>
+      </div>
+
+      {/* Geri Bildirim Listesi */}
+      <div className="ui-stack ui-stack--sm">
+        <h3 className="ui-between">
+          <span className="ui-overline">Geri Bildirim Listesi</span>
+          <span className="ui-text-xs ui-muted ui-num">{filteredFeedbacks.length} sonuç</span>
+        </h3>
+
+        {filteredFeedbacks.length === 0 ? (
+          <div className="ui-card ui-empty">
+            <MessageSquare />
+            <h4 className="ui-title">Geri Bildirim Bulunamadı</h4>
+            <p>Henüz geri bildirim yok veya filtrelere uygun sonuç bulunamadı</p>
+          </div>
+        ) : (
+          filteredFeedbacks.map((feedback) => {
+            const statusInfo = getStatusInfo(feedback.status);
+            const isExpanded = expandedFeedback === feedback._id;
+            const avgRating = Object.values(feedback.ratings).reduce((a, b) => a + b, 0) / Object.values(feedback.ratings).filter(r => r > 0).length;
+
+            return (
+              <article key={feedback._id} className="ui-card ui-card-body">
+                <div className="ui-between" style={{ alignItems: "flex-start" }}>
+                  {/* Avatar ve Kullanıcı Bilgisi */}
+                  <div className="products-product ui-grow" style={{ alignItems: "flex-start", flexBasis: 340 }}>
+                    <div className="ui-avatar">
+                      {feedback.user?.name?.charAt(0).toUpperCase() || "K"}
+                    </div>
+                    
+                    <div className="ui-grow">
+                      <div className="ui-cluster" style={{ gap: "2px 10px" }}>
+                        <h4 className="ui-list-title">
+                          {feedback.user?.name || "Kullanıcı"}
+                        </h4>
+                        <span className="orders-meta">
+                          <Mail />
+                          <span>{feedback.user?.email}</span>
+                        </span>
+                      </div>
+                      
+                      <div className="ui-cluster" style={{ gap: 6, marginTop: 6 }}>
+                        <span className="orders-meta">
+                          <Calendar />
+                          <span>{new Date(feedback.createdAt).toLocaleDateString('tr-TR', {
+                            day: 'numeric',
+                            month: 'long',
+                            year: 'numeric'
+                          })}</span>
+                        </span>
+                        <span className="ui-badge">
+                          {feedback.category}
+                        </span>
+                        <span className="ui-badge ui-badge--warn">
+                          <Star />
+                          {avgRating.toFixed(1)}/5
+                        </span>
+                      </div>
+
+                      {feedback.title && (
+                        <h5 className="ui-strong" style={{ marginTop: 8 }}>{feedback.title}</h5>
+                      )}
+
+                      {/* Rating Grid */}
+                      <div className="ui-cluster" style={{ gap: "6px 16px", marginTop: 8 }}>
+                        {Object.entries(feedback.ratings).map(([key, rating]) => {
+                          if (rating === 0) return null;
+                          return (
+                            <div key={key}>
+                              <div className="ui-text-xs ui-muted">
+                                {key === "usability" ? "Kullanıcı Dostu" :
+                                 key === "expectations" ? "Beklenti" :
+                                 key === "repeat" ? "Tekrar Tercih" : "Genel"}
+                              </div>
+                              <div className="ui-stars">
+                                {renderStars(rating)}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Sağ Taraf - Durum ve Aksiyonlar */}
+                  <div className="ui-cluster">
+                    <span className={`ui-badge ${statusInfo.color}`}>
+                      {statusInfo.icon}
+                      {feedback.status}
+                    </span>
+
+                    <select
+                      value={feedback.status}
+                      onChange={(e) => handleStatusUpdate(feedback._id, e.target.value)}
+                      aria-label="Durumu değiştir"
+                      className="ui-field ui-field--sm ui-field--auto"
+                    >
+                      <option value="Yeni">Yeni</option>
+                      <option value="İnceleniyor">İnceleniyor</option>
+                      <option value="Çözüldü">Çözüldü</option>
+                      <option value="Kapatıldı">Kapatıldı</option>
+                    </select>
+
+                    <div className="products-actions">
+                      <button
+                        onClick={() => setExpandedFeedback(isExpanded ? null : feedback._id)}
+                        aria-expanded={isExpanded}
+                        className="ui-icon-btn"
+                        title={isExpanded ? "Mesajı gizle" : "Mesajı göster"}
+                        aria-label={isExpanded ? "Mesajı gizle" : "Mesajı göster"}
+                      >
+                        {isExpanded ? <ChevronUp /> : <ChevronDown />}
+                      </button>
+                      <button
+                        onClick={() => handleDelete(feedback._id)}
+                        className="ui-icon-btn ui-icon-btn--danger"
+                        title="Sil"
+                        aria-label="Sil"
+                      >
+                        <Trash2 />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Genişletilmiş İçerik */}
+                {isExpanded && (
+                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--ui-line)" }}>
+                    {/* Mesaj */}
+                    {feedback.message && (
+                      <div>
+                        <h6 className="ui-overline" style={{ marginBottom: 4 }}>Mesaj</h6>
+                        <p className="ui-wrap-anywhere" style={{ whiteSpace: "pre-wrap" }}>{feedback.message}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </article>
+            );
+          })
         )}
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 };
 

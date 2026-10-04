@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   FileText,
   Download,
@@ -12,8 +11,6 @@ import {
   Search,
   Edit,
   X,
-  Printer,
-  Filter,
   RefreshCw,
   Copy,
   Palette,
@@ -149,15 +146,15 @@ const PhotocopyTab = () => {
   const getStatusIcon = (status) => {
     switch (status) {
       case 'pending':
-        return <Clock className="w-4 h-4 text-yellow-400" />;
+        return <Clock />;
       case 'processing':
-        return <RefreshCw className="w-4 h-4 text-blue-400 animate-spin" />;
+        return <RefreshCw />;
       case 'ready':
-        return <FileCheck className="w-4 h-4 text-emerald-400" />;
+        return <FileCheck />;
       case 'completed':
-        return <CheckCircle className="w-4 h-4 text-green-400" />;
+        return <CheckCircle />;
       default:
-        return <AlertCircle className="w-4 h-4 text-gray-400" />;
+        return <AlertCircle />;
     }
   };
 
@@ -165,15 +162,15 @@ const PhotocopyTab = () => {
   const getStatusInfo = (status) => {
     switch (status) {
       case 'pending':
-        return { text: "Beklemede", color: "from-yellow-500/20 to-orange-500/20 border-yellow-500/30 text-yellow-400" };
+        return { text: "Beklemede", color: "ui-badge--warn" };
       case 'processing':
-        return { text: "İşleniyor", color: "from-blue-500/20 to-cyan-500/20 border-blue-500/30 text-blue-400" };
+        return { text: "İşleniyor", color: "ui-badge--info" };
       case 'ready':
-        return { text: "Hazır", color: "from-emerald-500/20 to-green-500/20 border-emerald-500/30 text-emerald-400" };
+        return { text: "Hazır", color: "ui-badge--brand" };
       case 'completed':
-        return { text: "Tamamlandı", color: "from-green-500/20 to-teal-500/20 border-green-500/30 text-green-400" };
+        return { text: "Tamamlandı", color: "ui-badge--ok" };
       default:
-        return { text: "Bilinmiyor", color: "from-gray-500/20 to-gray-600/20 border-gray-500/30 text-gray-400" };
+        return { text: "Bilinmiyor", color: "" };
     }
   };
 
@@ -192,121 +189,76 @@ const PhotocopyTab = () => {
   }, [filters]);
 
   // İstatistik Kartı
-  const StatCard = ({ title, value, icon, gradient, delay = 0 }) => (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay }}
-      whileHover={{ y: -5, scale: 1.02 }}
-      className={`bg-gradient-to-br ${gradient} backdrop-blur-xl rounded-2xl p-6 border border-gray-700/50 shadow-xl hover:shadow-2xl transition-all duration-300`}
-    >
-      <div className="flex items-center justify-between">
-        <div className="p-3 rounded-xl bg-gray-800/50 shadow-lg">{icon}</div>
-        <motion.div 
-          className="w-3 h-3 rounded-full bg-current opacity-60"
-          animate={{ scale: [1, 1.2, 1] }}
-          transition={{ duration: 2, repeat: Infinity }}
-        />
-      </div>
-      <div className="mt-4">
-        <motion.div 
-          className="text-3xl font-bold text-white"
-          initial={{ scale: 0.5 }}
-          animate={{ scale: 1 }}
-          transition={{ duration: 0.5, delay: delay + 0.2 }}
-        >
-          {value}
-        </motion.div>
-        <div className="text-sm text-gray-400 mt-1">{title}</div>
-      </div>
-    </motion.div>
+  const StatCard = ({ title, value, tone }) => (
+    <div className="ui-stat">
+      <span className="ui-stat-label">
+        {tone && <span className={`ui-dot ui-dot--${tone}`} />}
+        {title}
+      </span>
+      <span className="ui-stat-value">{value}</span>
+    </div>
   );
 
   return (
-    <motion.div 
-      className="space-y-6"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-    >
+    <div className="ui-page">
       {/* Başlık */}
-      <motion.div 
-        className="text-center mb-8"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <div className="inline-flex items-center gap-4 mb-4">
-          <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-red-500 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20">
-            <Printer className="w-6 h-6 text-white" />
-          </div>
-          <h2 className="text-3xl font-bold bg-gradient-to-r from-orange-400 via-red-500 to-pink-500 bg-clip-text text-transparent">
-            Fotokopi Yönetimi
-          </h2>
-          <div className="w-12 h-12 bg-gradient-to-r from-red-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg shadow-red-500/20">
-            <FileText className="w-6 h-6 text-white" />
-          </div>
-        </div>
-        <p className="text-gray-400 text-lg">
-          Fotokopi isteklerini yönetin ve takip edin
-        </p>
-      </motion.div>
+      <div>
+        <h2 className="ui-title">Fotokopi Yönetimi</h2>
+        <p className="ui-subtitle">Fotokopi isteklerini yönetin ve takip edin</p>
+      </div>
 
       {/* İstatistikler */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="ui-stats">
         <StatCard
           title="Toplam Dosya"
           value={stats.totalFiles || 0}
-          icon={<FileText className="w-6 h-6 text-blue-400" />}
-          gradient="from-blue-500/20 to-cyan-500/10"
-          delay={0}
         />
         <StatCard
           title="Beklemede"
           value={stats.pendingFiles || 0}
-          icon={<Clock className="w-6 h-6 text-yellow-400" />}
-          gradient="from-yellow-500/20 to-orange-500/10"
-          delay={0.1}
+          tone="warn"
         />
         <StatCard
           title="Tamamlanan"
           value={stats.completedFiles || 0}
-          icon={<CheckCircle className="w-6 h-6 text-emerald-400" />}
-          gradient="from-emerald-500/20 to-green-500/10"
-          delay={0.2}
+          tone="ok"
         />
         <StatCard
           title="Bugün"
           value={stats.todayFiles || 0}
-          icon={<Calendar className="w-6 h-6 text-purple-400" />}
-          gradient="from-purple-500/20 to-pink-500/10"
-          delay={0.3}
         />
       </div>
 
-      {/* Filtreler */}
-      <motion.div 
-        className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-2xl p-6 border border-gray-700/50 shadow-xl"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.2 }}
-      >
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 bg-gradient-to-r from-orange-500/20 to-red-500/20 rounded-lg">
-            <Filter className="w-5 h-5 text-orange-400" />
-          </div>
-          <h3 className="text-lg font-semibold text-white">Filtreler</h3>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      {/* Dosya Listesi */}
+      <section className="ui-card" style={{ overflow: "hidden" }}>
+        {/* Filtreler */}
+        <div className="ui-card-body photocopy-filters" style={{ borderBottom: "1px solid var(--ui-line)" }}>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="ui-label" htmlFor="photocopy-search">
+              Arama
+            </label>
+            <div className="ui-search">
+              <Search />
+              <input
+                id="photocopy-search"
+                type="text"
+                placeholder="Dosya adı, kullanıcı..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="ui-field"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="ui-label" htmlFor="photocopy-status">
               Durum
             </label>
             <select
+              id="photocopy-status"
               value={filters.status}
               onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-              className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/50 transition-all"
+              className="ui-field"
             >
               <option value="">Tümü</option>
               <option value="pending">Beklemede</option>
@@ -317,318 +269,233 @@ const PhotocopyTab = () => {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="ui-label" htmlFor="photocopy-from">
               Başlangıç Tarihi
             </label>
             <input
+              id="photocopy-from"
               type="date"
               value={filters.dateFrom}
               onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
-              className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/50 transition-all"
+              className="ui-field"
             />
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="ui-label" htmlFor="photocopy-to">
               Bitiş Tarihi
             </label>
             <input
+              id="photocopy-to"
               type="date"
               value={filters.dateTo}
               onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
-              className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/50 transition-all"
+              className="ui-field"
             />
           </div>
           
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Arama
-            </label>
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input
-                type="text"
-                placeholder="Dosya adı, kullanıcı..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-11 pr-4 py-3 bg-gray-700/50 border border-gray-600/50 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/50 transition-all"
-              />
-            </div>
-          </div>
-          
-          <div className="flex items-end">
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => {
-                setFilters({ status: "", user: "", dateFrom: "", dateTo: "" });
-                setSearchTerm("");
-              }}
-              className="w-full px-4 py-3 bg-gray-600/50 hover:bg-gray-500/50 text-gray-200 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 font-medium"
-            >
-              <X className="w-4 h-4" />
-              Temizle
-            </motion.button>
-          </div>
+          <button
+            onClick={() => {
+              setFilters({ status: "", user: "", dateFrom: "", dateTo: "" });
+              setSearchTerm("");
+            }}
+            className="ui-btn ui-btn--ghost"
+            style={{ minHeight: 38, alignSelf: "end" }}
+          >
+            <X />
+            Temizle
+          </button>
         </div>
-      </motion.div>
 
-      {/* Dosya Listesi */}
-      <motion.div 
-        className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 backdrop-blur-xl rounded-2xl border border-gray-700/50 shadow-xl overflow-hidden"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.3 }}
-      >
-        <div className="px-6 py-5 border-b border-gray-700/50 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-r from-orange-500/20 to-red-500/20 rounded-lg">
-              <FileText className="w-5 h-5 text-orange-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-white">
-              Fotokopi Dosyaları
-            </h3>
-            <span className="px-3 py-1 bg-orange-500/20 text-orange-400 rounded-full text-sm font-medium">
-              {filteredFiles.length} dosya
-            </span>
-          </div>
+        <div className="ui-list-head" style={{ display: "flex", justifyContent: "space-between" }}>
+          <span>Fotokopi Dosyaları</span>
+          <span className="ui-num">{filteredFiles.length} dosya</span>
         </div>
 
         {loading ? (
-          <div className="flex flex-col justify-center items-center py-16 space-y-4">
-            <motion.div
-              className="relative"
-              animate={{ rotate: 360 }}
-              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-            >
-              <div className="w-16 h-16 border-4 border-orange-500/20 border-t-orange-500 rounded-full"></div>
-            </motion.div>
-            <p className="text-gray-400">Dosyalar yükleniyor...</p>
+          <div className="ui-loading">
+            <div className="ui-loader"></div>
+            <p>Dosyalar yükleniyor...</p>
           </div>
         ) : filteredFiles.length === 0 ? (
-          <div className="text-center py-16">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ duration: 0.5, type: "spring" }}
-              className="w-20 h-20 bg-gradient-to-r from-orange-500/20 to-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4"
-            >
-              <FileText className="w-10 h-10 text-orange-400" />
-            </motion.div>
-            <h4 className="text-xl font-semibold text-white mb-2">Dosya Bulunamadı</h4>
-            <p className="text-gray-400">
+          <div className="ui-empty">
+            <FileText />
+            <h4 className="ui-title">Dosya Bulunamadı</h4>
+            <p>
               Henüz fotokopi dosyası yüklenmemiş veya filtrelere uygun dosya yok
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-700/50">
-            <AnimatePresence>
-              {filteredFiles.map((file, index) => {
-                const statusInfo = getStatusInfo(file.status);
-                return (
-                  <motion.div
-                    key={file._id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    transition={{ duration: 0.3, delay: index * 0.05 }}
-                    className="p-6 hover:bg-gray-700/20 transition-all duration-300"
-                  >
-                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                      <div className="flex items-start space-x-4 flex-1">
-                        <motion.div 
-                          className="flex-shrink-0"
-                          whileHover={{ scale: 1.1, rotate: 5 }}
-                        >
-                          <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-red-500 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20">
-                            <FileText className="w-6 h-6 text-white" />
-                          </div>
-                        </motion.div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-base font-semibold text-white truncate">
-                            {file.originalName}
-                          </p>
-                          <div className="flex flex-wrap items-center gap-2 mt-2">
-                            <span className="px-2 py-1 bg-gray-700/50 text-gray-300 rounded-lg text-xs">
-                              {formatFileSize(file.fileSize)}
-                            </span>
-                            <span className="px-2 py-1 bg-gray-700/50 text-gray-300 rounded-lg text-xs flex items-center gap-1">
-                              <Copy className="w-3 h-3" />
-                              {file.copies} kopya
-                            </span>
-                            <span className="px-2 py-1 bg-gray-700/50 text-gray-300 rounded-lg text-xs flex items-center gap-1">
-                              <Palette className="w-3 h-3" />
-                              {file.color === 'color' ? 'Renkli' : 'Siyah-Beyaz'}
-                            </span>
-                            <span className="px-2 py-1 bg-gray-700/50 text-gray-300 rounded-lg text-xs">
-                              {file.paperSize}
-                            </span>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-gray-400">
-                            <div className="flex items-center gap-2">
-                              <User className="w-4 h-4" />
-                              <span>{file.user?.name} ({file.user?.email})</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Calendar className="w-4 h-4" />
-                              <span>{new Date(file.createdAt).toLocaleString('tr-TR')}</span>
-                            </div>
-                          </div>
-                          {file.notes && (
-                            <div className="mt-3 p-3 bg-gray-700/30 rounded-lg">
-                              <p className="text-sm text-gray-300">
-                                <strong className="text-white">Not:</strong> {file.notes}
-                              </p>
-                            </div>
-                          )}
-                          {file.adminNotes && (
-                            <div className="mt-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-                              <p className="text-sm text-blue-300">
-                                <strong className="text-blue-400">Admin Notu:</strong> {file.adminNotes}
-                              </p>
-                            </div>
-                          )}
-                        </div>
+          <div>
+            {filteredFiles.map((file) => {
+              const statusInfo = getStatusInfo(file.status);
+              return (
+                <div key={file._id} className="photocopy-item">
+                  <div className="ui-between" style={{ alignItems: "flex-start" }}>
+                    <div className="products-product ui-grow" style={{ alignItems: "flex-start", flexBasis: 320 }}>
+                      <div className="ui-thumb">
+                        <FileText size={20} />
                       </div>
-                      
-                      <div className="flex items-center gap-4">
-                        <motion.div 
-                          className={`flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r ${statusInfo.color} border`}
-                          whileHover={{ scale: 1.05 }}
-                        >
-                          {getStatusIcon(file.status)}
-                          <span className="text-sm font-medium">
-                            {statusInfo.text}
+                      <div className="ui-grow">
+                        <p className="ui-list-title ui-wrap-anywhere">
+                          {file.originalName}
+                        </p>
+                        <div className="ui-cluster" style={{ gap: 6, marginTop: 6 }}>
+                          <span className="ui-badge">
+                            {formatFileSize(file.fileSize)}
                           </span>
-                        </motion.div>
-                        
-                        <div className="flex items-center gap-1">
-                          <motion.button
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={() => downloadFile(file._id, file.originalName)}
-                            className="p-3 text-orange-400 hover:bg-orange-500/20 rounded-xl transition-all duration-300"
-                            title="İndir"
-                          >
-                            <Download className="w-5 h-5" />
-                          </motion.button>
-                          <motion.button
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={() => startEditing(file)}
-                            className="p-3 text-blue-400 hover:bg-blue-500/20 rounded-xl transition-all duration-300"
-                            title="Düzenle"
-                          >
-                            <Edit className="w-5 h-5" />
-                          </motion.button>
-                          <motion.button
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={() => deleteFile(file._id)}
-                            className="p-3 text-red-400 hover:bg-red-500/20 rounded-xl transition-all duration-300"
-                            title="Sil"
-                          >
-                            <Trash2 className="w-5 h-5" />
-                          </motion.button>
+                          <span className="ui-badge">
+                            <Copy />
+                            {file.copies} kopya
+                          </span>
+                          <span className="ui-badge">
+                            <Palette />
+                            {file.color === 'color' ? 'Renkli' : 'Siyah-Beyaz'}
+                          </span>
+                          <span className="ui-badge">
+                            {file.paperSize}
+                          </span>
                         </div>
+                        <div className="ui-cluster" style={{ gap: "2px 14px", marginTop: 8 }}>
+                          <span className="orders-meta">
+                            <User />
+                            <span>{file.user?.name} ({file.user?.email})</span>
+                          </span>
+                          <span className="orders-meta">
+                            <Calendar />
+                            <span>{new Date(file.createdAt).toLocaleString('tr-TR')}</span>
+                          </span>
+                        </div>
+                        {file.notes && (
+                          <p className="ui-text-sm ui-wrap-anywhere" style={{ marginTop: 8 }}>
+                            <strong className="ui-strong">Not:</strong> {file.notes}
+                          </p>
+                        )}
+                        {file.adminNotes && (
+                          <p className="ui-text-sm ui-wrap-anywhere" style={{ marginTop: 4, color: "var(--ui-info-ink)" }}>
+                            <strong>Admin Notu:</strong> {file.adminNotes}
+                          </p>
+                        )}
                       </div>
                     </div>
                     
-                    {/* Düzenleme Formu */}
-                    <AnimatePresence>
-                      {editingFile === file._id && (
-                        <motion.div 
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="mt-6 p-6 bg-gray-800/70 backdrop-blur-sm rounded-xl border border-gray-600/50"
+                    <div className="ui-cluster">
+                      <span className={`ui-badge ${statusInfo.color}`}>
+                        {getStatusIcon(file.status)}
+                        {statusInfo.text}
+                      </span>
+                      
+                      <div className="products-actions">
+                        <button
+                          onClick={() => downloadFile(file._id, file.originalName)}
+                          className="ui-icon-btn"
+                          title="İndir"
+                          aria-label="İndir"
                         >
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div>
-                              <label className="block text-sm font-medium text-gray-300 mb-2">
-                                Durum
-                              </label>
-                              <select
-                                value={editData.status}
-                                onChange={(e) => setEditData({ ...editData, status: e.target.value })}
-                                className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all"
-                              >
-                                <option value="pending">Beklemede</option>
-                                <option value="processing">İşleniyor</option>
-                                <option value="ready">Hazır</option>
-                                <option value="completed">Tamamlandı</option>
-                              </select>
-                            </div>
-                            
-                            <div>
-                              <label className="block text-sm font-medium text-gray-300 mb-2">
-                                Fiyat (TL)
-                              </label>
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={editData.price}
-                                onChange={(e) => setEditData({ ...editData, price: parseFloat(e.target.value) || 0 })}
-                                className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all"
-                              />
-                            </div>
-                            
-                            <div className="flex items-center">
-                              <label className="relative inline-flex items-center cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={editData.isPaid}
-                                  onChange={(e) => setEditData({ ...editData, isPaid: e.target.checked })}
-                                  className="sr-only peer"
-                                />
-                                <div className="w-14 h-7 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-orange-500/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-orange-500 peer-checked:to-red-500"></div>
-                                <span className="ml-3 text-sm font-medium text-gray-300">Ödendi</span>
-                              </label>
-                            </div>
-                          </div>
-                          
-                          <div className="mt-4">
-                            <label className="block text-sm font-medium text-gray-300 mb-2">
-                              Admin Notu
-                            </label>
-                            <textarea
-                              value={editData.adminNotes}
-                              onChange={(e) => setEditData({ ...editData, adminNotes: e.target.value })}
-                              placeholder="Admin notu..."
-                              className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600/50 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all"
-                              rows="2"
-                            />
-                          </div>
-                          
-                          <div className="mt-6 flex justify-end gap-3">
-                            <motion.button
-                              whileHover={{ scale: 1.02 }}
-                              whileTap={{ scale: 0.98 }}
-                              onClick={cancelEdit}
-                              className="px-6 py-3 bg-gray-600/50 hover:bg-gray-500/50 text-gray-200 rounded-xl font-medium transition-all duration-300"
-                            >
-                              İptal
-                            </motion.button>
-                            <motion.button
-                              whileHover={{ scale: 1.02 }}
-                              whileTap={{ scale: 0.98 }}
-                              onClick={saveEdit}
-                              className="px-6 py-3 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-400 hover:to-red-400 text-white rounded-xl font-medium transition-all duration-300 shadow-lg shadow-orange-500/20"
-                            >
-                              Kaydet
-                            </motion.button>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
+                          <Download />
+                        </button>
+                        <button
+                          onClick={() => startEditing(file)}
+                          className="ui-icon-btn"
+                          title="Düzenle"
+                          aria-label="Düzenle"
+                        >
+                          <Edit />
+                        </button>
+                        <button
+                          onClick={() => deleteFile(file._id)}
+                          className="ui-icon-btn ui-icon-btn--danger"
+                          title="Sil"
+                          aria-label="Sil"
+                        >
+                          <Trash2 />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Düzenleme Formu */}
+                  {editingFile === file._id && (
+                    <div className="order-detail-box" style={{ marginTop: 14, background: "var(--ui-surface-2)" }}>
+                      <div className="ui-grid-3">
+                        <div>
+                          <label className="ui-label" htmlFor={`photocopy-edit-status-${file._id}`}>
+                            Durum
+                          </label>
+                          <select
+                            id={`photocopy-edit-status-${file._id}`}
+                            value={editData.status}
+                            onChange={(e) => setEditData({ ...editData, status: e.target.value })}
+                            className="ui-field"
+                          >
+                            <option value="pending">Beklemede</option>
+                            <option value="processing">İşleniyor</option>
+                            <option value="ready">Hazır</option>
+                            <option value="completed">Tamamlandı</option>
+                          </select>
+                        </div>
+                        
+                        <div>
+                          <label className="ui-label" htmlFor={`photocopy-edit-price-${file._id}`}>
+                            Fiyat (TL)
+                          </label>
+                          <input
+                            id={`photocopy-edit-price-${file._id}`}
+                            type="number"
+                            step="0.01"
+                            value={editData.price}
+                            onChange={(e) => setEditData({ ...editData, price: parseFloat(e.target.value) || 0 })}
+                            className="ui-field"
+                          />
+                        </div>
+                        
+                        <label className="ui-check" style={{ alignSelf: "end", minHeight: 38 }}>
+                          <input
+                            type="checkbox"
+                            checked={editData.isPaid}
+                            onChange={(e) => setEditData({ ...editData, isPaid: e.target.checked })}
+                          />
+                          Ödendi
+                        </label>
+                      </div>
+                      
+                      <div>
+                        <label className="ui-label" htmlFor={`photocopy-edit-notes-${file._id}`}>
+                          Admin Notu
+                        </label>
+                        <textarea
+                          id={`photocopy-edit-notes-${file._id}`}
+                          value={editData.adminNotes}
+                          onChange={(e) => setEditData({ ...editData, adminNotes: e.target.value })}
+                          placeholder="Admin notu..."
+                          className="ui-field"
+                          rows="2"
+                        />
+                      </div>
+                      
+                      <div className="ui-cluster" style={{ justifyContent: "flex-end" }}>
+                        <button
+                          onClick={cancelEdit}
+                          className="ui-btn"
+                        >
+                          İptal
+                        </button>
+                        <button
+                          onClick={saveEdit}
+                          className="ui-btn ui-btn--primary"
+                        >
+                          Kaydet
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
-      </motion.div>
-    </motion.div>
+      </section>
+    </div>
   );
 };
 

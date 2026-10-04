@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, Gift, Power, Save, Target, Trash2, Users } from "lucide-react";
+import { ChevronDown, ChevronUp, Power, Save, Target, Trash2, Users } from "lucide-react";
 import toast from "react-hot-toast";
 import axios from "../lib/axios";
 import { useConfirm } from "./ConfirmModal";
@@ -127,104 +127,101 @@ const CouponRequestCampaignPanel = () => {
   };
 
   return (
-    <section className="rounded-2xl border border-emerald-400/20 bg-gradient-to-br from-emerald-950/70 to-slate-950/70 overflow-hidden">
-      <div className="p-5 border-b border-white/10 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="p-3 rounded-xl bg-emerald-500/15"><Gift className="w-6 h-6 text-emerald-300" /></div>
-          <div>
-            <h3 className="text-lg font-bold text-white">Kupon İstek Kampanyası</h3>
-            <p className="text-sm text-slate-400">Şartı, hedefi ve ödülü belirle; hedef dolunca kişisel kuponlar otomatik dağıtılsın.</p>
-          </div>
+    <section className="ui-card" style={{ overflow: "hidden" }}>
+      <div className="ui-card-header">
+        <div>
+          <h3 className="ui-title">Kupon İstek Kampanyası</h3>
+          <p className="ui-subtitle">Şartı, hedefi ve ödülü belirle; hedef dolunca kişisel kuponlar otomatik dağıtılsın.</p>
         </div>
         {activeCampaign && (
-          <div className="px-4 py-2 rounded-xl bg-emerald-500/10 border border-emerald-400/20 text-emerald-300 text-sm font-semibold">
+          <span className="ui-badge ui-badge--ok">
             Aktif: {activeCampaign.weightedCount}/{activeCampaign.targetCount} puan
-          </div>
+          </span>
         )}
       </div>
 
-      <form id="coupon-request-form" onSubmit={save} className="p-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <label className="xl:col-span-2 text-sm text-slate-300">Kampanya adı
-          <input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="mt-2 w-full rounded-xl bg-slate-900/80 border border-white/10 px-4 py-3 text-white" />
+      <form id="coupon-request-form" onSubmit={save} className="ui-card-body ui-grid-4">
+        <label className="ui-label" style={{ gridColumn: "span 2", marginBottom: 0 }}>Kampanya adı
+          <input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="ui-field" style={{ marginTop: 6 }} />
         </label>
-        <label className="xl:col-span-2 text-sm text-slate-300">Kullanıcıya gösterilecek açıklama
-          <input required value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="mt-2 w-full rounded-xl bg-slate-900/80 border border-white/10 px-4 py-3 text-white" />
+        <label className="ui-label" style={{ gridColumn: "span 2", marginBottom: 0 }}>Kullanıcıya gösterilecek açıklama
+          <input required value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="ui-field" style={{ marginTop: 6 }} />
         </label>
-        <label className="text-sm text-slate-300">Hedef puan
-          <input required min="1" type="number" value={form.targetCount} onChange={(e) => setForm({ ...form, targetCount: e.target.value })} className="mt-2 w-full rounded-xl bg-slate-900/80 border border-white/10 px-4 py-3 text-white" />
+        <label className="ui-label" style={{ marginBottom: 0 }}>Hedef puan
+          <input required min="1" type="number" value={form.targetCount} onChange={(e) => setForm({ ...form, targetCount: e.target.value })} className="ui-field" style={{ marginTop: 6 }} />
         </label>
-        <label className="text-sm text-slate-300">İndirim oranı (%)
-          <input required min="1" max="100" type="number" value={form.discountPercentage} onChange={(e) => setForm({ ...form, discountPercentage: e.target.value })} className="mt-2 w-full rounded-xl bg-slate-900/80 border border-white/10 px-4 py-3 text-white" />
+        <label className="ui-label" style={{ marginBottom: 0 }}>İndirim oranı (%)
+          <input required min="1" max="100" type="number" value={form.discountPercentage} onChange={(e) => setForm({ ...form, discountPercentage: e.target.value })} className="ui-field" style={{ marginTop: 6 }} />
         </label>
-        <label className="text-sm text-slate-300">Minimum sepet (₺)
-          <input min="0" type="number" value={form.minimumOrderAmount} onChange={(e) => setForm({ ...form, minimumOrderAmount: e.target.value })} className="mt-2 w-full rounded-xl bg-slate-900/80 border border-white/10 px-4 py-3 text-white" />
+        <label className="ui-label" style={{ marginBottom: 0 }}>Minimum sepet (₺)
+          <input min="0" type="number" value={form.minimumOrderAmount} onChange={(e) => setForm({ ...form, minimumOrderAmount: e.target.value })} className="ui-field" style={{ marginTop: 6 }} />
         </label>
-        <label className="text-sm text-slate-300">Kupon geçerliliği (gün)
-          <input required min="1" max="365" type="number" value={form.rewardValidityDays} onChange={(e) => setForm({ ...form, rewardValidityDays: e.target.value })} className="mt-2 w-full rounded-xl bg-slate-900/80 border border-white/10 px-4 py-3 text-white" />
+        <label className="ui-label" style={{ marginBottom: 0 }}>Kupon geçerliliği (gün)
+          <input required min="1" max="365" type="number" value={form.rewardValidityDays} onChange={(e) => setForm({ ...form, rewardValidityDays: e.target.value })} className="ui-field" style={{ marginTop: 6 }} />
         </label>
-        <label className="text-sm text-slate-300">Katılım şartı
-          <select value={form.orderRequirement} onChange={(e) => setForm({ ...form, orderRequirement: e.target.value })} className="mt-2 w-full rounded-xl bg-slate-900/80 border border-white/10 px-4 py-3 text-white">
+        <label className="ui-label" style={{ marginBottom: 0 }}>Katılım şartı
+          <select value={form.orderRequirement} onChange={(e) => setForm({ ...form, orderRequirement: e.target.value })} className="ui-field" style={{ marginTop: 6 }}>
             <option value="delivered">En az 1 teslim edilmiş sipariş</option>
             <option value="any">En az 1 sipariş</option>
             <option value="none">Sipariş şartı yok</option>
           </select>
         </label>
-        <label className="text-sm text-slate-300">Başlangıç
-          <input required type="datetime-local" value={form.startsAt} onChange={(e) => setForm({ ...form, startsAt: e.target.value })} className="mt-2 w-full rounded-xl bg-slate-900/80 border border-white/10 px-4 py-3 text-white" />
+        <label className="ui-label" style={{ marginBottom: 0 }}>Başlangıç
+          <input required type="datetime-local" value={form.startsAt} onChange={(e) => setForm({ ...form, startsAt: e.target.value })} className="ui-field" style={{ marginTop: 6 }} />
         </label>
-        <label className="text-sm text-slate-300">Bitiş
-          <input required type="datetime-local" value={form.endsAt} onChange={(e) => setForm({ ...form, endsAt: e.target.value })} className="mt-2 w-full rounded-xl bg-slate-900/80 border border-white/10 px-4 py-3 text-white" />
+        <label className="ui-label" style={{ marginBottom: 0 }}>Bitiş
+          <input required type="datetime-local" value={form.endsAt} onChange={(e) => setForm({ ...form, endsAt: e.target.value })} className="ui-field" style={{ marginTop: 6 }} />
         </label>
-        <label className="flex items-center gap-3 rounded-xl bg-slate-900/60 border border-white/10 px-4 py-3 text-sm text-white cursor-pointer">
-          <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} className="accent-emerald-500 w-4 h-4" />
+        <label className="ui-check" style={{ alignSelf: "end", minHeight: 38 }}>
+          <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
           Kaydedince yayına al
         </label>
-        <button disabled={saving} className="rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold px-5 py-3 flex items-center justify-center gap-2">
-          <Save className="w-4 h-4" /> {saving ? "Kaydediliyor..." : form._id ? "Kampanyayı güncelle" : "Kampanyayı oluştur"}
+        <button disabled={saving} className="ui-btn ui-btn--primary ui-span-all" style={{ minHeight: 38, justifySelf: "start" }}>
+          <Save /> {saving ? "Kaydediliyor..." : form._id ? "Kampanyayı güncelle" : "Kampanyayı oluştur"}
         </button>
       </form>
 
-      <div className="px-5 pb-5 space-y-3">
+      <div className="ui-card-body ui-stack ui-stack--sm" style={{ borderTop: "1px solid var(--ui-line)" }}>
         {campaigns.map((campaign) => {
           const progress = Math.min(100, Math.round((campaign.weightedCount / campaign.targetCount) * 100));
           const open = expandedId === campaign._id;
           return (
-            <div key={campaign._id} className="rounded-xl bg-slate-900/70 border border-white/10 overflow-hidden">
-              <div className="p-4 flex flex-col lg:flex-row lg:items-center gap-4">
-                <div className="flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <strong className="text-white">{campaign.title}</strong>
-                    <span className={`text-xs px-2 py-1 rounded-full ${campaign.rewardIssued ? "bg-violet-500/15 text-violet-300" : campaign.isActive ? "bg-emerald-500/15 text-emerald-300" : "bg-slate-700 text-slate-300"}`}>{campaign.rewardIssued ? "Ödül dağıtıldı" : campaign.isActive ? "Aktif" : "Pasif"}</span>
+            <div key={campaign._id} className="order-detail-box" style={{ padding: 0, gap: 0, overflow: "hidden" }}>
+              <div className="ui-between" style={{ padding: 14 }}>
+                <div className="ui-grow" style={{ flexBasis: 260 }}>
+                  <div className="ui-cluster" style={{ gap: 8 }}>
+                    <strong className="ui-list-title">{campaign.title}</strong>
+                    <span className={`ui-badge ${campaign.rewardIssued ? "ui-badge--info" : campaign.isActive ? "ui-badge--ok" : ""}`}>{campaign.rewardIssued ? "Ödül dağıtıldı" : campaign.isActive ? "Aktif" : "Pasif"}</span>
                   </div>
-                  <div className="mt-2 h-2 rounded-full bg-slate-800 overflow-hidden"><div className="h-full bg-gradient-to-r from-emerald-500 to-cyan-400" style={{ width: `${progress}%` }} /></div>
-                  <p className="mt-2 text-xs text-slate-400">{campaign.requestCount} kişi · {campaign.weightedCount}/{campaign.targetCount} puan · %{campaign.discountPercentage} · {requirementLabels[campaign.orderRequirement]}</p>
+                  <div className="ui-progress" style={{ marginTop: 8 }}><div style={{ width: `${progress}%` }} /></div>
+                  <p className="ui-list-sub" style={{ marginTop: 6 }}>{campaign.requestCount} kişi · {campaign.weightedCount}/{campaign.targetCount} puan · %{campaign.discountPercentage} · {requirementLabels[campaign.orderRequirement]}</p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={() => editCampaign(campaign)} className="px-3 py-2 rounded-lg bg-blue-500/10 text-blue-300 text-sm">Düzenle</button>
+                <div className="ui-cluster" style={{ gap: 6 }}>
+                  <button type="button" onClick={() => editCampaign(campaign)} className="ui-btn ui-btn--sm">Düzenle</button>
                   {campaign.isActive && (
-                    <button type="button" onClick={() => deactivateCampaign(campaign)} className="px-3 py-2 rounded-lg bg-amber-500/10 text-amber-300 text-sm flex items-center gap-2"><Power className="w-4 h-4" /> Pasife al</button>
+                    <button type="button" onClick={() => deactivateCampaign(campaign)} className="ui-btn ui-btn--sm ui-btn--warn"><Power /> Pasife al</button>
                   )}
-                  <button type="button" onClick={() => setExpandedId(open ? null : campaign._id)} className="px-3 py-2 rounded-lg bg-white/5 text-slate-300 text-sm flex items-center gap-2"><Users className="w-4 h-4" /> Katılımcılar {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</button>
-                  <button type="button" onClick={() => deleteCampaign(campaign)} className="px-3 py-2 rounded-lg bg-red-500/10 text-red-300 text-sm flex items-center gap-2"><Trash2 className="w-4 h-4" /> Sil</button>
+                  <button type="button" onClick={() => setExpandedId(open ? null : campaign._id)} aria-expanded={open} className="ui-btn ui-btn--sm"><Users /> Katılımcılar {open ? <ChevronUp /> : <ChevronDown />}</button>
+                  <button type="button" onClick={() => deleteCampaign(campaign)} className="ui-btn ui-btn--sm ui-btn--danger"><Trash2 /> Sil</button>
                 </div>
               </div>
               {open && (
-                <div className="border-t border-white/10 overflow-x-auto">
-                  <table className="w-full min-w-[760px] text-sm">
-                    <thead className="text-slate-500"><tr><th className="p-3 text-left">Kullanıcı</th><th className="p-3 text-left">Talep tarihi</th><th className="p-3">Puan</th><th className="p-3">Sipariş</th><th className="p-3">Teslim</th></tr></thead>
+                <div className="ui-scroll-x" style={{ borderTop: "1px solid var(--ui-line)" }}>
+                  <table className="ui-table" style={{ minWidth: 640 }}>
+                    <thead><tr><th>Kullanıcı</th><th>Talep tarihi</th><th>Puan</th><th>Sipariş</th><th>Teslim</th></tr></thead>
                     <tbody>{campaign.requesters?.length ? campaign.requesters.map((item, index) => (
-                      <tr key={item.user?._id || index} className="border-t border-white/5 text-slate-300">
-                        <td className="p-3"><div className="font-semibold text-white">{item.user?.name || "Silinmiş kullanıcı"}</div><div className="text-xs text-slate-500">{item.user?.email || "-"}</div></td>
-                        <td className="p-3">{new Date(item.requestedAt).toLocaleString("tr-TR")}</td><td className="p-3 text-center font-bold text-emerald-300">{item.weight}</td><td className="p-3 text-center">{item.totalOrders}</td><td className="p-3 text-center">{item.deliveredOrders}</td>
+                      <tr key={item.user?._id || index}>
+                        <td><div className="ui-strong">{item.user?.name || "Silinmiş kullanıcı"}</div><div className="ui-list-sub">{item.user?.email || "-"}</div></td>
+                        <td>{new Date(item.requestedAt).toLocaleString("tr-TR")}</td><td className="ui-strong">{item.weight}</td><td>{item.totalOrders}</td><td>{item.deliveredOrders}</td>
                       </tr>
-                    )) : <tr><td colSpan="5" className="p-6 text-center text-slate-500">Henüz talep yok</td></tr>}</tbody>
+                    )) : <tr><td colSpan="5" className="ui-muted" style={{ textAlign: "center" }}>Henüz talep yok</td></tr>}</tbody>
                   </table>
                 </div>
               )}
             </div>
           );
         })}
-        {!campaigns.length && <div className="py-8 text-center text-slate-500"><Target className="w-8 h-8 mx-auto mb-2" />Henüz kampanya oluşturulmadı.</div>}
+        {!campaigns.length && <div className="ui-empty" style={{ padding: "24px 12px" }}><Target />Henüz kampanya oluşturulmadı.</div>}
       </div>
     </section>
   );

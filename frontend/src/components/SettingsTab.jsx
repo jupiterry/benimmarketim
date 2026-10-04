@@ -1,57 +1,34 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
-import { motion, AnimatePresence } from "framer-motion";
 import { 
-  Clock, ShoppingBasket, MapPin, ToggleLeft, ToggleRight, Smartphone, 
-  AlertTriangle, Save, RefreshCw, ChevronDown, Globe, Download, ExternalLink
+  Clock, ToggleLeft, ToggleRight,
+  AlertTriangle, Save, RefreshCw, ChevronDown, ExternalLink
 } from "lucide-react";
 import { useSettingsStore } from "../stores/useSettingsStore";
 import axios from "../lib/axios";
 
 // Collapsible Section Component
-const SettingsSection = ({ icon: Icon, title, color, children, defaultOpen = true }) => {
+const SettingsSection = ({ title, children, defaultOpen = true }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   
   return (
-    <motion.div 
-      className={`bg-gradient-to-br ${color} rounded-2xl border border-white/10 overflow-hidden`}
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-    >
+    <section className="ui-card">
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full p-5 flex items-center justify-between hover:bg-white/5 transition-colors"
+        aria-expanded={isOpen}
+        className="ui-card-header ui-collapse-toggle"
+        style={isOpen ? undefined : { borderBottom: 0 }}
       >
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-white/10 backdrop-blur-sm">
-            <Icon className="w-5 h-5 text-white" />
-          </div>
-          <h3 className="text-lg font-bold text-white">{title}</h3>
-        </div>
-        <motion.div
-          animate={{ rotate: isOpen ? 180 : 0 }}
-          transition={{ duration: 0.2 }}
-        >
-          <ChevronDown className="w-5 h-5 text-white/60" />
-        </motion.div>
+        <h3 className="ui-title">{title}</h3>
+        <ChevronDown style={{ transform: isOpen ? "rotate(180deg)" : "none" }} />
       </button>
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
-            <div className="px-5 pb-5 pt-0">
-              {children}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
+      {isOpen && (
+        <div className="ui-card-body">
+          {children}
+        </div>
+      )}
+    </section>
   );
 };
 
@@ -198,57 +175,54 @@ const SettingsTab = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+      <div className="ui-loading">
+        <div className="ui-loader"></div>
       </div>
     );
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-6"
-    >
+    <div className="ui-page" style={{ maxWidth: 920 }}>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="ui-between">
         <div>
-          <h2 className="text-2xl font-bold text-white">Sistem Ayarları</h2>
-          <p className="text-gray-400 text-sm mt-1">Tüm uygulama ayarlarını buradan yönetebilirsiniz</p>
+          <h2 className="ui-title">Sistem Ayarları</h2>
+          <p className="ui-subtitle">Tüm uygulama ayarlarını buradan yönetebilirsiniz</p>
         </div>
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+        <button
           onClick={loadSettings}
-          className="p-3 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-white transition-colors"
+          className="ui-btn"
         >
-          <RefreshCw className="w-5 h-5" />
-        </motion.button>
+          <RefreshCw />
+          Yenile
+        </button>
       </div>
       
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="ui-stack">
         {/* Sipariş Saatleri */}
-        <SettingsSection icon={Clock} title="Sipariş Saatleri" color="from-blue-500/10 to-indigo-500/10">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white/5 rounded-xl p-4 border border-white/5">
-              <label className="block text-sm font-medium text-gray-300 mb-3">Başlangıç Saati</label>
-              <div className="flex gap-2 items-center">
+        <SettingsSection title="Sipariş Saatleri">
+          <div className="ui-grid-2">
+            <div>
+              <label className="ui-label" htmlFor="settings-start-hour">Başlangıç Saati</label>
+              <div className="products-inline">
                 <select
+                  id="settings-start-hour"
                   name="orderStartHour"
                   value={settings.orderStartHour}
                   onChange={handleChange}
-                  className="flex-1 bg-gray-800/50 text-white rounded-xl p-3 border border-white/10 focus:outline-none focus:border-emerald-500"
+                  className="ui-field"
                 >
                   {Array.from({ length: 24 }).map((_, i) => (
                     <option key={i} value={i}>{i.toString().padStart(2, '0')}</option>
                   ))}
                 </select>
-                <span className="text-white text-xl">:</span>
+                <span className="ui-strong">:</span>
                 <select
                   name="orderStartMinute"
+                  aria-label="Başlangıç dakikası"
                   value={settings.orderStartMinute}
                   onChange={handleChange}
-                  className="flex-1 bg-gray-800/50 text-white rounded-xl p-3 border border-white/10 focus:outline-none focus:border-emerald-500"
+                  className="ui-field"
                 >
                   <option value={0}>00</option>
                   <option value={15}>15</option>
@@ -258,25 +232,27 @@ const SettingsTab = () => {
               </div>
             </div>
             
-            <div className="bg-white/5 rounded-xl p-4 border border-white/5">
-              <label className="block text-sm font-medium text-gray-300 mb-3">Bitiş Saati</label>
-              <div className="flex gap-2 items-center">
+            <div>
+              <label className="ui-label" htmlFor="settings-end-hour">Bitiş Saati</label>
+              <div className="products-inline">
                 <select
+                  id="settings-end-hour"
                   name="orderEndHour"
                   value={settings.orderEndHour}
                   onChange={handleChange}
-                  className="flex-1 bg-gray-800/50 text-white rounded-xl p-3 border border-white/10 focus:outline-none focus:border-emerald-500"
+                  className="ui-field"
                 >
                   {Array.from({ length: 24 }).map((_, i) => (
                     <option key={i} value={i}>{i.toString().padStart(2, '0')}</option>
                   ))}
                 </select>
-                <span className="text-white text-xl">:</span>
+                <span className="ui-strong">:</span>
                 <select
                   name="orderEndMinute"
+                  aria-label="Bitiş dakikası"
                   value={settings.orderEndMinute}
                   onChange={handleChange}
-                  className="flex-1 bg-gray-800/50 text-white rounded-xl p-3 border border-white/10 focus:outline-none focus:border-emerald-500"
+                  className="ui-field"
                 >
                   <option value={0}>00</option>
                   <option value={15}>15</option>
@@ -287,219 +263,207 @@ const SettingsTab = () => {
             </div>
           </div>
           
-          <div className="mt-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-            <p className="text-emerald-400 text-sm flex items-center gap-2">
-              <Clock className="w-4 h-4" />
+          <div className="ui-banner" style={{ marginTop: 14, borderRadius: "var(--ui-radius)" }}>
+            <Clock />
+            <span>
               Sipariş alım saatleri: {getFormattedTime(settings.orderStartHour, settings.orderStartMinute)} - {getFormattedTime(settings.orderEndHour, settings.orderEndMinute)}
               {settings.orderStartHour > settings.orderEndHour && " (Ertesi gün)"}
-            </p>
+            </span>
           </div>
         </SettingsSection>
 
         {/* Minimum Sipariş */}
-        <SettingsSection icon={ShoppingBasket} title="Minimum Sipariş Tutarı" color="from-emerald-500/10 to-teal-500/10">
-          <div className="flex items-center gap-3">
+        <SettingsSection title="Minimum Sipariş Tutarı">
+          <div className="ui-field-prefix" style={{ maxWidth: 240 }}>
             <input
               type="number"
               name="minimumOrderAmount"
+              aria-label="Minimum sipariş tutarı"
               value={settings.minimumOrderAmount}
               onChange={handleChange}
               min="0"
               step="10"
-              className="flex-1 bg-gray-800/50 text-white rounded-xl p-3 border border-white/10 focus:outline-none focus:border-emerald-500 text-lg font-bold"
+              className="ui-field"
             />
-            <span className="text-emerald-400 text-2xl font-bold">₺</span>
+            <span>₺</span>
           </div>
-          <p className="text-gray-500 text-sm mt-2">Bu tutarın altındaki siparişler kabul edilmez.</p>
+          <p className="ui-hint">Bu tutarın altındaki siparişler kabul edilmez.</p>
         </SettingsSection>
 
         {/* Teslimat Noktaları */}
-        <SettingsSection icon={MapPin} title="Teslimat Noktaları" color="from-violet-500/10 to-purple-500/10">
-          <div className="space-y-4">
+        <SettingsSection title="Teslimat Noktaları">
+          <div className="ui-stack ui-stack--sm">
             {/* Kız Yurdu */}
-            <div className="bg-gradient-to-r from-pink-500/10 to-purple-500/10 p-4 rounded-xl border border-pink-500/20">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-r from-pink-500 to-purple-500 rounded-xl flex items-center justify-center">
-                    <span className="text-lg">👩</span>
-                  </div>
-                  <div>
-                    <h4 className="text-white font-semibold">{settings.deliveryPoints?.girlsDorm?.name || "Kız KYK Yurdu"}</h4>
-                    <p className="text-gray-400 text-xs">Kız öğrenci yurdu</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${settings.deliveryPoints?.girlsDorm?.enabled ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
-                    {settings.deliveryPoints?.girlsDorm?.enabled ? '✅ Aktif' : '❌ Kapalı'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => toggleDeliveryPoint('girlsDorm')}
-                    className={`p-2 rounded-xl transition-all ${settings.deliveryPoints?.girlsDorm?.enabled ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}
-                  >
-                    {settings.deliveryPoints?.girlsDorm?.enabled ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
-                  </button>
-                </div>
+            <div className="ui-row ui-between">
+              <div>
+                <h4 className="ui-list-title">{settings.deliveryPoints?.girlsDorm?.name || "Kız KYK Yurdu"}</h4>
+                <p className="ui-list-sub">Kız öğrenci yurdu</p>
+              </div>
+              <div className="ui-cluster">
+                <span className={`ui-badge ${settings.deliveryPoints?.girlsDorm?.enabled ? 'ui-badge--ok' : 'ui-badge--danger'}`}>
+                  {settings.deliveryPoints?.girlsDorm?.enabled ? 'Aktif' : 'Kapalı'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => toggleDeliveryPoint('girlsDorm')}
+                  className="ui-icon-btn ui-switch"
+                  data-on={!!settings.deliveryPoints?.girlsDorm?.enabled}
+                  aria-label="Kız yurdu teslimatını aç/kapat"
+                >
+                  {settings.deliveryPoints?.girlsDorm?.enabled ? <ToggleRight /> : <ToggleLeft />}
+                </button>
               </div>
             </div>
 
             {/* Erkek Yurdu */}
-            <div className="bg-gradient-to-r from-blue-500/10 to-cyan-500/10 p-4 rounded-xl border border-blue-500/20">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center">
-                    <span className="text-lg">👨</span>
-                  </div>
-                  <div>
-                    <h4 className="text-white font-semibold">{settings.deliveryPoints?.boysDorm?.name || "Erkek KYK Yurdu"}</h4>
-                    <p className="text-gray-400 text-xs">Erkek öğrenci yurdu</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${settings.deliveryPoints?.boysDorm?.enabled ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
-                    {settings.deliveryPoints?.boysDorm?.enabled ? '✅ Aktif' : '❌ Kapalı'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => toggleDeliveryPoint('boysDorm')}
-                    className={`p-2 rounded-xl transition-all ${settings.deliveryPoints?.boysDorm?.enabled ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}
-                  >
-                    {settings.deliveryPoints?.boysDorm?.enabled ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
-                  </button>
-                </div>
+            <div className="ui-row ui-between">
+              <div>
+                <h4 className="ui-list-title">{settings.deliveryPoints?.boysDorm?.name || "Erkek KYK Yurdu"}</h4>
+                <p className="ui-list-sub">Erkek öğrenci yurdu</p>
+              </div>
+              <div className="ui-cluster">
+                <span className={`ui-badge ${settings.deliveryPoints?.boysDorm?.enabled ? 'ui-badge--ok' : 'ui-badge--danger'}`}>
+                  {settings.deliveryPoints?.boysDorm?.enabled ? 'Aktif' : 'Kapalı'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => toggleDeliveryPoint('boysDorm')}
+                  className="ui-icon-btn ui-switch"
+                  data-on={!!settings.deliveryPoints?.boysDorm?.enabled}
+                  aria-label="Erkek yurdu teslimatını aç/kapat"
+                >
+                  {settings.deliveryPoints?.boysDorm?.enabled ? <ToggleRight /> : <ToggleLeft />}
+                </button>
               </div>
             </div>
           </div>
         </SettingsSection>
 
         {/* Uygulama Versiyon Yönetimi - Basitleştirilmiş */}
-        <SettingsSection icon={Smartphone} title="Uygulama Versiyon Yönetimi" color="from-orange-500/10 to-red-500/10" defaultOpen={true}>
-          <div className="space-y-6">
+        <SettingsSection title="Uygulama Versiyon Yönetimi" defaultOpen={true}>
+          <div className="ui-stack">
             {/* Canlı API Durumu */}
             {liveVersion && (
-              <div className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 p-4 rounded-xl border border-emerald-500/20">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse"></div>
-                  <span className="text-emerald-400 font-semibold text-sm">Canlı API Durumu</span>
+              <div className="order-detail-box" style={{ background: "var(--ui-surface-2)" }}>
+                <div className="ui-between">
+                  <span className="ui-stat-label"><span className="ui-dot ui-dot--ok" />Canlı API Durumu</span>
                   <button
                     type="button"
                     onClick={fetchLiveVersion}
-                    className="ml-auto text-gray-400 hover:text-white transition-colors"
+                    className="ui-icon-btn ui-icon-btn--sm"
+                    title="Yenile"
+                    aria-label="Canlı durumu yenile"
                   >
-                    <RefreshCw className={`w-4 h-4 ${loadingLive ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={loadingLive ? 'ui-spin' : ''} />
                   </button>
                 </div>
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div className="bg-white/5 rounded-lg p-3">
-                    <p className="text-gray-400 text-xs mb-1">Son Versiyon</p>
-                    <p className="text-white font-bold">{liveVersion.latest_version}</p>
+                <dl className="ui-kv" style={{ border: 0, padding: 0 }}>
+                  <div>
+                    <dt>Son Versiyon</dt>
+                    <dd className="ui-mono">{liveVersion.latest_version}</dd>
                   </div>
-                  <div className="bg-white/5 rounded-lg p-3">
-                    <p className="text-gray-400 text-xs mb-1">Minimum</p>
-                    <p className="text-white font-bold">{liveVersion.minimum_version}</p>
+                  <div>
+                    <dt>Minimum</dt>
+                    <dd className="ui-mono">{liveVersion.minimum_version}</dd>
                   </div>
-                  <div className="bg-white/5 rounded-lg p-3">
-                    <p className="text-gray-400 text-xs mb-1">Zorunlu Güncelleme</p>
-                    <p className={`font-bold ${liveVersion.force_update ? 'text-red-400' : 'text-emerald-400'}`}>
-                      {liveVersion.force_update ? 'Aktif' : 'Kapalı'}
-                    </p>
+                  <div>
+                    <dt>Zorunlu Güncelleme</dt>
+                    <dd>
+                      <span className={`ui-badge ${liveVersion.force_update ? 'ui-badge--warn' : ''}`}>
+                        {liveVersion.force_update ? 'Aktif' : 'Kapalı'}
+                      </span>
+                    </dd>
                   </div>
-                </div>
+                </dl>
               </div>
             )}
 
             {/* Versiyon Ayarları */}
-            <div className="bg-white/5 rounded-xl p-5 border border-white/10">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl flex items-center justify-center">
-                  <Globe className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h4 className="text-white font-bold">Versiyon Numaraları</h4>
-                  <p className="text-gray-400 text-xs">Hem Android hem iOS için geçerli</p>
-                </div>
-              </div>
+            <div>
+              <h4 className="ui-overline">Versiyon Numaraları</h4>
+              <p className="ui-hint" style={{ marginTop: 2, marginBottom: 10 }}>Hem Android hem iOS için geçerli</p>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="ui-grid-2">
                 <div>
-                  <label className="text-sm text-gray-400 mb-1 block">Son Versiyon</label>
+                  <label className="ui-label" htmlFor="settings-latest-version">Son Versiyon</label>
                   <input
+                    id="settings-latest-version"
                     type="text"
                     value={settings.appVersion?.latestVersion || ""}
                     onChange={(e) => handleVersionChange('latestVersion', e.target.value)}
                     placeholder="2.1.0"
-                    className="w-full bg-gray-800/50 text-white rounded-xl px-4 py-3 border border-white/10 focus:outline-none focus:border-blue-500 font-mono text-lg"
+                    className="ui-field ui-mono"
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-gray-400 mb-1 block">Minimum Versiyon</label>
+                  <label className="ui-label" htmlFor="settings-min-version">Minimum Versiyon</label>
                   <input
+                    id="settings-min-version"
                     type="text"
                     value={settings.appVersion?.minimumVersion || ""}
                     onChange={(e) => handleVersionChange('minimumVersion', e.target.value)}
                     placeholder="2.0.0"
-                    className="w-full bg-gray-800/50 text-white rounded-xl px-4 py-3 border border-white/10 focus:outline-none focus:border-blue-500 font-mono text-lg"
+                    className="ui-field ui-mono"
                   />
                 </div>
               </div>
               
-              <div className="mt-4 flex items-center justify-between p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-400" />
-                  <span className="text-sm text-gray-300">Zorunlu Güncelleme</span>
+              <div className="ui-note" style={{ marginTop: 14, alignItems: "center" }}>
+                <AlertTriangle />
+                <div className="ui-grow">
+                  <p className="ui-note-label">Zorunlu Güncelleme</p>
+                  <p className="ui-text-xs" style={{ color: "#47360f" }}>Açıkken, minimum versiyonun altındaki uygulamalar güncellenmeden kullanılamaz.</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => handleVersionChange('forceUpdate', !settings.appVersion?.forceUpdate)}
-                  className={`p-2 rounded-xl transition-all ${settings.appVersion?.forceUpdate ? 'bg-amber-500/20 text-amber-400' : 'bg-gray-700 text-gray-400'}`}
+                  className="ui-icon-btn ui-switch"
+                  data-on={!!settings.appVersion?.forceUpdate}
+                  aria-label="Zorunlu güncellemeyi aç/kapat"
                 >
-                  {settings.appVersion?.forceUpdate ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
+                  {settings.appVersion?.forceUpdate ? <ToggleRight /> : <ToggleLeft />}
                 </button>
               </div>
             </div>
 
             {/* Store URL'leri */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 p-4 rounded-xl border border-green-500/20">
-                <div className="flex items-center gap-2 mb-3">
-                  <Download className="w-4 h-4 text-green-400" />
-                  <span className="text-green-400 font-semibold text-sm">Google Play Store</span>
-                </div>
+            <div className="ui-grid-2">
+              <div>
+                <label className="ui-label" htmlFor="settings-android-url">Google Play Store</label>
                 <input
+                  id="settings-android-url"
                   type="url"
                   value={settings.appVersion?.androidStoreUrl || ""}
                   onChange={(e) => handleVersionChange('androidStoreUrl', e.target.value)}
-                  className="w-full bg-gray-800/50 text-white rounded-xl px-3 py-2 border border-white/10 focus:outline-none focus:border-green-500 text-xs"
+                  className="ui-field ui-field--sm"
                 />
                 <a 
                   href={settings.appVersion?.androidStoreUrl} 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 mt-2 text-green-400 text-xs hover:underline"
+                  className="ui-link"
                 >
-                  <ExternalLink className="w-3 h-3" />
+                  <ExternalLink />
                   Sayfayı Aç
                 </a>
               </div>
               
-              <div className="bg-gradient-to-r from-gray-500/10 to-slate-500/10 p-4 rounded-xl border border-gray-500/20">
-                <div className="flex items-center gap-2 mb-3">
-                  <Download className="w-4 h-4 text-gray-400" />
-                  <span className="text-gray-400 font-semibold text-sm">App Store</span>
-                </div>
+              <div>
+                <label className="ui-label" htmlFor="settings-ios-url">App Store</label>
                 <input
+                  id="settings-ios-url"
                   type="url"
                   value={settings.appVersion?.iosStoreUrl || ""}
                   onChange={(e) => handleVersionChange('iosStoreUrl', e.target.value)}
-                  className="w-full bg-gray-800/50 text-white rounded-xl px-3 py-2 border border-white/10 focus:outline-none focus:border-gray-500 text-xs"
+                  className="ui-field ui-field--sm"
                 />
                 <a 
                   href={settings.appVersion?.iosStoreUrl} 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 mt-2 text-gray-400 text-xs hover:underline"
+                  className="ui-link"
                 >
-                  <ExternalLink className="w-3 h-3" />
+                  <ExternalLink />
                   Sayfayı Aç
                 </a>
               </div>
@@ -508,29 +472,27 @@ const SettingsTab = () => {
         </SettingsSection>
         
         {/* Kaydet Butonu */}
-        <div className="flex justify-end pt-4">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+        <div className="ui-cluster" style={{ justifyContent: "flex-end" }}>
+          <button
             type="submit"
             disabled={saving}
-            className="px-8 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl font-semibold flex items-center gap-2 shadow-lg hover:shadow-emerald-500/25 transition-all disabled:opacity-50"
+            className="ui-btn ui-btn--primary ui-btn--lg"
           >
             {saving ? (
               <>
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                <div className="ui-loader" style={{ width: 16, height: 16 }}></div>
                 Kaydediliyor...
               </>
             ) : (
               <>
-                <Save className="w-5 h-5" />
+                <Save />
                 Ayarları Kaydet
               </>
             )}
-          </motion.button>
+          </button>
         </div>
       </form>
-    </motion.div>
+    </div>
   );
 };
 

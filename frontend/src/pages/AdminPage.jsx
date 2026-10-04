@@ -27,6 +27,7 @@ import BannerTab from "../components/BannerTab";
 import CouponsTab from "../components/CouponsTab";
 import ReferralsTab from "../components/ReferralsTab";
 import AdvancedAnalyticsTab from "../components/AdvancedAnalyticsTab";
+import AdminAuditTab from "../components/AdminAuditTab";
 import ChatTab from "../components/ChatTab";
 import WeeklyProductsTab from "../components/WeeklyProductsTab";
 import AiKnowledgeCenter from "../components/AiKnowledgeCenter";
@@ -46,52 +47,34 @@ const loadStoredNotifications = () => {
 
 // Bulk Upload Section Component
 const BulkUploadSection = ({ onUpload }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    className="max-w-2xl mx-auto"
-  >
-    <div className="admin-card">
-      <div className="admin-card-body">
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-violet-500/30">
-            <Upload className="w-8 h-8 text-white" />
-          </div>
-          <h2 className="text-2xl font-bold text-white mb-2">
-            Toplu Ürün Yükleme
-          </h2>
-          <p className="text-gray-400">
-            CSV dosyası ile ürünleri toplu olarak yükleyin
-          </p>
-        </div>
-
-        <div className="bg-gray-800/50 rounded-xl p-4 mb-6 border border-gray-700/50">
-          <p className="text-sm text-gray-400 mb-2">
-            CSV dosyası aşağıdaki başlıklara sahip olmalıdır:
-          </p>
-          <code className="block text-xs text-emerald-400 bg-gray-900/50 p-3 rounded-lg overflow-x-auto font-mono">
-            name,description,price,image,category,stock,isOutOfStock,isHidden,discountedPrice
-          </code>
-        </div>
-
-        <label className="block">
-          <div className="border-2 border-dashed border-gray-600 hover:border-emerald-500/50 rounded-2xl p-8 text-center cursor-pointer transition-all group hover:bg-emerald-500/5">
-            <Upload className="w-10 h-10 text-gray-500 group-hover:text-emerald-400 mx-auto mb-3 transition-colors" />
-            <p className="text-white font-medium mb-1">
-              CSV dosyası seçin veya sürükleyin
-            </p>
-            <p className="text-gray-500 text-sm">Maksimum 10MB</p>
-          </div>
-          <input
-            type="file"
-            accept=".csv"
-            className="hidden"
-            onChange={onUpload}
-          />
-        </label>
+  <div className="ui-card" style={{ maxWidth: 640 }}>
+    <div className="ui-card-header">
+      <div>
+        <h2 className="ui-title">Toplu Ürün Yükleme</h2>
+        <p className="ui-subtitle">CSV dosyası ile ürünleri toplu olarak yükleyin</p>
       </div>
     </div>
-  </motion.div>
+    <div className="ui-card-body ui-stack">
+      <div>
+        <p className="ui-label">CSV dosyası aşağıdaki başlıklara sahip olmalıdır:</p>
+        <code className="ui-code">
+          name,description,price,image,category,stock,isOutOfStock,isHidden,discountedPrice
+        </code>
+      </div>
+
+      <label className="ui-dropzone">
+        <Upload />
+        <span className="ui-strong">CSV dosyası seçin veya sürükleyin</span>
+        <span className="ui-text-xs ui-muted">Maksimum 10MB</span>
+        <input
+          type="file"
+          accept=".csv"
+          className="hidden"
+          onChange={onUpload}
+        />
+      </label>
+    </div>
+  </div>
 );
 
 const AdminPage = () => {
@@ -141,6 +124,7 @@ const AdminPage = () => {
       banners: "Vitrin görselleri",
       "bulk-upload": "Toplu Yükleme",
       settings: "Ayarlar",
+      audit: "İşlem kayıtları",
     }),
     [],
   );
@@ -167,6 +151,7 @@ const AdminPage = () => {
     banners: "Mağazanızın vitrinini kampanyalarınıza uygun şekilde düzenleyin.",
     "bulk-upload": "Ürün kataloğunuzu CSV dosyasıyla toplu olarak güncelleyin.",
     settings: "Mağazanızın çalışma düzenini ve tercihlerini belirleyin.",
+    audit: "Yöneticilerin yaptığı hassas işlemleri inceleyin.",
   };
 
   // Keyboard shortcuts
@@ -481,7 +466,8 @@ const AdminPage = () => {
     }
   };
 
-  const handleTabChange = useCallback((tab) => {
+  const handleTabChange = useCallback((tab, preset) => {
+    if (tab === "orders" && preset) sessionStorage.setItem("admin-order-preset", preset);
     setActiveTab(tab);
   }, []);
 
@@ -514,6 +500,7 @@ const AdminPage = () => {
       case "users":
         return (
           <UsersTab
+            onOpenChat={(chatId) => { const url = new URL(window.location.href); url.searchParams.set("tab", "chat"); url.searchParams.set("chatId", chatId); window.history.replaceState({}, "", url); setActiveTab("chat"); }}
             users={users}
             loading={loadingUsers}
             error={errorUsers}
@@ -536,6 +523,8 @@ const AdminPage = () => {
         return <ReferralsTab />;
       case "settings":
         return <SettingsTab />;
+      case "audit":
+        return <AdminAuditTab />;
       default:
         return <DashboardWidgets onNavigate={handleTabChange} />;
     }

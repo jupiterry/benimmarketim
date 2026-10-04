@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
 import { Plus, Edit, Trash2, Image as ImageIcon, X, Save, Loader } from "lucide-react";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
@@ -117,67 +116,63 @@ const BannerTab = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader className="w-8 h-8 animate-spin text-emerald-400" />
+      <div className="ui-loading">
+        <Loader className="ui-spin" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-white">Banner Yönetimi</h2>
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+    <div className="ui-page">
+      <div className="ui-between">
+        <h2 className="ui-title">Banner Yönetimi</h2>
+        <button
           onClick={() => {
             resetForm();
             setShowForm(true);
           }}
-          className="flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-4 py-2 rounded-lg hover:from-emerald-400 hover:to-teal-500 transition-all"
+          className="ui-btn ui-btn--primary"
         >
-          <Plus className="w-5 h-5" />
+          <Plus />
           Yeni Banner Ekle
-        </motion.button>
+        </button>
       </div>
 
       {showForm && (
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-gray-700/50 rounded-xl p-6 border border-gray-600/50"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-bold text-white">
+        <section className="ui-card" style={{ maxWidth: 720 }}>
+          <div className="ui-card-header">
+            <h3 className="ui-title">
               {editingBanner ? "Banner Düzenle" : "Yeni Banner Ekle"}
             </h3>
             <button
               onClick={resetForm}
-              className="text-gray-400 hover:text-white transition-colors"
+              className="ui-icon-btn"
+              aria-label="Formu kapat"
             >
-              <X className="w-5 h-5" />
+              <X />
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="ui-card-body ui-stack">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="ui-label" htmlFor="banner-image">
                 Görsel URL
               </label>
               <input
+                id="banner-image"
                 type="url"
                 value={formData.image}
                 onChange={(e) => setFormData({ ...formData, image: e.target.value })}
                 placeholder="https://example.com/image.jpg"
-                className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+                className="ui-field"
                 required
               />
               {formData.image && (
-                <div className="mt-2">
+                <div style={{ marginTop: 8 }}>
                   <img
                     src={formData.image}
                     alt="Preview"
-                    className="max-w-full h-32 object-cover rounded-lg border border-gray-600"
+                    className="banner-preview"
                     onError={(e) => {
                       e.target.style.display = "none";
                     }}
@@ -187,164 +182,162 @@ const BannerTab = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="ui-label" htmlFor="banner-title">
                 Başlık *
               </label>
               <input
+                id="banner-title"
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 placeholder="Banner başlığı"
-                className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+                className="ui-field"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="ui-label" htmlFor="banner-subtitle">
                 Alt Başlık
               </label>
               <input
+                id="banner-subtitle"
                 type="text"
                 value={formData.subtitle}
                 onChange={(e) => setFormData({ ...formData, subtitle: e.target.value })}
                 placeholder="Banner alt başlığı"
-                className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+                className="ui-field"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="ui-label" htmlFor="banner-link">
                 Link URL (Opsiyonel)
               </label>
               <input
+                id="banner-link"
                 type="url"
                 value={formData.linkUrl}
                 onChange={(e) => setFormData({ ...formData, linkUrl: e.target.value })}
                 placeholder="https://example.com"
-                className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+                className="ui-field"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="ui-grid-2">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="ui-label" htmlFor="banner-order">
                   Sıra
                 </label>
                 <input
+                  id="banner-order"
                   type="number"
                   value={formData.order}
                   onChange={(e) => setFormData({ ...formData, order: parseInt(e.target.value) || 0 })}
-                  className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-emerald-500"
+                  className="ui-field"
                 />
               </div>
 
-              <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-300 mb-2">
-                  <input
-                    type="checkbox"
-                    checked={formData.isActive}
-                    onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                    className="w-4 h-4 text-emerald-500 bg-gray-800 border-gray-600 rounded focus:ring-emerald-500"
-                  />
-                  Aktif
-                </label>
-              </div>
+              <label className="ui-check" style={{ alignSelf: "end", minHeight: 38 }}>
+                <input
+                  type="checkbox"
+                  checked={formData.isActive}
+                  onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                />
+                Aktif
+              </label>
             </div>
 
-            <div className="flex gap-3">
-              <motion.button
+            <div className="ui-cluster">
+              <button
                 type="submit"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-4 py-2 rounded-lg hover:from-emerald-400 hover:to-teal-500 transition-all flex items-center justify-center gap-2"
+                className="ui-btn ui-btn--primary"
               >
-                <Save className="w-4 h-4" />
+                <Save />
                 {editingBanner ? "Güncelle" : "Kaydet"}
-              </motion.button>
+              </button>
               <button
                 type="button"
                 onClick={resetForm}
-                className="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition-colors"
+                className="ui-btn"
               >
                 İptal
               </button>
             </div>
           </form>
-        </motion.div>
+        </section>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="ui-grid-3" style={{ gap: 16 }}>
         {banners.map((banner) => (
-          <motion.div
+          <article
             key={banner._id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-gray-700/50 rounded-xl overflow-hidden border border-gray-600/50"
+            className="ui-card"
+            style={{ overflow: "hidden" }}
           >
             {banner.image && (
-              <div className="relative h-48 bg-gray-800">
+              <div className="banner-image">
                 <img
                   src={banner.image}
                   alt={banner.title}
-                  className="w-full h-full object-cover"
                   onError={(e) => {
                     e.target.style.display = "none";
                     e.target.parentElement.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-500"><ImageIcon class="w-12 h-12" /></div>';
                   }}
                 />
                 {!banner.isActive && (
-                  <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded text-xs font-bold">
+                  <span className="ui-badge ui-badge--danger banner-flag">
                     Pasif
-                  </div>
+                  </span>
                 )}
               </div>
             )}
-            <div className="p-4">
-              <h3 className="text-lg font-bold text-white mb-1">{banner.title}</h3>
-              {banner.subtitle && (
-                <p className="text-sm text-gray-400 mb-2">{banner.subtitle}</p>
-              )}
-              <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
+            <div className="ui-card-body ui-stack ui-stack--sm">
+              <div>
+                <h3 className="ui-list-title ui-wrap-anywhere">{banner.title}</h3>
+                {banner.subtitle && (
+                  <p className="ui-list-sub ui-wrap-anywhere">{banner.subtitle}</p>
+                )}
+              </div>
+              <div className="ui-between ui-text-xs ui-muted">
                 <span>Sıra: {banner.order}</span>
                 {banner.linkUrl && (
                   <a
                     href={banner.linkUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-emerald-400 hover:text-emerald-300"
+                    className="ui-link"
+                    style={{ marginTop: 0 }}
                   >
                     Link →
                   </a>
                 )}
               </div>
-              <div className="flex gap-2">
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
+              <div className="ui-cluster">
+                <button
                   onClick={() => handleEdit(banner)}
-                  className="flex-1 flex items-center justify-center gap-2 bg-emerald-500/20 text-emerald-400 px-3 py-2 rounded-lg hover:bg-emerald-500/30 transition-colors"
+                  className="ui-btn ui-btn--sm ui-grow"
                 >
-                  <Edit className="w-4 h-4" />
+                  <Edit />
                   Düzenle
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
+                </button>
+                <button
                   onClick={() => handleDelete(banner._id)}
-                  className="flex items-center justify-center gap-2 bg-red-500/20 text-red-400 px-3 py-2 rounded-lg hover:bg-red-500/30 transition-colors"
+                  className="ui-btn ui-btn--sm ui-btn--danger"
+                  aria-label="Banner'ı sil"
+                  title="Sil"
                 >
-                  <Trash2 className="w-4 h-4" />
-                </motion.button>
+                  <Trash2 />
+                </button>
               </div>
             </div>
-          </motion.div>
+          </article>
         ))}
       </div>
 
       {banners.length === 0 && !showForm && (
-        <div className="text-center py-12 text-gray-400">
-          <ImageIcon className="w-16 h-16 mx-auto mb-4 opacity-50" />
+        <div className="ui-card ui-empty">
+          <ImageIcon />
           <p>Henüz banner eklenmemiş.</p>
         </div>
       )}
@@ -353,4 +346,3 @@ const BannerTab = () => {
 };
 
 export default BannerTab;
-
