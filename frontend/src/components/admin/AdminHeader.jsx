@@ -3,13 +3,15 @@ import {
   Search,
   Bell,
   Menu,
-  ChevronRight,
   RefreshCw,
   ArrowUpRight,
   Settings,
   LogOut,
   ShoppingBag,
   X,
+  Plus,
+  CalendarDays,
+  ChevronDown,
 } from "lucide-react";
 import { useUserStore } from "../../stores/useUserStore";
 
@@ -24,6 +26,7 @@ export default function AdminHeader({
   onClearNotifications,
   onNavigate,
   user,
+  lastSync,
 }) {
   const [panel, setPanel] = useState(null);
   const root = useRef(null);
@@ -51,87 +54,96 @@ export default function AdminHeader({
     };
   }, [panel]);
   return (
-    <header className="studio-header" ref={root}>
+    <header className="app-top" ref={root}>
       <button
-        className="studio-icon-button studio-menu-toggle"
+        className="app-icon-btn app-menu-btn"
         aria-label="Menüyü aç"
         onClick={onMenuClick}
       >
-        <Menu size={20} />
+        <Menu size={18} />
       </button>
-      <div className="studio-breadcrumb">
-        <span>Çalışma alanı</span>
-        <ChevronRight size={14} />
-        <strong>{pageTitle}</strong>
-      </div>
-      <button className="studio-search-trigger" onClick={onSearchClick}>
-        <Search size={17} />
-        <span>Panelde ara...</span>
+      <strong className="app-top-title">{pageTitle}</strong>
+      <button className="app-search" onClick={onSearchClick}>
+        <Search size={15} />
+        <span>Ara veya bölüme git</span>
         <kbd>Ctrl K</kbd>
       </button>
-      <div className="studio-header-actions">
+      <div className="app-top-actions">
+        <span className="app-top-date">
+          <CalendarDays size={14} />
+          {new Date().toLocaleDateString("tr-TR", {
+            day: "numeric",
+            month: "long",
+            weekday: "long",
+          })}
+        </span>
         <button
-          className="studio-icon-button studio-mobile-search"
+          className="ui-btn ui-btn--primary ui-btn--sm app-quick"
+          onClick={() => onNavigate?.("create")}
+        >
+          <Plus /> <span>Yeni ürün</span>
+        </button>
+        <span className="app-top-sep" />
+        <button
+          className="app-icon-btn app-mobile-search"
           onClick={onSearchClick}
           aria-label="Panelde ara"
         >
-          <Search size={19} />
+          <Search size={17} />
         </button>
         <button
-          className="studio-icon-button"
+          className="app-icon-btn"
           onClick={onRefresh}
           disabled={refreshing}
           aria-label="Verileri yenile"
-          title="Verileri yenile"
+          title={lastSync ? `Verileri yenile · Son yenileme ${lastSync}` : "Verileri yenile"}
         >
-          <RefreshCw size={18} className={refreshing ? "animate-spin" : ""} />
+          <RefreshCw size={16} className={refreshing ? "ui-spin" : ""} />
         </button>
-        <div className="studio-dropdown-anchor">
+        <div className="app-pop-anchor">
           <button
             ref={notificationButton}
-            className="studio-icon-button"
+            className="app-icon-btn"
             onClick={() =>
               setPanel(panel === "notifications" ? null : "notifications")
             }
             aria-label={`Bildirimler, ${notifications.length} bildirim`}
             aria-expanded={panel === "notifications"}
           >
-            <Bell size={19} />
+            <Bell size={17} />
             {notifications.length > 0 && (
-              <i className="studio-notification-dot" />
+              <i className="app-bell-count">{Math.min(99, notifications.length)}</i>
             )}
           </button>
           {panel === "notifications" && (
             <section
-              className="studio-dropdown studio-notifications"
+              className="app-pop app-pop--wide"
               aria-label="Sipariş bildirimleri"
             >
-              <div className="studio-dropdown-heading">
+              <div className="app-pop-head">
                 <strong>
                   Bildirimler <span>{notifications.length}</span>
                 </strong>
                 <button
-                  className="studio-icon-button"
+                  className="app-icon-btn"
                   aria-label="Bildirimleri kapat"
                   onClick={() => setPanel(null)}
                 >
-                  <X size={17} />
+                  <X size={16} />
                 </button>
               </div>
-              <div className="studio-notification-list">
+              <div className="app-pop-list">
                 {notifications.length ? (
                   notifications.map((n, i) => (
                     <button
-                      className="studio-notification"
+                      className="app-notice"
                       key={n.id || i}
                       onClick={() => {
                         setPanel(null);
                         onViewNotifications?.(n.order);
                       }}
                     >
-                      <span className="studio-soft-icon">
-                        <ShoppingBag size={18} />
-                      </span>
+                      <ShoppingBag size={15} />
                       <span>
                         <strong>
                           {n.order?.customerName || "Yeni sipariş"}
@@ -152,15 +164,14 @@ export default function AdminHeader({
                     </button>
                   ))
                 ) : (
-                  <div className="studio-empty">
-                    <Bell size={28} />
+                  <div className="app-pop-empty">
                     <strong>Her şey güncel</strong>
                     <p>Yeni sipariş bildirimleri burada görünecek.</p>
                   </div>
                 )}
               </div>
               {notifications.length > 0 && (
-                <div className="studio-dropdown-footer">
+                <div className="app-pop-foot">
                   <button onClick={onClearNotifications}>
                     Bildirimleri temizle
                   </button>
@@ -177,22 +188,23 @@ export default function AdminHeader({
             </section>
           )}
         </div>
-        <div className="studio-header-divider" />
-        <div className="studio-dropdown-anchor">
+        <div className="app-pop-anchor">
           <button
             ref={accountButton}
-            className="studio-profile-button"
+            className="app-profile"
             onClick={() => setPanel(panel === "account" ? null : "account")}
             aria-label="Hesap menüsü"
             aria-expanded={panel === "account"}
           >
-            <span className="studio-avatar">
+            <span className="app-avatar">
               {user?.name?.charAt(0)?.toLocaleUpperCase("tr-TR") || "Y"}
             </span>
+            <span className="app-profile-name">{user?.name || "Yönetici"}</span>
+            <ChevronDown size={14} />
           </button>
           {panel === "account" && (
-            <section className="studio-dropdown studio-account-dropdown">
-              <div className="studio-dropdown-heading">
+            <section className="app-pop app-pop--menu">
+              <div className="app-pop-head">
                 <div>
                   <strong>{user?.name || "Yönetici"}</strong>
                   <small>{user?.email}</small>
@@ -204,40 +216,24 @@ export default function AdminHeader({
                   onNavigate?.("settings");
                 }}
               >
-                <Settings size={17} /> Mağaza ayarları
+                <Settings size={15} /> Mağaza ayarları
               </button>
               <a href="/" target="_blank" rel="noreferrer">
-                <ArrowUpRight size={17} /> Mağazayı görüntüle
+                <ArrowUpRight size={15} /> Mağazayı görüntüle
               </a>
               <button
-                className="studio-signout"
+                className="app-pop-danger"
                 onClick={() => {
                   setPanel(null);
                   logout();
                 }}
               >
-                <LogOut size={17} /> Güvenli çıkış
+                <LogOut size={15} /> Güvenli çıkış
               </button>
             </section>
           )}
         </div>
       </div>
     </header>
-  );
-}
-
-export function AdminStatusBar({ lastSync }) {
-  return (
-    <footer className="studio-status">
-      <span>
-        Benim Marketim <span className="studio-status-separator">/</span>{" "}
-        Yönetim paneli
-      </span>
-      <span>
-        {lastSync ? `Son yenileme ${lastSync}` : "Veriler yükleniyor"}
-        <span className="studio-status-separator">·</span>
-        <kbd>Ctrl K</kbd> Hızlı erişim
-      </span>
-    </footer>
   );
 }

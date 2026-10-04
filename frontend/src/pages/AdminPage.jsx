@@ -1,5 +1,4 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
 import { useProductStore } from "../stores/useProductStore";
@@ -11,7 +10,7 @@ import "../styles/admin-theme.css";
 
 // New Admin Components
 import AdminSidebar from "../components/admin/AdminSidebar";
-import AdminHeader, { AdminStatusBar } from "../components/admin/AdminHeader";
+import AdminHeader from "../components/admin/AdminHeader";
 import CommandPalette from "../components/admin/CommandPalette";
 
 // Tab Components
@@ -33,7 +32,7 @@ import WeeklyProductsTab from "../components/WeeklyProductsTab";
 import AiKnowledgeCenter from "../components/AiKnowledgeCenter";
 import SupportQueueTab from "../components/SupportQueueTab";
 
-import { Package, Upload, ArrowUpRight } from "lucide-react";
+import { Package, Upload } from "lucide-react";
 
 const loadStoredNotifications = () => {
   try {
@@ -329,57 +328,45 @@ const AdminPage = () => {
       toast.custom(
         (t) => (
           <div
-            className={`${t.visible ? "animate-enter" : "animate-leave"} w-[380px] max-w-[calc(100vw-24px)] overflow-hidden rounded-3xl border border-emerald-400/25 bg-[#0d1816]/95 text-white shadow-[0_24px_80px_rgba(0,0,0,.48)] backdrop-blur-xl`}
+            className={`${t.visible ? "animate-enter" : "animate-leave"} admin-toast`}
           >
-            <div className="h-1 bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400" />
-            <div className="p-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-400/15 ring-1 ring-emerald-300/20">
-                  <Package className="h-5 w-5 text-emerald-400" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-extrabold">
-                      Yeni sipariş alındı
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => toast.dismiss(t.id)}
-                      className="rounded-lg px-2 py-1 text-xs text-gray-400 hover:bg-white/10 hover:text-white"
-                    >
-                      Kapat
-                    </button>
-                  </div>
-                  <p className="mt-1 truncate text-sm font-semibold text-gray-200">
-                    {order.customerName || "Müşteri"}
-                  </p>
-                  <p className="mt-1 text-xs text-gray-400">
-                    #{String(order.id).slice(-6).toUpperCase()} ·{" "}
-                    {order.products?.length || 0} ürün ·{" "}
-                    {order.deliveryPointName || order.city || "Teslimat"}
-                  </p>
-                </div>
+            <div className="admin-toast-head">
+              <span className="admin-toast-icon">
+                <Package size={16} />
+              </span>
+              <div>
+                <p className="admin-toast-title">Yeni sipariş alındı</p>
+                <p className="admin-toast-name">
+                  {order.customerName || "Müşteri"}
+                </p>
               </div>
-              <div className="mt-4 flex items-center justify-between rounded-2xl bg-white/[.055] p-3 ring-1 ring-white/[.07]">
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-gray-500">
-                    Sipariş tutarı
-                  </p>
-                  <p className="text-xl font-black text-emerald-400">
-                    ₺{Number(order.totalAmount || 0).toFixed(2)}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    toast.dismiss(t.id);
-                    setActiveTab("orders");
-                  }}
-                  className="rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-emerald-400"
-                >
-                  Siparişi incele
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => toast.dismiss(t.id)}
+                className="admin-toast-close"
+              >
+                Kapat
+              </button>
+            </div>
+            <p className="admin-toast-meta">
+              #{String(order.id).slice(-6).toUpperCase()} ·{" "}
+              {order.products?.length || 0} ürün ·{" "}
+              {order.deliveryPointName || order.city || "Teslimat"}
+            </p>
+            <div className="admin-toast-foot">
+              <p className="admin-toast-amount">
+                ₺{Number(order.totalAmount || 0).toFixed(2)}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  toast.dismiss(t.id);
+                  setActiveTab("orders");
+                }}
+                className="admin-toast-action"
+              >
+                Siparişi incele
+              </button>
             </div>
           </div>
         ),
@@ -531,8 +518,8 @@ const AdminPage = () => {
   };
 
   return (
-    <div className="admin-layout">
-      <a className="studio-skip-link" href="#admin-workspace">
+    <div className={`admin-layout app ${sidebarCollapsed ? "is-rail" : ""}`}>
+      <a className="app-skip" href="#admin-workspace">
         İçeriğe geç
       </a>
       {/* Command Palette */}
@@ -557,13 +544,10 @@ const AdminPage = () => {
       />
 
       {/* Main Content */}
-      <main
-        className={`admin-main ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}
-      >
+      <main className="app-main">
         {/* Header */}
         <AdminHeader
           pageTitle={tabLabels[activeTab] || "Dashboard"}
-          breadcrumbs={[tabLabels[activeTab] || "Dashboard"]}
           onMenuClick={() => setMobileMenuOpen(true)}
           onSearchClick={() => setCommandPaletteOpen(true)}
           onRefresh={handleRefresh}
@@ -573,56 +557,26 @@ const AdminPage = () => {
           onViewNotifications={() => setActiveTab("orders")}
           onNavigate={handleTabChange}
           user={user}
-          collapsed={sidebarCollapsed}
+          lastSync={lastSync}
         />
 
         {/* Content Area */}
         <div
           id="admin-workspace"
           tabIndex={-1}
-          className="admin-content pb-20 lg:pb-8"
+          className="admin-content app-content"
+          data-tab={activeTab}
         >
-          {activeTab !== "dashboard" && (
-            <div className="studio-page-intro">
+          {activeTab !== "dashboard" && activeTab !== "orders" && (
+            <header className="app-pagehead">
               <div>
-                <div className="studio-eyebrow">
-                  <span /> MAĞAZA YÖNETİMİ
-                </div>
-                <h1>
-                  {tabLabels[activeTab]}
-                  <span>.</span>
-                </h1>
+                <h1>{tabLabels[activeTab]}</h1>
                 <p>{tabDescriptions[activeTab]}</p>
               </div>
-              <a
-                className="studio-secondary studio-visit"
-                href="/"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Mağazayı görüntüle <ArrowUpRight size={16} />
-              </a>
-            </div>
+            </header>
           )}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.2 }}
-            >
-              {renderContent()}
-            </motion.div>
-          </AnimatePresence>
+          <div key={activeTab}>{renderContent()}</div>
         </div>
-
-        {/* Status Bar (Desktop) */}
-        <AdminStatusBar
-          collapsed={sidebarCollapsed}
-          serverStatus="online"
-          lastSync={lastSync}
-        />
       </main>
     </div>
   );

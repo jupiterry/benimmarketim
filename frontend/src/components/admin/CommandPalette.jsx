@@ -83,11 +83,11 @@ export default function CommandPalette({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="command-palette-input-wrapper">
-          <Search size={21} />
+          <Search size={17} />
           <input
             ref={input}
             className="command-palette-input"
-            placeholder="Nereye gitmek istersiniz?"
+            placeholder="Bölüm ara…"
             aria-label="Yönetim bölümü ara"
             value={query}
             onChange={(e) => {
@@ -110,11 +110,11 @@ export default function CommandPalette({
             }}
           />
           <button
-            className="studio-icon-button"
+            className="app-icon-btn"
             onClick={onClose}
             aria-label="Aramayı kapat"
           >
-            <X size={19} />
+            <X size={16} />
           </button>
         </div>
         <div className="command-palette-results">
@@ -125,7 +125,7 @@ export default function CommandPalette({
               className={`command-palette-item ${i === selectedIndex ? "is-selected" : ""}`}
               onClick={() => select(item.id)}
             >
-              <item.icon size={19} />
+              <item.icon size={16} />
               <span>
                 <strong>{item.label}</strong>
                 <small>{item.group}</small>
@@ -133,13 +133,12 @@ export default function CommandPalette({
               {item.id === currentTab ? (
                 <small>Şu an buradasınız</small>
               ) : (
-                <ArrowUpRight size={16} />
+                <ArrowUpRight size={14} />
               )}
             </button>
           ))}
           {!filtered.length && (
-            <div className="studio-empty">
-              <Search size={28} />
+            <div className="app-pop-empty">
               <strong>Sonuç bulunamadı</strong>
               <p>Başka bir bölüm adıyla aramayı deneyin.</p>
             </div>

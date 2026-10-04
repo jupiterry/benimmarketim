@@ -1,49 +1,59 @@
 /*
- * Benim Marketim — yönetim paneli tasarım sistemi.
+ * Benim Marketim — yönetim paneli tasarım sistemi (v2).
  *
- * Tek kaynak: renk, yazı, köşe ve gölge değerleri aşağıdaki değişkenlerden gelir.
- * Tüm sınıflar `ui-` önekiyle başlar ve yalnızca `.admin-layout` içinde geçerlidir;
- * mağaza (müşteri) tarafını etkilemez. Ekranlar bu sınıflara geçtikçe
- * admin-theme.css içindeki "uyumluluk katmanı" küçültülür.
+ * Tek kaynak: renk, yazı, boşluk, köşe ve gölge değerleri aşağıdaki değişkenlerden gelir.
+ * Bileşen sınıfları `ui-` önekiyle başlar ve yalnızca `.admin-layout` içinde geçerlidir;
+ * mağaza (müşteri) tarafını etkilemez. Uygulama kabuğu (app-*), Genel Bakış (dash-*) ve
+ * Siparişler (ord-*) yerleşimleri admin-theme.css içindedir.
  */
 .admin-layout {
   /* Metin */
-  --ui-text: #1d2b24;
-  --ui-text-2: #55635b;
-  --ui-text-3: #7b877f;
+  --ui-text: #16191d;
+  --ui-text-2: #4d545e;
+  --ui-text-3: #6b727d;
   /* Yüzeyler ve çizgiler */
+  --ui-bg: #f6f7f8;
   --ui-surface: #ffffff;
-  --ui-surface-2: #f6f8f5;
-  --ui-surface-3: #eef2ee;
-  --ui-line: #e3e8e3;
-  --ui-line-strong: #cdd6cf;
-  /* Marka */
-  --ui-brand: #2d7659;
-  --ui-brand-strong: #235e45;
-  --ui-brand-soft: #e7f1eb;
-  --ui-brand-ink: #1f5a42;
+  --ui-surface-2: #f7f8f9;
+  --ui-surface-3: #eef0f2;
+  --ui-line: #e6e8eb;
+  --ui-line-strong: #d2d6db;
+  /* Marka: derin yeşil, yalnızca vurgu olarak */
+  --ui-brand: #17573d;
+  --ui-brand-strong: #0f4530;
+  --ui-brand-soft: #e8f2ec;
+  --ui-brand-ink: #14553a;
   /* Durum renkleri: yalnızca anlam taşıdığı yerde kullanılır */
-  --ui-warn: #c98a1c;
-  --ui-warn-bg: #fdf4e3;
-  --ui-warn-ink: #85560f;
-  --ui-info: #3f7fc0;
-  --ui-info-bg: #e9f1fa;
-  --ui-info-ink: #2a5d92;
-  --ui-ok: #2f8a60;
-  --ui-ok-bg: #e6f2ea;
-  --ui-ok-ink: #256547;
-  --ui-danger: #c2493b;
-  --ui-danger-bg: #fbebe8;
-  --ui-danger-ink: #a23a2e;
-  /* Ölçek */
+  --ui-warn: #c27c0e;
+  --ui-warn-bg: #fdf3dc;
+  --ui-warn-ink: #8a560a;
+  --ui-info: #2f6fca;
+  --ui-info-bg: #e8f0fc;
+  --ui-info-ink: #1f52a0;
+  --ui-ok: #1f8a57;
+  --ui-ok-bg: #e3f4ea;
+  --ui-ok-ink: #17663f;
+  --ui-danger: #cf3f33;
+  --ui-danger-bg: #fdebe8;
+  --ui-danger-ink: #a82c22;
+  /* Yazı ölçeği */
   --ui-fs-xs: 12px;
   --ui-fs-sm: 13px;
-  --ui-fs-md: 14px;
-  --ui-fs-lg: 16px;
-  --ui-radius: 8px;
-  --ui-radius-lg: 12px;
-  --ui-shadow: 0 1px 2px rgba(23, 46, 37, 0.06);
-  --ui-shadow-pop: 0 18px 48px rgba(23, 46, 37, 0.18);
+  --ui-fs-md: 13px;
+  --ui-fs-lg: 15px;
+  --ui-fs-xl: 20px;
+  /* Boşluk ölçeği (4'ün katları) */
+  --ui-s1: 4px;
+  --ui-s2: 8px;
+  --ui-s3: 12px;
+  --ui-s4: 16px;
+  --ui-s5: 24px;
+  --ui-s6: 32px;
+  /* Köşe, gölge, geçiş */
+  --ui-radius: 6px;
+  --ui-radius-lg: 10px;
+  --ui-shadow: none;
+  --ui-shadow-pop: 0 16px 40px rgba(16, 24, 40, 0.14), 0 2px 6px rgba(16, 24, 40, 0.06);
   --ui-ease: 120ms ease;
 }
 
@@ -72,6 +82,7 @@
   font-size: var(--ui-fs-lg);
   font-weight: 650;
   line-height: 1.35;
+  letter-spacing: -0.005em;
   color: var(--ui-text);
 }
 .admin-layout .ui-subtitle {
@@ -100,8 +111,8 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 36px;
-  padding: 0 14px;
+  min-height: 32px;
+  padding: 0 12px;
   border: 1px solid var(--ui-line-strong);
   border-radius: var(--ui-radius);
   background: var(--ui-surface);
@@ -156,7 +167,7 @@
   border-color: var(--ui-danger);
 }
 .admin-layout .ui-btn--sm {
-  min-height: 30px;
+  min-height: 28px;
   padding: 0 10px;
   font-size: var(--ui-fs-xs);
 }
@@ -204,8 +215,8 @@
 }
 .admin-layout .ui-field {
   width: 100%;
-  min-height: 38px;
-  padding: 0 12px;
+  min-height: 34px;
+  padding: 0 10px;
   border: 1px solid var(--ui-line-strong);
   border-radius: var(--ui-radius);
   background: var(--ui-surface);
@@ -226,7 +237,7 @@
 .admin-layout .ui-field:focus {
   outline: none;
   border-color: var(--ui-brand);
-  box-shadow: 0 0 0 3px rgba(45, 118, 89, 0.16);
+  box-shadow: 0 0 0 3px rgba(23, 87, 61, 0.16);
 }
 .admin-layout select.ui-field {
   padding-right: 32px;
@@ -359,7 +370,7 @@
   color: var(--ui-text-2);
 }
 .admin-layout .ui-stat-value {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 650;
   line-height: 1.15;
   color: var(--ui-text);
@@ -465,7 +476,7 @@
   align-items: center;
   justify-content: center;
   padding: 16px;
-  background: rgba(20, 32, 26, 0.45);
+  background: rgba(16, 24, 40, 0.36);
   animation: ui-fade 120ms ease-out;
 }
 .admin-layout .ui-modal {
@@ -1791,6 +1802,275 @@
   }
 }
 
+/* ══ v2 bileşenleri: panel, metrik şeridi, chip, çekmece, anahtar ══════ */
+.admin-layout .ui-panel {
+  min-width: 0;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+}
+.admin-layout .ui-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-s3);
+  min-height: 52px;
+  padding: 10px var(--ui-s4);
+  border-bottom: 1px solid var(--ui-line);
+}
+.admin-layout .ui-panel-head h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--ui-text);
+}
+.admin-layout .ui-panel-head p {
+  margin: 1px 0 0;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+}
+.admin-layout .ui-panel-body {
+  padding: var(--ui-s4);
+}
+.admin-layout .ui-panel-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px var(--ui-s4);
+  border-top: 1px solid var(--ui-line);
+  border-radius: 0 0 var(--ui-radius-lg) var(--ui-radius-lg);
+  color: var(--ui-brand-ink);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  text-align: left;
+}
+.admin-layout .ui-panel-link:hover {
+  background: var(--ui-surface-2);
+}
+.admin-layout .ui-panel-link svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Metrik şeridi: kart dizisi yerine tek, bölmeli şerit */
+.admin-layout .ui-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+}
+.admin-layout .ui-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  margin: 0 -1px -1px 0;
+  padding: 12px var(--ui-s4);
+  border-right: 1px solid var(--ui-line);
+  border-bottom: 1px solid var(--ui-line);
+}
+.admin-layout .ui-metric-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--ui-fs-xs);
+  font-weight: 500;
+  color: var(--ui-text-2);
+  white-space: nowrap;
+}
+.admin-layout .ui-metric-value {
+  font-size: var(--ui-fs-xl);
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--ui-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.admin-layout .ui-metric-value small {
+  font-size: var(--ui-fs-xs);
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--ui-text-3);
+}
+.admin-layout .ui-metric-note {
+  overflow: hidden;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Filtre chip'leri */
+.admin-layout .ui-chips {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.admin-layout .ui-chips > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: 999px;
+  background: var(--ui-surface);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    background-color var(--ui-ease),
+    color var(--ui-ease),
+    border-color var(--ui-ease);
+}
+.admin-layout .ui-chips > button:hover {
+  background: var(--ui-surface-3);
+  color: var(--ui-text);
+}
+.admin-layout .ui-chips > button[aria-pressed="true"] {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand);
+  color: #fff;
+}
+.admin-layout .ui-chips > button[aria-pressed="true"] .ui-dot {
+  background: #fff;
+}
+.admin-layout .ui-badge .ui-dot,
+.admin-layout .ui-chips .ui-dot {
+  width: 6px;
+  height: 6px;
+}
+.admin-layout .ui-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--ui-brand);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Anahtar (aria-pressed ile aç/kapat) */
+.admin-layout .ui-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+  font-weight: 500;
+}
+.admin-layout .ui-toggle > i {
+  position: relative;
+  width: 30px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: var(--ui-line-strong);
+  transition: background-color var(--ui-ease);
+}
+.admin-layout .ui-toggle > i::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.25);
+  transition: transform var(--ui-ease);
+}
+.admin-layout .ui-toggle[aria-pressed="true"] > i {
+  background: var(--ui-brand);
+}
+.admin-layout .ui-toggle[aria-pressed="true"] > i::after {
+  transform: translateX(12px);
+}
+
+/* Sağ çekmece: ortadaki pencere yerine yan panel */
+.admin-layout .ui-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(16, 24, 40, 0.36);
+  animation: ui-fade 120ms ease-out;
+}
+.admin-layout .ui-drawer {
+  display: flex;
+  flex-direction: column;
+  width: min(420px, 100vw);
+  height: 100%;
+  border-left: 1px solid var(--ui-line);
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-pop);
+  animation: ui-slide 160ms ease-out;
+}
+@keyframes ui-slide {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+.admin-layout .ui-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-s3);
+  min-height: 52px;
+  padding: 0 var(--ui-s3) 0 var(--ui-s4);
+  border-bottom: 1px solid var(--ui-line);
+}
+.admin-layout .ui-drawer-tabs {
+  padding: var(--ui-s3) var(--ui-s4) 0;
+}
+.admin-layout .ui-drawer-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--ui-s4);
+  min-height: 0;
+  padding: var(--ui-s4);
+  overflow-y: auto;
+}
+.admin-layout .ui-drawer-form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+.admin-layout .ui-drawer-foot {
+  display: flex;
+  gap: var(--ui-s2);
+  padding: var(--ui-s3) var(--ui-s4);
+  border-top: 1px solid var(--ui-line);
+  background: var(--ui-surface-2);
+}
+.admin-layout .ui-drawer-foot > .ui-btn {
+  flex: 1 1 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-layout .ui-drawer,
+  .admin-layout .ui-drawer-backdrop {
+    animation: none;
+  }
+}
+
+/* (Eski sipariş sınıfları: henüz taşınmamış ekranlar ortak kullandığı için duruyor.) */
 /* ══ Siparişler ekranı ════════════════════════════════════════════════
    Yalnızca yerleşim. Renk ve tipografi yukarıdaki ortak sınıflardan gelir. */
 .admin-layout .orders {
@@ -2228,45 +2508,4 @@
   .admin-layout .ui-skeleton {
     animation: none;
   }
-}
-
-/* ══ Genel Bakış: yeni sistemle görsel uyum (yalnızca yüzey, yapı aynı) ══ */
-.admin-layout .studio-metric,
-.admin-layout .studio-panel {
-  border-color: var(--ui-line);
-  border-radius: var(--ui-radius-lg);
-  box-shadow: var(--ui-shadow);
-}
-.admin-layout .studio-primary,
-.admin-layout .studio-secondary,
-.admin-layout .studio-date,
-.admin-layout .studio-revenue-select {
-  border-radius: var(--ui-radius);
-}
-.admin-layout .studio-primary:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-.admin-layout .studio-metric-note {
-  font-size: var(--ui-fs-xs);
-}
-.admin-layout .studio-order-status {
-  border-radius: 6px;
-  font-weight: 600;
-}
-.admin-layout .studio-order-status.pending {
-  background: var(--ui-warn-bg);
-  color: var(--ui-warn-ink);
-}
-.admin-layout .studio-order-status.transit {
-  background: var(--ui-info-bg);
-  color: var(--ui-info-ink);
-}
-.admin-layout .studio-order-status.delivered {
-  background: var(--ui-ok-bg);
-  color: var(--ui-ok-ink);
-}
-.admin-layout .studio-order-status.cancelled {
-  background: var(--ui-danger-bg);
-  color: var(--ui-danger-ink);
 }

@@ -1,31 +1,20 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { motion } from "framer-motion";
 import {
   ShoppingBag,
   Package,
   Users,
-  TrendingUp,
   ArrowUpRight,
   ArrowRight,
+  ChevronRight,
   Plus,
   RefreshCw,
   AlertTriangle,
   Clock,
   Truck,
-  Calculator,
-  Percent,
   Tag,
   CalendarDays,
+  MessageCircle,
 } from "lucide-react";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
 import axios from "../lib/axios";
 import TelegramNotificationsCard from "./TelegramNotificationsCard";
 import { NEW_ACTIVITY_YEAR_START, REVENUE_PERIODS, summarizeRevenue } from "../lib/revenuePeriods";
@@ -41,154 +30,13 @@ const isCurrentActivityOrder = (order) => {
   return !Number.isNaN(orderDate.getTime()) && orderDate >= NEW_ACTIVITY_YEAR_START;
 };
 
-const ProfitMarginCard = ({ allOrders }) => {
-  const [profitMargin, setProfitMargin] = useState(() => {
-    const saved = localStorage.getItem("profitMargin");
-    return saved ? parseFloat(saved) : 10;
-  });
-
-  // Calculate totals
-  const totals = useMemo(() => {
-    let totalWithManual = 0;
-    let manualProductsTotal = 0;
-
-    allOrders.forEach((order) => {
-      const orderDate = new Date(order.createdAt);
-
-      if (
-        Number.isNaN(orderDate.getTime()) ||
-        orderDate < NEW_ACTIVITY_YEAR_START
-      ) {
-        return;
-      }
-
-      // İptal edilen siparişleri hariç tut (gerçek satış değil)
-      if (order.status !== "İptal Edildi") {
-        totalWithManual += order.totalAmount || 0;
-
-        // Manuel ürünlerin tutarını hesapla
-        order.products?.forEach((product) => {
-          if (product.isManual) {
-            manualProductsTotal +=
-              (product.price || 0) * (product.quantity || 1);
-          }
-        });
-      }
-    });
-
-    return {
-      totalWithManual,
-      totalWithoutManual: totalWithManual - manualProductsTotal,
-      manualProductsTotal,
-    };
-  }, [allOrders]);
-
-  const estimatedProfit = totals.totalWithoutManual * (profitMargin / 100);
-
-  const handleMarginChange = (value) => {
-    const numValue = Math.max(0, Math.min(100, parseFloat(value) || 0));
-    setProfitMargin(numValue);
-    localStorage.setItem("profitMargin", numValue.toString());
-  };
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="admin-card bg-gradient-to-br from-emerald-900/30 to-teal-900/20 border-emerald-500/30"
-    >
-      <div className="admin-card-header">
-        <div>
-          <h3 className="admin-card-title">
-            <Calculator className="w-5 h-5 text-emerald-400" />
-            Yeni Faaliyet Yılı
-          </h3>
-          <p className="mt-1 text-xs text-gray-400">
-            6 Eylül 2026 itibarıyla kâr marjı ve kazanç görünümü
-          </p>
-        </div>
-        <div className="flex items-center gap-2 bg-gray-800/50 rounded-lg px-3 py-1.5">
-          <Percent className="w-4 h-4 text-emerald-400" />
-          <input
-            type="number"
-            value={profitMargin}
-            onChange={(e) => handleMarginChange(e.target.value)}
-            className="w-14 bg-transparent text-white font-bold text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-            min="0"
-            max="100"
-            step="0.5"
-          />
-        </div>
-      </div>
-      <div className="admin-card-body space-y-4">
-        <p className="text-sm text-gray-400">
-          Yeni dönem 6 Eylül 2026’da başlar. Ciro ve tahmini kazanç yalnızca
-          bu tarihten itibaren alınan siparişlerle oluşur; önceki dönem
-          satışları bu hesaba dahil değildir.
-        </p>
-        {/* Total With Manual */}
-        <div className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl">
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-blue-400" />
-            <span className="text-gray-400 text-sm">Yeni Dönem Cirosu</span>
-          </div>
-          <span className="text-white font-bold">
-            ₺
-            {totals.totalWithManual.toLocaleString("tr-TR", {
-              minimumFractionDigits: 2,
-            })}
-          </span>
-        </div>
-
-        {/* Total Without Manual */}
-        <div className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl">
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-purple-400" />
-            <span className="text-gray-400 text-sm">Kâr Hesabına Esas Ciro</span>
-          </div>
-          <span className="text-white font-bold">
-            ₺
-            {totals.totalWithoutManual.toLocaleString("tr-TR", {
-              minimumFractionDigits: 2,
-            })}
-          </span>
-        </div>
-
-        {/* Estimated Profit */}
-        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 rounded-xl border border-emerald-500/30">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-emerald-400" />
-            <span className="text-emerald-300 font-medium">
-              Yeni Dönem Tahmini Net Kâr
-            </span>
-          </div>
-          <span className="text-2xl font-bold text-emerald-400">
-            ₺
-            {estimatedProfit.toLocaleString("tr-TR", {
-              minimumFractionDigits: 2,
-            })}
-          </span>
-        </div>
-
-        {/* Manual Amount Info */}
-        <div className="text-center text-xs text-gray-500 mt-2">
-          Manuel Eklemeler: ₺
-          {totals.manualProductsTotal.toLocaleString("tr-TR", {
-            minimumFractionDigits: 2,
-          })}
-        </div>
-      </div>
-    </motion.div>
-  );
-};
-
 const DashboardWidgets = ({ onNavigate }) => {
   const [stats, setStats] = useState({
     todaySales: 0,
     todayOrders: 0,
     salesTrend: [],
     popularProducts: [],
-    lowStockProducts: [],
+    unansweredChats: 0,
     liveOrderCount: 0,
     recentOrders: [],
     totalUsers: 0,
@@ -205,17 +53,21 @@ const DashboardWidgets = ({ onNavigate }) => {
     () => summarizeRevenue(stats.allOrders, revenuePeriod),
     [stats.allOrders, revenuePeriod],
   );
+  const periodCancelled = useMemo(() => stats.allOrders.filter(order => {
+    const date = new Date(order.createdAt).getTime();
+    return order.status === "İptal Edildi" && (!revenuePeriod.start || date >= revenuePeriod.start.getTime()) && (!revenuePeriod.end || date < revenuePeriod.end.getTime());
+  }), [stats.allOrders, revenuePeriod]);
 
   const fetchDashboardData = useCallback(async () => {
     try {
-      const [productsRes, ordersRes, usersRes] = await Promise.all([
-        axios.get("/products"),
+      const [chatsRes, ordersRes, usersRes] = await Promise.all([
+        axios.get("/chat/list").catch(() => ({ data: { chats: [] } })),
         axios.get("/orders-analytics"),
         axios.get("/users"),
       ]);
 
       setError(false);
-      const products = productsRes.data.products || [];
+      const chats = chatsRes.data.chats || [];
       const orders = ordersRes.data.orderAnalyticsData?.usersOrders || [];
       const users = usersRes.data.users || [];
 
@@ -228,7 +80,7 @@ const DashboardWidgets = ({ onNavigate }) => {
         return orderDate >= today;
       });
 
-      const todaySales = todayOrders.reduce(
+      const todaySales = todayOrders.filter(o => o.status !== "İptal Edildi").reduce(
         (sum, order) => sum + (order.totalAmount || 0),
         0,
       );
@@ -286,11 +138,6 @@ const DashboardWidgets = ({ onNavigate }) => {
         .sort((a, b) => b.quantity - a.quantity)
         .slice(0, 5);
 
-      const lowStockProducts = products
-        .filter((p) => p.stock < 10)
-        .sort((a, b) => a.stock - b.stock)
-        .slice(0, 5);
-
       const salesTrend = getLast7DaysSales(allOrders);
 
       setStats({
@@ -298,7 +145,7 @@ const DashboardWidgets = ({ onNavigate }) => {
         todayOrders: todayOrders.length,
         salesTrend,
         popularProducts,
-        lowStockProducts,
+        unansweredChats: chats.filter(c => c.mode === "WAITING_FOR_AGENT").length,
         liveOrderCount: allOrders.filter((o) => o.status === "Hazırlanıyor" && isCurrentActivityOrder(o))
           .length,
         recentOrders,
@@ -378,7 +225,7 @@ const DashboardWidgets = ({ onNavigate }) => {
         return orderDate >= date && orderDate < nextDate;
       });
 
-      const daySales = dayOrders.reduce(
+        const daySales = dayOrders.filter(o => o.status !== "İptal Edildi").reduce(
         (sum, order) => sum + (order.totalAmount || 0),
         0,
       );
@@ -402,8 +249,9 @@ const DashboardWidgets = ({ onNavigate }) => {
         order.status === "Hazırlanıyor" && isCurrentActivityOrder(order) &&
         (Date.now() - new Date(order.createdAt).getTime()) / 60000 >= 20,
     );
-    const averageBasket = stats.todayOrders
-      ? stats.todaySales / stats.todayOrders
+    const paidTodayCount = stats.allOrders.filter(o => new Date(o.createdAt).toDateString() === new Date().toDateString() && o.status !== "İptal Edildi").length;
+    const averageBasket = paidTodayCount
+      ? stats.todaySales / paidTodayCount
       : 0;
 
     return { activeOrders, delayedOrders, averageBasket };
@@ -411,472 +259,425 @@ const DashboardWidgets = ({ onNavigate }) => {
 
   if (loading)
     return (
-      <div
-        className="studio-dashboard-skeleton"
-        aria-label="Mağaza özeti yükleniyor"
-        role="status"
-      >
-        <div className="admin-skeleton" />
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="admin-skeleton" />
-        ))}
-        <div className="admin-skeleton" />
+      <div className="dash" aria-label="Mağaza özeti yükleniyor" role="status">
+        <div className="ui-skeleton" style={{ height: 44, width: 280 }} />
+        <div className="ui-skeleton" style={{ height: 84 }} />
+        <div className="dash-grid">
+          <div className="ui-skeleton dash-sales" style={{ height: 320 }} />
+          <div className="ui-skeleton dash-attn" style={{ height: 320 }} />
+        </div>
       </div>
     );
 
+  // ── Sunum yardımcıları (yalnızca görünüm) ───────────────────────────
+  const chartMax = Math.max(0, ...stats.salesTrend.map((day) => day[chartMetric]));
+  const chartTotal = stats.salesTrend.reduce((sum, day) => sum + day[chartMetric], 0);
+  const formatMetric = (value) => (chartMetric === "sales" ? money(value) : number(value));
+  const statusTones = { "Hazırlanıyor": "warn", "Yolda": "info", "Teslim Edildi": "ok", "İptal": "danger", "İptal Edildi": "danger" };
+  const distributionTotal = stats.statusDistribution.reduce((sum, status) => sum + status.value, 0);
+  const topQuantity = Math.max(1, ...stats.popularProducts.map((product) => product.quantity));
+
   return (
-    <div className="studio-dashboard">
-      <div className="studio-page-intro">
+    <div className="dash">
+      <header className="app-pagehead">
         <div>
-          <div className="studio-eyebrow">
-            <span /> MAĞAZANIZIN NABZI
-          </div>
-          <h1>
-            Her şey bir bakışta<span>.</span>
-          </h1>
-          <p>Satışları takip edin, öncelikleri görün, güne hazır olun.</p>
-        </div>
-        <div className="studio-intro-actions">
-          <span className="studio-date">
-            <CalendarDays size={16} />
+          <h1>Genel bakış</h1>
+          <p>
             {new Date().toLocaleDateString("tr-TR", {
               day: "numeric",
               month: "long",
               year: "numeric",
-            })}
-          </span>
+            })}{" "}
+            · Bugün {number(stats.todayOrders)} sipariş alındı
+          </p>
+        </div>
+        <div className="app-pagehead-actions">
           <button
-            className="studio-primary"
+            className="ui-btn"
+            aria-label="Satış verilerini yenile"
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            <RefreshCw className={refreshing ? "ui-spin" : ""} />
+            Yenile
+          </button>
+          <button className="ui-btn" onClick={() => onNavigate?.("orders")}>
+            Siparişleri yönet <ArrowRight />
+          </button>
+          <button
+            className="ui-btn ui-btn--primary"
             onClick={() => onNavigate?.("create")}
           >
-            <Plus size={17} /> Ürün ekle
+            <Plus /> Ürün ekle
           </button>
         </div>
-      </div>
+      </header>
+
       {error && (
-        <div className="studio-error" role="alert">
-          <AlertTriangle size={20} />
+        <div className="ui-banner ui-banner--danger dash-error" role="alert">
+          <AlertTriangle />
           <span>
             Veriler güncellenemedi. Bağlantınızı kontrol ederek tekrar deneyin.
           </span>
-          <button onClick={handleRefresh} disabled={refreshing}>
+          <button className="ui-btn ui-btn--sm" onClick={handleRefresh} disabled={refreshing}>
             Yeniden dene
           </button>
         </div>
       )}
-      <div className="studio-metrics">
+
+      {/* Bugünün özeti: tek şerit, kart yok */}
+      <section className="ui-metrics" aria-label="Bugünün özeti">
         {[
           {
-            label: "Bugünkü satış",
+            label: "Bugünkü net satış",
             value: money(stats.todaySales),
             note: `${number(stats.todayOrders)} sipariş alındı`,
-            icon: ShoppingBag,
-            accent: true,
           },
           {
-            label: "Gerçekleşen ciro",
-            value: money(periodSummary.revenue),
-            note: revenuePeriod.description,
-            revenue: true,
-            icon: TrendingUp,
-          },
-          {
-            label: "Hazırlanan sipariş",
+            label: "Hazırlanacak sipariş",
             value: number(stats.liveOrderCount),
             note: "Hazırlanmayı bekleyen siparişler",
-            icon: Package,
+            tone: "warn",
+          },
+          {
+            label: "Aktif sipariş",
+            value: number(operations.activeOrders.length),
+            note: "Hazırlanıyor veya yolda",
+            tone: "info",
+          },
+          {
+            label: "Bugünkü ortalama sepet",
+            value: money(operations.averageBasket),
+            note: "İptaller hariç",
           },
           {
             label: "Toplam müşteri",
             value: number(stats.totalUsers),
             note: "Kayıtlı müşteri",
-            icon: Users,
           },
-        ].map(({ label, value, note, icon: Icon, accent, revenue }) => (
-          <article
-            key={label}
-            className={`studio-metric ${accent ? "is-featured" : ""}`}
-          >
-            <div className="studio-metric-top">
-              <span>{label}</span>
-              <Icon size={19} strokeWidth={1.6} />
-            </div>
-            {revenue && (
-              <select
-                aria-label="Ciro dönemi"
-                className="studio-revenue-select"
-                value={revenuePeriodId}
-                onChange={(event) => setRevenuePeriodId(event.target.value)}
-              >
-                {REVENUE_PERIODS.map((period) => (
-                  <option key={period.id} value={period.id}>{period.label}</option>
-                ))}
-              </select>
-            )}
-            <strong>{value}</strong>
-            <div className="studio-metric-note">
-              <span className="studio-metric-dot" />
-              {note}
-            </div>
-            {revenue && (
-              <p className="studio-revenue-detail" aria-live="polite">
-                {number(periodSummary.count)} sipariş · İptaller hariç
-                {periodSummary.count === 0 && " · Henüz satış yok"}
-              </p>
-            )}
-          </article>
+        ].map(({ label, value, note, tone }) => (
+          <div key={label} className="ui-metric">
+            <span className="ui-metric-label">
+              {tone && <i className={`ui-dot ui-dot--${tone}`} />}
+              {label}
+            </span>
+            <strong className="ui-metric-value">{value}</strong>
+            <span className="ui-metric-note">{note}</span>
+          </div>
         ))}
-      </div>
-      <div className="studio-overview-grid">
-        <section className="studio-panel studio-sales-panel">
-          <div className="studio-panel-heading">
+      </section>
+
+      <div className="dash-grid">
+        {/* Satış grafiği */}
+        <section className="ui-panel dash-sales">
+          <div className="ui-panel-head">
             <div>
               <h2>Satış performansı</h2>
-              <p>Son 7 günün mağaza hareketleri</p>
+              <p>Son 7 gün</p>
             </div>
-            <div className="studio-segment" aria-label="Grafik ölçümü">
+            <div className="ui-segmented" aria-label="Grafik ölçümü">
               <button
                 aria-pressed={chartMetric === "sales"}
-                className={chartMetric === "sales" ? "is-active" : ""}
                 onClick={() => setChartMetric("sales")}
               >
                 Satış
               </button>
               <button
                 aria-pressed={chartMetric === "orders"}
-                className={chartMetric === "orders" ? "is-active" : ""}
                 onClick={() => setChartMetric("orders")}
               >
                 Sipariş
               </button>
             </div>
           </div>
-          <div className="studio-chart-summary">
-            <strong>
-              {chartMetric === "sales"
-                ? money(
-                    stats.salesTrend.reduce((sum, day) => sum + day.sales, 0),
-                  )
-                : number(
-                    stats.salesTrend.reduce((sum, day) => sum + day.orders, 0),
-                  )}
-            </strong>
-            <span>
-              <i />{" "}
-              {chartMetric === "sales"
-                ? "Haftalık satış toplamı"
-                : "Haftalık sipariş toplamı"}
-            </span>
-            <button
-              className="studio-icon-button"
-              aria-label="Satış verilerini yenile"
-              onClick={handleRefresh}
-              disabled={refreshing}
-            >
-              <RefreshCw
-                size={16}
-                className={refreshing ? "animate-spin" : ""}
-              />
-            </button>
-          </div>
-          <div className="studio-chart">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart
-                data={stats.salesTrend}
-                margin={{ top: 12, right: 10, left: 0, bottom: 0 }}
-              >
-                <defs>
-                  <linearGradient
-                    id="studioSalesFill"
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
-                    <stop offset="0%" stopColor="#258168" stopOpacity={0.2} />
-                    <stop
-                      offset="100%"
-                      stopColor="#258168"
-                      stopOpacity={0.01}
-                    />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid
-                  vertical={false}
-                  stroke="#edf0ed"
-                  strokeDasharray="4 4"
-                />
-                <XAxis
-                  dataKey="date"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#77817b", fontSize: 11 }}
-                  dy={10}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#77817b", fontSize: 11 }}
-                  width={62}
-                  allowDecimals={chartMetric === "sales"}
-                  tickFormatter={(v) =>
-                    chartMetric === "sales" ? money(v) : number(v)
-                  }
-                />
-                <Tooltip
-                  contentStyle={{
-                    background: "#fff",
-                    border: "1px solid #e2e8e3",
-                    borderRadius: 10,
-                    color: "#233b31",
-                  }}
-                  formatter={(v) => [
-                    chartMetric === "sales" ? money(v) : number(v),
-                    chartMetric === "sales" ? "Satış" : "Sipariş",
-                  ]}
-                />
-                <Area
-                  type="monotone"
-                  dataKey={chartMetric}
-                  stroke="#258168"
-                  strokeWidth={2.5}
-                  fill="url(#studioSalesFill)"
-                  activeDot={{ r: 5, stroke: "white", strokeWidth: 3 }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div className="ui-panel-body">
+            <p className="dash-sales-total">
+              <strong>{formatMetric(chartTotal)}</strong>
+              <span>
+                {chartMetric === "sales"
+                  ? "Haftalık satış toplamı"
+                  : "Haftalık sipariş toplamı"}
+              </span>
+            </p>
+            <div className="ui-chart dash-chart">
+              <div className="ui-chart-axis">
+                <span>{formatMetric(chartMax)}</span>
+                <span>{formatMetric(chartMax / 2)}</span>
+                <span>{formatMetric(0)}</span>
+              </div>
+              <div className="ui-bars">
+                {stats.salesTrend.map((day, index) => (
+                  <div key={`${day.date}-${index}`} className="ui-bar-col" tabIndex={0}>
+                    <div className="ui-bar-track">
+                      <div
+                        className="ui-bar"
+                        data-empty={day[chartMetric] > 0 ? undefined : "true"}
+                        style={{ height: `${chartMax > 0 ? (day[chartMetric] / chartMax) * 100 : 0}%` }}
+                      />
+                      <div className="ui-bar-tip">
+                        <strong>{formatMetric(day[chartMetric])}</strong>
+                        <span>
+                          {day.date} · {chartMetric === "sales" ? `${number(day.orders)} sipariş` : money(day.sales)}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="ui-bar-label">{day.date}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
           <button
-            className="studio-chart-link"
+            className="ui-panel-link"
             onClick={() => onNavigate?.("analytics")}
           >
-            Detaylı satış analizini incele <ArrowUpRight size={15} />
+            Detaylı satış analizini incele <ArrowUpRight />
           </button>
         </section>
-        <aside className="studio-priorities">
-          <div className="studio-priority-title">
-            <span className="studio-soft-icon">
-              <Clock size={19} />
-            </span>
-            <span>
-              Günün odağı<small>Öncelikli işleriniz</small>
-            </span>
+
+        {/* Dikkat gerektiren işler */}
+        <section className="ui-panel dash-attn">
+          <div className="ui-panel-head">
+            <div>
+              <h2>Dikkat gerektirenler</h2>
+              <p>Öncelikli işleriniz</p>
+            </div>
           </div>
-          <h2>
-            İşler yolunda,
-            <br />
-            kontrol sizde.
-          </h2>
-          <p>Sipariş akışını buradan takip edin.</p>
-          <button
-            className="studio-priority-row"
-            onClick={() => onNavigate?.("orders")}
-          >
-            <span className="studio-priority-icon amber">
-              <Clock size={18} />
-            </span>
-            <span>
-              <strong>
-                {operations.delayedOrders.length} sipariş bekliyor
-              </strong>
-              <small>20 dakikadan uzun süredir</small>
-            </span>
-            <ArrowUpRight size={16} />
-          </button>
-          <button
-            className="studio-priority-row"
-            onClick={() => onNavigate?.("orders")}
-          >
-            <span className="studio-priority-icon green">
-              <Truck size={18} />
-            </span>
-            <span>
-              <strong>{operations.activeOrders.length} aktif sipariş</strong>
-              <small>Hazırlanıyor veya yolda</small>
-            </span>
-            <ArrowUpRight size={16} />
-          </button>
-          <div className="studio-average">
-            <span>Bugünkü ortalama sepet</span>
-            <strong>{money(operations.averageBasket)}</strong>
+          <div className="dash-actions">
+            <button
+              className="dash-action"
+              data-tone={operations.delayedOrders.length > 0 ? "danger" : undefined}
+              onClick={() => onNavigate?.("orders", "delayed")}
+            >
+              <Clock />
+              <span>
+                <strong>Geciken sipariş</strong>
+                <small>20 dakikadan uzun süredir bekliyor</small>
+              </span>
+              <b>{operations.delayedOrders.length}</b>
+              <ChevronRight />
+            </button>
+            <button
+              className="dash-action"
+              data-tone={stats.unansweredChats > 0 ? "warn" : undefined}
+              onClick={() => onNavigate?.("support-queue")}
+            >
+              <MessageCircle />
+              <span>
+                <strong>Yanıt bekleyen mesaj</strong>
+                <small>Destek kuyruğunu aç</small>
+              </span>
+              <b>{stats.unansweredChats}</b>
+              <ChevronRight />
+            </button>
+            <button
+              className="dash-action"
+              onClick={() => onNavigate?.("orders", "active")}
+            >
+              <Truck />
+              <span>
+                <strong>Aktif sipariş</strong>
+                <small>Hazırlanıyor veya yolda</small>
+              </span>
+              <b>{operations.activeOrders.length}</b>
+              <ChevronRight />
+            </button>
           </div>
-          <button
-            className="studio-primary"
-            onClick={() => onNavigate?.("orders")}
-          >
-            Siparişleri yönet <ArrowRight size={16} />
-          </button>
-        </aside>
-      </div>
-      <section className="studio-panel studio-recent">
-        <div className="studio-panel-heading">
-          <div>
-            <h2>Son siparişler</h2>
-            <p>Mağazanızdaki en yeni hareketler</p>
+          <div className="dash-distribution">
+            <div className="ui-between">
+              <h3 className="ui-overline">Sipariş dağılımı</h3>
+              <span className="ui-text-xs ui-muted ui-num">{number(distributionTotal)} sipariş</span>
+            </div>
+            {stats.statusDistribution.length > 0 ? (
+              <>
+                <div className="dash-stack" role="img" aria-label="Sipariş durumlarının dağılımı">
+                  {stats.statusDistribution.map((status) => (
+                    <i
+                      key={status.name}
+                      data-tone={statusTones[status.name]}
+                      style={{ flexGrow: status.value }}
+                      title={`${status.name}: ${number(status.value)}`}
+                    />
+                  ))}
+                </div>
+                <ul className="dash-legend">
+                  {stats.statusDistribution.map((status) => (
+                    <li key={status.name}>
+                      <i className={`ui-dot ui-dot--${statusTones[status.name]}`} />
+                      {status.name}
+                      <strong>{number(status.value)}</strong>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p className="ui-text-sm ui-muted">Henüz sipariş yok</p>
+            )}
           </div>
-          <button
-            className="studio-text-button"
-            onClick={() => onNavigate?.("orders")}
-          >
-            Tüm siparişler <ArrowRight size={15} />
-          </button>
-        </div>
-        <div className="studio-table-scroll">
-          <table className="studio-order-table">
-            <thead>
-              <tr>
-                <th>Sipariş / Müşteri</th>
-                <th>Tarih</th>
-                <th>Durum</th>
-                <th>Tutar</th>
-                <th>
-                  <span className="sr-only">İşlem</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {stats.recentOrders.map((order, i) => (
-                <tr key={order.orderId || order._id || i}>
-                  <td>
-                    <div className="studio-customer">
-                      <span className="studio-customer-avatar">
-                        {order.customerName
-                          ?.charAt(0)
-                          ?.toLocaleUpperCase("tr-TR") || "M"}
-                      </span>
-                      <span>
-                        <strong>{order.customerName}</strong>
-                        <small>
-                          #
-                          {String(order.orderId || order._id || "")
-                            .slice(-6)
-                            .toUpperCase()}
-                        </small>
-                      </span>
-                    </div>
-                  </td>
-                  <td>
-                    <span>
-                      {new Date(order.createdAt).toLocaleDateString("tr-TR", {
-                        day: "numeric",
-                        month: "short",
-                      })}
-                    </span>
-                    <small>
-                      {new Date(order.createdAt).toLocaleTimeString("tr-TR", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </small>
-                  </td>
-                  <td>
-                    <span
-                      className={`studio-order-status ${order.status === "Teslim Edildi" ? "delivered" : order.status === "Yolda" ? "transit" : order.status === "İptal Edildi" ? "cancelled" : "pending"}`}
-                    >
-                      <i />
-                      {order.status}
-                    </span>
-                  </td>
-                  <td className="studio-order-amount">
-                    {money(order.totalAmount)}
-                  </td>
-                  <td>
-                    <button
-                      className="studio-icon-button"
-                      aria-label={`${order.customerName} siparişlerini görüntüle`}
-                      onClick={() => onNavigate?.("orders")}
-                    >
-                      <ArrowUpRight size={17} />
-                    </button>
-                  </td>
-                </tr>
+        </section>
+
+        {/* Dönem özeti */}
+        <section className="ui-panel dash-period">
+          <div className="ui-panel-head">
+            <div>
+              <h2>Dönem özeti</h2>
+              <p>{revenuePeriod.description}</p>
+            </div>
+            <select
+              aria-label="Ciro dönemi"
+              className="ui-field ui-field--auto ui-field--sm"
+              value={revenuePeriodId}
+              onChange={(event) => setRevenuePeriodId(event.target.value)}
+            >
+              {REVENUE_PERIODS.map((period) => (
+                <option key={period.id} value={period.id}>{period.label}</option>
               ))}
-            </tbody>
-          </table>
-        </div>
-        {stats.recentOrders.length === 0 && (
-          <div className="studio-empty">
-            <ShoppingBag size={30} />
-            <strong>İlk sipariş için hazırız</strong>
-            <p>Yeni siparişler geldiğinde burada listelenecek.</p>
+            </select>
           </div>
-        )}
-      </section>
-      <div className="studio-detail-grid">
-        <section className="studio-panel">
-          <div className="studio-panel-heading">
+          <dl className="dash-figures" aria-live="polite">
+            <div className="dash-figure--lead">
+              <dt>Gerçekleşen ciro</dt>
+              <dd>{money(periodSummary.revenue)}</dd>
+              <small>
+                {number(periodSummary.count)} sipariş · İptaller hariç
+                {periodSummary.count === 0 && " · Henüz satış yok"}
+              </small>
+            </div>
+            <div>
+              <dt>Dönem siparişleri</dt>
+              <dd>{number(periodSummary.count)}</dd>
+            </div>
+            <div>
+              <dt>Dönem ortalama sepet</dt>
+              <dd>{money(periodSummary.count ? periodSummary.revenue / periodSummary.count : 0)}</dd>
+            </div>
+            <div>
+              <dt>Dönem iptal tutarı</dt>
+              <dd>{money(periodCancelled.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0))}</dd>
+              <small>{periodCancelled.length} iptal edilen sipariş</small>
+            </div>
+          </dl>
+        </section>
+
+        {/* Son siparişler */}
+        <section className="ui-panel dash-recent">
+          <div className="ui-panel-head">
+            <div>
+              <h2>Son siparişler</h2>
+              <p>Mağazanızdaki en yeni hareketler</p>
+            </div>
+            <button
+              className="ui-btn ui-btn--ghost ui-btn--sm"
+              onClick={() => onNavigate?.("orders")}
+            >
+              Tüm siparişler <ArrowRight />
+            </button>
+          </div>
+          <div className="dash-rows">
+            {stats.recentOrders.map((order, i) => (
+              <button
+                key={order.orderId || order._id || i}
+                className="dash-row dash-row--order"
+                aria-label={`${order.customerName} siparişlerini görüntüle`}
+                onClick={() => onNavigate?.("orders")}
+              >
+                <span className="dash-row-main">
+                  <strong>{order.customerName}</strong>
+                  <small>
+                    #
+                    {String(order.orderId || order._id || "")
+                      .slice(-6)
+                      .toUpperCase()}
+                  </small>
+                </span>
+                <span className="dash-row-time">
+                  {new Date(order.createdAt).toLocaleDateString("tr-TR", {
+                    day: "numeric",
+                    month: "short",
+                  })}{" "}
+                  {new Date(order.createdAt).toLocaleTimeString("tr-TR", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+                <span
+                  className={`ui-badge ui-badge--${order.status === "Teslim Edildi" ? "ok" : order.status === "Yolda" ? "info" : order.status === "İptal Edildi" ? "danger" : "warn"}`}
+                >
+                  {order.status}
+                </span>
+                <span className="dash-row-amount">{money(order.totalAmount)}</span>
+              </button>
+            ))}
+            {stats.recentOrders.length === 0 && (
+              <div className="ui-empty">
+                <ShoppingBag />
+                <strong>İlk sipariş için hazırız</strong>
+                <p>Yeni siparişler geldiğinde burada listelenecek.</p>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* En çok satanlar */}
+        <section className="ui-panel dash-top">
+          <div className="ui-panel-head">
             <div>
               <h2>En çok tercih edilenler</h2>
               <p>Satış adedine göre ilk 5 ürün</p>
             </div>
-            <Package size={19} />
           </div>
-          <div className="studio-popular-list">
+          <div className="dash-rows">
             {stats.popularProducts.map((product, i) => (
               <button
                 key={product.name}
-                className="studio-popular"
+                className="dash-row dash-row--product"
                 onClick={() => onNavigate?.("products")}
               >
-                <span className="studio-rank">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <span>
+                <span className="dash-rank">{i + 1}</span>
+                <span className="dash-row-main">
                   <strong>{product.name}</strong>
-                  <small>{product.quantity} adet satıldı</small>
+                  <span className="dash-meter">
+                    <i style={{ width: `${(product.quantity / topQuantity) * 100}%` }} />
+                  </span>
                 </span>
-                <b>{money(product.revenue)}</b>
+                <span className="dash-row-time">{product.quantity} adet</span>
+                <span className="dash-row-amount">{money(product.revenue)}</span>
               </button>
             ))}
             {stats.popularProducts.length === 0 && (
-              <div className="studio-empty">
-                <Package size={26} />
+              <div className="ui-empty">
+                <Package />
                 <p>Satışlarla birlikte popüler ürünler burada oluşacak.</p>
               </div>
             )}
           </div>
         </section>
-        <ProfitMarginCard allOrders={stats.allOrders} />
-      </div>
-      <TelegramNotificationsCard />
-      <section className="studio-bottom-summary">
-        <div>
-          <h2>Sipariş dağılımı</h2>
-          <div className="studio-status-chips">
-            {stats.statusDistribution.map((status) => (
-              <span key={status.name}>
-                <i style={{ background: status.color }} />
-                {status.name}
-                <strong>{number(status.value)}</strong>
-              </span>
-            ))}
-            {stats.statusDistribution.length === 0 && (
-              <span>Henüz sipariş yok</span>
-            )}
+
+        {/* Günlük aksiyonlar */}
+        <section className="ui-panel dash-quick">
+          <div className="ui-panel-head">
+            <div>
+              <h2>Hızlı işlemler</h2>
+              <p>Sık kullanılan bölümler</p>
+            </div>
           </div>
-        </div>
-        <button
-          className="studio-text-button"
-          onClick={() => onNavigate?.("products")}
-        >
-          {stats.lowStockProducts.length
-            ? `${stats.lowStockProducts.length} ürünün stokunu incele`
-            : "Ürün durumlarını incele"}
-          <ArrowUpRight size={16} />
-        </button>
-      </section>
-      <div className="studio-shortcuts">
-        <span>HIZLI İŞLEMLER</span>
-        <button onClick={() => onNavigate?.("coupons")}>
-          <Tag size={16} /> Kupon yönetimi <ArrowUpRight size={14} />
-        </button>
-        <button onClick={() => onNavigate?.("weekly-products")}>
-          <CalendarDays size={16} /> Haftalık fırsatlar{" "}
-          <ArrowUpRight size={14} />
-        </button>
-        <button onClick={() => onNavigate?.("users")}>
-          <Users size={16} /> Müşteriler <ArrowUpRight size={14} />
-        </button>
+          <div className="dash-links">
+            <button onClick={() => onNavigate?.("coupons")}>
+              <Tag /> Kupon yönetimi <ChevronRight />
+            </button>
+            <button onClick={() => onNavigate?.("weekly-products")}>
+              <CalendarDays /> Haftalık fırsatlar <ChevronRight />
+            </button>
+            <button onClick={() => onNavigate?.("users")}>
+              <Users /> Müşteriler <ChevronRight />
+            </button>
+            <button onClick={() => onNavigate?.("products")}>
+              <Package /> Ürünleri incele <ChevronRight />
+            </button>
+          </div>
+        </section>
+
+        <TelegramNotificationsCard />
       </div>
     </div>
   );

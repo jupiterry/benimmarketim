@@ -9,6 +9,7 @@ import {
   Menu,
   ArrowUpRight,
   Leaf,
+  Store,
 } from "lucide-react";
 import { adminMenuGroups } from "./adminNavigation";
 
@@ -62,59 +63,48 @@ export default function AdminSidebar({
   };
   const content = (compact, mobile = false) => (
     <>
-      <div className="studio-brand">
-        <span className="studio-brand-mark">
-          <Leaf size={23} />
+      <div className="app-brand">
+        <span className="app-brand-mark">
+          <Leaf size={15} />
         </span>
-        {!compact && (
-          <div>
-            <strong>
-              benim marketim<span>.</span>
-            </strong>
-            <small>YÖNETİM PANELİ</small>
-          </div>
+        {!compact && <strong className="app-brand-name">Benim Marketim</strong>}
+        {!compact && !mobile && (
+          <button
+            className="app-icon-btn app-brand-toggle"
+            onClick={onCollapse}
+            aria-label="Menüyü daralt"
+            title="Menüyü daralt"
+          >
+            <PanelLeftClose size={16} />
+          </button>
         )}
         {mobile && (
           <button
-            className="studio-sidebar-close"
+            className="app-icon-btn app-brand-toggle"
             onClick={onMobileClose}
             aria-label="Menüyü kapat"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         )}
       </div>
-      {!compact && (
-        <a
-          className="studio-store-link"
-          href="/"
-          target="_blank"
-          rel="noreferrer"
-        >
-          <span className="studio-store-dot" />
-          <span>
-            Mağazayı görüntüle<small>devrekbenimmarketim.com</small>
-          </span>
-          <ArrowUpRight size={16} />
-        </a>
-      )}
-      <nav className="studio-navigation" aria-label="Yönetim bölümleri">
+      <nav className="app-nav" aria-label="Yönetim bölümleri">
         {adminMenuGroups.map((group) => (
-          <div className="studio-nav-group" key={group.title}>
-            {!compact && <p>{group.title}</p>}
-            {group.items.map(({ id, label, icon: Icon, badge }) => (
+          <div className="app-nav-group" key={group.title}>
+            {!compact && <p>{group.short || group.title}</p>}
+            {group.items.map(({ id, label, short, icon: Icon, badge }) => (
               <button
                 key={id}
-                className={`studio-nav-item ${activeTab === id ? "is-active" : ""}`}
+                className="app-nav-item"
                 aria-current={activeTab === id ? "page" : undefined}
                 aria-label={label}
                 title={compact ? label : undefined}
                 onClick={() => select(id)}
               >
-                <Icon size={18} strokeWidth={1.7} />
-                {!compact && <span>{label}</span>}
+                <Icon size={16} strokeWidth={1.8} />
+                {!compact && <span>{short || label}</span>}
                 {badge && (badge === "orders" ? orderCount : chatCount) > 0 && (
-                  <b className="studio-nav-count">
+                  <b className="app-nav-count">
                     {Math.min(99, badge === "orders" ? orderCount : chatCount)}
                   </b>
                 )}
@@ -123,9 +113,31 @@ export default function AdminSidebar({
           </div>
         ))}
       </nav>
-      <div className="studio-sidebar-bottom">
-        <div className="studio-account">
-          <span className="studio-avatar">
+      <div className="app-side-foot">
+        <a
+          className="app-nav-item"
+          href="/"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="Mağazayı görüntüle"
+          title={compact ? "Mağazayı görüntüle" : undefined}
+        >
+          <Store size={16} strokeWidth={1.8} />
+          {!compact && <span>Mağazayı aç</span>}
+          {!compact && <ArrowUpRight size={14} className="app-nav-ext" />}
+        </a>
+        {compact && !mobile && (
+          <button
+            className="app-nav-item"
+            onClick={onCollapse}
+            aria-label="Menüyü genişlet"
+            title="Menüyü genişlet"
+          >
+            <PanelLeftOpen size={16} strokeWidth={1.8} />
+          </button>
+        )}
+        <div className="app-user">
+          <span className="app-avatar">
             {user?.name?.charAt(0)?.toLocaleUpperCase("tr-TR") || "Y"}
           </span>
           {!compact && (
@@ -134,45 +146,30 @@ export default function AdminSidebar({
               <small>Mağaza yöneticisi</small>
             </div>
           )}
-          {!mobile && (
-            <button
-              onClick={onCollapse}
-              aria-label={compact ? "Menüyü genişlet" : "Menüyü daralt"}
-              title={compact ? "Menüyü genişlet" : "Menüyü daralt"}
-            >
-              {compact ? (
-                <PanelLeftOpen size={17} />
-              ) : (
-                <PanelLeftClose size={17} />
-              )}
-            </button>
-          )}
         </div>
       </div>
     </>
   );
   return (
     <>
-      <aside
-        className={`studio-sidebar studio-sidebar-desktop ${collapsed ? "is-compact" : ""}`}
-      >
+      <aside className={`app-side app-side-desktop ${collapsed ? "is-rail" : ""}`}>
         {content(collapsed)}
       </aside>
       {mobileOpen && (
-        <div className="studio-mobile-drawer">
-          <div className="studio-drawer-scrim" onClick={onMobileClose} />
+        <div className="app-side-sheet">
+          <div className="app-scrim" onClick={onMobileClose} />
           <aside
             ref={mobileRef}
             role="dialog"
             aria-modal="true"
             aria-label="Yönetim menüsü"
-            className="studio-sidebar"
+            className="app-side"
           >
             {content(false, true)}
           </aside>
         </div>
       )}
-      <nav className="studio-bottom-nav" aria-label="Hızlı gezinme">
+      <nav className="app-tabbar" aria-label="Hızlı gezinme">
         {[
           { id: "dashboard", label: "Özet", icon: LayoutDashboard },
           { id: "orders", label: "Siparişler", icon: ShoppingBag },
@@ -182,9 +179,8 @@ export default function AdminSidebar({
             key={id}
             onClick={() => select(id)}
             aria-current={activeTab === id ? "page" : undefined}
-            className={activeTab === id ? "is-active" : ""}
           >
-            <Icon size={20} />
+            <Icon size={19} strokeWidth={1.8} />
             <span>{label}</span>
           </button>
         ))}
@@ -194,8 +190,8 @@ export default function AdminSidebar({
           }
           aria-expanded={mobileOpen}
         >
-          <Menu size={20} />
-          <span>Tüm menü</span>
+          <Menu size={19} strokeWidth={1.8} />
+          <span>Menü</span>
         </button>
       </nav>
     </>
