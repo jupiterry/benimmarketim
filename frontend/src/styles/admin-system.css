@@ -1,0 +1,1141 @@
+/*
+ * Benim Marketim — yönetim paneli tasarım sistemi.
+ *
+ * Tek kaynak: renk, yazı, köşe ve gölge değerleri aşağıdaki değişkenlerden gelir.
+ * Tüm sınıflar `ui-` önekiyle başlar ve yalnızca `.admin-layout` içinde geçerlidir;
+ * mağaza (müşteri) tarafını etkilemez. Ekranlar bu sınıflara geçtikçe
+ * admin-theme.css içindeki "uyumluluk katmanı" küçültülür.
+ */
+.admin-layout {
+  /* Metin */
+  --ui-text: #1d2b24;
+  --ui-text-2: #55635b;
+  --ui-text-3: #7b877f;
+  /* Yüzeyler ve çizgiler */
+  --ui-surface: #ffffff;
+  --ui-surface-2: #f6f8f5;
+  --ui-surface-3: #eef2ee;
+  --ui-line: #e3e8e3;
+  --ui-line-strong: #cdd6cf;
+  /* Marka */
+  --ui-brand: #2d7659;
+  --ui-brand-strong: #235e45;
+  --ui-brand-soft: #e7f1eb;
+  --ui-brand-ink: #1f5a42;
+  /* Durum renkleri: yalnızca anlam taşıdığı yerde kullanılır */
+  --ui-warn: #c98a1c;
+  --ui-warn-bg: #fdf4e3;
+  --ui-warn-ink: #85560f;
+  --ui-info: #3f7fc0;
+  --ui-info-bg: #e9f1fa;
+  --ui-info-ink: #2a5d92;
+  --ui-ok: #2f8a60;
+  --ui-ok-bg: #e6f2ea;
+  --ui-ok-ink: #256547;
+  --ui-danger: #c2493b;
+  --ui-danger-bg: #fbebe8;
+  --ui-danger-ink: #a23a2e;
+  /* Ölçek */
+  --ui-fs-xs: 12px;
+  --ui-fs-sm: 13px;
+  --ui-fs-md: 14px;
+  --ui-fs-lg: 16px;
+  --ui-radius: 8px;
+  --ui-radius-lg: 12px;
+  --ui-shadow: 0 1px 2px rgba(23, 46, 37, 0.06);
+  --ui-shadow-pop: 0 18px 48px rgba(23, 46, 37, 0.18);
+  --ui-ease: 120ms ease;
+}
+
+/* ── Kart ─────────────────────────────────────────────────────────── */
+.admin-layout .ui-card {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow);
+  min-width: 0;
+}
+.admin-layout .ui-card-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--ui-line);
+}
+.admin-layout .ui-card-body {
+  padding: 18px;
+}
+.admin-layout .ui-title {
+  margin: 0;
+  font-size: var(--ui-fs-lg);
+  font-weight: 650;
+  line-height: 1.35;
+  color: var(--ui-text);
+}
+.admin-layout .ui-subtitle {
+  margin: 2px 0 0;
+  font-size: var(--ui-fs-sm);
+  line-height: 1.45;
+  color: var(--ui-text-2);
+}
+.admin-layout .ui-overline {
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ui-text-3);
+}
+.admin-layout .ui-muted {
+  color: var(--ui-text-2);
+}
+.admin-layout .ui-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Düğme ────────────────────────────────────────────────────────── */
+.admin-layout .ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    background-color var(--ui-ease),
+    border-color var(--ui-ease),
+    color var(--ui-ease);
+}
+.admin-layout .ui-btn:hover {
+  background: var(--ui-surface-2);
+  border-color: var(--ui-text-3);
+}
+.admin-layout .ui-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.admin-layout .ui-btn svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+.admin-layout .ui-btn--primary {
+  background: var(--ui-brand);
+  border-color: var(--ui-brand);
+  color: #fff;
+}
+.admin-layout .ui-btn--primary:hover {
+  background: var(--ui-brand-strong);
+  border-color: var(--ui-brand-strong);
+}
+.admin-layout .ui-btn--ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ui-text-2);
+}
+.admin-layout .ui-btn--ghost:hover {
+  background: var(--ui-surface-3);
+  border-color: transparent;
+  color: var(--ui-text);
+}
+.admin-layout .ui-btn--danger {
+  border-color: #ecc9c3;
+  color: var(--ui-danger-ink);
+}
+.admin-layout .ui-btn--danger:hover {
+  background: var(--ui-danger-bg);
+  border-color: var(--ui-danger);
+}
+.admin-layout .ui-btn--sm {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .ui-btn--block {
+  width: 100%;
+}
+/* Açık/kapalı durumu olan düğmeler (aria-pressed) */
+.admin-layout .ui-btn[aria-pressed="true"] {
+  background: var(--ui-brand-soft);
+  border-color: #b9d6c6;
+  color: var(--ui-brand-ink);
+}
+.admin-layout .ui-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--ui-radius);
+  color: var(--ui-text-2);
+  transition:
+    background-color var(--ui-ease),
+    color var(--ui-ease);
+}
+.admin-layout .ui-icon-btn:hover {
+  background: var(--ui-surface-3);
+  color: var(--ui-text);
+}
+.admin-layout .ui-icon-btn--danger:hover {
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+}
+.admin-layout .ui-icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ── Form alanı ───────────────────────────────────────────────────── */
+.admin-layout .ui-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  color: var(--ui-text-2);
+}
+.admin-layout .ui-field {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font-size: var(--ui-fs-md);
+  line-height: 1.4;
+  transition:
+    border-color var(--ui-ease),
+    box-shadow var(--ui-ease);
+}
+.admin-layout .ui-field::placeholder {
+  color: var(--ui-text-3);
+  opacity: 1;
+}
+.admin-layout .ui-field:hover {
+  border-color: var(--ui-text-3);
+}
+.admin-layout .ui-field:focus {
+  outline: none;
+  border-color: var(--ui-brand);
+  box-shadow: 0 0 0 3px rgba(45, 118, 89, 0.16);
+}
+.admin-layout select.ui-field {
+  padding-right: 32px;
+  cursor: pointer;
+}
+.admin-layout .ui-field--auto {
+  width: auto;
+}
+.admin-layout .ui-search {
+  position: relative;
+  min-width: 0;
+}
+.admin-layout .ui-search > svg {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  width: 16px;
+  height: 16px;
+  transform: translateY(-50%);
+  color: var(--ui-text-3);
+  pointer-events: none;
+}
+.admin-layout .ui-search > .ui-field {
+  padding-left: 36px;
+}
+.admin-layout .ui-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text);
+  cursor: pointer;
+}
+.admin-layout .ui-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--ui-brand);
+  cursor: pointer;
+}
+
+/* ── Rozet ────────────────────────────────────────────────────────── */
+.admin-layout .ui-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+.admin-layout .ui-badge svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+.admin-layout .ui-badge--warn {
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+.admin-layout .ui-badge--info {
+  background: var(--ui-info-bg);
+  color: var(--ui-info-ink);
+}
+.admin-layout .ui-badge--ok {
+  background: var(--ui-ok-bg);
+  color: var(--ui-ok-ink);
+}
+.admin-layout .ui-badge--danger {
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+}
+.admin-layout .ui-badge--brand {
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+}
+.admin-layout .ui-badge button {
+  display: inline-flex;
+  margin-right: -3px;
+  padding: 2px;
+  border-radius: 4px;
+  color: inherit;
+  opacity: 0.7;
+}
+.admin-layout .ui-badge button:hover {
+  opacity: 1;
+}
+.admin-layout .ui-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--ui-text-3);
+}
+.admin-layout .ui-dot--warn {
+  background: var(--ui-warn);
+}
+.admin-layout .ui-dot--info {
+  background: var(--ui-info);
+}
+.admin-layout .ui-dot--ok {
+  background: var(--ui-ok);
+}
+.admin-layout .ui-dot--danger {
+  background: var(--ui-danger);
+}
+
+/* ── Özet kutusu ──────────────────────────────────────────────────── */
+.admin-layout .ui-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow);
+  min-width: 0;
+}
+.admin-layout .ui-stat-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--ui-fs-sm);
+  font-weight: 550;
+  color: var(--ui-text-2);
+}
+.admin-layout .ui-stat-value {
+  font-size: 24px;
+  font-weight: 650;
+  line-height: 1.15;
+  color: var(--ui-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Sekmeli seçim (segmented) ────────────────────────────────────── */
+.admin-layout .ui-segmented {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-3);
+}
+.admin-layout .ui-segmented > button {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    background-color var(--ui-ease),
+    color var(--ui-ease);
+}
+.admin-layout .ui-segmented > button svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.admin-layout .ui-segmented > button:hover {
+  color: var(--ui-text);
+  background: rgba(255, 255, 255, 0.6);
+}
+.admin-layout .ui-segmented > button[aria-pressed="true"] {
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  box-shadow: var(--ui-shadow);
+}
+.admin-layout .ui-segmented > button[aria-pressed="true"][data-tone="warn"] {
+  color: var(--ui-warn-ink);
+}
+.admin-layout .ui-segmented > button[aria-pressed="true"][data-tone="info"] {
+  color: var(--ui-info-ink);
+}
+.admin-layout .ui-segmented > button[aria-pressed="true"][data-tone="ok"] {
+  color: var(--ui-ok-ink);
+}
+.admin-layout .ui-segmented > button[aria-pressed="true"][data-tone="danger"] {
+  color: var(--ui-danger-ink);
+}
+
+/* ── Adet seçici ──────────────────────────────────────────────────── */
+.admin-layout .ui-stepper {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+}
+.admin-layout .ui-stepper > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: var(--ui-text-2);
+}
+.admin-layout .ui-stepper > button:hover:not(:disabled) {
+  background: var(--ui-surface-3);
+  color: var(--ui-text);
+}
+.admin-layout .ui-stepper > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+.admin-layout .ui-stepper > button svg {
+  width: 13px;
+  height: 13px;
+}
+.admin-layout .ui-stepper > span {
+  min-width: 26px;
+  padding: 0 2px;
+  text-align: center;
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+  color: var(--ui-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Pencere (modal) ──────────────────────────────────────────────── */
+.admin-layout .ui-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(20, 32, 26, 0.45);
+  animation: ui-fade 120ms ease-out;
+}
+.admin-layout .ui-modal {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 460px;
+  max-height: calc(100vh - 32px);
+  overflow: hidden;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow-pop);
+  animation: ui-pop 140ms ease-out;
+}
+.admin-layout .ui-modal--wide {
+  max-width: 760px;
+}
+.admin-layout .ui-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--ui-line);
+}
+.admin-layout .ui-modal-body {
+  flex: 1 1 auto;
+  padding: 20px;
+  overflow-y: auto;
+}
+.admin-layout .ui-modal-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--ui-line);
+  background: var(--ui-surface-2);
+}
+@keyframes ui-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes ui-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* ── Liste satırı, avatar, not, boş durum, iskelet ────────────────── */
+.admin-layout .ui-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  min-width: 0;
+}
+.admin-layout .ui-row--selectable {
+  cursor: pointer;
+  transition:
+    background-color var(--ui-ease),
+    border-color var(--ui-ease);
+}
+.admin-layout .ui-row--selectable:hover {
+  background: var(--ui-surface-2);
+}
+.admin-layout .ui-row[data-selected="true"] {
+  background: var(--ui-brand-soft);
+  border-color: #b9d6c6;
+}
+.admin-layout .ui-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-3);
+  color: var(--ui-text-3);
+}
+.admin-layout .ui-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.admin-layout .ui-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+  font-size: var(--ui-fs-md);
+  font-weight: 650;
+}
+.admin-layout .ui-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid #ecd9ae;
+  border-left: 3px solid var(--ui-warn);
+  border-radius: var(--ui-radius);
+  background: var(--ui-warn-bg);
+}
+.admin-layout .ui-note > svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--ui-warn-ink);
+}
+.admin-layout .ui-note > div {
+  min-width: 0;
+}
+.admin-layout .ui-note-label {
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+  color: var(--ui-warn-ink);
+}
+.admin-layout .ui-note-body {
+  margin-top: 2px;
+  font-size: var(--ui-fs-md);
+  line-height: 1.55;
+  color: #47360f;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.admin-layout .ui-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 56px 20px;
+  text-align: center;
+  color: var(--ui-text-2);
+}
+.admin-layout .ui-empty > svg {
+  width: 36px;
+  height: 36px;
+  margin-bottom: 8px;
+  color: var(--ui-text-3);
+}
+.admin-layout .ui-skeleton {
+  border-radius: 6px;
+  background: linear-gradient(90deg, #e9eee9, #f4f7f4, #e9eee9);
+  background-size: 200% 100%;
+  animation: ui-shimmer 1.6s linear infinite;
+}
+@keyframes ui-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+.admin-layout .ui-spin {
+  animation: ui-spin 0.9s linear infinite;
+}
+@keyframes ui-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Tablo ────────────────────────────────────────────────────────── */
+.admin-layout .ui-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--ui-fs-md);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .ui-table th {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--ui-line);
+  background: var(--ui-surface-2);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+  text-align: left;
+}
+.admin-layout .ui-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--ui-line);
+  color: var(--ui-text);
+}
+
+/* ── Sayfalama ────────────────────────────────────────────────────── */
+.admin-layout .ui-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.admin-layout .ui-pagination button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition: background-color var(--ui-ease);
+}
+.admin-layout .ui-pagination button:hover:not(:disabled) {
+  background: var(--ui-surface-3);
+  color: var(--ui-text);
+}
+.admin-layout .ui-pagination button[aria-current="page"] {
+  background: var(--ui-brand);
+  color: #fff;
+}
+.admin-layout .ui-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+.admin-layout .ui-pagination button svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ══ Siparişler ekranı ════════════════════════════════════════════════
+   Yalnızca yerleşim. Renk ve tipografi yukarıdaki ortak sınıflardan gelir. */
+.admin-layout .orders {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-size: var(--ui-fs-md);
+  color: var(--ui-text);
+}
+.admin-layout .orders-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.admin-layout .orders-today {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 22px;
+  padding: 12px 18px;
+}
+.admin-layout .orders-today-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text-2);
+}
+.admin-layout .orders-today-item strong {
+  font-size: var(--ui-fs-lg);
+  font-weight: 650;
+  color: var(--ui-text);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .orders-today-spacer {
+  flex: 1 1 auto;
+}
+.admin-layout .orders-stats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+.admin-layout .orders-queue {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.admin-layout .orders-queue-item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 18px;
+  min-width: 0;
+}
+.admin-layout .orders-queue-item + .orders-queue-item {
+  border-left: 1px solid var(--ui-line);
+}
+.admin-layout .orders-queue-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+.admin-layout .orders-queue-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.admin-layout .orders-amount {
+  font-weight: 650;
+  color: var(--ui-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.admin-layout .orders-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text-2);
+}
+.admin-layout .orders-meta svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--ui-text-3);
+}
+.admin-layout .orders-meta > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-layout .orders-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.admin-layout .orders-filter-row > .ui-search {
+  flex: 1 1 260px;
+}
+.admin-layout .orders-filter-divider {
+  margin: 14px 0;
+  border: 0;
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .orders-advanced {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.admin-layout .orders-saved {
+  display: inline-flex;
+  align-items: center;
+}
+.admin-layout .orders-saved > .ui-btn {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.admin-layout .orders-saved > .ui-icon-btn {
+  height: 30px;
+  width: 28px;
+  border: 1px solid var(--ui-line-strong);
+  border-left: 0;
+  border-radius: 0 var(--ui-radius) var(--ui-radius) 0;
+}
+.admin-layout .orders-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  padding: 10px 18px;
+}
+.admin-layout .orders-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+/* Sipariş kartı */
+.admin-layout .order-card {
+  display: flex;
+  flex-direction: column;
+  border-top: 3px solid var(--ui-line-strong);
+  transition: border-color var(--ui-ease);
+}
+.admin-layout .order-card[data-status="Hazırlanıyor"] {
+  border-top-color: var(--ui-warn);
+}
+.admin-layout .order-card[data-status="Yolda"] {
+  border-top-color: var(--ui-info);
+}
+.admin-layout .order-card[data-status="Teslim Edildi"] {
+  border-top-color: var(--ui-ok);
+}
+.admin-layout .order-card[data-status="İptal Edildi"] {
+  border-top-color: var(--ui-danger);
+}
+.admin-layout .order-card[data-selected="true"] {
+  border-right-color: var(--ui-brand);
+  border-bottom-color: var(--ui-brand);
+  border-left-color: var(--ui-brand);
+}
+.admin-layout .order-card-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+}
+.admin-layout .order-card-section + .order-card-section {
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .order-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.admin-layout .order-card-id {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.admin-layout .order-card-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.35;
+  color: var(--ui-text);
+  overflow-wrap: anywhere;
+}
+.admin-layout .order-card-sub {
+  margin-top: 1px;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-2);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .order-card-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+}
+.admin-layout .order-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.admin-layout .order-card-tags > .ui-btn {
+  margin-left: auto;
+}
+.admin-layout .order-card-contact {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.admin-layout .order-card-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-2);
+}
+.admin-layout .order-card-counts {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text-2);
+}
+.admin-layout .order-card-counts strong {
+  margin-right: 4px;
+  font-size: var(--ui-fs-lg);
+  font-weight: 650;
+  color: var(--ui-text);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .order-card-price {
+  text-align: right;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--ui-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.admin-layout .order-card-price small {
+  display: block;
+  font-size: var(--ui-fs-xs);
+  font-weight: 500;
+  color: var(--ui-text-3);
+  text-decoration: line-through;
+}
+.admin-layout .order-card-coupon {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-2);
+}
+.admin-layout .order-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.admin-layout .order-item-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.admin-layout .order-item-name {
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ui-text);
+  overflow-wrap: anywhere;
+}
+.admin-layout .order-item-sub {
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-2);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .order-item-total {
+  flex-shrink: 0;
+  text-align: right;
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+  color: var(--ui-text);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .order-item {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.admin-layout .order-item-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+.admin-layout .order-card-head > input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin-top: 3px;
+  align-self: flex-start;
+  flex-shrink: 0;
+  accent-color: var(--ui-brand);
+  cursor: pointer;
+}
+.admin-layout .ui-btn--ghost svg:last-child {
+  transition: transform var(--ui-ease);
+}
+
+/* Sipariş ayrıntı penceresi */
+.admin-layout .order-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.admin-layout .order-detail-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  min-width: 0;
+}
+.admin-layout .order-detail-box .orders-meta {
+  font-size: var(--ui-fs-md);
+  color: var(--ui-text);
+}
+.admin-layout .order-detail-box .orders-meta > span {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.admin-layout .order-detail-tracking {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.admin-layout .order-detail-tracking > .ui-field {
+  flex: 1 1 200px;
+  width: auto;
+}
+.admin-layout .order-detail-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-2);
+  font-weight: 600;
+}
+.admin-layout .order-detail-total strong {
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .orders-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.admin-layout .orders-product-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 264px;
+  overflow-y: auto;
+}
+
+@media (max-width: 1280px) {
+  .admin-layout .orders-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 1023px) {
+  .admin-layout .orders-queue {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-layout .orders-queue-item + .orders-queue-item {
+    border-top: 1px solid var(--ui-line);
+    border-left: 0;
+  }
+}
+@media (max-width: 700px) {
+  .admin-layout .orders-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .admin-layout .orders-stats > :first-child {
+    grid-column: 1 / -1;
+  }
+  .admin-layout .orders-grid,
+  .admin-layout .orders-advanced,
+  .admin-layout .order-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-layout .orders-today-spacer {
+    display: none;
+  }
+  .admin-layout .orders-filter-row > .ui-field--auto {
+    flex: 1 1 140px;
+  }
+  .admin-layout .ui-modal-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .admin-layout .ui-modal {
+    max-width: none;
+    max-height: 92vh;
+    border-radius: var(--ui-radius-lg) var(--ui-radius-lg) 0 0;
+  }
+  .admin-layout .ui-modal-footer > * {
+    flex: 1 1 auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-layout .ui-modal-backdrop,
+  .admin-layout .ui-modal,
+  .admin-layout .ui-skeleton {
+    animation: none;
+  }
+}

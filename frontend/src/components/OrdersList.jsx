@@ -1,10 +1,9 @@
 import { useEffect, useState, forwardRef } from "react";
 import axios from "../lib/axios";
-import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Search, Package2, ChevronLeft, ChevronRight, RefreshCw, Printer, Filter, X, 
+import {
+  Search, Package2, ChevronLeft, ChevronRight, ChevronDown, RefreshCw, Printer, Filter, X,
   Clock, Truck, CheckCircle2, XCircle, MapPin, Phone, Mail, User, Calendar,
-  TrendingUp, ShoppingBag, AlertTriangle, Trash2, Plus, Minus, Edit3, Timer, Eye, AlertCircle
+  AlertTriangle, Trash2, Plus, Minus, Timer, Eye, AlertCircle, Tag
 } from "lucide-react";
 import toast from "react-hot-toast";
 import socketService from "../lib/socket.js";
@@ -61,575 +60,386 @@ const formatOrderDate = (date) => {
   });
 };
 
+// ── Sunum yardımcıları (yalnızca görünüm) ─────────────────────────────
+const ORDER_STATUSES = ["Hazırlanıyor", "Yolda", "Teslim Edildi", "İptal Edildi"];
+
+const STATUS_UI = {
+  "Hazırlanıyor": { tone: "warn", icon: Clock, short: "Hazırlanıyor" },
+  "Yolda": { tone: "info", icon: Truck, short: "Yolda" },
+  "Teslim Edildi": { tone: "ok", icon: CheckCircle2, short: "Teslim" },
+  "İptal Edildi": { tone: "danger", icon: XCircle, short: "İptal" },
+};
+
+const StatusBadge = ({ status }) => {
+  const ui = STATUS_UI[status] || { tone: "neutral", icon: Clock };
+  const Icon = ui.icon;
+  return (
+    <span className={`ui-badge ui-badge--${ui.tone}`}>
+      <Icon /> {status}
+    </span>
+  );
+};
+
+const getPlatformLabel = (platform) =>
+  platform === "ios" ? "iOS" : platform === "android" ? "Android" : "Web";
+
 // Skeleton Loading Component
 const SkeletonCard = () => (
-  <div className="glass rounded-2xl p-5 space-y-4">
-    <div className="flex justify-between items-start">
-      <div className="space-y-2">
-        <div className="skeleton h-5 w-32 rounded-lg"></div>
-        <div className="skeleton h-4 w-24 rounded-lg"></div>
+  <div className="ui-card order-card">
+    <div className="order-card-section">
+      <div className="order-card-head">
+        <div className="ui-skeleton" style={{ width: 38, height: 38, borderRadius: "50%" }}></div>
+        <div className="order-card-id">
+          <div className="ui-skeleton" style={{ width: "55%", height: 14 }}></div>
+          <div className="ui-skeleton" style={{ width: "35%", height: 12, marginTop: 6 }}></div>
+        </div>
       </div>
-      <div className="skeleton h-8 w-20 rounded-full"></div>
-    </div>
-    <div className="skeleton h-20 w-full rounded-xl"></div>
-    <div className="space-y-2">
-      <div className="skeleton h-16 w-full rounded-xl"></div>
-      <div className="skeleton h-16 w-full rounded-xl"></div>
+      <div className="ui-skeleton" style={{ width: "100%", height: 54 }}></div>
+      <div className="ui-skeleton" style={{ width: "100%", height: 36 }}></div>
     </div>
   </div>
 );
 
-// Modern Stat Card Component
-const StatCard = ({ icon: Icon, title, value, color, delay = 0 }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.5, delay }}
-    className={`stat-card glass rounded-2xl p-5 relative overflow-hidden group cursor-default`}
-  >
-    <div className={`absolute inset-0 bg-gradient-to-br ${color} opacity-20 group-hover:opacity-30 transition-opacity duration-300`}></div>
-    <div className="relative z-10">
-      <div className="flex items-center justify-between mb-3">
-        <div className={`p-3 rounded-xl bg-gradient-to-br ${color}`}>
-          <Icon className="w-5 h-5 text-white" />
-        </div>
-        <TrendingUp className="w-4 h-4 text-gray-500 group-hover:text-emerald-400 transition-colors" />
-      </div>
-      <p className="text-gray-400 text-sm font-medium mb-1">{title}</p>
-      <motion.p 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="text-3xl font-bold text-white"
-      >
-        {value}
-      </motion.p>
-    </div>
-    <div className={`absolute -bottom-8 -right-8 w-24 h-24 rounded-full bg-gradient-to-br ${color} opacity-10 blur-xl group-hover:opacity-20 transition-opacity`}></div>
-  </motion.div>
+// Stat Card Component
+const StatCard = ({ title, value, tone }) => (
+  <div className="ui-stat">
+    <span className="ui-stat-label">
+      {tone && <span className={`ui-dot ui-dot--${tone}`} />}
+      {title}
+    </span>
+    <span className="ui-stat-value">{value}</span>
+  </div>
 );
 
-// Status Timeline Component - Clickable
-const StatusTimeline = ({ status, orderId, onStatusUpdate }) => {
-  const statuses = [
-    { key: "Hazırlanıyor", icon: Clock, label: "Hazırlanıyor" },
-    { key: "Yolda", icon: Truck, label: "Yolda" },
-    { key: "Teslim Edildi", icon: CheckCircle2, label: "Teslim Edildi" }
-  ];
-  
-  const isCancelled = status === "İptal Edildi";
-  const currentIndex = statuses.findIndex(s => s.key === status);
-
-  if (isCancelled) {
-    return (
-      <div className="flex items-center gap-2 px-4 py-2 bg-red-500/20 border border-red-500/30 rounded-xl">
-        <XCircle className="w-5 h-5 text-red-400" />
-        <span className="text-red-400 font-medium">İptal Edildi</span>
-      </div>
-    );
-  }
-
-  const handleStatusClick = (statusKey) => {
-    if (onStatusUpdate && orderId) {
-      onStatusUpdate(orderId, statusKey);
-    }
-  };
-
-  return (
-    <div className="flex items-center gap-1 w-full">
-      {statuses.map((s, index) => {
-        const isActive = index <= currentIndex;
-        const isCurrent = index === currentIndex;
-        const Icon = s.icon;
-        
-        return (
-          <div key={s.key} className="flex items-center flex-1">
-            <motion.button 
-              initial={{ scale: 0.8 }}
-              animate={{ scale: isCurrent ? 1.1 : 1 }}
-              whileHover={{ scale: 1.15 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => handleStatusClick(s.key)}
-              title={`${s.label} olarak işaretle`}
-              className={`timeline-dot flex items-center justify-center w-8 h-8 rounded-full cursor-pointer transition-all ${
-                isActive 
-                  ? isCurrent 
-                    ? 'bg-emerald-500 active ring-2 ring-emerald-400/50' 
-                    : 'bg-emerald-600/50 hover:bg-emerald-500/70' 
-                  : 'bg-gray-700 hover:bg-gray-600'
-              }`}
-            >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-gray-500'}`} />
-            </motion.button>
-            {index < statuses.length - 1 && (
-              <div className={`flex-1 h-1 mx-1 rounded-full ${
-                index < currentIndex ? 'bg-emerald-500' : 'bg-gray-700'
-              }`}></div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-
 // Order Detail Modal Component
-const OrderDetailModal = ({ order, isOpen, onClose, onStatusUpdate, onPrint, onDelete }) => {
+const OrderDetailModal = ({ order, isOpen, onClose, onStatusUpdate, onDeliveryTracking, onPrint, onDelete }) => {
   if (!isOpen || !order) return null;
 
   const warningLevel = getWarningLevel(order.createdAt, order.status);
   const duration = getOrderDuration(order.createdAt, order.updatedAt, order.status);
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
-        onClick={onClose}
+    <div className="ui-modal-backdrop" onClick={onClose}>
+      <div
+        className="ui-modal ui-modal--wide"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Sipariş detayı"
+        onClick={(e) => e.stopPropagation()}
       >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.9, y: 20 }}
-          className="bg-gray-900 border border-white/10 rounded-3xl w-full max-w-3xl max-h-[90vh] overflow-hidden shadow-2xl"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="p-6 border-b border-white/10 bg-gradient-to-r from-emerald-500/10 to-teal-500/10">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold text-lg">
-                  {order.user?.name?.[0]?.toUpperCase() || '?'}
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-white">{order.user?.name}</h2>
-                  <p className="text-sm text-gray-400">#{order.orderId.slice(-8).toUpperCase()}</p>
-                </div>
-              </div>
-              <button
-                onClick={onClose}
-                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+        {/* Header */}
+        <div className="ui-modal-header">
+          <div className="order-card-head">
+            <div className="ui-avatar">
+              {order.user?.name?.[0]?.toUpperCase() || '?'}
             </div>
-            
-            {/* Status & Duration */}
-            <div className="flex flex-wrap gap-3">
-              <span className={`px-3 py-1.5 rounded-full text-sm font-medium ${
-                order.status === "Teslim Edildi" ? "bg-blue-500/20 text-blue-300" :
-                order.status === "Yolda" ? "bg-amber-500/20 text-amber-300" :
-                order.status === "İptal Edildi" ? "bg-red-500/20 text-red-300" :
-                "bg-emerald-500/20 text-emerald-300"
-              }`}>
-                {order.status}
-              </span>
-              <span className="px-3 py-1.5 rounded-full text-sm bg-gray-700/50 text-gray-300 flex items-center gap-2">
-                <Timer className="w-4 h-4" /> {duration}
-              </span>
-              {warningLevel && (
-                <span className={`px-3 py-1.5 rounded-full text-sm flex items-center gap-2 ${
-                  warningLevel === 'critical' ? 'bg-red-500/30 text-red-300 animate-pulse' : 'bg-orange-500/20 text-orange-300'
-                }`}>
-                  <AlertCircle className="w-4 h-4" /> {getWaitingMinutes(order.createdAt)}dk bekliyor
+            <div className="order-card-id">
+              <h2 className="ui-title">{order.user?.name}</h2>
+              <p className="order-card-sub">#{order.orderId.slice(-8).toUpperCase()}</p>
+              {/* Status & Duration */}
+              <div className="order-card-tags" style={{ marginTop: 8 }}>
+                <StatusBadge status={order.status} />
+                <span className="ui-badge">
+                  <Timer /> {duration}
                 </span>
-              )}
+                {warningLevel && (
+                  <span className={`ui-badge ${warningLevel === 'critical' ? 'ui-badge--danger' : 'ui-badge--warn'}`}>
+                    <AlertCircle /> {getWaitingMinutes(order.createdAt)}dk bekliyor
+                  </span>
+                )}
+              </div>
             </div>
           </div>
+          <button onClick={onClose} className="ui-icon-btn" aria-label="Kapat">
+            <X />
+          </button>
+        </div>
 
-          {/* Content */}
-          <div className="p-6 overflow-y-auto max-h-[60vh] space-y-6">
-            {/* Customer Info */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 bg-white/5 rounded-xl space-y-3">
-                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Müşteri Bilgileri</h3>
-                <div className="space-y-2">
-                  <p className="flex items-center gap-2 text-white"><User className="w-4 h-4 text-emerald-400" /> {order.user?.name}</p>
-                  <p className="flex items-center gap-2 text-gray-300"><Mail className="w-4 h-4 text-gray-500" /> {order.user?.email || '-'}</p>
-                  <p className="flex items-center gap-2 text-gray-300"><Phone className="w-4 h-4 text-gray-500" /> {order.phone || order.user?.phone || '-'}</p>
-                </div>
-              </div>
-              <div className="p-4 bg-white/5 rounded-xl space-y-3">
-                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Teslimat</h3>
-                <div className="space-y-2">
-                  <p className="flex items-center gap-2 text-white"><MapPin className="w-4 h-4 text-emerald-400" /> {order.deliveryPointName || order.deliveryPoint}</p>
-                  <p className="flex items-center gap-2 text-gray-300"><Calendar className="w-4 h-4 text-gray-500" /> {new Date(order.createdAt).toLocaleString('tr-TR')}</p>
-                  <p className="flex items-center gap-2 text-gray-300"><Package2 className="w-4 h-4 text-gray-500" /> {order.products?.length || 0} ürün</p>
-                </div>
-              </div>
+        {/* Content */}
+        <div className="ui-modal-body orders-stack">
+          {/* Customer Info */}
+          <div className="order-detail-grid">
+            <div className="order-detail-box">
+              <h3 className="ui-overline">Müşteri Bilgileri</h3>
+              <p className="orders-meta"><User /> <span>{order.user?.name}</span></p>
+              <p className="orders-meta"><Mail /> <span>{order.user?.email || '-'}</span></p>
+              <p className="orders-meta"><Phone /> <span>{order.phone || order.user?.phone || '-'}</span></p>
             </div>
-
-            {/* Order Note */}
-            {order.note && (
-              <div className="order-note p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="order-note-label mb-1">Müşteri Notu</p>
-                    <p className="order-note-body">{order.note}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Products */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Ürünler</h3>
-              <div className="space-y-2">
-                {order.products?.map((product, idx) => (
-                  <div key={idx} className="flex items-center gap-4 p-3 bg-white/5 rounded-xl">
-                    <div className="w-14 h-14 rounded-lg bg-gray-700/50 flex items-center justify-center overflow-hidden flex-shrink-0">
-                      {product.image ? (
-                        <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <Package2 className="w-6 h-6 text-gray-500" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white font-medium truncate">{product.name}</p>
-                      <p className="text-sm text-gray-400">₺{product.price} × {product.quantity}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-emerald-400 font-bold">₺{(product.price * product.quantity).toFixed(2)}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-              {/* Total */}
-              <div className="flex justify-between items-center p-4 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
-                <span className="text-gray-300 font-medium">Toplam Tutar</span>
-                <span className="text-2xl font-bold text-emerald-400">₺{order.totalAmount?.toFixed(2)}</span>
+            <div className="order-detail-box">
+              <h3 className="ui-overline">Teslimat</h3>
+              <p className="orders-meta"><MapPin /> <span>{order.deliveryPointName || order.deliveryPoint}</span></p>
+              <p className="orders-meta"><Calendar /> <span>{new Date(order.createdAt).toLocaleString('tr-TR')}</span></p>
+              <p className="orders-meta"><Package2 /> <span>{order.products?.length || 0} ürün</span></p>
+              <label className="ui-label" htmlFor="delivery-tracking-input" style={{ margin: "6px 0 0" }}>Kargo / teslimat takibi</label>
+              <div className="order-detail-tracking">
+                <input key={order.orderId} id="delivery-tracking-input" defaultValue={order.deliveryTracking || ""} maxLength={120} placeholder="Takip numarası veya teslimat notu" className="ui-field" />
+                <button className="ui-btn" onClick={() => onDeliveryTracking(order.orderId, document.getElementById("delivery-tracking-input")?.value || "")}>Takibi kaydet</button>
               </div>
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="p-6 border-t border-white/10 bg-gray-900/50 flex flex-wrap gap-3">
-            <select
-              className="flex-1 min-w-[200px] px-4 py-3 rounded-xl bg-gray-800 border border-white/10 text-white font-medium focus:outline-none focus:border-emerald-500/50"
-              value={order.status}
-              onChange={(e) => { onStatusUpdate(order.orderId, e.target.value); onClose(); }}
-            >
-              <option value="Hazırlanıyor">📦 Hazırlanıyor</option>
-              <option value="Yolda">🚚 Yolda</option>
-              <option value="Teslim Edildi">✅ Teslim Edildi</option>
-              <option value="İptal Edildi">❌ İptal Edildi</option>
-            </select>
-            <button
-              onClick={() => { onPrint(order); onClose(); }}
-              className="px-4 py-3 rounded-xl bg-gray-700 hover:bg-gray-600 text-white font-medium flex items-center gap-2 transition-colors"
-            >
-              <Printer className="w-4 h-4" /> Yazdır
-            </button>
-            <button
-              onClick={() => { onDelete(order.orderId); onClose(); }}
-              className="px-4 py-3 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 font-medium flex items-center gap-2 transition-colors"
-            >
-              <Trash2 className="w-4 h-4" /> Sil
-            </button>
+          {/* Order Note */}
+          {order.note && (
+            <div className="ui-note">
+              <AlertTriangle />
+              <div>
+                <p className="ui-note-label">Müşteri Notu</p>
+                <p className="ui-note-body">{order.note}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Products */}
+          <div className="order-items">
+            <h3 className="ui-overline">Ürünler</h3>
+            {order.products?.map((product, idx) => (
+              <div key={idx} className="ui-row">
+                <div className="ui-thumb">
+                  {product.image ? (
+                    <img src={product.image} alt={product.name} />
+                  ) : (
+                    <Package2 size={20} />
+                  )}
+                </div>
+                <div className="order-item-text">
+                  <p className="order-item-name">{product.name}</p>
+                  <p className="order-item-sub">₺{product.price} × {product.quantity}</p>
+                </div>
+                <p className="order-item-total">₺{(product.price * product.quantity).toFixed(2)}</p>
+              </div>
+            ))}
+
+            {/* Total */}
+            <div className="order-detail-total">
+              <span>Toplam Tutar</span>
+              <strong>₺{order.totalAmount?.toFixed(2)}</strong>
+            </div>
           </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+        </div>
+
+        {/* Actions */}
+        <div className="ui-modal-footer">
+          <select
+            className="ui-field"
+            style={{ flex: "1 1 200px", width: "auto" }}
+            aria-label="Sipariş durumu"
+            value={order.status}
+            onChange={(e) => { onStatusUpdate(order.orderId, e.target.value); onClose(); }}
+          >
+            <option value="Hazırlanıyor">Hazırlanıyor</option>
+            <option value="Yolda">Yolda</option>
+            <option value="Teslim Edildi">Teslim Edildi</option>
+            <option value="İptal Edildi">İptal Edildi</option>
+          </select>
+          <button onClick={() => { onPrint(order); onClose(); }} className="ui-btn">
+            <Printer /> Yazdır
+          </button>
+          <button onClick={() => { onDelete(order.orderId); onClose(); }} className="ui-btn ui-btn--danger">
+            <Trash2 /> Sil
+          </button>
+        </div>
+      </div>
+    </div>
   );
 };
 
 // Order Card Component
-const OrderCard = forwardRef(({ order, index, onStatusUpdate, onPrint, onAddItem, onDelete, onRemoveItem, onUpdateQuantity, onViewDetail }, ref) => {
+const OrderCard = forwardRef(({ order, selected, onSelectChange, onStatusUpdate, onPrint, onAddItem, onDelete, onRemoveItem, onUpdateQuantity, onViewDetail }, ref) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  
-  const getStatusColor = () => {
-    switch (order.status) {
-      case "Yolda": return { bg: "from-amber-600/20 to-orange-600/20", border: "border-amber-500/40", text: "text-amber-400", icon: "🚚" };
-      case "Teslim Edildi": return { bg: "from-blue-600/20 to-indigo-600/20", border: "border-blue-500/40", text: "text-blue-400", icon: "✅" };
-      case "İptal Edildi": return { bg: "from-red-600/20 to-pink-600/20", border: "border-red-500/40", text: "text-red-400", icon: "❌" };
-      default: return { bg: "from-emerald-600/20 to-teal-600/20", border: "border-emerald-500/40", text: "text-emerald-400", icon: "📦" };
-    }
-  };
-  
-  const statusStyle = getStatusColor();
+
   const warningLevel = getWarningLevel(order.createdAt, order.status);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.3, delay: index * 0.03 }}
-      layout
-      whileHover={{ y: -3 }}
-      className={`group relative overflow-hidden rounded-[22px] border ${statusStyle.border} bg-gradient-to-br ${statusStyle.bg} backdrop-blur-xl shadow-xl shadow-black/20 hover:shadow-2xl hover:shadow-black/35 transition-all duration-300`}
-    >
-      <div className={`absolute inset-x-0 top-0 h-px bg-gradient-to-r ${statusStyle.bg} opacity-90`} />
-      {/* Glow Effect for Warning */}
-      {warningLevel && (
-        <div className={`absolute inset-0 pointer-events-none ${warningLevel === 'critical' ? 'animate-pulse' : ''}`}>
-          <div className={`absolute top-0 left-0 w-full h-1 ${warningLevel === 'critical' ? 'bg-red-500' : 'bg-orange-500'}`} />
-        </div>
-      )}
-      
+    <article ref={ref} className="ui-card order-card" data-status={order.status} data-selected={selected}>
       {/* Header Section */}
-      <div className="p-4 pb-3 border-b border-white/5">
-        <div className="flex items-center gap-3">
-          {/* Avatar */}
-          <div className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${statusStyle.bg} ${statusStyle.border} border flex items-center justify-center flex-shrink-0 shadow-lg shadow-black/10`}>
-            <span className={`text-lg font-bold ${statusStyle.text}`}>
-              {order.user?.name?.[0]?.toUpperCase() || '?'}
-            </span>
-          </div>
-          
+      <div className="order-card-section">
+        <div className="order-card-head">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onSelectChange}
+            aria-label={`#${String(order.orderId).slice(-6)} siparişini seç`}
+          />
           {/* Name & Meta */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h3 className="order-customer-name text-white font-semibold">{order.user?.name}</h3>
+          <div className="order-card-id">
+            <h3 className="order-card-name">
+              {order.user?.name}
               {order.isFirstOrder && (
-                <span className="px-1.5 py-0.5 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-[9px] font-bold rounded-md uppercase tracking-wide">
-                  Yeni
-                </span>
+                <span className="ui-badge ui-badge--brand">Yeni</span>
               )}
-            </div>
-            <div className="flex items-center gap-1.5 text-[11px] text-gray-500 mt-0.5">
-              <span className="font-mono">#{order.orderId.slice(-6).toUpperCase()}</span>
-              <span>•</span>
-              <span>{order.userOrderCount || 1}. sipariş</span>
-              {order.device && (
-                <>
-                  <span>•</span>
-                  <span>{order.device.platform === 'ios' ? '🍎' : order.device.platform === 'android' ? '🤖' : '💻'}</span>
-                </>
-              )}
-            </div>
+            </h3>
+            <p className="order-card-sub">
+              #{order.orderId.slice(-6).toUpperCase()} · {order.userOrderCount || 1}. sipariş
+              {order.device && <> · {getPlatformLabel(order.device.platform)}</>}
+            </p>
           </div>
-          
+
           {/* Actions */}
-          <div className="flex items-center gap-1">
-            <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.94 }} onClick={() => onViewDetail(order)} title="Sipariş detayını aç"
-              className="p-2 rounded-xl bg-white/[.055] hover:bg-purple-500/20 text-gray-400 hover:text-purple-300 transition-colors">
-              <Eye className="w-4 h-4" />
-            </motion.button>
-            <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.94 }} onClick={() => onPrint(order)} title="Siparişi yazdır"
-              className="p-2 rounded-xl bg-white/[.055] hover:bg-white/10 text-gray-400 hover:text-white transition-colors">
-              <Printer className="w-4 h-4" />
-            </motion.button>
-            <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.94 }} onClick={() => onDelete(order.orderId)} title="Siparişi sil"
-              className="p-2 rounded-xl bg-white/[.055] hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition-colors">
-              <Trash2 className="w-4 h-4" />
-            </motion.button>
+          <div className="order-card-actions">
+            <button onClick={() => onViewDetail(order)} title="Sipariş detayını aç" aria-label="Sipariş detayını aç" className="ui-icon-btn">
+              <Eye />
+            </button>
+            <button onClick={() => onPrint(order)} title="Siparişi yazdır" aria-label="Siparişi yazdır" className="ui-icon-btn">
+              <Printer />
+            </button>
+            <button onClick={() => onDelete(order.orderId)} title="Siparişi sil" aria-label="Siparişi sil" className="ui-icon-btn ui-icon-btn--danger">
+              <Trash2 />
+            </button>
           </div>
         </div>
-        
+
         {/* Status & Duration Row */}
-        <div className="flex items-center gap-2 mt-3">
-          <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${statusStyle.text} bg-black/20 border border-white/[.04]`}>
-            {statusStyle.icon} {order.status}
-          </span>
-          <span className="text-[11px] text-gray-500 bg-black/20 px-2 py-1 rounded-lg flex items-center gap-1">
-            <Timer className="w-3 h-3" />
+        <div className="order-card-tags">
+          <StatusBadge status={order.status} />
+          <span className="ui-badge" title="Sipariş süresi">
+            <Timer />
             {getOrderDuration(order.createdAt, order.updatedAt, order.status)}
           </span>
           {warningLevel && (
-            <span className={`text-[11px] px-2 py-1 rounded-lg flex items-center gap-1 ${
-              warningLevel === 'critical' ? 'bg-red-500/30 text-red-300' : 'bg-orange-500/20 text-orange-300'
-            }`}>
-              <AlertCircle className="w-3 h-3" />
+            <span className={`ui-badge ${warningLevel === 'critical' ? 'ui-badge--danger' : 'ui-badge--warn'}`} title="Bekleme süresi">
+              <AlertCircle />
               {getWaitingMinutes(order.createdAt)}dk
             </span>
           )}
-          <div className="flex-1" />
-          <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }} onClick={() => onAddItem(order.orderId)}
-            className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${statusStyle.text} bg-black/20 hover:bg-black/30 transition-colors flex items-center gap-1`}>
-            <Plus className="w-3 h-3" /> Ekle
-          </motion.button>
+          <button onClick={() => onAddItem(order.orderId)} className="ui-btn ui-btn--sm">
+            <Plus /> Ekle
+          </button>
         </div>
       </div>
 
       {/* Body Section */}
-      <div className="p-4 space-y-3.5">
+      <div className="order-card-section">
         {/* Quick Info Row */}
-        <div className="order-contact flex flex-wrap items-center justify-between gap-3 text-[11px]">
-          <div className="flex min-w-0 flex-wrap items-center gap-3 text-gray-400">
-            <span className="order-contact-email flex min-w-0 items-center gap-1"><Mail className="w-3 h-3 shrink-0" /> {order.user?.email || "E-posta yok"}</span>
-            <span className="flex items-center gap-1"><Phone className="w-3 h-3 shrink-0" /> {order.user?.phone || '-'}</span>
-          </div>
-          <span className="flex min-w-0 items-center gap-1 text-gray-500">
-            <MapPin className="w-3 h-3" /> {order.deliveryPointName || order.city || 'Belirtilmemiş'}
-          </span>
+        <div className="order-card-contact">
+          <span className="orders-meta"><Mail /> <span>{order.user?.email || "E-posta yok"}</span></span>
+          <span className="orders-meta"><Phone /> <span>{order.user?.phone || '-'}</span></span>
+          <span className="orders-meta"><MapPin /> <span>{order.deliveryPointName || order.city || 'Belirtilmemiş'}</span></span>
+          <span className="orders-meta"><Calendar /> <span>{formatOrderDate(order.createdAt)}</span></span>
         </div>
 
         {/* Order Summary Compact */}
-        <div className={`flex items-center justify-between gap-3 p-3.5 rounded-2xl bg-black/20 border ${statusStyle.border}`}>
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="text-center">
-              <p className="text-lg font-bold text-white">{order.products?.length || 0}</p>
-              <p className="text-[10px] text-gray-500 uppercase">Ürün</p>
-            </div>
-            <div className="w-px h-8 bg-white/10" />
-            <div className="text-center">
-              <p className="text-lg font-bold text-white">{order.products?.reduce((s, p) => s + (p.quantity || 1), 0)}</p>
-              <p className="text-[10px] text-gray-500 uppercase">Adet</p>
-            </div>
-            {order.couponCode && (
-              <>
-                <div className="w-px h-8 bg-white/10" />
-                <div className="min-w-0 text-left">
-                  <p className="truncate text-sm font-bold text-purple-300">🎟️ {order.couponCode}</p>
-                  <p className="text-[10px] text-purple-300/80">₺{(order.couponDiscount || 0).toFixed(0)} indirim</p>
-                </div>
-              </>
-            )}
+        <div className="order-card-total">
+          <div className="order-card-counts">
+            <span><strong>{order.products?.length || 0}</strong>ürün</span>
+            <span><strong>{order.products?.reduce((s, p) => s + (p.quantity || 1), 0)}</strong>adet</span>
           </div>
-          <div className="text-right">
-            <p className={`text-2xl font-extrabold tracking-tight ${statusStyle.text}`}>₺{order.totalAmount?.toFixed(2)}</p>
+          <p className="order-card-price">
+            ₺{order.totalAmount?.toFixed(2)}
             {order.couponCode && order.subtotalAmount > 0 && (
-              <p className="text-[10px] text-gray-500 line-through">₺{order.subtotalAmount?.toFixed(2)}</p>
+              <small>₺{order.subtotalAmount?.toFixed(2)}</small>
             )}
-          </div>
+          </p>
         </div>
+        {order.couponCode && (
+          <div className="order-card-coupon">
+            <span className="ui-badge"><Tag /> {order.couponCode}</span>
+            <span>₺{(order.couponDiscount || 0).toFixed(0)} indirim</span>
+          </div>
+        )}
 
         {/* Status Change Row */}
-        <div className="grid grid-cols-4 gap-2">
-          {['Hazırlanıyor', 'Yolda', 'Teslim Edildi', 'İptal Edildi'].map(status => (
-            <button
-              key={status}
-              onClick={() => onStatusUpdate(order.orderId, status)}
-              title={`${status} olarak güncelle`}
-              className={`min-h-10 py-2 text-xs font-medium rounded-xl transition-all ${
-                order.status === status 
-                  ? `${statusStyle.text} bg-black/30 ring-1 ring-current` 
-                  : 'text-gray-500 bg-black/10 hover:bg-black/20 hover:text-gray-300'
-              }`}
-            >
-              {status === 'Hazırlanıyor' ? '📦' : status === 'Yolda' ? '🚚' : status === 'Teslim Edildi' ? '✅' : '❌'}
-            </button>
-          ))}
+        <div className="ui-segmented" role="group" aria-label="Sipariş durumunu değiştir">
+          {ORDER_STATUSES.map(status => {
+            const ui = STATUS_UI[status];
+            const Icon = ui.icon;
+            return (
+              <button
+                key={status}
+                onClick={() => onStatusUpdate(order.orderId, status)}
+                title={`${status} olarak güncelle`}
+                aria-pressed={order.status === status}
+                data-tone={ui.tone}
+              >
+                <Icon /> {ui.short}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Date */}
-        <div className="flex items-center gap-2 text-[10px] text-gray-500">
-          <Calendar className="w-3 h-3" />
-          {formatOrderDate(order.createdAt)}
-        </div>
-      </div>
-
-      {/* Products Toggle */}
-      <motion.button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="mx-4 mb-3 w-[calc(100%-2rem)] rounded-xl border border-white/[.06] bg-white/[.025] py-2.5 text-sm text-gray-400 hover:bg-white/[.05] hover:text-white transition-colors flex items-center justify-center gap-2"
-      >
-        <Package2 className="w-4 h-4" />
-        {isExpanded ? "Ürünleri Gizle" : "Ürünleri Göster"}
-        <motion.span
-          animate={{ rotate: isExpanded ? 180 : 0 }}
-          transition={{ duration: 0.2 }}
-        >
-          ▼
-        </motion.span>
-      </motion.button>
-
-      {/* Products List */}
-      <AnimatePresence>
-        {isExpanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="overflow-hidden"
-          >
-            <div className="px-4 pb-4 space-y-2">
-              {order.products.map((product, idx) => (
-                <motion.div
-                  key={idx}
-                  initial={{ x: -20, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  transition={{ delay: idx * 0.05 }}
-                  className="flex items-center gap-3 p-3 glass-dark rounded-xl group"
-                >
-                  {/* Miktar Kontrolleri */}
-                  <div className="flex flex-col items-center gap-1">
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => onUpdateQuantity(order.orderId, idx, product.quantity + 1)}
-                      className="w-6 h-6 bg-emerald-500/30 hover:bg-emerald-500/50 rounded flex items-center justify-center text-emerald-400 transition-colors"
-                      title="Miktarı Artır"
-                    >
-                      <Plus className="w-3 h-3" />
-                    </motion.button>
-                    <div className="w-8 h-8 bg-emerald-500/30 border-2 border-emerald-500 rounded-lg flex items-center justify-center">
-                      <span className="text-emerald-400 font-bold text-sm">{product.quantity}</span>
-                    </div>
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => onUpdateQuantity(order.orderId, idx, product.quantity - 1)}
-                      disabled={product.quantity <= 1}
-                      className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
-                        product.quantity <= 1 
-                          ? 'bg-gray-700/30 text-gray-600 cursor-not-allowed' 
-                          : 'bg-amber-500/30 hover:bg-amber-500/50 text-amber-400'
-                      }`}
-                      title={product.quantity <= 1 ? "Minimum miktar: 1" : "Miktarı Azalt"}
-                    >
-                      <Minus className="w-3 h-3" />
-                    </motion.button>
-                  </div>
-                  {/* Ürün Görseli */}
-                  <div className="w-12 h-12 rounded-lg bg-gray-700/50 flex items-center justify-center overflow-hidden flex-shrink-0">
-                    {product.image ? (
-                      <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <Package2 className="w-5 h-5 text-gray-500" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white whitespace-normal break-words">{product.name}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-gray-400 text-xs">Birim: ₺{product.price}</span>
-                    </div>
-                  </div>
-                  <div className="text-right flex-shrink-0 mr-2">
-                    <p className="text-sm font-bold text-emerald-400">₺{(product.price * product.quantity).toFixed(2)}</p>
-                    <p className="text-xs text-gray-500">{product.quantity} adet</p>
-                  </div>
-                  {/* Silme Butonu */}
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => onRemoveItem(order.orderId, idx, product.name)}
-                    className="p-2 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-400 opacity-60 group-hover:opacity-100 transition-all"
-                    title="Ürünü Sil"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </motion.button>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Order Note */}
-      {order.note && (
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="order-note mx-4 mb-4 rounded-2xl border border-amber-400/20 bg-amber-500/[.08] p-3.5"
-        >
-          <div className="flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+        {/* Order Note */}
+        {order.note && (
+          <div className="ui-note">
+            <AlertTriangle />
             <div>
-              <p className="order-note-label mb-1">Müşteri Notu</p>
-              <p className="order-note-body">{order.note}</p>
+              <p className="ui-note-label">Müşteri Notu</p>
+              <p className="ui-note-body">{order.note}</p>
             </div>
           </div>
-        </motion.div>
-      )}
-    </motion.div>
+        )}
+
+        {/* Products Toggle */}
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          aria-expanded={isExpanded}
+          className="ui-btn ui-btn--ghost ui-btn--block"
+        >
+          <Package2 />
+          {isExpanded ? "Ürünleri Gizle" : "Ürünleri Göster"}
+          <ChevronDown style={{ transform: isExpanded ? "rotate(180deg)" : "none" }} />
+        </button>
+
+        {/* Products List */}
+        {isExpanded && (
+          <div className="order-items">
+            {order.products.map((product, idx) => (
+              <div key={idx} className="ui-row order-item">
+                <div className="order-item-line">
+                  {/* Ürün Görseli */}
+                  <div className="ui-thumb">
+                    {product.image ? (
+                      <img src={product.image} alt={product.name} />
+                    ) : (
+                      <Package2 size={18} />
+                    )}
+                  </div>
+                  <div className="order-item-text">
+                    <p className="order-item-name">{product.name}</p>
+                    <p className="order-item-sub">Birim: ₺{product.price}</p>
+                  </div>
+                  {/* Silme Butonu */}
+                  <button
+                    onClick={() => onRemoveItem(order.orderId, idx, product.name)}
+                    className="ui-icon-btn ui-icon-btn--danger"
+                    title="Ürünü Sil"
+                    aria-label="Ürünü Sil"
+                  >
+                    <Trash2 />
+                  </button>
+                </div>
+                <div className="order-item-line">
+                  {/* Miktar Kontrolleri */}
+                  <div className="ui-stepper">
+                    <button
+                      onClick={() => onUpdateQuantity(order.orderId, idx, product.quantity - 1)}
+                      disabled={product.quantity <= 1}
+                      title={product.quantity <= 1 ? "Minimum miktar: 1" : "Miktarı Azalt"}
+                      aria-label="Miktarı Azalt"
+                    >
+                      <Minus />
+                    </button>
+                    <span>{product.quantity}</span>
+                    <button
+                      onClick={() => onUpdateQuantity(order.orderId, idx, product.quantity + 1)}
+                      title="Miktarı Artır"
+                      aria-label="Miktarı Artır"
+                    >
+                      <Plus />
+                    </button>
+                  </div>
+                  <p className="order-item-total">
+                    ₺{(product.price * product.quantity).toFixed(2)}
+                    <span className="order-item-sub"> · {product.quantity} adet</span>
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </article>
   );
 });
+OrderCard.displayName = "OrderCard";
 
 // Main Component
 const OrdersList = () => {
@@ -639,6 +449,11 @@ const OrdersList = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [savedFilters, setSavedFilters] = useState(() => { try { return JSON.parse(localStorage.getItem("admin-order-filters") || "[]"); } catch { return []; } });
+  const [selectedOrderIds, setSelectedOrderIds] = useState([]);
+  const [problemOnly, setProblemOnly] = useState(false);
+  const [delayedOnly, setDelayedOnly] = useState(false);
+  useEffect(() => { const preset = sessionStorage.getItem("admin-order-preset"); if (preset === "active") setStatusFilter("active"); if (preset === "delayed") setDelayedOnly(true); sessionStorage.removeItem("admin-order-preset"); }, []);
   const [dateFilter, setDateFilter] = useState("all");
   const [deliveryPointFilter, setDeliveryPointFilter] = useState("all");
   const [minAmount, setMinAmount] = useState("");
@@ -953,6 +768,24 @@ const OrdersList = () => {
     }
   };
 
+  const updateDeliveryTracking = async (orderId, deliveryTracking) => {
+    try {
+      await axios.put("/orders-analytics/delivery-tracking", { orderId, deliveryTracking });
+      toast.success("Teslimat bilgisi kaydedildi");
+      fetchOrderAnalyticsData();
+    } catch { toast.error("Teslimat bilgisi kaydedilemedi"); }
+  };
+
+  const bulkUpdateStatus = async (status) => {
+    if (!selectedOrderIds.length) return;
+    try {
+      await axios.put("/orders-analytics/bulk-status", { orderIds: selectedOrderIds, status });
+      setSelectedOrderIds([]);
+      fetchOrderAnalyticsData();
+      toast.success("Seçili siparişler güncellendi");
+    } catch { toast.error("Toplu işlem tamamlanamadı"); }
+  };
+
   const { confirm } = useConfirm();
 
   const handleDeleteOrder = async (orderId) => {
@@ -1109,7 +942,7 @@ const OrdersList = () => {
         (order.user?.name || '').toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesStatus = 
-        statusFilter === "all" || order.status === statusFilter;
+        statusFilter === "all" || order.status === statusFilter || (statusFilter === "active" && ["Hazırlanıyor", "Yolda"].includes(order.status));
 
       const matchesDeliveryPoint = 
         deliveryPointFilter === "all" || 
@@ -1140,7 +973,8 @@ const OrdersList = () => {
         matchesDate = orderDate >= lastMonth;
       }
 
-      return matchesSearch && matchesStatus && matchesDate && matchesDeliveryPoint && matchesAmount;
+      const needsAttention = order.status === "Hazırlanıyor" && getWaitingMinutes(order.createdAt) >= 20;
+      return matchesSearch && matchesStatus && matchesDate && matchesDeliveryPoint && matchesAmount && (!problemOnly || needsAttention || order.status === "İptal Edildi") && (!delayedOnly || needsAttention);
     });
   };
 
@@ -1151,23 +985,24 @@ const OrdersList = () => {
     setDeliveryPointFilter("all");
     setMinAmount("");
     setMaxAmount("");
+    setProblemOnly(false);
+    setDelayedOnly(false);
     setCurrentPage(1);
   };
 
   // Loading State
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="orders" aria-busy="true">
+        <div className="orders-stats">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="glass rounded-2xl p-5 space-y-3">
-              <div className="skeleton h-10 w-10 rounded-xl"></div>
-              <div className="skeleton h-4 w-20 rounded-lg"></div>
-              <div className="skeleton h-8 w-16 rounded-lg"></div>
+            <div key={i} className="ui-stat">
+              <div className="ui-skeleton" style={{ width: 90, height: 13 }}></div>
+              <div className="ui-skeleton" style={{ width: 48, height: 26 }}></div>
             </div>
           ))}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="orders-grid">
           {[...Array(6)].map((_, i) => (
             <SkeletonCard key={i} />
           ))}
@@ -1179,21 +1014,11 @@ const OrdersList = () => {
   // Empty State
   if (!orderAnalyticsData || !orderAnalyticsData.usersOrders || orderAnalyticsData.usersOrders.length === 0) {
     return (
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col items-center justify-center min-h-[400px] glass rounded-2xl"
-      >
-        <motion.div
-          animate={{ y: [0, -10, 0] }}
-          transition={{ duration: 2, repeat: Infinity }}
-          className="text-7xl mb-6"
-        >
-          📦
-        </motion.div>
-        <h3 className="text-2xl font-bold text-white mb-2">Henüz sipariş yok</h3>
-        <p className="text-gray-400">Yeni siparişler burada görünecek</p>
-      </motion.div>
+      <div className="ui-card ui-empty">
+        <Package2 />
+        <h3 className="ui-title">Henüz sipariş yok</h3>
+        <p>Yeni siparişler burada görünecek</p>
+      </div>
     );
   }
 
@@ -1235,33 +1060,21 @@ const OrdersList = () => {
     .slice(0, 3);
 
   return (
-    <div className="admin-orders space-y-6">
+    <div className="orders">
       {/* Header */}
-      <motion.div 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col md:flex-row md:items-center justify-between gap-4"
-      >
-        <div>
-          <h2 className="text-2xl font-bold text-white">Sipariş Yönetimi</h2>
-          <p className="text-gray-400 text-sm mt-1">
-            Son güncelleme: {lastRefresh.toLocaleTimeString('tr-TR')}
-          </p>
-        </div>
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+      <div className="orders-topbar">
+        <p className="ui-subtitle">
+          Son güncelleme: <span className="ui-num">{lastRefresh.toLocaleTimeString('tr-TR')}</span>
+        </p>
+        <button
           onClick={() => setAutoRefresh(!autoRefresh)}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
-            autoRefresh 
-              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-              : 'bg-gray-700/50 text-gray-400 border border-gray-600/30'
-          }`}
+          aria-pressed={autoRefresh}
+          className="ui-btn"
         >
-          <RefreshCw className={`w-4 h-4 ${autoRefresh ? 'animate-spin' : ''}`} style={{ animationDuration: '3s' }} />
-          <span className="text-sm font-medium">{autoRefresh ? 'Otomatik Yenileme Açık' : 'Otomatik Yenileme Kapalı'}</span>
-        </motion.button>
-      </motion.div>
+          <RefreshCw />
+          <span>{autoRefresh ? 'Otomatik Yenileme Açık' : 'Otomatik Yenileme Kapalı'}</span>
+        </button>
+      </div>
 
       {/* Mini Daily Stats Bar */}
       {(() => {
@@ -1274,301 +1087,268 @@ const OrdersList = () => {
         const todayRevenue = todayOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
         const avgOrderValue = todayOrders.length > 0 ? todayRevenue / todayOrders.length : 0;
         const pendingOrders = todayOrders.filter(o => o.status === 'Hazırlanıyor').length;
-        
+
         return (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-cyan-500/10 backdrop-blur rounded-2xl p-4 border border-emerald-500/20"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-                <span className="text-emerald-400 font-semibold text-sm">BUGÜN</span>
-              </div>
-              <div className="flex flex-wrap items-center gap-6">
-                <div className="flex items-center gap-2">
-                  <ShoppingBag className="w-4 h-4 text-blue-400" />
-                  <span className="text-white font-bold">{todayOrders.length}</span>
-                  <span className="text-gray-400 text-sm">sipariş</span>
-                </div>
-                <div className="hidden sm:block w-px h-5 bg-gray-700" />
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-emerald-400" />
-                  <span className="text-white font-bold">₺{todayRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</span>
-                  <span className="text-gray-400 text-sm">ciro</span>
-                </div>
-                <div className="hidden sm:block w-px h-5 bg-gray-700" />
-                <div className="flex items-center gap-2">
-                  <Package2 className="w-4 h-4 text-purple-400" />
-                  <span className="text-white font-bold">₺{avgOrderValue.toFixed(0)}</span>
-                  <span className="text-gray-400 text-sm">ort.</span>
-                </div>
-                {pendingOrders > 0 && (
-                  <>
-                    <div className="hidden sm:block w-px h-5 bg-gray-700" />
-                    <div className="flex items-center gap-2 bg-yellow-500/20 px-3 py-1 rounded-full">
-                      <Clock className="w-4 h-4 text-yellow-400" />
-                      <span className="text-yellow-400 font-bold">{pendingOrders}</span>
-                      <span className="text-yellow-400/70 text-sm">bekliyor</span>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          </motion.div>
+          <div className="ui-card orders-today">
+            <span className="ui-overline">Bugün</span>
+            <span className="orders-today-item">
+              <strong>{todayOrders.length}</strong> sipariş
+            </span>
+            <span className="orders-today-item">
+              <strong>₺{todayRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</strong> ciro
+            </span>
+            <span className="orders-today-item">
+              <strong>₺{avgOrderValue.toFixed(0)}</strong> ort.
+            </span>
+            <span className="orders-today-spacer" />
+            {pendingOrders > 0 && (
+              <span className="ui-badge ui-badge--warn">
+                <Clock /> {pendingOrders} bekliyor
+              </span>
+            )}
+          </div>
         );
       })()}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        <StatCard 
-          icon={Package2} 
-          title="Toplam Sipariş" 
-          value={stats.total} 
-          color="from-violet-500 to-purple-600"
-          delay={0}
+      <div className="orders-stats">
+        <StatCard
+          title="Toplam Sipariş"
+          value={stats.total}
         />
-        <StatCard 
-          icon={Clock} 
-          title="Hazırlanıyor" 
-          value={stats.preparing} 
-          color="from-emerald-500 to-teal-600"
-          delay={0.1}
+        <StatCard
+          title="Hazırlanıyor"
+          value={stats.preparing}
+          tone="warn"
         />
-        <StatCard 
-          icon={Truck} 
-          title="Yolda" 
-          value={stats.onWay} 
-          color="from-amber-500 to-orange-600"
-          delay={0.2}
+        <StatCard
+          title="Yolda"
+          value={stats.onWay}
+          tone="info"
         />
-        <StatCard 
-          icon={CheckCircle2} 
-          title="Teslim Edildi" 
-          value={stats.delivered} 
-          color="from-blue-500 to-indigo-600"
-          delay={0.3}
+        <StatCard
+          title="Teslim Edildi"
+          value={stats.delivered}
+          tone="ok"
         />
-        <StatCard 
-          icon={XCircle} 
-          title="İptal Edildi" 
-          value={stats.cancelled} 
-          color="from-red-500 to-rose-600"
-          delay={0.4}
+        <StatCard
+          title="İptal Edildi"
+          value={stats.cancelled}
+          tone="danger"
         />
       </div>
 
       {/* Operations queue: the next actions are visible without opening each card */}
-      <motion.section
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="overflow-hidden rounded-2xl border border-white/[.08] bg-[#101827]/75 shadow-[0_18px_50px_rgba(0,0,0,.18)]"
-      >
-        <div className="flex flex-col gap-3 border-b border-white/[.07] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-400/15 text-amber-300"><Timer className="h-5 w-5" /></span>
-            <div><h3 className="font-extrabold text-white">Operasyon kuyruğu</h3><p className="text-xs text-gray-500">Sıradaki aksiyon gerektiren siparişler</p></div>
+      <section className="ui-card">
+        <div className="ui-card-header">
+          <div>
+            <h3 className="ui-title">Operasyon kuyruğu</h3>
+            <p className="ui-subtitle">Sıradaki aksiyon gerektiren siparişler</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <button onClick={() => { setStatusFilter("Hazırlanıyor"); setCurrentPage(1); }} className="rounded-xl bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-300 transition hover:bg-emerald-400/20">{stats.preparing} hazırlanıyor</button>
-            <button onClick={() => { setStatusFilter("Yolda"); setCurrentPage(1); }} className="rounded-xl bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-300 transition hover:bg-amber-400/20">{stats.onWay} yolda</button>
+          <div className="orders-filter-row">
+            <button onClick={() => { setStatusFilter("Hazırlanıyor"); setCurrentPage(1); }} className="ui-btn ui-btn--sm"><span className="ui-dot ui-dot--warn" />{stats.preparing} hazırlanıyor</button>
+            <button onClick={() => { setStatusFilter("Yolda"); setCurrentPage(1); }} className="ui-btn ui-btn--sm"><span className="ui-dot ui-dot--info" />{stats.onWay} yolda</button>
           </div>
         </div>
         {priorityOrders.length > 0 ? (
-          <div className="grid grid-cols-1 divide-y divide-white/[.06] lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+          <div className="orders-queue">
             {priorityOrders.map((order) => {
               const waitingMinutes = getWaitingMinutes(order.createdAt);
               const needsAttention = order.status === "Hazırlanıyor" && waitingMinutes >= 20;
               const nextStatus = order.status === "Hazırlanıyor" ? "Yolda" : "Teslim Edildi";
               const nextLabel = order.status === "Hazırlanıyor" ? "Yola çıkar" : "Teslim edildi";
               return (
-                <div key={`priority-${order.orderId}`} className="p-4">
-                  <div className="mb-3 flex items-start justify-between gap-3">
-                    <div className="min-w-0"><p className="truncate font-bold text-white">{order.user?.name || "Müşteri"}</p><p className="mt-1 text-xs text-gray-500">#{String(order.orderId).slice(-6).toUpperCase()} · {order.products?.length || 0} ürün</p></div>
-                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-extrabold ${needsAttention ? "bg-rose-400/15 text-rose-300" : "bg-white/[.06] text-gray-300"}`}>{getOrderDuration(order.createdAt, order.updatedAt, order.status)}</span>
+                <div key={`priority-${order.orderId}`} className="orders-queue-item">
+                  <div className="orders-queue-line">
+                    <div className="order-card-id">
+                      <p className="order-card-name">{order.user?.name || "Müşteri"}</p>
+                      <p className="order-card-sub">#{String(order.orderId).slice(-6).toUpperCase()} · {order.products?.length || 0} ürün</p>
+                    </div>
+                    <span className={`ui-badge ${needsAttention ? "ui-badge--danger" : ""}`}><Timer />{getOrderDuration(order.createdAt, order.updatedAt, order.status)}</span>
                   </div>
-                  <div className="mb-4 flex items-center justify-between text-sm"><span className="flex min-w-0 items-center gap-1.5 truncate text-gray-400"><MapPin className="h-3.5 w-3.5 shrink-0 text-cyan-300" />{order.deliveryPointName || order.deliveryPoint || "Teslimat noktası"}</span><span className="shrink-0 font-black text-emerald-400">₺{Number(order.totalAmount || 0).toFixed(2)}</span></div>
-                  <div className="flex gap-2"><button onClick={() => setDetailModalOrder(order)} className="flex-1 rounded-xl bg-white/[.055] px-3 py-2 text-xs font-bold text-gray-200 transition hover:bg-white/[.1]">Detay</button><button onClick={() => updateOrderStatus(order.orderId, nextStatus)} className="flex-1 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-extrabold text-white transition hover:bg-emerald-400">{nextLabel}</button></div>
+                  <div className="orders-queue-line">
+                    <span className="orders-meta"><MapPin /><span>{order.deliveryPointName || order.deliveryPoint || "Teslimat noktası"}</span></span>
+                    <span className="orders-amount">₺{Number(order.totalAmount || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="orders-queue-actions">
+                    <button onClick={() => setDetailModalOrder(order)} className="ui-btn ui-btn--sm">Detay</button>
+                    <button onClick={() => updateOrderStatus(order.orderId, nextStatus)} className="ui-btn ui-btn--sm ui-btn--primary">{nextLabel}</button>
+                  </div>
                 </div>
               );
             })}
           </div>
         ) : (
-          <div className="flex items-center gap-3 px-5 py-7 text-sm text-gray-400"><CheckCircle2 className="h-5 w-5 text-emerald-400" />Şu an aksiyon bekleyen aktif sipariş bulunmuyor.</div>
+          <div className="ui-card-body orders-meta"><CheckCircle2 /><span>Şu an aksiyon bekleyen aktif sipariş bulunmuyor.</span></div>
         )}
-      </motion.section>
+      </section>
 
       {/* Filters */}
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="glass rounded-2xl p-5"
-      >
-        <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center">
+      <div className="ui-card ui-card-body">
+        <div className="orders-filter-row">
           {/* Search */}
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500 w-5 h-5" />
+          <div className="ui-search">
+            <Search />
             <input
               type="text"
               placeholder="Sipariş ID, ürün veya müşteri ara..."
-              className="w-full pl-12 pr-4 py-3 bg-gray-800/50 border border-gray-700/50 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-transparent transition-all"
+              aria-label="Sipariş ara"
+              className="ui-field"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
 
           {/* Quick Filters */}
-          <div className="flex flex-wrap gap-2">
-            <select
-              className="modern-select bg-gray-800/50 border border-gray-700/50 text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="all">📦 Tüm Durumlar</option>
-              <option value="Hazırlanıyor">⏳ Hazırlanıyor</option>
-              <option value="Yolda">🚚 Yolda</option>
-              <option value="Teslim Edildi">✅ Teslim Edildi</option>
-              <option value="İptal Edildi">❌ İptal Edildi</option>
-            </select>
+          <select
+            className="ui-field ui-field--auto"
+            aria-label="Durum filtresi"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="all">Tüm Durumlar</option>
+            <option value="active">Aktif siparişler</option>
+            <option value="Hazırlanıyor">Hazırlanıyor</option>
+            <option value="Yolda">Yolda</option>
+            <option value="Teslim Edildi">Teslim Edildi</option>
+            <option value="İptal Edildi">İptal Edildi</option>
+          </select>
 
-            <select
-              className="modern-select bg-gray-800/50 border border-gray-700/50 text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-            >
-              <option value="all">📅 Tüm Tarihler</option>
-              <option value="today">📅 Bugün</option>
-              <option value="yesterday">📅 Dün</option>
-              <option value="lastWeek">📅 Son 7 Gün</option>
-              <option value="lastMonth">📅 Son 30 Gün</option>
-            </select>
+          <select
+            className="ui-field ui-field--auto"
+            aria-label="Tarih filtresi"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+          >
+            <option value="all">Tüm Tarihler</option>
+            <option value="today">Bugün</option>
+            <option value="yesterday">Dün</option>
+            <option value="lastWeek">Son 7 Gün</option>
+            <option value="lastMonth">Son 30 Gün</option>
+          </select>
 
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-              className={`flex items-center gap-2 px-4 py-3 rounded-xl transition-all ${
-                showAdvancedFilters 
-                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                  : 'bg-gray-800/50 border border-gray-700/50 text-gray-400 hover:text-white'
-              }`}
-            >
-              <Filter className="w-4 h-4" />
-              <span className="hidden sm:inline">Gelişmiş</span>
-            </motion.button>
-          </div>
+          <button
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            aria-pressed={showAdvancedFilters}
+            aria-expanded={showAdvancedFilters}
+            className="ui-btn"
+            style={{ minHeight: 38 }}
+          >
+            <Filter />
+            <span>Gelişmiş</span>
+          </button>
         </div>
 
         {/* Advanced Filters */}
-        <AnimatePresence>
-          {showAdvancedFilters && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              className="overflow-hidden"
-            >
-              <div className="pt-4 mt-4 border-t border-gray-700/50">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-white font-semibold flex items-center gap-2">
-                    <Filter className="w-4 h-4 text-emerald-400" />
-                    Gelişmiş Filtreler
-                  </h3>
-                  <button
-                    onClick={clearFilters}
-                    className="text-sm text-gray-400 hover:text-red-400 flex items-center gap-1 transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                    Temizle
-                  </button>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="text-sm text-gray-400 mb-2 block">Teslimat Noktası</label>
-                    <select
-                      className="modern-select w-full bg-gray-800/50 border border-gray-700/50 text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                      value={deliveryPointFilter}
-                      onChange={(e) => setDeliveryPointFilter(e.target.value)}
-                    >
-                      <option value="all">Tümü</option>
-                      <option value="girlsDorm">Kız KYK Yurdu</option>
-                      <option value="boysDorm">Erkek KYK Yurdu</option>
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm text-gray-400 mb-2 block">Minimum Tutar (₺)</label>
-                    <input
-                      type="number"
-                      placeholder="0"
-                      className="w-full bg-gray-800/50 border border-gray-700/50 text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                      value={minAmount}
-                      onChange={(e) => setMinAmount(e.target.value)}
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm text-gray-400 mb-2 block">Maximum Tutar (₺)</label>
-                    <input
-                      type="number"
-                      placeholder="∞"
-                      className="w-full bg-gray-800/50 border border-gray-700/50 text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                      value={maxAmount}
-                      onChange={(e) => setMaxAmount(e.target.value)}
-                    />
-                  </div>
-                </div>
+        {showAdvancedFilters && (
+          <div>
+            <hr className="orders-filter-divider" />
+            <div className="orders-topbar" style={{ marginBottom: 12 }}>
+              <h3 className="ui-overline">Gelişmiş Filtreler</h3>
+              <button onClick={clearFilters} className="ui-btn ui-btn--ghost ui-btn--sm">
+                <X />
+                Temizle
+              </button>
+            </div>
 
-                {/* Active Filters Tags */}
-                {(deliveryPointFilter !== "all" || minAmount || maxAmount) && (
-                  <div className="flex flex-wrap gap-2 mt-4">
-                    {deliveryPointFilter !== "all" && (
-                      <span className="status-badge bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-sm flex items-center gap-1 border border-emerald-500/30">
-                        📍 {deliveryPointFilter === "girlsDorm" ? "Kız Yurdu" : "Erkek Yurdu"}
-                        <button onClick={() => setDeliveryPointFilter("all")} className="hover:text-white ml-1">
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    )}
-                    {minAmount && (
-                      <span className="status-badge bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-sm flex items-center gap-1 border border-emerald-500/30">
-                        Min: ₺{minAmount}
-                        <button onClick={() => setMinAmount("")} className="hover:text-white ml-1">
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    )}
-                    {maxAmount && (
-                      <span className="status-badge bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-sm flex items-center gap-1 border border-emerald-500/30">
-                        Max: ₺{maxAmount}
-                        <button onClick={() => setMaxAmount("")} className="hover:text-white ml-1">
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    )}
-                  </div>
+            <div className="orders-advanced">
+              <div>
+                <label className="ui-label" htmlFor="orders-delivery-point">Teslimat Noktası</label>
+                <select
+                  id="orders-delivery-point"
+                  className="ui-field"
+                  value={deliveryPointFilter}
+                  onChange={(e) => setDeliveryPointFilter(e.target.value)}
+                >
+                  <option value="all">Tümü</option>
+                  <option value="girlsDorm">Kız KYK Yurdu</option>
+                  <option value="boysDorm">Erkek KYK Yurdu</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="ui-label" htmlFor="orders-min-amount">Minimum Tutar (₺)</label>
+                <input
+                  id="orders-min-amount"
+                  type="number"
+                  placeholder="0"
+                  className="ui-field"
+                  value={minAmount}
+                  onChange={(e) => setMinAmount(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="ui-label" htmlFor="orders-max-amount">Maximum Tutar (₺)</label>
+                <input
+                  id="orders-max-amount"
+                  type="number"
+                  placeholder="∞"
+                  className="ui-field"
+                  value={maxAmount}
+                  onChange={(e) => setMaxAmount(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Active Filters Tags */}
+            {(deliveryPointFilter !== "all" || minAmount || maxAmount) && (
+              <div className="orders-filter-row" style={{ marginTop: 12 }}>
+                {deliveryPointFilter !== "all" && (
+                  <span className="ui-badge ui-badge--brand">
+                    <MapPin /> {deliveryPointFilter === "girlsDorm" ? "Kız Yurdu" : "Erkek Yurdu"}
+                    <button onClick={() => setDeliveryPointFilter("all")} aria-label="Teslimat noktası filtresini kaldır">
+                      <X />
+                    </button>
+                  </span>
+                )}
+                {minAmount && (
+                  <span className="ui-badge ui-badge--brand">
+                    Min: ₺{minAmount}
+                    <button onClick={() => setMinAmount("")} aria-label="Minimum tutar filtresini kaldır">
+                      <X />
+                    </button>
+                  </span>
+                )}
+                {maxAmount && (
+                  <span className="ui-badge ui-badge--brand">
+                    Max: ₺{maxAmount}
+                    <button onClick={() => setMaxAmount("")} aria-label="Maximum tutar filtresini kaldır">
+                      <X />
+                    </button>
+                  </span>
                 )}
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
+            )}
+          </div>
+        )}
+
+        {/* Hazır ve kayıtlı filtreler */}
+        <hr className="orders-filter-divider" />
+        <div className="orders-filter-row">
+          <button className="ui-btn ui-btn--sm" aria-pressed={problemOnly} onClick={() => { setProblemOnly(true); setDelayedOnly(false); setCurrentPage(1); }}><AlertTriangle />Sorunlu siparişler</button>
+          {savedFilters.map((item, index) => <span key={index} className="orders-saved"><button className="ui-btn ui-btn--sm" onClick={() => { setStatusFilter(item.statusFilter); setDateFilter(item.dateFilter); setProblemOnly(item.problemOnly); setDelayedOnly(item.delayedOnly || false); setCurrentPage(1); }}>{item.name}</button><button aria-label={`${item.name} filtresini sil`} className="ui-icon-btn ui-icon-btn--danger" onClick={() => { const next = savedFilters.filter((_, i) => i !== index); setSavedFilters(next); localStorage.setItem("admin-order-filters", JSON.stringify(next)); }}><X /></button></span>)}
+          <button className="ui-btn ui-btn--ghost ui-btn--sm" onClick={() => { const name = window.prompt("Filtre adı"); if (!name?.trim()) return; const next = [...savedFilters, { name: name.trim().slice(0, 40), statusFilter, dateFilter, problemOnly, delayedOnly }].slice(-8); setSavedFilters(next); localStorage.setItem("admin-order-filters", JSON.stringify(next)); }}><Plus />Bu filtreyi kaydet</button>
+        </div>
+      </div>
+
+      {/* Toplu işlem */}
+      <div className="ui-card orders-bulk">
+        <label className="ui-check"><input type="checkbox" checked={currentOrders.length > 0 && currentOrders.every(o => selectedOrderIds.includes(o.orderId))} onChange={e => setSelectedOrderIds(e.target.checked ? [...new Set([...selectedOrderIds, ...currentOrders.map(o => o.orderId)])] : selectedOrderIds.filter(id => !currentOrders.some(o => o.orderId === id)))} /> Bu sayfadakileri seç</label>
+        <span className="ui-muted ui-num">{selectedOrderIds.length} seçili</span>
+        <span className="orders-today-spacer" />
+        <select className="ui-field ui-field--auto" aria-label="Toplu durum değiştir" defaultValue="" onChange={e => { bulkUpdateStatus(e.target.value); e.target.value = ""; }}><option value="" disabled>Toplu durum değiştir</option>{["Hazırlanıyor", "Yolda", "Teslim Edildi", "İptal Edildi"].map(s => <option key={s} value={s}>{s}</option>)}</select>
+      </div>
 
       {/* Orders Grid */}
-      <motion.div 
-        layout
-        className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
-      >
-        <AnimatePresence mode="popLayout">
-          {currentOrders.map((order, index) => (
+      {currentOrders.length > 0 ? (
+        <div className="orders-grid">
+          {currentOrders.map((order) => (
             <OrderCard
               key={order.orderId}
               order={order}
-              index={index}
+              selected={selectedOrderIds.includes(order.orderId)}
+              onSelectChange={e => setSelectedOrderIds(e.target.checked ? [...selectedOrderIds, order.orderId] : selectedOrderIds.filter(id => id !== order.orderId))}
               onStatusUpdate={updateOrderStatus}
               onPrint={handlePrint}
               onAddItem={handleOpenAddItemModal}
@@ -1578,287 +1358,238 @@ const OrdersList = () => {
               onViewDetail={(order) => setDetailModalOrder(order)}
             />
           ))}
-        </AnimatePresence>
-      </motion.div>
+        </div>
+      ) : (
+        <div className="ui-card ui-empty">
+          <Search />
+          <h3 className="ui-title">Eşleşen sipariş yok</h3>
+          <p>Arama veya filtreleri değiştirerek tekrar deneyin.</p>
+        </div>
+      )}
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex justify-center items-center gap-2 pt-4"
-        >
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+        <nav className="ui-pagination" aria-label="Sayfalama">
+          <button
             onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
             disabled={currentPage === 1}
-            className="p-3 glass rounded-xl text-white disabled:opacity-30 hover:bg-gray-700/50 transition-all disabled:cursor-not-allowed"
+            aria-label="Önceki sayfa"
           >
-            <ChevronLeft className="w-5 h-5" />
-          </motion.button>
-          
-          <div className="flex items-center gap-1">
-            {[...Array(Math.min(5, totalPages))].map((_, i) => {
-              let pageNum;
-              if (totalPages <= 5) {
-                pageNum = i + 1;
-              } else if (currentPage <= 3) {
-                pageNum = i + 1;
-              } else if (currentPage >= totalPages - 2) {
-                pageNum = totalPages - 4 + i;
-              } else {
-                pageNum = currentPage - 2 + i;
-              }
-              
-              return (
-                <motion.button
-                  key={i}
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => setCurrentPage(pageNum)}
-                  className={`w-10 h-10 rounded-xl font-medium transition-all ${
-                    currentPage === pageNum
-                      ? 'bg-emerald-500 text-white'
-                      : 'glass text-gray-400 hover:text-white'
-                  }`}
-                >
-                  {pageNum}
-                </motion.button>
-              );
-            })}
-          </div>
+            <ChevronLeft />
+          </button>
 
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+          {[...Array(Math.min(5, totalPages))].map((_, i) => {
+            let pageNum;
+            if (totalPages <= 5) {
+              pageNum = i + 1;
+            } else if (currentPage <= 3) {
+              pageNum = i + 1;
+            } else if (currentPage >= totalPages - 2) {
+              pageNum = totalPages - 4 + i;
+            } else {
+              pageNum = currentPage - 2 + i;
+            }
+
+            return (
+              <button
+                key={i}
+                onClick={() => setCurrentPage(pageNum)}
+                aria-current={currentPage === pageNum ? "page" : undefined}
+              >
+                {pageNum}
+              </button>
+            );
+          })}
+
+          <button
             onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
             disabled={currentPage === totalPages}
-            className="p-3 glass rounded-xl text-white disabled:opacity-30 hover:bg-gray-700/50 transition-all disabled:cursor-not-allowed"
+            aria-label="Sonraki sayfa"
           >
-            <ChevronRight className="w-5 h-5" />
-          </motion.button>
-        </motion.div>
+            <ChevronRight />
+          </button>
+        </nav>
       )}
 
       {/* Add Item Modal */}
-      <AnimatePresence>
-        {showAddItemModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={() => setShowAddItemModal(false)}
+      {showAddItemModal && (
+        <div className="ui-modal-backdrop" onClick={() => setShowAddItemModal(false)}>
+          <div
+            className="ui-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Siparişe Ürün Ekle"
+            onClick={(e) => e.stopPropagation()}
           >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="glass rounded-2xl p-6 w-full max-w-md border border-gray-700/50"
-            >
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold text-white">Siparişe Ürün Ekle</h3>
-                <motion.button 
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => setShowAddItemModal(false)}
-                  className="p-2 rounded-lg hover:bg-gray-700/50 text-gray-400 hover:text-white transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </motion.button>
-              </div>
+            <div className="ui-modal-header">
+              <h3 className="ui-title">Siparişe Ürün Ekle</h3>
+              <button onClick={() => setShowAddItemModal(false)} className="ui-icon-btn" aria-label="Kapat">
+                <X />
+              </button>
+            </div>
 
+            <div className="ui-modal-body orders-stack">
               {/* Tab Buttons */}
-              <div className="flex gap-2 mb-4">
-                <button
-                  onClick={() => setAddItemTab("catalog")}
-                  className={`flex-1 py-2 px-4 rounded-xl text-sm font-medium transition-all ${
-                    addItemTab === "catalog"
-                      ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                      : "bg-gray-700/30 text-gray-400 hover:text-white"
-                  }`}
-                >
-                  📦 Katalogdan Seç
+              <div className="ui-segmented">
+                <button onClick={() => setAddItemTab("catalog")} aria-pressed={addItemTab === "catalog"}>
+                  Katalogdan Seç
                 </button>
-                <button
-                  onClick={() => setAddItemTab("manual")}
-                  className={`flex-1 py-2 px-4 rounded-xl text-sm font-medium transition-all ${
-                    addItemTab === "manual"
-                      ? "bg-purple-500/20 text-purple-400 border border-purple-500/30"
-                      : "bg-gray-700/30 text-gray-400 hover:text-white"
-                  }`}
-                >
-                  ✏️ Manuel Ekle
+                <button onClick={() => setAddItemTab("manual")} aria-pressed={addItemTab === "manual"}>
+                  Manuel Ekle
                 </button>
               </div>
 
               {/* Catalog Tab */}
               {addItemTab === "catalog" && (
-                <div className="space-y-4">
+                <div className="orders-stack">
                   {/* Search */}
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <div className="ui-search">
+                    <Search />
                     <input
                       type="text"
                       placeholder="Ürün ara..."
+                      aria-label="Ürün ara"
                       value={productSearch}
                       onChange={(e) => setProductSearch(e.target.value)}
-                      className="w-full bg-gray-800/50 border border-gray-700/50 text-white rounded-xl pl-10 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                      className="ui-field"
                     />
                   </div>
 
                   {/* Product List */}
-                  <div className="max-h-64 overflow-y-auto space-y-2 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+                  <div className="orders-product-list">
                     {loadingProducts ? (
-                      <div className="text-center py-8 text-gray-400">
-                        <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
+                      <div className="ui-empty" style={{ padding: "28px 12px" }}>
+                        <RefreshCw className="ui-spin" style={{ width: 22, height: 22 }} />
                         Ürünler yükleniyor...
                       </div>
                     ) : filteredProducts.length === 0 ? (
-                      <div className="text-center py-8 text-gray-400">
+                      <div className="ui-empty" style={{ padding: "28px 12px" }}>
                         Ürün bulunamadı
                       </div>
                     ) : (
                       filteredProducts.slice(0, 20).map((product) => (
-                        <motion.div
+                        <div
                           key={product._id}
-                          whileHover={{ scale: 1.01 }}
                           onClick={() => setSelectedProduct(product)}
-                          className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all ${
-                            selectedProduct?._id === product._id
-                              ? "bg-emerald-500/20 border border-emerald-500/40"
-                              : "bg-gray-800/30 hover:bg-gray-700/50 border border-transparent"
-                          }`}
+                          className="ui-row ui-row--selectable"
+                          data-selected={selectedProduct?._id === product._id}
                         >
-                          <div className="w-10 h-10 rounded-lg bg-gray-700/50 flex items-center justify-center overflow-hidden flex-shrink-0">
+                          <div className="ui-thumb" style={{ width: 38, height: 38 }}>
                             {product.image ? (
-                              <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                              <img src={product.image} alt={product.name} />
                             ) : (
-                              <Package2 className="w-4 h-4 text-gray-500" />
+                              <Package2 size={16} />
                             )}
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-white whitespace-normal break-words">{product.name}</p>
-                            <p className="text-xs text-gray-400">{product.category}</p>
+                          <div className="order-item-text">
+                            <p className="order-item-name">{product.name}</p>
+                            <p className="order-item-sub">{product.category}</p>
                           </div>
-                          <div className="text-right">
-                            <p className="text-sm font-bold text-emerald-400">₺{product.price}</p>
-                          </div>
-                        </motion.div>
+                          <p className="order-item-total">₺{product.price}</p>
+                        </div>
                       ))
                     )}
                   </div>
 
                   {/* Selected Product & Quantity */}
                   {selectedProduct && (
-                    <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm text-white font-medium">{selectedProduct.name}</span>
-                        <span className="text-emerald-400 font-bold">₺{(selectedProduct.price * productQuantity).toFixed(2)}</span>
+                    <div className="order-detail-box" style={{ background: "var(--ui-surface-2)" }}>
+                      <div className="orders-queue-line">
+                        <span className="order-item-name">{selectedProduct.name}</span>
+                        <span className="orders-amount">₺{(selectedProduct.price * productQuantity).toFixed(2)}</span>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm text-gray-400">Adet:</span>
-                        <div className="flex items-center gap-2">
-                          <motion.button
-                            whileTap={{ scale: 0.9 }}
+                      <div className="orders-queue-line" style={{ justifyContent: "flex-start" }}>
+                        <span className="ui-muted">Adet:</span>
+                        <div className="ui-stepper">
+                          <button
+                            type="button"
                             onClick={() => setProductQuantity(Math.max(1, productQuantity - 1))}
-                            className="w-8 h-8 bg-gray-700/50 hover:bg-gray-600 rounded-lg flex items-center justify-center text-white"
+                            aria-label="Adedi azalt"
                           >
-                            <Minus className="w-4 h-4" />
-                          </motion.button>
-                          <span className="w-8 text-center text-white font-bold">{productQuantity}</span>
-                          <motion.button
-                            whileTap={{ scale: 0.9 }}
+                            <Minus />
+                          </button>
+                          <span>{productQuantity}</span>
+                          <button
+                            type="button"
                             onClick={() => setProductQuantity(productQuantity + 1)}
-                            className="w-8 h-8 bg-gray-700/50 hover:bg-gray-600 rounded-lg flex items-center justify-center text-white"
+                            aria-label="Adedi artır"
                           >
-                            <Plus className="w-4 h-4" />
-                          </motion.button>
+                            <Plus />
+                          </button>
                         </div>
                       </div>
                     </div>
                   )}
 
                   {/* Actions */}
-                  <div className="flex gap-3 pt-2">
-                    <motion.button
+                  <div className="orders-queue-actions">
+                    <button
                       type="button"
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
                       onClick={() => setShowAddItemModal(false)}
-                      className="flex-1 px-4 py-3 bg-gray-700/50 hover:bg-gray-600/50 text-white rounded-xl transition-colors"
+                      className="ui-btn"
                     >
                       İptal
-                    </motion.button>
-                    <motion.button
+                    </button>
+                    <button
                       type="button"
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
                       onClick={handleAddProductFromCatalog}
                       disabled={!selectedProduct}
-                      className="flex-1 px-4 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="ui-btn ui-btn--primary"
                     >
                       Ekle
-                    </motion.button>
+                    </button>
                   </div>
                 </div>
               )}
 
               {/* Manual Tab */}
               {addItemTab === "manual" && (
-                <form onSubmit={handleAddCustomItem} className="space-y-4">
+                <form onSubmit={handleAddCustomItem} className="orders-stack">
                   <div>
-                    <label className="block text-gray-400 text-sm mb-2">Tutar (TL) *</label>
+                    <label className="ui-label" htmlFor="orders-custom-amount">Tutar (TL) *</label>
                     <input
+                      id="orders-custom-amount"
                       type="number"
                       step="0.01"
                       min="0"
                       required
                       value={customItemAmount}
                       onChange={(e) => setCustomItemAmount(e.target.value)}
-                      className="w-full bg-gray-800/50 border border-gray-700/50 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                      className="ui-field"
                       placeholder="0.00"
                     />
                   </div>
-                  
+
                   <div>
-                    <label className="block text-gray-400 text-sm mb-2">Ürün Adı (Opsiyonel)</label>
+                    <label className="ui-label" htmlFor="orders-custom-name">Ürün Adı (Opsiyonel)</label>
                     <input
+                      id="orders-custom-name"
                       type="text"
                       value={customItemName}
                       onChange={(e) => setCustomItemName(e.target.value)}
-                      className="w-full bg-gray-800/50 border border-gray-700/50 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                      className="ui-field"
                       placeholder="Özel Ekleme"
                     />
                   </div>
 
-                  <div className="flex gap-3 pt-2">
-                    <motion.button
+                  <div className="orders-queue-actions">
+                    <button
                       type="button"
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
                       onClick={() => setShowAddItemModal(false)}
-                      className="flex-1 px-4 py-3 bg-gray-700/50 hover:bg-gray-600/50 text-white rounded-xl transition-colors"
+                      className="ui-btn"
                     >
                       İptal
-                    </motion.button>
-                    <motion.button
-                      type="submit"
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white rounded-xl font-semibold transition-all"
-                    >
+                    </button>
+                    <button type="submit" className="ui-btn ui-btn--primary">
                       Ekle
-                    </motion.button>
+                    </button>
                   </div>
                 </form>
               )}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Order Detail Modal */}
       <OrderDetailModal
@@ -1866,6 +1597,7 @@ const OrdersList = () => {
         isOpen={!!detailModalOrder}
         onClose={() => setDetailModalOrder(null)}
         onStatusUpdate={updateOrderStatus}
+        onDeliveryTracking={updateDeliveryTracking}
         onPrint={handlePrint}
         onDelete={handleDeleteOrder}
       />
