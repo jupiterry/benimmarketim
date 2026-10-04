@@ -13,7 +13,7 @@ import {
   Truck,
   Tag,
   CalendarDays,
-  MessageCircle,
+  Percent,
 } from "lucide-react";
 import axios from "../lib/axios";
 import TelegramNotificationsCard from "./TelegramNotificationsCard";
@@ -30,13 +30,112 @@ const isCurrentActivityOrder = (order) => {
   return !Number.isNaN(orderDate.getTime()) && orderDate >= NEW_ACTIVITY_YEAR_START;
 };
 
+const ProfitMarginCard = ({ allOrders }) => {
+  const [profitMargin, setProfitMargin] = useState(() => {
+    const saved = localStorage.getItem("profitMargin");
+    return saved ? parseFloat(saved) : 10;
+  });
+
+  // Calculate totals
+  const totals = useMemo(() => {
+    let totalWithManual = 0;
+    let manualProductsTotal = 0;
+
+    allOrders.forEach((order) => {
+      const orderDate = new Date(order.createdAt);
+
+      if (
+        Number.isNaN(orderDate.getTime()) ||
+        orderDate < NEW_ACTIVITY_YEAR_START
+      ) {
+        return;
+      }
+
+      // İptal edilen siparişleri hariç tut (gerçek satış değil)
+      if (order.status !== "İptal Edildi") {
+        totalWithManual += order.totalAmount || 0;
+
+        // Manuel ürünlerin tutarını hesapla
+        order.products?.forEach((product) => {
+          if (product.isManual) {
+            manualProductsTotal +=
+              (product.price || 0) * (product.quantity || 1);
+          }
+        });
+      }
+    });
+
+    return {
+      totalWithManual,
+      totalWithoutManual: totalWithManual - manualProductsTotal,
+      manualProductsTotal,
+    };
+  }, [allOrders]);
+
+  const estimatedProfit = totals.totalWithoutManual * (profitMargin / 100);
+
+  const handleMarginChange = (value) => {
+    const numValue = Math.max(0, Math.min(100, parseFloat(value) || 0));
+    setProfitMargin(numValue);
+    localStorage.setItem("profitMargin", numValue.toString());
+  };
+
+  const tl = (value) => `₺${value.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}`;
+
+  return (
+    <section className="ui-panel dash-profit">
+      <div className="ui-panel-head">
+        <div>
+          <h2>Yeni Faaliyet Yılı</h2>
+          <p>6 Eylül 2026 itibarıyla kâr marjı ve kazanç görünümü</p>
+        </div>
+        <label className="dash-margin" title="Kâr marjı">
+          <Percent />
+          <input
+            type="number"
+            aria-label="Kâr marjı"
+            value={profitMargin}
+            onChange={(e) => handleMarginChange(e.target.value)}
+            min="0"
+            max="100"
+            step="0.5"
+          />
+        </label>
+      </div>
+      <dl className="dash-figures dash-figures--stack">
+        <div className="dash-figure--lead">
+          <dt>Yeni Dönem Tahmini Net Kâr</dt>
+          <dd>{tl(estimatedProfit)}</dd>
+        </div>
+        <div>
+          <dt>Yeni Dönem Cirosu</dt>
+          <dd>{tl(totals.totalWithManual)}</dd>
+        </div>
+        <div>
+          <dt>Kâr Hesabına Esas Ciro</dt>
+          <dd>{tl(totals.totalWithoutManual)}</dd>
+        </div>
+        <div>
+          <dt>Manuel Eklemeler</dt>
+          <dd>{tl(totals.manualProductsTotal)}</dd>
+        </div>
+      </dl>
+      <p className="dash-profit-note">
+        Yeni dönem 6 Eylül 2026’da başlar. Ciro ve tahmini kazanç yalnızca
+        bu tarihten itibaren alınan siparişlerle oluşur; önceki dönem
+        satışları bu hesaba dahil değildir.
+      </p>
+    </section>
+  );
+};
+
 const DashboardWidgets = ({ onNavigate }) => {
   const [stats, setStats] = useState({
     todaySales: 0,
     todayOrders: 0,
     salesTrend: [],
     popularProducts: [],
-    unansweredChats: 0,
+    lowStockProducts: [],
     liveOrderCount: 0,
     recentOrders: [],
     totalUsers: 0,
@@ -53,21 +152,17 @@ const DashboardWidgets = ({ onNavigate }) => {
     () => summarizeRevenue(stats.allOrders, revenuePeriod),
     [stats.allOrders, revenuePeriod],
   );
-  const periodCancelled = useMemo(() => stats.allOrders.filter(order => {
-    const date = new Date(order.createdAt).getTime();
-    return order.status === "İptal Edildi" && (!revenuePeriod.start || date >= revenuePeriod.start.getTime()) && (!revenuePeriod.end || date < revenuePeriod.end.getTime());
-  }), [stats.allOrders, revenuePeriod]);
 
   const fetchDashboardData = useCallback(async () => {
     try {
-      const [chatsRes, ordersRes, usersRes] = await Promise.all([
-        axios.get("/chat/list").catch(() => ({ data: { chats: [] } })),
+      const [productsRes, ordersRes, usersRes] = await Promise.all([
+        axios.get("/products"),
         axios.get("/orders-analytics"),
         axios.get("/users"),
       ]);
 
       setError(false);
-      const chats = chatsRes.data.chats || [];
+      const products = productsRes.data.products || [];
       const orders = ordersRes.data.orderAnalyticsData?.usersOrders || [];
       const users = usersRes.data.users || [];
 
@@ -80,7 +175,7 @@ const DashboardWidgets = ({ onNavigate }) => {
         return orderDate >= today;
       });
 
-      const todaySales = todayOrders.filter(o => o.status !== "İptal Edildi").reduce(
+      const todaySales = todayOrders.reduce(
         (sum, order) => sum + (order.totalAmount || 0),
         0,
       );
@@ -138,6 +233,11 @@ const DashboardWidgets = ({ onNavigate }) => {
         .sort((a, b) => b.quantity - a.quantity)
         .slice(0, 5);
 
+      const lowStockProducts = products
+        .filter((p) => p.stock < 10)
+        .sort((a, b) => a.stock - b.stock)
+        .slice(0, 5);
+
       const salesTrend = getLast7DaysSales(allOrders);
 
       setStats({
@@ -145,7 +245,7 @@ const DashboardWidgets = ({ onNavigate }) => {
         todayOrders: todayOrders.length,
         salesTrend,
         popularProducts,
-        unansweredChats: chats.filter(c => c.mode === "WAITING_FOR_AGENT").length,
+        lowStockProducts,
         liveOrderCount: allOrders.filter((o) => o.status === "Hazırlanıyor" && isCurrentActivityOrder(o))
           .length,
         recentOrders,
@@ -225,7 +325,7 @@ const DashboardWidgets = ({ onNavigate }) => {
         return orderDate >= date && orderDate < nextDate;
       });
 
-        const daySales = dayOrders.filter(o => o.status !== "İptal Edildi").reduce(
+      const daySales = dayOrders.reduce(
         (sum, order) => sum + (order.totalAmount || 0),
         0,
       );
@@ -249,9 +349,8 @@ const DashboardWidgets = ({ onNavigate }) => {
         order.status === "Hazırlanıyor" && isCurrentActivityOrder(order) &&
         (Date.now() - new Date(order.createdAt).getTime()) / 60000 >= 20,
     );
-    const paidTodayCount = stats.allOrders.filter(o => new Date(o.createdAt).toDateString() === new Date().toDateString() && o.status !== "İptal Edildi").length;
-    const averageBasket = paidTodayCount
-      ? stats.todaySales / paidTodayCount
+    const averageBasket = stats.todayOrders
+      ? stats.todaySales / stats.todayOrders
       : 0;
 
     return { activeOrders, delayedOrders, averageBasket };
@@ -329,7 +428,7 @@ const DashboardWidgets = ({ onNavigate }) => {
       <section className="ui-metrics" aria-label="Bugünün özeti">
         {[
           {
-            label: "Bugünkü net satış",
+            label: "Bugünkü satış",
             value: money(stats.todaySales),
             note: `${number(stats.todayOrders)} sipariş alındı`,
           },
@@ -348,7 +447,7 @@ const DashboardWidgets = ({ onNavigate }) => {
           {
             label: "Bugünkü ortalama sepet",
             value: money(operations.averageBasket),
-            note: "İptaller hariç",
+            note: "Bugünkü siparişler",
           },
           {
             label: "Toplam müşteri",
@@ -447,32 +546,19 @@ const DashboardWidgets = ({ onNavigate }) => {
             <button
               className="dash-action"
               data-tone={operations.delayedOrders.length > 0 ? "danger" : undefined}
-              onClick={() => onNavigate?.("orders", "delayed")}
+              onClick={() => onNavigate?.("orders")}
             >
               <Clock />
               <span>
-                <strong>Geciken sipariş</strong>
-                <small>20 dakikadan uzun süredir bekliyor</small>
+                <strong>Bekleyen sipariş</strong>
+                <small>20 dakikadan uzun süredir</small>
               </span>
               <b>{operations.delayedOrders.length}</b>
               <ChevronRight />
             </button>
             <button
               className="dash-action"
-              data-tone={stats.unansweredChats > 0 ? "warn" : undefined}
-              onClick={() => onNavigate?.("support-queue")}
-            >
-              <MessageCircle />
-              <span>
-                <strong>Yanıt bekleyen mesaj</strong>
-                <small>Destek kuyruğunu aç</small>
-              </span>
-              <b>{stats.unansweredChats}</b>
-              <ChevronRight />
-            </button>
-            <button
-              className="dash-action"
-              onClick={() => onNavigate?.("orders", "active")}
+              onClick={() => onNavigate?.("orders")}
             >
               <Truck />
               <span>
@@ -480,6 +566,23 @@ const DashboardWidgets = ({ onNavigate }) => {
                 <small>Hazırlanıyor veya yolda</small>
               </span>
               <b>{operations.activeOrders.length}</b>
+              <ChevronRight />
+            </button>
+            <button
+              className="dash-action"
+              data-tone={stats.lowStockProducts.length > 0 ? "warn" : undefined}
+              onClick={() => onNavigate?.("products")}
+            >
+              <Package />
+              <span>
+                <strong>
+                  {stats.lowStockProducts.length
+                    ? `${stats.lowStockProducts.length} ürünün stokunu incele`
+                    : "Ürün durumlarını incele"}
+                </strong>
+                <small>Stoku 10’un altındaki ürünler</small>
+              </span>
+              <b>{stats.lowStockProducts.length}</b>
               <ChevronRight />
             </button>
           </div>
@@ -542,19 +645,6 @@ const DashboardWidgets = ({ onNavigate }) => {
                 {number(periodSummary.count)} sipariş · İptaller hariç
                 {periodSummary.count === 0 && " · Henüz satış yok"}
               </small>
-            </div>
-            <div>
-              <dt>Dönem siparişleri</dt>
-              <dd>{number(periodSummary.count)}</dd>
-            </div>
-            <div>
-              <dt>Dönem ortalama sepet</dt>
-              <dd>{money(periodSummary.count ? periodSummary.revenue / periodSummary.count : 0)}</dd>
-            </div>
-            <div>
-              <dt>Dönem iptal tutarı</dt>
-              <dd>{money(periodCancelled.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0))}</dd>
-              <small>{periodCancelled.length} iptal edilen sipariş</small>
             </div>
           </dl>
         </section>
@@ -653,6 +743,8 @@ const DashboardWidgets = ({ onNavigate }) => {
           </div>
         </section>
 
+        <ProfitMarginCard allOrders={stats.allOrders} />
+
         {/* Günlük aksiyonlar */}
         <section className="ui-panel dash-quick">
           <div className="ui-panel-head">
@@ -670,9 +762,6 @@ const DashboardWidgets = ({ onNavigate }) => {
             </button>
             <button onClick={() => onNavigate?.("users")}>
               <Users /> Müşteriler <ChevronRight />
-            </button>
-            <button onClick={() => onNavigate?.("products")}>
-              <Package /> Ürünleri incele <ChevronRight />
             </button>
           </div>
         </section>

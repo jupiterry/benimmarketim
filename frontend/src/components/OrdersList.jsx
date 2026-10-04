@@ -178,7 +178,7 @@ const OrderDetail = ({ order, onClose, onStatusUpdate, onDeliveryTracking, onPri
               return (
                 <button
                   key={status}
-                  onClick={() => onStatusUpdate(order.orderId, status)}
+                  onClick={() => { onStatusUpdate(order.orderId, status); onClose(); }}
                   title={`${status} olarak güncelle`}
                   aria-pressed={order.status === status}
                   data-tone={ui.tone}
@@ -287,7 +287,7 @@ const OrderDetail = ({ order, onClose, onStatusUpdate, onDeliveryTracking, onPri
       </div>
 
       <div className="ord-d-foot">
-        <button onClick={() => onPrint(order)} className="ui-btn">
+        <button onClick={() => { onPrint(order); onClose(); }} className="ui-btn">
           <Printer /> Yazdır
         </button>
         <button onClick={() => { onDelete(order.orderId); onClose(); }} className="ui-btn ui-btn--danger">
@@ -319,7 +319,7 @@ const OrdersList = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(new Date());
-  const ordersPerPage = 15;
+  const ordersPerPage = 6;
 
   // Custom item modal states
   const [showAddItemModal, setShowAddItemModal] = useState(false);
@@ -921,10 +921,10 @@ const OrdersList = () => {
     .slice(0, 3);
 
   // ── Sunum için türetilen değerler (veri akışını değiştirmez) ─────────
-  // Detay paneli her zaman güncel sipariş kaydını gösterir; seçim yoksa masaüstünde ilk sipariş açılır.
+  // Detay paneli yalnızca kullanıcı bir sipariş seçtiğinde açılır; seçili kaydın güncel hâlini gösterir.
   const detailOrder = detailModalOrder
     ? filteredOrders.find((o) => o.orderId === detailModalOrder.orderId) || detailModalOrder
-    : currentOrders[0] || null;
+    : null;
   const advancedFilterCount =
     (deliveryPointFilter !== "all" ? 1 : 0) + (minAmount ? 1 : 0) + (maxAmount ? 1 : 0) + (problemOnly ? 1 : 0) + (delayedOnly ? 1 : 0);
   const allOnPageSelected = currentOrders.length > 0 && currentOrders.every(o => selectedOrderIds.includes(o.orderId));
@@ -1020,7 +1020,7 @@ const OrdersList = () => {
             <button
               key={chip.value}
               aria-pressed={statusFilter === chip.value}
-              onClick={() => { setStatusFilter(chip.value); setCurrentPage(1); }}
+              onClick={() => setStatusFilter(chip.value)}
             >
               {chip.tone && <i className={`ui-dot ui-dot--${chip.tone}`} />}
               {chip.label}
@@ -1082,17 +1082,11 @@ const OrdersList = () => {
           {problemOnly && (
             <span className="ui-badge ui-badge--brand">
               <AlertTriangle /> Sorunlu siparişler
-              <button onClick={() => setProblemOnly(false)} aria-label="Sorunlu siparişler filtresini kaldır">
-                <X />
-              </button>
             </span>
           )}
           {delayedOnly && (
             <span className="ui-badge ui-badge--brand">
               <Clock /> Geciken siparişler
-              <button onClick={() => setDelayedOnly(false)} aria-label="Geciken siparişler filtresini kaldır">
-                <X />
-              </button>
             </span>
           )}
           <button onClick={clearFilters} className="ui-btn ui-btn--ghost ui-btn--sm">
@@ -1102,9 +1096,15 @@ const OrdersList = () => {
       )}
 
       {/* Sıradaki aksiyonlar: en eski aktif siparişler */}
-      {priorityOrders.length > 0 && (
-        <section className="ord-next" aria-label="Operasyon kuyruğu">
-          <span className="ui-overline">Sıradaki</span>
+      <section className="ord-next" aria-label="Operasyon kuyruğu">
+          <div className="ord-next-head">
+            <span className="ui-overline">Sıradaki</span>
+            <button onClick={() => { setStatusFilter("Hazırlanıyor"); setCurrentPage(1); }} className="ui-btn ui-btn--sm ui-btn--ghost"><i className="ui-dot ui-dot--warn" />{stats.preparing} hazırlanıyor</button>
+            <button onClick={() => { setStatusFilter("Yolda"); setCurrentPage(1); }} className="ui-btn ui-btn--sm ui-btn--ghost"><i className="ui-dot ui-dot--info" />{stats.onWay} yolda</button>
+          </div>
+          {priorityOrders.length === 0 && (
+            <p className="ord-next-empty"><CheckCircle2 /> Şu an aksiyon bekleyen aktif sipariş bulunmuyor.</p>
+          )}
           {priorityOrders.map((order) => {
             const waitingMinutes = getWaitingMinutes(order.createdAt);
             const needsAttention = order.status === "Hazırlanıyor" && waitingMinutes >= 20;
@@ -1122,8 +1122,7 @@ const OrdersList = () => {
               </div>
             );
           })}
-        </section>
-      )}
+      </section>
 
       {/* Liste + sağ detay paneli */}
       <div className="ord-split" data-detail-open={!!detailModalOrder}>

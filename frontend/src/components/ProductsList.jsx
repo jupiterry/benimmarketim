@@ -7,11 +7,12 @@ import {
   X,
   Upload,
   Search,
-  Filter,
   SlidersHorizontal,
   Zap,
   Clock,
-  Percent
+  Percent,
+  GripVertical,
+  Package
 } from "lucide-react";
 import { useProductStore } from "../stores/useProductStore";
 import axios from "../lib/axios";
@@ -702,123 +703,451 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
     }
   };
 
+  // ── Sunum yardımcıları (yalnızca görünüm; veri akışını değiştirmez) ──
+  const categoryName = (slug) =>
+    categories.find((category) => category.href === `/${slug}`)?.name || slug;
+  const advancedFilterCount =
+    (filters.stockStatus !== "all" ? 1 : 0) +
+    (filters.visibility !== "all" ? 1 : 0) +
+    (filters.featured !== "all" ? 1 : 0) +
+    (filters.discount !== "all" ? 1 : 0) +
+    (filters.image && filters.image !== "all" ? 1 : 0) +
+    (filters.priceRange.min || filters.priceRange.max ? 1 : 0);
+  const isFiltered = filteredProducts.length !== localProducts.length;
+  const editingRow = editingProduct
+    ? filteredProducts.find((product) => product._id === editingProduct._id)
+    : null;
+  const clearFilters = () => {
+    setFilters({
+      priceRange: { min: "", max: "" },
+      stockStatus: "all",
+      visibility: "all",
+      featured: "all",
+      discount: "all",
+      sortBy: "order"
+    });
+    setSelectedCategory("");
+  };
+
   return (
-    <div className="ui-page">
-      {/* İstatistik Kartları */}
-      <div className="ui-stats">
-        <div className="ui-stat">
-          <span className="ui-stat-label">Ürün Sayısı</span>
-          <span className="ui-stat-value">{localProducts.length || products.length}</span>
+    <div className="cat">
+      {/* Katalog özeti: tek şerit */}
+      <section className="ui-metrics cat-metrics" aria-label="Katalog özeti">
+        <div className="ui-metric">
+          <span className="ui-metric-label">Ürün Sayısı</span>
+          <strong className="ui-metric-value">{localProducts.length || products.length}</strong>
         </div>
-
-        <div className="ui-stat">
-          <span className="ui-stat-label">Toplam Stok Değeri</span>
-          <span className="ui-stat-value">
+        <div className="ui-metric">
+          <span className="ui-metric-label">Toplam Stok Değeri</span>
+          <strong className="ui-metric-value">
             ₺{localProducts.reduce((sum, p) => sum + (p.price * (p.stock || 0)), 0).toLocaleString('tr-TR', { maximumFractionDigits: 0 })}
-          </span>
+          </strong>
+        </div>
+        <div className="ui-metric">
+          <span className="ui-metric-label"><i className="ui-dot ui-dot--warn" />Aktif Flash Sale</span>
+          <strong className="ui-metric-value">{flashSales.filter(s => new Date(s.endDate) > new Date()).length}</strong>
+        </div>
+        <div className="ui-metric">
+          <span className="ui-metric-label"><i className="ui-dot ui-dot--danger" />Düşük Stok</span>
+          <strong className="ui-metric-value">{localProducts.filter(p => (p.stock || 0) < 5 && (p.stock || 0) > 0).length}</strong>
+        </div>
+      </section>
+
+      {/* Araç çubuğu: arama, kategori, filtreler */}
+      <div className="cat-toolbar">
+        <div className="ui-search cat-search">
+          <Search />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Ürün adı ile ara..."
+            aria-label="Ürün ara"
+            className="ui-field"
+          />
         </div>
 
-        <div className="ui-stat">
-          <span className="ui-stat-label"><span className="ui-dot ui-dot--warn" />Aktif Flash Sale</span>
-          <span className="ui-stat-value">{flashSales.filter(s => new Date(s.endDate) > new Date()).length}</span>
-        </div>
+        <select
+          id="products-filter-category"
+          aria-label="Kategori"
+          value={selectedCategory}
+          onChange={handleFilterCategoryChange}
+          className="ui-field ui-field--auto cat-category"
+        >
+          <option value="">Tüm Kategoriler</option>
+          {categories.map((category) => (
+            <option key={category.href} value={category.href}>
+              {category.name}
+            </option>
+          ))}
+        </select>
 
-        <div className="ui-stat">
-          <span className="ui-stat-label"><span className="ui-dot ui-dot--danger" />Düşük Stok</span>
-          <span className="ui-stat-value">{localProducts.filter(p => (p.stock || 0) < 5 && (p.stock || 0) > 0).length}</span>
-        </div>
+        <button
+          onClick={() => setShowFilters(!showFilters)}
+          aria-expanded={showFilters}
+          className="ui-btn"
+        >
+          <SlidersHorizontal />
+          <span>Filtreler</span>
+          {advancedFilterCount > 0 && <b className="ui-count">{advancedFilterCount}</b>}
+        </button>
+
+        <span className="cat-toolbar-meta ui-num" aria-live="polite">
+          {isFiltered
+            ? `${filteredProducts.length} ürün gösteriliyor (${localProducts.length} ürün içinden)`
+            : `${localProducts.length} ürün`}
+        </span>
+        {(isFiltered || selectedCategory) && (
+          <button onClick={clearFilters} className="ui-btn ui-btn--ghost ui-btn--sm">
+            <X />
+            Filtreleri Temizle
+          </button>
+        )}
       </div>
 
-      {/* Ana Ürün Listesi Kartı */}
-      <div className="ui-card" style={{ overflow: "hidden" }}>
-        {/* Gelişmiş Filtreleme Paneli */}
-        <div className="ui-card-body" style={{ borderBottom: "1px solid var(--ui-line)" }}>
-          {/* Üst Arama ve Filtre Butonları */}
-          <div className="ui-cluster">
-            {/* Arama */}
-            <div className="ui-search ui-grow" style={{ flexBasis: 260 }}>
-              <Search />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Ürün adı ile ara..."
-                aria-label="Ürün ara"
-                className="ui-field"
-              />
+      {/* Ürün tablosu */}
+      <section className="ui-panel cat-table" aria-label="Ürün listesi">
+        <div className="cat-row cat-head" aria-hidden="true">
+          <span />
+          <span>Ürün</span>
+          <span className="cat-col-category">Kategori</span>
+          <span>Fiyat</span>
+          <span>İndirim</span>
+          <span>Stok</span>
+          <span>Görünürlük</span>
+          <span className="ui-right">İşlemler</span>
+        </div>
+
+        <InfiniteScroll
+          dataLength={filteredProducts.length}
+          next={loadMore}
+          hasMore={hasMore}
+          loader={
+            <div className="ui-loading">
+              <div className="ui-loader"></div>
+            </div>
+          }
+          endMessage={
+            <div className="ui-loading">
+              Tüm ürünler yüklendi
+            </div>
+          }
+          scrollableTarget="scrollableDiv"
+        >
+          <DragDropContext onDragEnd={onDragEnd}>
+            <Droppable droppableId="products">
+              {(provided) => (
+                <div
+                  {...provided.droppableProps}
+                  ref={provided.innerRef}
+                >
+                  {filteredProducts.map((product, index) => {
+                    const flashLabel = getFlashSaleTimeRemaining(product._id);
+                    const flashStatus = getFlashSaleStatus(product._id);
+                    return (
+                      <Draggable key={product._id} draggableId={product._id} index={index}>
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            {...provided.dragHandleProps}
+                            className="cat-row"
+                            data-hidden={product.isHidden || undefined}
+                            data-editing={editingProduct?._id === product._id || undefined}
+                            data-dragging={snapshot.isDragging || undefined}
+                          >
+                            <GripVertical className="cat-grip" aria-hidden="true" />
+
+                            {/* Görsel + ad */}
+                            <div className="cat-product">
+                              <input
+                                type="file"
+                                id={`image-upload-${product._id}`}
+                                className="hidden"
+                                accept="image/*"
+                                onChange={(e) => handleImageUpload(product._id, e.target.files[0])}
+                              />
+                              <label
+                                htmlFor={`image-upload-${product._id}`}
+                                className="cat-thumb"
+                                title="Görseli değiştir"
+                              >
+                                {imageUploading[product._id] ? (
+                                  <span className="cat-thumb-overlay" data-busy="true">
+                                    <span className="ui-loader" style={{ width: 14, height: 14 }}></span>
+                                  </span>
+                                ) : (
+                                  <>
+                                    <img
+                                      src={product.image || '/placeholder.png'}
+                                      alt={product.name}
+                                    />
+                                    <span className="cat-thumb-overlay">
+                                      <Upload />
+                                    </span>
+                                  </>
+                                )}
+                              </label>
+                              <div className="cat-name">
+                                <strong title={product.name}>{product.name}</strong>
+                                <small>
+                                  <span className="cat-name-category">
+                                    {product.category ? categoryName(product.category) : "Kategori Yok"}
+                                  </span>
+                                  {flashLabel && (
+                                    <span className={`ui-badge ${flashStatus === 'active' ? 'ui-badge--warn' :
+                                        flashStatus === 'upcoming' ? 'ui-badge--info' :
+                                          ''
+                                      }`}>
+                                      <Clock />
+                                      {flashLabel}
+                                    </span>
+                                  )}
+                                </small>
+                              </div>
+                            </div>
+
+                            {/* Kategori */}
+                            <div className="cat-col-category ui-truncate" title={product.category || "Kategori Yok"}>
+                              {product.category ? categoryName(product.category) : <span className="ui-muted">Kategori Yok</span>}
+                            </div>
+
+                            {/* Fiyat */}
+                            <div className="cat-cell" data-label="Fiyat">
+                              {editingPrice[product._id] ? (
+                                <div className="cat-inline-edit">
+                                  <input
+                                    type="number"
+                                    aria-label="Yeni fiyat"
+                                    value={newPrices[product._id] ?? product.price}
+                                    onChange={(e) => handlePriceChange(product._id, e.target.value)}
+                                    className="ui-field ui-field--sm"
+                                  />
+                                  <button
+                                    onClick={() => savePrice(product._id)}
+                                    className="ui-icon-btn ui-icon-btn--sm"
+                                    title="Fiyatı kaydet"
+                                    aria-label="Fiyatı kaydet"
+                                  >
+                                    <Save />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="cat-price">
+                                  <span className="cat-price-now">
+                                    ₺{((product.isDiscounted ? product.discountedPrice : product.price) || 0).toFixed(2)}
+                                  </span>
+                                  {product.isDiscounted && (
+                                    <span className="cat-price-old">₺{(product.price || 0).toFixed(2)}</span>
+                                  )}
+                                  <button
+                                    onClick={() => setEditingPrice({ ...editingPrice, [product._id]: true })}
+                                    className="ui-icon-btn ui-icon-btn--sm cat-hover-btn"
+                                    title="Fiyatı düzenle"
+                                    aria-label="Fiyatı düzenle"
+                                  >
+                                    <Edit />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* İndirim */}
+                            <div className="cat-cell" data-label="İndirim">
+                              {editingDiscount[product._id] ? (
+                                <div className="cat-inline-edit">
+                                  <input
+                                    type="number"
+                                    aria-label="İndirimli fiyat"
+                                    value={discountPrices[product._id] ?? product.price}
+                                    onChange={(e) => handleDiscountChange(product._id, e.target.value)}
+                                    className="ui-field ui-field--sm"
+                                  />
+                                  <button
+                                    onClick={() => saveDiscount(product._id, product.price)}
+                                    className="ui-icon-btn ui-icon-btn--sm"
+                                    title="İndirimi kaydet"
+                                    aria-label="İndirimi kaydet"
+                                  >
+                                    <Save />
+                                  </button>
+                                </div>
+                              ) : product.isDiscounted ? (
+                                <div className="cat-price">
+                                  <span className="ui-badge ui-badge--danger">
+                                    %{calculateDiscountPercentage(product.price, product.discountedPrice)}
+                                  </span>
+                                  <button
+                                    onClick={() => removeDiscount(product._id)}
+                                    className="ui-icon-btn ui-icon-btn--sm ui-icon-btn--danger cat-hover-btn"
+                                    title="İndirimi kaldır"
+                                    aria-label="İndirimi kaldır"
+                                  >
+                                    <X />
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => setEditingDiscount({ ...editingDiscount, [product._id]: true })}
+                                  className="cat-add-discount"
+                                  title="İndirim Ekle"
+                                  aria-label="İndirim Ekle"
+                                >
+                                  <Percent />
+                                  <span>Ekle</span>
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Stok */}
+                            <div className="cat-cell" data-label="Stok">
+                              <button
+                                onClick={() => toggleOutOfStock(product._id)}
+                                className={`ui-badge ${product.isOutOfStock ? "ui-badge--danger" : "ui-badge--ok"}`}
+                                title="Stok durumunu değiştir"
+                              >
+                                {product.isOutOfStock ? "Tükendi" : "Stokta"}
+                              </button>
+                              {typeof product.stock === "number" && (
+                                <small className="cat-stock-qty" data-low={product.stock > 0 && product.stock < 5 || undefined}>
+                                  {product.stock} adet
+                                </small>
+                              )}
+                            </div>
+
+                            {/* Görünürlük */}
+                            <div className="cat-cell" data-label="Görünürlük">
+                              <button
+                                onClick={() => toggleProductHidden(product._id)}
+                                aria-pressed={!product.isHidden}
+                                className="ui-toggle cat-visibility"
+                                title="Görünürlüğü değiştir"
+                              >
+                                <i />
+                                <span>{product.isHidden ? "Gizli" : "Görünür"}</span>
+                              </button>
+                            </div>
+
+                            {/* İşlemler */}
+                            <div className="cat-actions">
+                              <button
+                                onClick={() => handleFeatureToggle(product._id)}
+                                aria-pressed={!!product.isFeatured}
+                                className="ui-icon-btn ui-icon-btn--sm"
+                                title={product.isFeatured ? "Öne çıkanlardan kaldır" : "Öne çıkar"}
+                                aria-label="Öne çıkar"
+                              >
+                                <Star fill={product.isFeatured ? "currentColor" : "none"} />
+                              </button>
+
+                              {/* Flash Sale Butonu */}
+                              {product.isDiscounted ? (
+                                <button
+                                  onClick={() => handleRemoveFlashSale(product._id)}
+                                  className="ui-icon-btn ui-icon-btn--sm"
+                                  aria-pressed="true"
+                                  title="Flash Sale Kaldır"
+                                  aria-label="Flash Sale Kaldır"
+                                >
+                                  <Zap />
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleFlashSale(product)}
+                                  className="ui-icon-btn ui-icon-btn--sm"
+                                  title="Flash Sale Ekle"
+                                  aria-label="Flash Sale Ekle"
+                                >
+                                  <Zap />
+                                </button>
+                              )}
+
+                              <button
+                                onClick={() => onEdit(product)}
+                                className="ui-icon-btn ui-icon-btn--sm"
+                                title="Ürünü düzenle"
+                                aria-label="Ürünü düzenle"
+                              >
+                                <Edit />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteProduct(product._id)}
+                                className="ui-icon-btn ui-icon-btn--sm ui-icon-btn--danger"
+                                title="Ürünü sil"
+                                aria-label="Ürünü sil"
+                              >
+                                <Trash />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </Draggable>
+                    );
+                  })}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+          </DragDropContext>
+        </InfiniteScroll>
+
+        {!loading && filteredProducts.length === 0 && (
+          <div className="ui-empty">
+            <Package />
+            <h3 className="ui-title">Ürün bulunamadı</h3>
+            <p>Arama veya filtreleri değiştirerek tekrar deneyin.</p>
+          </div>
+        )}
+      </section>
+
+      {/* Filtre çekmecesi */}
+      {showFilters && (
+        <div className="ui-drawer-backdrop" onClick={() => setShowFilters(false)}>
+          <aside
+            className="ui-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Gelişmiş Filtreler"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="ui-drawer-head">
+              <h3 className="ui-title">Filtreler</h3>
+              <button onClick={() => setShowFilters(false)} className="ui-icon-btn" aria-label="Kapat">
+                <X />
+              </button>
             </div>
 
-            {/* Filtre Toggle Butonu */}
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              aria-pressed={showFilters}
-              aria-expanded={showFilters}
-              className="ui-btn"
-              style={{ minHeight: 38 }}
-            >
-              <SlidersHorizontal />
-              Gelişmiş Filtreler
-              {(filters.stockStatus !== "all" || filters.visibility !== "all" || filters.featured !== "all" ||
-                filters.discount !== "all" || filters.priceRange.min || filters.priceRange.max) && (
-                  <span className="ui-dot ui-dot--warn" title="Etkin filtre var" />
-                )}
-            </button>
-          </div>
-
-          {/* Genişletilebilir Filtre Paneli */}
-          {showFilters && (
-            <div>
-              <hr className="ui-divider" />
-              <div className="ui-grid-4">
-                {/* Kategori Filtresi */}
-                <div>
-                  <label className="ui-label" htmlFor="products-filter-category">Kategori</label>
-                  <select
-                    id="products-filter-category"
-                    value={selectedCategory}
-                    onChange={handleFilterCategoryChange}
+            <div className="ui-drawer-body">
+              {/* Fiyat Aralığı */}
+              <div>
+                <label className="ui-label" htmlFor="products-filter-min">Fiyat Aralığı</label>
+                <div className="ui-grid-2">
+                  <input
+                    id="products-filter-min"
+                    type="number"
+                    placeholder="Min"
+                    value={filters.priceRange.min}
+                    onChange={(e) => setFilters({
+                      ...filters,
+                      priceRange: { ...filters.priceRange, min: e.target.value }
+                    })}
                     className="ui-field"
-                  >
-                    <option value="">Tüm Kategoriler</option>
-                    {categories.map((category) => (
-                      <option key={category.href} value={category.href}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
+                  />
+                  <input
+                    type="number"
+                    placeholder="Max"
+                    aria-label="En yüksek fiyat"
+                    value={filters.priceRange.max}
+                    onChange={(e) => setFilters({
+                      ...filters,
+                      priceRange: { ...filters.priceRange, max: e.target.value }
+                    })}
+                    className="ui-field"
+                  />
                 </div>
+              </div>
 
-                {/* Fiyat Aralığı */}
-                <div>
-                  <label className="ui-label" htmlFor="products-filter-min">Fiyat Aralığı</label>
-                  <div className="products-inline">
-                    <input
-                      id="products-filter-min"
-                      type="number"
-                      placeholder="Min"
-                      value={filters.priceRange.min}
-                      onChange={(e) => setFilters({
-                        ...filters,
-                        priceRange: { ...filters.priceRange, min: e.target.value }
-                      })}
-                      className="ui-field"
-                      style={{ width: "50%" }}
-                    />
-                    <input
-                      type="number"
-                      placeholder="Max"
-                      aria-label="En yüksek fiyat"
-                      value={filters.priceRange.max}
-                      onChange={(e) => setFilters({
-                        ...filters,
-                        priceRange: { ...filters.priceRange, max: e.target.value }
-                      })}
-                      className="ui-field"
-                      style={{ width: "50%" }}
-                    />
-                  </div>
-                </div>
-
+              <div className="ui-grid-2">
                 {/* Stok Durumu */}
                 <div>
                   <label className="ui-label" htmlFor="products-filter-stock">Stok Durumu</label>
@@ -910,387 +1239,138 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
                   </select>
                 </div>
               </div>
-
-              {/* Temizle Butonu */}
-              <div className="ui-cluster" style={{ marginTop: 14 }}>
-                <button
-                  onClick={() => {
-                    setFilters({
-                      priceRange: { min: "", max: "" },
-                      stockStatus: "all",
-                      visibility: "all",
-                      featured: "all",
-                      discount: "all",
-                      sortBy: "order"
-                    });
-                    setSelectedCategory("");
-                  }}
-                  className="ui-btn ui-btn--ghost ui-btn--sm"
-                >
-                  <X />
-                  Filtreleri Temizle
-                </button>
-              </div>
             </div>
-          )}
+
+            <div className="ui-drawer-foot">
+              <button onClick={clearFilters} className="ui-btn">
+                <X />
+                Filtreleri Temizle
+              </button>
+              <button onClick={() => setShowFilters(false)} className="ui-btn ui-btn--primary">
+                {filteredProducts.length} ürünü göster
+              </button>
+            </div>
+          </aside>
         </div>
+      )}
 
-        {/* Filtreleme Sonucu Bilgisi */}
-        {filteredProducts.length !== localProducts.length && (
-          <div className="ui-banner">
-            <Filter />
-            {filteredProducts.length} ürün gösteriliyor ({localProducts.length} ürün içinden)
-          </div>
-        )}
-
-        <InfiniteScroll
-          dataLength={filteredProducts.length}
-          next={loadMore}
-          hasMore={hasMore}
-          loader={
-            <div className="ui-loading">
-              <div className="ui-loader"></div>
+      {/* Ürün düzenleme çekmecesi: ad ve kategori */}
+      {editingRow && (
+        <div className="ui-drawer-backdrop">
+          <aside
+            className="ui-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Ürünü düzenle"
+          >
+            <div className="ui-drawer-head">
+              <h3 className="ui-title">Ürünü düzenle</h3>
+              <button
+                onClick={() => setEditingProduct(null)}
+                className="ui-icon-btn"
+                title="Vazgeç"
+                aria-label="Vazgeç"
+              >
+                <X />
+              </button>
             </div>
-          }
-          endMessage={
-            <div className="ui-loading">
-              Tüm ürünler yüklendi
-            </div>
-          }
-          scrollableTarget="scrollableDiv"
-        >
-          <DragDropContext onDragEnd={onDragEnd}>
-            <Droppable droppableId="products">
-              {(provided) => (
-                <div
-                  {...provided.droppableProps}
-                  ref={provided.innerRef}
-                >
-                  <div className="ui-list-head products-cols">
-                    <div>Ürün</div>
-                    <div>Fiyat</div>
-                    <div>Kategori</div>
-                    <div>Görünürlük</div>
-                    <div>Stok</div>
-                    <div className="ui-right">İşlemler</div>
-                  </div>
 
-                  <div>
-                    {filteredProducts.map((product, index) => (
-                      <Draggable key={product._id} draggableId={product._id} index={index}>
-                        {(provided) => (
-                          <div
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            {...provided.dragHandleProps}
-                            className="ui-list-row products-cols"
-                            data-muted={product.isHidden}
-                          >
-                            <div className="products-product">
-                              <input
-                                type="file"
-                                id={`image-upload-${product._id}`}
-                                className="hidden"
-                                accept="image/*"
-                                onChange={(e) => handleImageUpload(product._id, e.target.files[0])}
-                              />
-                              <label
-                                htmlFor={`image-upload-${product._id}`}
-                                className="products-thumb"
-                                title="Görseli değiştir"
-                              >
-                                {imageUploading[product._id] ? (
-                                  <div className="products-thumb-overlay" data-busy="true">
-                                    <div className="ui-loader" style={{ width: 16, height: 16 }}></div>
-                                  </div>
-                                ) : (
-                                  <>
-                                    <img
-                                      src={product.image || '/placeholder.png'}
-                                      alt={product.name}
-                                    />
-                                    <div className="products-thumb-overlay">
-                                      <Upload />
-                                    </div>
-                                  </>
-                                )}
-                              </label>
-                              <div className="ui-grow">
-                                {editingProduct && editingProduct._id === product._id ? (
-                                  <input
-                                    type="text"
-                                    name="name"
-                                    aria-label="Ürün adı"
-                                    value={editingProduct.name}
-                                    onChange={(e) => handleProductChange("name", e.target.value)}
-                                    className="ui-field ui-field--sm"
-                                  />
-                                ) : (
-                                  <div
-                                    className="ui-list-title ui-truncate"
-                                    title={product.name}
-                                  >
-                                    {product.name}
-                                  </div>
-                                )}
-
-                                {/* Flash Sale Süre Göstergesi */}
-                                {getFlashSaleTimeRemaining(product._id) && (
-                                  <span className={`ui-badge ${getFlashSaleStatus(product._id) === 'active' ? 'ui-badge--warn' :
-                                      getFlashSaleStatus(product._id) === 'upcoming' ? 'ui-badge--info' :
-                                        ''
-                                    }`} style={{ marginTop: 4 }}>
-                                    <Clock />
-                                    {getFlashSaleTimeRemaining(product._id)}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            <div>
-                              <span className="ui-cell-label">Fiyat</span>
-                              {editingPrice[product._id] ? (
-                                <div className="products-inline">
-                                  <input
-                                    type="number"
-                                    aria-label="Yeni fiyat"
-                                    value={newPrices[product._id] ?? product.price}
-                                    onChange={(e) => handlePriceChange(product._id, e.target.value)}
-                                    className="ui-field ui-field--sm"
-                                  />
-                                  <button
-                                    onClick={() => savePrice(product._id)}
-                                    className="ui-icon-btn ui-icon-btn--sm"
-                                    title="Fiyatı kaydet"
-                                    aria-label="Fiyatı kaydet"
-                                  >
-                                    <Save />
-                                  </button>
-                                </div>
-                              ) : editingDiscount[product._id] ? (
-                                <div className="products-inline">
-                                  <input
-                                    type="number"
-                                    aria-label="İndirimli fiyat"
-                                    value={discountPrices[product._id] ?? product.price}
-                                    onChange={(e) => handleDiscountChange(product._id, e.target.value)}
-                                    className="ui-field ui-field--sm"
-                                  />
-                                  <button
-                                    onClick={() => saveDiscount(product._id, product.price)}
-                                    className="ui-icon-btn ui-icon-btn--sm"
-                                    title="İndirimi kaydet"
-                                    aria-label="İndirimi kaydet"
-                                  >
-                                    <Save />
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="products-price">
-                                  <span className="products-price-now">
-                                    ₺{((product.isDiscounted ? product.discountedPrice : product.price) || 0).toFixed(2)}
-                                  </span>
-                                  {product.isDiscounted && (
-                                    <>
-                                      <span className="products-price-old">
-                                        ₺{(product.price || 0).toFixed(2)}
-                                      </span>
-                                      <span className="ui-badge ui-badge--danger">
-                                        %{calculateDiscountPercentage(product.price, product.discountedPrice)} İndirim
-                                      </span>
-                                    </>
-                                  )}
-                                  <span className="products-inline" style={{ gap: 0 }}>
-                                    <button
-                                      onClick={() => setEditingPrice({ ...editingPrice, [product._id]: true })}
-                                      className="ui-icon-btn ui-icon-btn--sm"
-                                      title="Fiyatı düzenle"
-                                      aria-label="Fiyatı düzenle"
-                                    >
-                                      <Edit />
-                                    </button>
-                                    {product.isDiscounted ? (
-                                      <button
-                                        onClick={() => removeDiscount(product._id)}
-                                        className="ui-icon-btn ui-icon-btn--sm ui-icon-btn--danger"
-                                        title="İndirimi kaldır"
-                                        aria-label="İndirimi kaldır"
-                                      >
-                                        <X />
-                                      </button>
-                                    ) : (
-                                      <button
-                                        onClick={() => setEditingDiscount({ ...editingDiscount, [product._id]: true })}
-                                        className="ui-icon-btn ui-icon-btn--sm"
-                                        title="İndirim Ekle"
-                                        aria-label="İndirim Ekle"
-                                      >
-                                        <Percent />
-                                      </button>
-                                    )}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-
-                            <div>
-                              <span className="ui-cell-label">Kategori</span>
-                              {editingProduct && editingProduct._id === product._id ? (
-                                <select
-                                  aria-label="Kategori"
-                                  value={editingProduct.category ? `/${editingProduct.category}` : ""}
-                                  onChange={handleProductCategoryChange}
-                                  className="ui-field ui-field--sm"
-                                >
-                                  <option value="">Kategori Seçin</option>
-                                  {categories.map((category) => (
-                                    <option key={category.href} value={category.href}>
-                                      {category.name}
-                                    </option>
-                                  ))}
-                                </select>
-                              ) : (
-                                <div className="ui-text-sm ui-muted ui-truncate" title={product.category || "Kategori Yok"}>
-                                  {product.category || "Kategori Yok"}
-                                </div>
-                              )}
-                            </div>
-
-                            <div>
-                              <span className="ui-cell-label">Görünürlük</span>
-                              <button
-                                onClick={() => toggleProductHidden(product._id)}
-                                className={`ui-badge ${product.isHidden ? "" : "ui-badge--ok"}`}
-                                title="Görünürlüğü değiştir"
-                              >
-                                {product.isHidden ? "Gizli" : "Görünür"}
-                              </button>
-                            </div>
-
-                            <div>
-                              <span className="ui-cell-label">Stok</span>
-                              <button
-                                onClick={() => toggleOutOfStock(product._id)}
-                                className={`ui-badge ${product.isOutOfStock ? "ui-badge--danger" : "ui-badge--ok"}`}
-                                title="Stok durumunu değiştir"
-                              >
-                                {product.isOutOfStock ? "Tükendi" : "Stokta"}
-                              </button>
-                            </div>
-
-                            <div className="products-actions">
-                              {editingProduct && editingProduct._id === product._id ? (
-                                <>
-                                  <button
-                                    onClick={() => onSave(product._id, editingProduct)}
-                                    className="ui-btn ui-btn--sm ui-btn--primary"
-                                  >
-                                    <Save />
-                                    Kaydet
-                                  </button>
-                                  <button
-                                    onClick={() => setEditingProduct(null)}
-                                    className="ui-icon-btn"
-                                    title="Vazgeç"
-                                    aria-label="Vazgeç"
-                                  >
-                                    <X />
-                                  </button>
-                                </>
-                              ) : (
-                                <>
-                                  <button
-                                    onClick={() => handleFeatureToggle(product._id)}
-                                    aria-pressed={!!product.isFeatured}
-                                    className="ui-icon-btn"
-                                    title={product.isFeatured ? "Öne çıkanlardan kaldır" : "Öne çıkar"}
-                                    aria-label="Öne çıkar"
-                                  >
-                                    <Star fill={product.isFeatured ? "currentColor" : "none"} />
-                                  </button>
-
-                                  {/* Flash Sale Butonu */}
-                                  {product.isDiscounted ? (
-                                    <button
-                                      onClick={() => handleRemoveFlashSale(product._id)}
-                                      className="ui-icon-btn"
-                                      aria-pressed="true"
-                                      title="Flash Sale Kaldır"
-                                      aria-label="Flash Sale Kaldır"
-                                    >
-                                      <Zap />
-                                    </button>
-                                  ) : (
-                                    <button
-                                      onClick={() => handleFlashSale(product)}
-                                      className="ui-icon-btn"
-                                      title="Flash Sale Ekle"
-                                      aria-label="Flash Sale Ekle"
-                                    >
-                                      <Zap />
-                                    </button>
-                                  )}
-
-                                  <button
-                                    onClick={() => onEdit(product)}
-                                    className="ui-icon-btn"
-                                    title="Ürünü düzenle"
-                                    aria-label="Ürünü düzenle"
-                                  >
-                                    <Edit />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteProduct(product._id)}
-                                    className="ui-icon-btn ui-icon-btn--danger"
-                                    title="Ürünü sil"
-                                    aria-label="Ürünü sil"
-                                  >
-                                    <Trash />
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </Draggable>
-                    ))}
-                    {provided.placeholder}
-                  </div>
+            <div className="ui-drawer-body">
+              <div className="cat-edit-summary">
+                <span className="cat-thumb cat-thumb--lg">
+                  <img src={editingRow.image || '/placeholder.png'} alt={editingRow.name} />
+                </span>
+                <div>
+                  <p className="ui-text-sm ui-muted">Mevcut fiyat</p>
+                  <strong className="ui-num">
+                    ₺{((editingRow.isDiscounted ? editingRow.discountedPrice : editingRow.price) || 0).toFixed(2)}
+                  </strong>
+                  <p className="ui-text-xs ui-muted">
+                    {editingRow.isOutOfStock ? "Tükendi" : "Stokta"} · {editingRow.isHidden ? "Gizli" : "Görünür"}
+                  </p>
                 </div>
-              )}
-            </Droppable>
-          </DragDropContext>
-        </InfiniteScroll>
-
-        {/* Flash Sale Modal */}
-        {showFlashSaleModal && (
-          <div className="ui-modal-backdrop">
-            <div className="ui-modal" role="dialog" aria-modal="true" aria-label="Flash Sale Ekle">
-              <div className="ui-modal-header">
-                <h3 className="ui-title">Flash Sale Ekle</h3>
-                <button
-                  onClick={() => setShowFlashSaleModal(false)}
-                  className="ui-icon-btn"
-                  aria-label="Kapat"
-                >
-                  <X />
-                </button>
               </div>
 
-              <form onSubmit={handleFlashSaleSubmit} className="ui-modal-body ui-stack">
+              <div>
+                <label className="ui-label" htmlFor="products-edit-name">Ürün adı</label>
+                <input
+                  id="products-edit-name"
+                  type="text"
+                  name="name"
+                  value={editingProduct.name}
+                  onChange={(e) => handleProductChange("name", e.target.value)}
+                  className="ui-field"
+                />
+              </div>
+
+              <div>
+                <label className="ui-label" htmlFor="products-edit-category">Kategori</label>
+                <select
+                  id="products-edit-category"
+                  value={editingProduct.category ? `/${editingProduct.category}` : ""}
+                  onChange={handleProductCategoryChange}
+                  className="ui-field"
+                >
+                  <option value="">Kategori Seçin</option>
+                  {categories.map((category) => (
+                    <option key={category.href} value={category.href}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <p className="ui-hint">
+                Fiyat, indirim, stok ve görünürlük doğrudan tablodan güncellenir.
+              </p>
+            </div>
+
+            <div className="ui-drawer-foot">
+              <button onClick={() => setEditingProduct(null)} className="ui-btn">
+                Vazgeç
+              </button>
+              <button
+                onClick={() => onSave(editingRow._id, editingProduct)}
+                className="ui-btn ui-btn--primary"
+              >
+                <Save />
+                Kaydet
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
+
+      {/* Flash Sale çekmecesi */}
+      {showFlashSaleModal && (
+        <div className="ui-drawer-backdrop">
+          <aside className="ui-drawer" role="dialog" aria-modal="true" aria-label="Flash Sale Ekle">
+            <div className="ui-drawer-head">
+              <h3 className="ui-title">Flash Sale Ekle</h3>
+              <button
+                onClick={() => setShowFlashSaleModal(false)}
+                className="ui-icon-btn"
+                aria-label="Kapat"
+              >
+                <X />
+              </button>
+            </div>
+
+            <form onSubmit={handleFlashSaleSubmit} className="ui-drawer-form">
+              <div className="ui-drawer-body">
                 {flashSaleProduct && (
-                  <div className="ui-row">
+                  <div className="cat-edit-summary">
                     {flashSaleProduct.image && (
-                      <div className="ui-thumb">
+                      <span className="cat-thumb cat-thumb--lg">
                         <img
                           src={flashSaleProduct.image}
                           alt={flashSaleProduct.name}
                         />
-                      </div>
+                      </span>
                     )}
-                    <div className="ui-grow">
-                      <h4 className="ui-list-title">{flashSaleProduct.name}</h4>
-                      <p className="ui-list-sub">₺{flashSaleProduct.price}</p>
+                    <div>
+                      <strong>{flashSaleProduct.name}</strong>
+                      <p className="ui-text-sm ui-muted ui-num">₺{flashSaleProduct.price}</p>
                     </div>
                   </div>
                 )}
@@ -1346,28 +1426,28 @@ const ProductsList = ({ onEdit, editingProduct, setEditingProduct, onSave }) => 
                     />
                   </div>
                 </div>
+              </div>
 
-                <div className="orders-queue-actions">
-                  <button
-                    type="button"
-                    onClick={() => setShowFlashSaleModal(false)}
-                    className="ui-btn"
-                  >
-                    İptal
-                  </button>
-                  <button
-                    type="submit"
-                    className="ui-btn ui-btn--primary"
-                  >
-                    <Zap />
-                    Flash Sale Oluştur
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-      </div>
+              <div className="ui-drawer-foot">
+                <button
+                  type="button"
+                  onClick={() => setShowFlashSaleModal(false)}
+                  className="ui-btn"
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  className="ui-btn ui-btn--primary"
+                >
+                  <Zap />
+                  Flash Sale Oluştur
+                </button>
+              </div>
+            </form>
+          </aside>
+        </div>
+      )}
     </div>
   );
 };

@@ -64,58 +64,59 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, confirmText,
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          className="confirm-root fixed inset-0 z-[100] flex items-center justify-center p-4"
+          data-type={type}
         >
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            className="confirm-backdrop absolute inset-0 bg-black/70 backdrop-blur-sm"
             onClick={onClose}
           />
-          
+
           {/* Modal */}
           <motion.div
             initial={{ scale: 0.9, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0, y: 20 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="relative w-full max-w-md bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-2xl border border-white/10 shadow-2xl overflow-hidden"
+            className="confirm-dialog relative w-full max-w-md bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-2xl border border-white/10 shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Top gradient line */}
-            <div className={`h-1 ${type === 'danger' ? 'bg-gradient-to-r from-red-500 to-rose-500' : type === 'warning' ? 'bg-gradient-to-r from-amber-500 to-orange-500' : type === 'success' ? 'bg-gradient-to-r from-emerald-500 to-teal-500' : 'bg-gradient-to-r from-blue-500 to-indigo-500'}`} />
-            
-            <div className="p-6">
+            <div className={`confirm-accent h-1 ${type === 'danger' ? 'bg-gradient-to-r from-red-500 to-rose-500' : type === 'warning' ? 'bg-gradient-to-r from-amber-500 to-orange-500' : type === 'success' ? 'bg-gradient-to-r from-emerald-500 to-teal-500' : 'bg-gradient-to-r from-blue-500 to-indigo-500'}`} />
+
+            <div className="confirm-body p-6">
               {/* Icon & Title */}
               <div className="flex items-start gap-4 mb-4">
-                <div className={`flex-shrink-0 p-3 rounded-xl border ${styles.iconBg}`}>
+                <div className={`confirm-icon flex-shrink-0 p-3 rounded-xl border ${styles.iconBg}`}>
                   <Icon className={`w-6 h-6 ${styles.iconColor}`} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className={`text-lg font-bold ${styles.headerColor} mb-1`}>
+                  <h3 className={`confirm-title text-lg font-bold ${styles.headerColor} mb-1`}>
                     {title}
                   </h3>
-                  <p className="text-gray-300 text-sm leading-relaxed">
+                  <p className="confirm-message text-gray-300 text-sm leading-relaxed">
                     {message}
                   </p>
                 </div>
                 <button
                   onClick={onClose}
-                  className="flex-shrink-0 p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+                  className="confirm-close flex-shrink-0 p-1.5 hover:bg-white/10 rounded-lg transition-colors"
                 >
                   <X className="w-5 h-5 text-gray-500 hover:text-white" />
                 </button>
               </div>
 
               {/* Actions */}
-              <div className="flex gap-3 mt-6">
+              <div className="confirm-actions flex gap-3 mt-6">
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={onClose}
-                  className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium rounded-xl transition-all"
+                  className="confirm-cancel flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium rounded-xl transition-all"
                 >
                   {cancelText}
                 </motion.button>
@@ -126,7 +127,7 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, confirmText,
                     onConfirm();
                     onClose();
                   }}
-                  className={`flex-1 px-4 py-3 text-white font-semibold rounded-xl shadow-lg transition-all ${styles.confirmBg}`}
+                  className={`confirm-ok flex-1 px-4 py-3 text-white font-semibold rounded-xl shadow-lg transition-all ${styles.confirmBg}`}
                 >
                   {confirmText}
                 </motion.button>

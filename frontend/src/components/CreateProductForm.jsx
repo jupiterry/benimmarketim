@@ -76,16 +76,27 @@ const CreateProductForm = () => {
 		}
 	};
 
+	// ── Sunum yardımcıları (yalnızca görünüm) ─────────────────────────
+	const categoryName = categories.find(cat => cat.href.replace("/", "") === newProduct.category)?.name || newProduct.category;
+	const checklist = [
+		{ label: "Ürün adı", done: !!newProduct.name.trim() },
+		{ label: "Açıklama", done: !!newProduct.description.trim() },
+		{ label: "Fiyat", done: newProduct.price !== "" },
+		{ label: "Kategori", done: !!newProduct.category },
+		{ label: "Görsel", done: !!newProduct.image, optional: true },
+	];
+
 	return (
 		<>
-			<form onSubmit={handleSubmit} className="product-form">
-				<div className="ui-stack">
-					{/* Temel bilgiler */}
-					<section className="ui-card">
-						<div className="ui-card-header">
-							<h2 className="ui-title">Temel bilgiler</h2>
-						</div>
-						<div className="ui-card-body ui-stack">
+			<form onSubmit={handleSubmit} className="pf">
+				<div className="ui-panel pf-main">
+					{/* 1 · Genel bilgiler */}
+					<section className="pf-section" aria-labelledby="pf-general">
+						<header className="pf-section-head">
+							<h2 id="pf-general">Genel bilgiler</h2>
+							<p>Müşterinin mağazada göreceği ad ve açıklama.</p>
+						</header>
+						<div className="pf-section-body">
 							<div>
 								<label htmlFor='name' className='ui-label'>
 									Ürün Adı
@@ -120,12 +131,46 @@ const CreateProductForm = () => {
 						</div>
 					</section>
 
-					{/* Fiyat ve kategori */}
-					<section className="ui-card">
-						<div className="ui-card-header">
-							<h2 className="ui-title">Fiyat ve kategori</h2>
+					{/* 2 · Görsel */}
+					<section className="pf-section" aria-labelledby="pf-image">
+						<header className="pf-section-head">
+							<h2 id="pf-image">Görsel</h2>
+							<p>Kare, sade arka planlı bir ürün fotoğrafı en iyi sonucu verir.</p>
+						</header>
+						<div className="pf-section-body">
+							<input type='file' id='image' className='hidden' accept='image/*' onChange={handleImageChange} />
+							<label htmlFor='image' className='pf-image' data-filled={!!newProduct.image || undefined}>
+								{newProduct.image ? (
+									<>
+										<img src={newProduct.image} alt="Preview" />
+										<span className="pf-image-text">
+											<strong>Görsel yüklendi</strong>
+											<span className="ui-btn ui-btn--sm">
+												<Upload />
+												Görseli Değiştir
+											</span>
+										</span>
+									</>
+								) : (
+									<>
+										<span className="pf-image-icon"><ImageIcon /></span>
+										<span className="pf-image-text">
+											<strong>Ürün görseli yüklemek için tıklayın veya sürükleyin</strong>
+											<span className="ui-text-xs ui-muted">PNG, JPG, GIF (max. 2MB)</span>
+										</span>
+									</>
+								)}
+							</label>
 						</div>
-						<div className="ui-card-body ui-grid-2">
+					</section>
+
+					{/* 3 · Fiyatlandırma */}
+					<section className="pf-section" aria-labelledby="pf-price">
+						<header className="pf-section-head">
+							<h2 id="pf-price">Fiyatlandırma</h2>
+							<p>Birim satış fiyatı. İndirim ürün kataloğundan eklenir.</p>
+						</header>
+						<div className="pf-section-body pf-narrow">
 							<div>
 								<label htmlFor='price' className='ui-label'>
 									Fiyat
@@ -145,7 +190,16 @@ const CreateProductForm = () => {
 									<span>₺</span>
 								</div>
 							</div>
+						</div>
+					</section>
 
+					{/* 4 · Kategori */}
+					<section className="pf-section" aria-labelledby="pf-category">
+						<header className="pf-section-head">
+							<h2 id="pf-category">Kategori</h2>
+							<p>Ürünün mağazada listeleneceği reyon.</p>
+						</header>
+						<div className="pf-section-body pf-narrow">
 							<div>
 								<label htmlFor='category' className='ui-label'>
 									Kategori
@@ -171,94 +225,114 @@ const CreateProductForm = () => {
 							</div>
 						</div>
 					</section>
-				</div>
 
-				<div className="ui-stack">
-					{/* Görsel Yükleme Alanı */}
-					<section className="ui-card">
-						<div className="ui-card-header">
-							<h2 className="ui-title">Görsel</h2>
-						</div>
-						<div className="ui-card-body">
-							<input type='file' id='image' className='hidden' accept='image/*' onChange={handleImageChange} />
-							<label htmlFor='image' className='ui-dropzone'>
-								{newProduct.image ? (
-									<>
-										<img src={newProduct.image} alt="Preview" />
-										<span className="ui-dropzone-overlay">
-											<Upload />
-											Görseli Değiştir
-										</span>
-									</>
-								) : (
-									<>
-										<ImageIcon />
-										<span>Ürün görseli yüklemek için tıklayın veya sürükleyin</span>
-										<span className="ui-text-xs ui-muted">PNG, JPG, GIF (max. 2MB)</span>
-									</>
-								)}
-							</label>
-						</div>
-					</section>
-
-					{/* Durum Butonları */}
-					<section className="ui-card">
-						<div className="ui-card-header">
-							<h2 className="ui-title">Stok ve görünürlük</h2>
-						</div>
-						<div className="ui-card-body ui-stack ui-stack--sm">
+					{/* 5 · Stok ve görünürlük */}
+					<section className="pf-section" aria-labelledby="pf-status">
+						<header className="pf-section-head">
+							<h2 id="pf-status">Stok ve görünürlük</h2>
+							<p>Yayına alındığında ürünün mağazadaki durumu.</p>
+						</header>
+						<div className="pf-section-body pf-switches">
 							<button
 								type="button"
 								onClick={() => setNewProduct({ ...newProduct, inStock: !newProduct.inStock })}
 								aria-pressed={newProduct.inStock}
-								data-tone={newProduct.inStock ? undefined : "danger"}
-								className="ui-option"
+								className="pf-switch"
 							>
-								{newProduct.inStock ? <Check /> : <XCircle />}
-								<span>{newProduct.inStock ? 'Stokta Var' : 'Tükendi'}</span>
+								<span>
+									<strong>{newProduct.inStock ? 'Stokta Var' : 'Tükendi'}</strong>
+									<small>Kapalıyken ürün “Tükendi” olarak görünür.</small>
+								</span>
+								<i className="pf-switch-track" />
 							</button>
 
 							<button
 								type="button"
 								onClick={() => setNewProduct({ ...newProduct, hidden: !newProduct.hidden })}
 								aria-pressed={!newProduct.hidden}
-								className="ui-option"
+								className="pf-switch"
 							>
-								{newProduct.hidden ? <EyeOff /> : <Eye />}
-								<span>{newProduct.hidden ? 'Gizli' : 'Görünür'}</span>
+								<span>
+									<strong>{newProduct.hidden ? 'Gizli' : 'Görünür'}</strong>
+									<small>Gizli ürünler mağazada listelenmez.</small>
+								</span>
+								<i className="pf-switch-track" />
 							</button>
 
 							<button
 								type="button"
 								onClick={() => setNewProduct({ ...newProduct, featured: !newProduct.featured })}
 								aria-pressed={newProduct.featured}
-								className="ui-option"
+								className="pf-switch"
 							>
-								<Star fill={newProduct.featured ? "currentColor" : "none"} />
-								<span>Öne Çıkar</span>
+								<span>
+									<strong>Öne Çıkar</strong>
+									<small>Öne çıkan ürünler vitrinde gösterilir.</small>
+								</span>
+								<i className="pf-switch-track" />
 							</button>
 						</div>
 					</section>
+				</div>
+
+				{/* Sağ özet: canlı önizleme ve gönderim */}
+				<aside className="ui-panel pf-aside" aria-label="Ürün özeti">
+					<div className="pf-preview">
+						<span className="pf-preview-img">
+							{newProduct.image ? <img src={newProduct.image} alt="" /> : <ImageIcon />}
+						</span>
+						<div className="pf-preview-text">
+							<strong>{newProduct.name || "Ürün adı"}</strong>
+							<span className="ui-num">{newProduct.price !== "" ? `₺${newProduct.price}` : "₺0.00"}</span>
+							<small>{newProduct.category ? categoryName : "Kategori seçilmedi"}</small>
+						</div>
+					</div>
+					<div className="pf-preview-tags">
+						<span className={`ui-badge ${newProduct.inStock ? "ui-badge--ok" : "ui-badge--danger"}`}>
+							{newProduct.inStock ? <Check /> : <XCircle />}
+							{newProduct.inStock ? "Stokta" : "Tükendi"}
+						</span>
+						<span className="ui-badge">
+							{newProduct.hidden ? <EyeOff /> : <Eye />}
+							{newProduct.hidden ? "Gizli" : "Görünür"}
+						</span>
+						{newProduct.featured && (
+							<span className="ui-badge ui-badge--warn"><Star /> Öne çıkan</span>
+						)}
+					</div>
+
+					<ul className="pf-checklist" aria-label="Doldurulan alanlar">
+						{checklist.map((item) => (
+							<li key={item.label} data-done={item.done || undefined}>
+								<i>{item.done && <Check />}</i>
+								{item.label}
+								{item.optional && <small>isteğe bağlı</small>}
+							</li>
+						))}
+					</ul>
 
 					{/* Önizleme Butonu */}
-					<button
-						type='submit'
-						className='ui-btn ui-btn--primary ui-btn--lg ui-btn--block'
-						disabled={loading}
-					>
-						{loading ? (
-							<>
-								<Loader className='ui-spin' />
-								<span>Yükleniyor...</span>
-							</>
-						) : (
-							<>
-								<PlusCircle />
-								<span>Ürünü Önizle</span>
-							</>
-						)}
-					</button>
-				</div>
+					<div className="pf-submit">
+						<button
+							type='submit'
+							className='ui-btn ui-btn--primary ui-btn--lg ui-btn--block'
+							disabled={loading}
+						>
+							{loading ? (
+								<>
+									<Loader className='ui-spin' />
+									<span>Yükleniyor...</span>
+								</>
+							) : (
+								<>
+									<PlusCircle />
+									<span>Ürünü Önizle</span>
+								</>
+							)}
+						</button>
+						<p className="ui-hint">Yayına almadan önce son bir kez onaylamanız istenir.</p>
+					</div>
+				</aside>
 			</form>
 
 			{/* Onay Modalı */}
@@ -269,43 +343,50 @@ const CreateProductForm = () => {
 							<h3 className="ui-title">Ürün Önizleme</h3>
 						</div>
 
-						<div className="ui-modal-body ui-stack">
+						<div className="ui-modal-body pf-confirm">
 							{newProduct.image && (
-								<div className="ui-dropzone" style={{ cursor: "default", minHeight: 200 }}>
+								<span className="pf-confirm-img">
 									<img src={newProduct.image} alt={newProduct.name} />
-								</div>
+								</span>
 							)}
 
-							<div className="ui-cluster">
+							<div className="pf-confirm-text">
 								<h4 className="ui-title">{newProduct.name}</h4>
-								{newProduct.featured && (
-									<span className="ui-badge ui-badge--warn"><Star /> Öne çıkan</span>
-								)}
-								{newProduct.hidden && (
-									<span className="ui-badge"><EyeOff /> Gizli</span>
-								)}
-								{!newProduct.inStock && (
-									<span className="ui-badge ui-badge--danger"><XCircle /> Tükendi</span>
-								)}
-							</div>
-
-							<p className="ui-muted ui-wrap-anywhere">{newProduct.description}</p>
-
-							<div className="ui-between">
-								<div>
-									<span className="order-card-price" style={{ display: "inline" }}>₺{newProduct.price}</span>
+								<p className="pf-confirm-price">
+									<strong className="ui-num">₺{newProduct.price}</strong>
 									<span className="ui-text-sm ui-muted"> /birim</span>
+								</p>
+								<div className="pf-preview-tags">
+									<span className="ui-badge">
+										{categories.find(cat => cat.href.replace("/", "") === newProduct.category)?.name || newProduct.category}
+									</span>
+									{newProduct.featured && (
+										<span className="ui-badge ui-badge--warn"><Star /> Öne çıkan</span>
+									)}
+									{newProduct.hidden && (
+										<span className="ui-badge"><EyeOff /> Gizli</span>
+									)}
+									{!newProduct.inStock && (
+										<span className="ui-badge ui-badge--danger"><XCircle /> Tükendi</span>
+									)}
 								</div>
-								<span className="ui-badge">
-									{categories.find(cat => cat.href.replace("/", "") === newProduct.category)?.name || newProduct.category}
-								</span>
 							</div>
+
+							<p className="pf-confirm-desc ui-muted ui-wrap-anywhere">{newProduct.description}</p>
 						</div>
 
 						<div className="ui-modal-footer">
 							<button
+								onClick={() => setShowConfirmModal(false)}
+								className="ui-btn"
+							>
+								<XCircle />
+								<span>İptal</span>
+							</button>
+
+							<button
 								onClick={confirmAndSubmit}
-								className="ui-btn ui-btn--primary ui-grow"
+								className="ui-btn ui-btn--primary"
 								disabled={loading}
 							>
 								{loading ? (
@@ -319,14 +400,6 @@ const CreateProductForm = () => {
 										<span>Onayla ve Yükle</span>
 									</>
 								)}
-							</button>
-
-							<button
-								onClick={() => setShowConfirmModal(false)}
-								className="ui-btn ui-grow"
-							>
-								<XCircle />
-								<span>İptal</span>
 							</button>
 						</div>
 					</div>
