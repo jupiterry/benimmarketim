@@ -8,6 +8,8 @@ import {
   Settings,
   LogOut,
   ShoppingBag,
+  Headphones,
+  MessageCircle,
   X,
   Plus,
   CalendarDays,
@@ -118,7 +120,7 @@ export default function AdminHeader({
           {panel === "notifications" && (
             <section
               className="app-pop app-pop--wide"
-              aria-label="Sipariş bildirimleri"
+              aria-label="Bildirimler"
             >
               <div className="app-pop-head">
                 <strong>
@@ -140,10 +142,24 @@ export default function AdminHeader({
                       key={n.id || i}
                       onClick={() => {
                         setPanel(null);
-                        onViewNotifications?.(n.order);
+                        onViewNotifications?.(n);
                       }}
                     >
-                      <ShoppingBag size={15} />
+                      {n.kind === "support" ? (
+                        <Headphones size={15} />
+                      ) : n.kind === "message" ? (
+                        <MessageCircle size={15} />
+                      ) : (
+                        <ShoppingBag size={15} />
+                      )}
+                      {n.kind === "support" || n.kind === "message" ? (
+                        <span>
+                          <strong>{n.title}</strong>
+                          <small>
+                            {n.kind === "support" ? "Destek talebi" : "Yeni mesaj"} · {String(n.detail || "").slice(0, 60)}
+                          </small>
+                        </span>
+                      ) : (
                       <span>
                         <strong>
                           {n.order?.customerName || "Yeni sipariş"}
@@ -160,13 +176,14 @@ export default function AdminHeader({
                           )}
                         </small>
                       </span>
+                      )}
                       <time>{n.time}</time>
                     </button>
                   ))
                 ) : (
                   <div className="app-pop-empty">
                     <strong>Her şey güncel</strong>
-                    <p>Yeni sipariş bildirimleri burada görünecek.</p>
+                    <p>Yeni sipariş, destek talebi ve mesajlar burada görünecek.</p>
                   </div>
                 )}
               </div>

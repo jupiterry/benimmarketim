@@ -89,6 +89,10 @@ const AdminPage = () => {
   const [notifications, setNotifications] = useState(loadStoredNotifications);
   const [lastSync, setLastSync] = useState(null);
   const [adminBadges, setAdminBadges] = useState({ orders: 0, chats: 0 });
+  const activeTabRef = useRef(activeTab);
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
   const handledOrderIdsRef = useRef(new Set());
 
   // Stores
@@ -283,6 +287,56 @@ const AdminPage = () => {
     window.__adminGlobalOrderNotifications = true;
 
     const joinAdminRoom = () => socketService.joinAdminRoom(user?.accessToken);
+    const nowLabel = () =>
+      new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+    const pushNotification = (notification) => {
+      setNotifications((current) => {
+        const next = [
+          notification,
+          ...current.filter((item) => item.id !== notification.id),
+        ].slice(0, 30);
+        localStorage.setItem("admin-order-notifications", JSON.stringify(next));
+        return next;
+      });
+    };
+    // Yapay zekânın ekibe aktardığı destek talepleri
+    const handleSupportRequest = (data) => {
+      const requestId = data?.supportRequestId;
+      if (!requestId) return;
+      const key = `support-${requestId}`;
+      if (handledOrderIdsRef.current.has(key)) return;
+      handledOrderIdsRef.current.add(key);
+      window.setTimeout(() => handledOrderIdsRef.current.delete(key), 60000);
+      const customer = data.customerName || "Müşteri";
+      pushNotification({
+        id: key,
+        kind: "support",
+        title: customer,
+        detail: data.reason || "Canlı destek bekliyor",
+        chatId: data.conversationId ? String(data.conversationId) : null,
+        time: nowLabel(),
+      });
+      updateLastSync();
+      if (activeTabRef.current !== "support-queue") {
+        toast(`${customer} canlı destek bekliyor`, { id: key, icon: "🎧", duration: 6000, position: "top-right" });
+      }
+    };
+    // Müşteriden gelen yeni sohbet mesajları (sohbet başına tek satır)
+    const handleChatMessage = (data) => {
+      if (!data?.chatId || data.message?.sender === "admin") return;
+      if (activeTabRef.current === "chat") return;
+      const sender = data.senderName || "Müşteri";
+      pushNotification({
+        id: `message-${data.chatId}`,
+        kind: "message",
+        title: sender,
+        detail: String(data.message?.content || "Yeni mesaj").slice(0, 80),
+        chatId: String(data.chatId),
+        time: nowLabel(),
+      });
+      setAdminBadges((current) => ({ ...current, chats: current.chats + 1 }));
+      toast(`${sender} yeni mesaj gönderdi`, { id: `message-${data.chatId}`, icon: "💬", duration: 5000, position: "top-right" });
+    };
     const handleNewOrder = (data) => {
       if (!data?.order || data.order.id === "test") return;
 
@@ -306,14 +360,7 @@ const AdminPage = () => {
         order,
       };
 
-      setNotifications((current) => {
-        const next = [
-          notification,
-          ...current.filter((item) => item.id !== notification.id),
-        ].slice(0, 30);
-        localStorage.setItem("admin-order-notifications", JSON.stringify(next));
-        return next;
-      });
+      pushNotification(notification);
       setAdminBadges((current) => ({ ...current, orders: current.orders + 1 }));
       updateLastSync();
 
@@ -392,6 +439,8 @@ const AdminPage = () => {
 
     socket.on("connect", joinAdminRoom);
     socket.on("newOrder", handleNewOrder);
+    socket.on("SupportRequestCreated", handleSupportRequest);
+    socket.on("newChatMessage", handleChatMessage);
     if (socket.connected) joinAdminRoom();
 
     if ("Notification" in window && Notification.permission === "default") {
@@ -401,6 +450,8 @@ const AdminPage = () => {
     return () => {
       socket.off("connect", joinAdminRoom);
       socket.off("newOrder", handleNewOrder);
+      socket.off("SupportRequestCreated", handleSupportRequest);
+      socket.off("newChatMessage", handleChatMessage);
       window.__adminGlobalOrderNotifications = false;
     };
   }, [user?.role, user?.accessToken]);
@@ -554,7 +605,19 @@ const AdminPage = () => {
           refreshing={refreshing}
           notifications={notifications}
           onClearNotifications={clearNotifications}
-          onViewNotifications={() => setActiveTab("orders")}
+          onViewNotifications={(notification) => {
+            if (notification?.kind === "support") return setActiveTab("support-queue");
+            if (notification?.kind === "message") {
+              if (notification.chatId) {
+                const url = new URL(window.location.href);
+                url.searchParams.set("tab", "chat");
+                url.searchParams.set("chatId", notification.chatId);
+                window.history.replaceState({}, "", url);
+              }
+              return setActiveTab("chat");
+            }
+            return setActiveTab("orders");
+          }}
           onNavigate={handleTabChange}
           user={user}
           lastSync={lastSync}

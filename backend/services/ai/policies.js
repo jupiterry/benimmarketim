@@ -32,6 +32,12 @@ const normalizeSearch = (value) => String(value || "")
 const searchWords = (value) => normalizeSearch(value).match(/[a-z0-9çğıöşü]{3,}/g) || [];
 const ignoredSearchWords = new Set(["ben", "bir", "bu", "da", "de", "mi", "mı", "mu", "mü", "var", "ve", "ile", "icin", "için", "merhaba", "lutfen", "lütfen", "nedir", "nasil", "nasıl", "istiyorum", "ediyorum", "eder", "misiniz", "mısınız", "musunuz", "musun"]);
 
+// "iadeler" ↔ "iade", "teslimatı" ↔ "teslimat" gibi ek almış biçimleri yakalar.
+const sharesStem = (word, candidate) => {
+  const [short, long] = word.length <= candidate.length ? [word, candidate] : [candidate, word];
+  return short.length >= 4 && long.length - short.length <= 5 && long.startsWith(short);
+};
+
 const distanceAtMostOne = (left, right) => {
   if (left === right) return true;
   if (Math.abs(left.length - right.length) > 1) return false;
@@ -58,9 +64,9 @@ export const rankKnowledgeRows = (query, rows) => {
     let score = 0;
     for (const word of words) {
       if (titleWords.includes(word)) score += 5;
-      else if (titleWords.some((candidate) => word.length >= 5 && distanceAtMostOne(word, candidate))) score += 3.5;
+      else if (titleWords.some((candidate) => (word.length >= 5 && distanceAtMostOne(word, candidate)) || sharesStem(word, candidate))) score += 3.5;
       if (keywordWords.includes(word)) score += 4;
-      else if (keywordWords.some((candidate) => word.length >= 5 && distanceAtMostOne(word, candidate))) score += 3;
+      else if (keywordWords.some((candidate) => (word.length >= 5 && distanceAtMostOne(word, candidate)) || sharesStem(word, candidate))) score += 3;
       if (categoryWords.includes(word)) score += 1.5;
       if (contentWords.includes(word)) score += 0.5;
     }
@@ -71,3 +77,23 @@ export const rankKnowledgeRows = (query, rows) => {
 };
 
 export const unknownAnswerOffer = () => "Bu konuda şu anda doğrulanmış bilgi bulamadım. İsterseniz aşağıdaki Canlı Destek seçeneğine dokunarak ekibimize bağlanabilirsiniz.";
+
+// ── Selamlaşma, teşekkür, veda ve "ne yapabilirsin" gibi kısa sohbet mesajları ──
+// Bu mesajlarda doğrulanacak veri yoktur; model çağrılmadan sabit ve sıcak bir yanıt verilir.
+// Mesajda başka bir soru varsa (ör. "Merhaba, süt var mı?") null döner ve normal akış çalışır.
+const SMALL_TALK = [
+  { pattern: /^(tesekkur(ler| ederim| ediyorum)?|cok tesekkur(ler| ederim)?|sag ?ol(un)?|cok sag ?ol(un)?|eyvallah|tsk|tskler|tesekkurler cok|eline saglik|elinize saglik)( kolay gelsin| iyi (gunler|aksamlar|geceler|calismalar))?$/, reply: "Rica ederim! Başka bir konuda yardımcı olabilirsem buradayım." },
+  { pattern: /^(tamam|tamamdir|peki|anladim|oldu|ok|okey|super|harika|guzel|tamam tesekkur(ler| ederim)?|tamam sag ?ol(un)?)$/, reply: "Harika! Başka bir sorunuz olursa yazmanız yeterli." },
+  { pattern: /^(gorusuruz|hosca ?kal(in)?|bay ?bay|allaha ismarladik)$/, reply: "İyi günler dilerim! Yine beklerim." },
+  { pattern: /^(iyi (gunler|aksamlar|geceler|sabahlar|calismalar)|gunaydin|hayirli (gunler|aksamlar|sabahlar|isler)|kolay gelsin)$/, reply: "Size de! Yardımcı olabileceğim bir konu olursa yazmanız yeterli." },
+  { pattern: /^(sen )?(kimsin|nesin|bot musun|robot musun|insan misin|yapay zeka misin|gercek misin)$/, reply: "Ben Benim Marketim'in yapay zekâ asistanıyım. Ürün, fiyat ve stok bilgisi, siparişiniz, kampanyalar, kuponlar ve hizmetlerimiz hakkında yardımcı olabilirim. Dilerseniz sizi canlı destek ekibimize de bağlayabilirim." },
+  { pattern: /^(ne(ler)? yapabilirsin|ne(ler)? yapabiliyorsun|nasil yardimci olabilirsin|ne sorabilirim|neler sorabilirim|yardim|yardim et|yardim eder misin|yardimci olur musun|bana yardim et)$/, reply: "Şunlarda yardımcı olabilirim:\n• Ürün arama, güncel fiyat ve stok durumu\n• Siparişinizin durumu\n• Aktif kampanyalar ve kuponlarınız\n• Sipariş saatleri ve minimum sepet tutarı\n• Fotokopi hizmeti\nNe hakkında bilgi almak istersiniz?" },
+  { pattern: /^(nasilsin|naber|ne haber|nasil gidiyor|iyi misin|nasilsiniz)$/, reply: "Teşekkür ederim, iyiyim! Size nasıl yardımcı olabilirim?" },
+  { pattern: /^(merhaba(lar)?|selam(lar)?|slm|mrb|sa|selamun aleykum|selamin aleykum|hey|alo)( iyi (gunler|aksamlar|geceler|sabahlar)| gunaydin| kolay gelsin)?( nasilsin| nasilsiniz| naber)?$/, reply: "Merhaba! Ürünler, siparişiniz, kampanyalar veya hizmetlerimiz hakkında size nasıl yardımcı olabilirim?" },
+];
+
+export const smallTalkReply = (query) => {
+  const text = normalizeSearch(query).replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+  if (!text || text.split(" ").length > 6) return null;
+  return SMALL_TALK.find(({ pattern }) => pattern.test(text))?.reply || null;
+};

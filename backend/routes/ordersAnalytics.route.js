@@ -3,6 +3,7 @@ import Order from "../models/order.model.js";
 import AdminAudit from "../models/adminAudit.model.js";
 import { auditAdminAction } from "../middleware/adminAudit.js";
 import { adminRoute, protectRoute } from "../middleware/auth.middleware.js";
+import { notifyOrderStatusChange } from "../services/orderStatusNotifier.js";
 import {
   getOrderAnalyticsData,
   getDailyOrdersData,
@@ -51,9 +52,11 @@ router.put("/bulk-status", protectRoute, adminRoute, auditAdminAction("Toplu sip
   const orders = await Order.find({ _id: { $in: orderIds } });
   if (orders.length !== new Set(orderIds).size) return res.status(404).json({ message: "Bazı siparişler bulunamadı" });
   for (const order of orders) {
+    const previousStatus = order.status;
     order.status = status;
     order.statusHistory.push({ status, changedAt: new Date(), changedBy: req.user._id });
     await order.save();
+    notifyOrderStatusChange(order, previousStatus);
     req.app.get("io")?.to(`user_${order.user.toString()}`).to("adminRoom").emit("orderStatusUpdated", { orderId: order._id, newStatus: status, message: `Sipariş durumu güncellendi: ${status}` });
   }
   return res.json({ updated: orders.length });

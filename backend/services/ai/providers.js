@@ -1,6 +1,8 @@
 const DEFAULT_TIMEOUT_MS = 15000;
 
-const requestJson = async (url, options) => {
+const RETRY_DELAY_MS = 600;
+
+const requestOnce = async (url, options) => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
   try {
@@ -9,6 +11,22 @@ const requestJson = async (url, options) => {
     if (!response.ok) throw new Error(`AI_PROVIDER_${response.status}`);
     return body;
   } finally { clearTimeout(timeout); }
+};
+
+// Geçici sağlayıcı sorunlarında (yoğunluk sınırı, 5xx, ağ kopması, zaman aşımı) bir kez daha dener.
+// Kimlik/istek hataları (400, 401, 403, 404) yeniden denenmez.
+const isRetryable = (error) => {
+  const status = Number(String(error?.message || "").match(/^AI_PROVIDER_(\d{3})$/)?.[1]);
+  return status ? status === 408 || status === 429 || status >= 500 : true;
+};
+
+const requestJson = async (url, options) => {
+  try { return await requestOnce(url, options); }
+  catch (error) {
+    if (!isRetryable(error)) throw error;
+    await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+    return requestOnce(url, options);
+  }
 };
 
 export const AI_TOOL_DEFINITIONS = [
@@ -20,8 +38,11 @@ export const AI_TOOL_DEFINITIONS = [
   ["getMyLastOrder", "Giriş yapmış kullanıcının son siparişini getirir.", {}, []],
   ["getOrderStatus", "Siparişin giriş yapmış kullanıcıya ait olması koşuluyla durumunu getirir.", { orderId: { type: "string" } }, ["orderId"]],
   ["getOrderDetails", "Siparişin giriş yapmış kullanıcıya ait olması koşuluyla detayını getirir.", { orderId: { type: "string" } }, ["orderId"]],
-  ["getActiveCampaigns", "Şu anda aktif kampanyaları getirir.", {}, []],
+  ["getActiveCampaigns", "Şu anda aktif kampanyaları ve haftanın özel fiyatlı ürünlerini getirir.", {}, []],
+  ["getCategoryProducts", "Bir kategorideki (ör. içecek, atıştırmalık) ürünleri güncel fiyat ve stokla listeler.", { category: { type: "string", description: "Kategori adı" } }, ["category"]],
+  ["getMyFrequentProducts", "Giriş yapmış kullanıcının geçmiş siparişlerinde en sık aldığı ürünleri getirir.", {}, []],
   ["getCouponInfo", "Kupon kodunun giriş yapmış kullanıcı için uygunluğunu kontrol eder.", { code: { type: "string" } }, ["code"]],
+  ["getMyCoupons", "Giriş yapmış kullanıcıya tanımlı, kullanılabilir kuponları listeler.", {}, []],
   ["getStoreInfo", "Sipariş saatleri, sipariş açık durumu, minimum tutar ve public teslimat noktası ayarlarını getirir.", {}, []],
   ["getMyCart", "Giriş yapmış kullanıcının sepetini ve gerçek toplamını getirir.", {}, []],
 ].map(([name, description, properties, required]) => ({

@@ -1,5 +1,6 @@
 import Order from "../models/order.model.js";
 import User from "../models/user.model.js";
+import { notifyOrderStatusChange } from "../services/orderStatusNotifier.js";
 
 // Tüm siparişleri getirirken "status" bilgisini de ekleyelim
 export const getOrderAnalyticsData = async () => {
@@ -86,9 +87,13 @@ export const updateOrderStatus = async (req, res) => {
 
     // Admin tüm durum değişikliklerini yapabilir - kısıtlama yok
 
+    const previousStatus = order.status;
     order.status = status;
     order.statusHistory.push({ status, changedAt: new Date(), changedBy: req.user._id });
     await order.save();
+
+    // Müşterinin telefonuna anlık bildirim (yanıtı bekletmez, hata siparişi etkilemez)
+    notifyOrderStatusChange(order, previousStatus);
 
     // Socket.IO ile kullanıcıya bildirim gönder
     try {
