@@ -124,8 +124,11 @@ const BannerTab = () => {
 
   return (
     <div className="ui-page">
-      <div className="ui-between">
-        <h2 className="ui-title">Banner Yönetimi</h2>
+      <header className="app-pagehead">
+        <div>
+          <h1>Vitrin görselleri</h1>
+          <p>Mağazanızın vitrinini kampanyalarınıza uygun şekilde düzenleyin.</p>
+        </div>
         <button
           onClick={() => {
             resetForm();
@@ -136,7 +139,7 @@ const BannerTab = () => {
           <Plus />
           Yeni Banner Ekle
         </button>
-      </div>
+      </header>
 
       {showForm && (
         <section className="ui-card" style={{ maxWidth: 720 }}>

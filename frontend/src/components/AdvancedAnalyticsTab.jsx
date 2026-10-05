@@ -179,10 +179,10 @@ const AdvancedAnalyticsTab = () => {
   return (
     <div className="ui-page">
       {/* Header */}
-      <div className="ui-between">
+      <header className="app-pagehead">
         <div>
-          <h2 className="ui-title">Gelişmiş Analitik</h2>
-          <p className="ui-subtitle">Detaylı satış ve müşteri analizi</p>
+          <h1>Satış analizi</h1>
+          <p>Satış verilerinizden mağazanızın büyümesine uzanan net bir bakış.</p>
         </div>
         <div className="ui-cluster">
           <select
@@ -204,7 +204,7 @@ const AdvancedAnalyticsTab = () => {
             Yenile
           </button>
         </div>
-      </div>
+      </header>
 
       {/* Key Metrics */}
       <div className="ui-stats">

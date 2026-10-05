@@ -161,10 +161,10 @@ const ReferralsTab = () => {
   return (
     <div className="ui-page">
       {/* Header */}
-      <div className="ui-between">
+      <header className="app-pagehead">
         <div>
-          <h2 className="ui-title">Referral Sistemi</h2>
-          <p className="ui-subtitle">Zincir büyüme modeli - Her kullanıcı 1 kişi davet edebilir</p>
+          <h1>Davet sistemi</h1>
+          <p>Davetleri, kazanılan ödülleri ve müşteri bağlantılarını inceleyin.</p>
         </div>
         <button
           onClick={fetchReferralStats}
@@ -173,7 +173,7 @@ const ReferralsTab = () => {
           <RefreshCw />
           Yenile
         </button>
-      </div>
+      </header>
 
       {/* Chain System Explanation */}
       <div className="ui-card">

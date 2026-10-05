@@ -122,12 +122,10 @@ const WeeklyProductsTab = () => {
   return (
     <div className="ui-page">
       {/* Header */}
-      <div className="ui-between">
+      <header className="app-pagehead">
         <div>
-          <h2 className="ui-title">Haftalık Ürünler</h2>
-          <p className="ui-subtitle">
-            Bu hafta öne çıkaracağınız indirimli ürünleri yönetin
-          </p>
+          <h1>Haftalık fırsatlar</h1>
+          <p>Haftanın fırsatlarını seçin ve mağazanızı güncel tutun.</p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
@@ -136,7 +134,7 @@ const WeeklyProductsTab = () => {
           <Plus />
           Ürün Ekle
         </button>
-      </div>
+      </header>
 
       {/* Stats */}
       <div className="ui-stats">

@@ -491,10 +491,10 @@ const CouponsTab = () => {
   return (
     <div className="ui-page">
       {/* Header */}
-      <div className="ui-between">
+      <header className="app-pagehead">
         <div>
-          <h2 className="ui-title">Kupon Yönetimi</h2>
-          <p className="ui-subtitle">İndirim kuponları oluştur ve yönet</p>
+          <h1>Kuponlar</h1>
+          <p>Doğru fırsatı sunun. Kuponları ve kullanım geçmişlerini takip edin.</p>
         </div>
         <button
           onClick={() => { setEditingCoupon(null); setShowModal(true); }}
@@ -503,7 +503,7 @@ const CouponsTab = () => {
           <Plus />
           Yeni Kupon
         </button>
-      </div>
+      </header>
 
       <CouponRequestCampaignPanel />
 

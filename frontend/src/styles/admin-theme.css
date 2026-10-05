@@ -379,13 +379,13 @@
 }
 .app-bell-count {
   position: absolute;
-  top: 2px;
-  right: 1px;
+  top: -3px;
+  right: -5px;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 15px;
-  height: 15px;
+  min-width: 12px;
+  height: 14px;
   padding: 0 3px;
   border: 2px solid var(--ui-surface);
   border-radius: 9px;
@@ -2665,4 +2665,86 @@ body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok:hover {
 }
 .admin-toast-action:hover {
   background: #0f4530;
+}
+
+/* ══ Sekmeler arası tutarlılık (v2) ═══════════════════════════════════
+   Kendi sayfa başlığını çizen sekmeler, özet şeritleri ve iç içe kartların sadeleştirilmesi. */
+.admin-layout .ui-page > .app-pagehead {
+  margin-bottom: 0;
+}
+.admin-layout .ui-page > .app-pagehead .ui-btn,
+.admin-layout .ui-page > .app-pagehead .ui-field {
+  min-height: 32px !important;
+}
+/* Özet kutuları: ayrı kartlar yerine tek, bölmeli şerit */
+.admin-layout .ui-stats {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+}
+.admin-layout .ui-stats > .ui-stat {
+  gap: 2px;
+  margin: 0 -1px -1px 0;
+  padding: 12px var(--ui-s4);
+  border: 0;
+  border-right: 1px solid var(--ui-line);
+  border-bottom: 1px solid var(--ui-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.admin-layout .ui-stats > .ui-stat .ui-stat-label {
+  font-size: var(--ui-fs-xs);
+  font-weight: 500;
+}
+.admin-layout .ui-stats > .ui-stat .ui-stat-value {
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.admin-layout .ui-stats + .ui-stats {
+  margin-top: -4px;
+}
+/* Kart içindeki satırlar: çerçeveli kutular yerine ayraçlı liste */
+.admin-layout .ui-card-body.ui-stack > .ui-row {
+  padding: 9px 0;
+  border: 0;
+  border-bottom: 1px solid var(--ui-line);
+  border-radius: 0;
+  background: transparent;
+}
+.admin-layout .ui-card-body.ui-stack.ui-stack--sm:has(> .ui-row) {
+  gap: 0;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+.admin-layout .ui-card-body.ui-stack > .ui-row:last-child {
+  border-bottom: 0;
+}
+/* Kart içindeki özet kutuları (ör. sipariş durumları): zeminle ayrışan sade karolar */
+.admin-layout .ui-card-body .ui-stat {
+  border-color: transparent;
+  background: var(--ui-surface-2);
+}
+.admin-layout .support-list {
+  overflow: hidden;
+}
+.admin-layout .support-list > .ui-list-row:last-of-type {
+  border-bottom: 0;
+}
+/* Dar ekranda tek sütuna inen ızgaralarda satır içi "span" değerleri taşma yapmasın */
+@media (max-width: 700px) {
+  .admin-layout .ui-grid-2 > *,
+  .admin-layout .ui-grid-3 > *,
+  .admin-layout .ui-grid-4 > * {
+    grid-column: 1 / -1 !important;
+  }
+  .admin-layout .ui-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .admin-layout .ui-stats > .ui-stat:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
 }

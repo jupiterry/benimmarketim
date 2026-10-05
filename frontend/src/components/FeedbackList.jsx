@@ -234,10 +234,12 @@ const FeedbackList = () => {
   return (
     <div className="ui-page">
       {/* Başlık */}
-      <div>
-        <h2 className="ui-title">Geri Bildirimler</h2>
-        <p className="ui-subtitle">Müşteri geri bildirimlerini yönetin ve analiz edin</p>
-      </div>
+      <header className="app-pagehead">
+        <div>
+          <h1>Geri Bildirimler</h1>
+          <p>Müşterilerinizin sesini dinleyin, deneyimlerini iyileştirin.</p>
+        </div>
+      </header>
 
       {/* İstatistikler */}
       <div className="ui-grid-3" style={{ gap: 16 }}>

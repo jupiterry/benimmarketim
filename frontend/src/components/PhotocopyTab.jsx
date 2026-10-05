@@ -202,10 +202,12 @@ const PhotocopyTab = () => {
   return (
     <div className="ui-page">
       {/* Başlık */}
-      <div>
-        <h2 className="ui-title">Fotokopi Yönetimi</h2>
-        <p className="ui-subtitle">Fotokopi isteklerini yönetin ve takip edin</p>
-      </div>
+      <header className="app-pagehead">
+        <div>
+          <h1>Fotokopi</h1>
+          <p>Fotokopi taleplerini ve dosyalarını buradan yönetin.</p>
+        </div>
+      </header>
 
       {/* İstatistikler */}
       <div className="ui-stats">

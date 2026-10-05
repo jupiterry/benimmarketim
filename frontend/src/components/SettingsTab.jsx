@@ -184,10 +184,10 @@ const SettingsTab = () => {
   return (
     <div className="ui-page" style={{ maxWidth: 920 }}>
       {/* Header */}
-      <div className="ui-between">
+      <header className="app-pagehead">
         <div>
-          <h2 className="ui-title">Sistem Ayarları</h2>
-          <p className="ui-subtitle">Tüm uygulama ayarlarını buradan yönetebilirsiniz</p>
+          <h1>Ayarlar</h1>
+          <p>Mağazanızın çalışma düzenini ve tercihlerini belirleyin.</p>
         </div>
         <button
           onClick={loadSettings}
@@ -196,7 +196,7 @@ const SettingsTab = () => {
           <RefreshCw />
           Yenile
         </button>
-      </div>
+      </header>
       
       <form onSubmit={handleSubmit} className="ui-stack">
         {/* Sipariş Saatleri */}
