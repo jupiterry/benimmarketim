@@ -162,7 +162,7 @@ const HomePage = () => {
       <section className="landing-hero" aria-labelledby="landing-title">
         <div className="landing-shell landing-hero-grid">
           <div className="landing-hero-copy">
-            <span className="landing-eyebrow">
+            <span className="landing-eyebrow landing-pill">
               <span className="landing-live-dot" /> DEVREK’İN MOBİL MARKETİ
             </span>
             <h1 id="landing-title">
@@ -200,49 +200,27 @@ const HomePage = () => {
           <div
             className="landing-visual"
             role="img"
-            aria-label="Benim Marketim’i cebine taşı: telefon ve market alışverişi illüstrasyonu"
+            aria-label="Benim Marketim’in maskotu: içi market ürünleriyle dolu, koşan güler yüzlü alışveriş sepeti"
           >
-            <div
-              className="landing-orbit landing-orbit-one"
-              aria-hidden="true"
-            />
-            <div
-              className="landing-orbit landing-orbit-two"
-              aria-hidden="true"
-            />
+            <div className="landing-stage" aria-hidden="true" />
             <span className="landing-visual-note" aria-hidden="true">
               HER GÜN, YANINDA.
             </span>
-            <div className="landing-phone" aria-hidden="true">
-              <div className="landing-phone-camera" />
-              <div className="landing-phone-brand">
-                <ShoppingBag size={19} /> benim marketim
-              </div>
-              <div className="landing-phone-copy">
-                Bir uygulama.
-                <br />
-                <strong>Bir dolu kolaylık.</strong>
-              </div>
-              <img
-                className="landing-basket"
-                src="/food2.png"
-                alt=""
-                width="1024"
-                height="1024"
-                fetchPriority="high"
-              />
-              <div className="landing-phone-bottom">
-                <span>Marketin hep yanında.</span>
-                <ArrowUpRight size={22} />
-              </div>
-              <div className="landing-phone-home" />
-            </div>
+            <img
+              className="landing-mascot"
+              src="/maskot.webp"
+              alt=""
+              width="1022"
+              height="1100"
+              fetchPriority="high"
+            />
+            <div className="landing-mascot-shadow" aria-hidden="true" />
             <div
               className="landing-float landing-float-location"
               aria-hidden="true"
             >
               <span>
-                <MapPin size={21} />
+                <MapPin size={20} />
               </span>
               <div>
                 <small>Uzağa gitmene gerek yok.</small>
@@ -251,7 +229,7 @@ const HomePage = () => {
             </div>
             <div className="landing-float landing-float-app" aria-hidden="true">
               <span>
-                <Check size={20} />
+                <Check size={19} />
               </span>
               <div>
                 <strong>iOS & Android</strong>
@@ -299,7 +277,9 @@ const HomePage = () => {
               <li key={title}>
                 <div className="landing-step-top">
                   <span>0{index + 1}</span>
-                  <Icon size={25} strokeWidth={1.5} aria-hidden="true" />
+                  <i>
+                    <Icon size={22} strokeWidth={1.8} aria-hidden="true" />
+                  </i>
                 </div>
                 <h3>{title}</h3>
                 <p>{description}</p>
@@ -315,55 +295,57 @@ const HomePage = () => {
         className="landing-membership"
         aria-labelledby="landing-member-title"
       >
-        <div className="landing-shell landing-member-grid">
-          <div className="landing-member-art" aria-hidden="true">
-            <div className="landing-member-card">
-              <div className="landing-member-card-top">
-                <ShoppingBag size={24} />
-                <span>BENİM MARKETİM</span>
+        <div className="landing-shell">
+          <div className="landing-member-grid">
+            <div className="landing-member-art" aria-hidden="true">
+              <div className="landing-member-card">
+                <div className="landing-member-card-top">
+                  <img src="/maskot-yuz.webp" alt="" width="192" height="192" loading="lazy" />
+                  <span>BENİM MARKETİM</span>
+                </div>
+                <div className="landing-member-avatar">
+                  <UserRound size={30} strokeWidth={1.6} />
+                </div>
+                <strong>
+                  Bir hesap.
+                  <br />
+                  Her yerde senin.
+                </strong>
+                <div className="landing-member-card-bottom">
+                  <span>WEB + MOBİL</span>
+                  <ShieldCheck size={21} />
+                </div>
               </div>
-              <div className="landing-member-avatar">
-                <UserRound size={34} strokeWidth={1.5} />
+              <div className="landing-member-stamp">
+                <Check size={16} /> Aynı hesapla devam et
               </div>
-              <strong>
-                Bir hesap.
+            </div>
+            <div className="landing-member-copy">
+              <span className="landing-eyebrow">ÜYELİĞİN SENİNLE</span>
+              <h2 id="landing-member-title">
+                Telefonun değişir.
                 <br />
-                Her yerde senin.
-              </strong>
-              <div className="landing-member-card-bottom">
-                <span>WEB + MOBİL</span>
-                <ShieldCheck size={23} />
-              </div>
-            </div>
-            <div className="landing-member-stamp">
-              <Check size={16} /> Aynı hesapla devam et
-            </div>
-          </div>
-          <div className="landing-member-copy">
-            <span className="landing-eyebrow">ÜYELİĞİN SENİNLE</span>
-            <h2 id="landing-member-title">
-              Telefonun değişir.
-              <br />
-              <span>Hesabın seninle kalır.</span>
-            </h2>
-            <p>
-              Hesabını web’den oluştur, uygulamada aynı e-posta ve şifreyle
-              devam et. Zaten üyeysen yeni bir başlangıca gerek yok.
-            </p>
-            {user ? (
-              <Link className="landing-primary-link" to="/profile">
-                Hesabıma git <ArrowRight size={19} aria-hidden="true" />
-              </Link>
-            ) : (
-              <div className="landing-member-actions">
-                <Link className="landing-primary-link" to="/signup">
-                  Hesap oluştur <ArrowRight size={19} aria-hidden="true" />
+                <span>Hesabın seninle kalır.</span>
+              </h2>
+              <p>
+                Hesabını web’den oluştur, uygulamada aynı e-posta ve şifreyle
+                devam et. Zaten üyeysen yeni bir başlangıca gerek yok.
+              </p>
+              {user ? (
+                <Link className="landing-primary-link" to="/profile">
+                  Hesabıma git <ArrowRight size={19} aria-hidden="true" />
                 </Link>
-                <Link className="landing-secondary-link" to="/login">
-                  Zaten üyeyim, giriş yap
-                </Link>
-              </div>
-            )}
+              ) : (
+                <div className="landing-member-actions">
+                  <Link className="landing-primary-link" to="/signup">
+                    Hesap oluştur <ArrowRight size={19} aria-hidden="true" />
+                  </Link>
+                  <Link className="landing-secondary-link" to="/login">
+                    Zaten üyeyim, giriş yap
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </section>
@@ -382,7 +364,8 @@ const HomePage = () => {
             <p>Benim Marketim, Zonguldak’ın Devrek ilçesinde hizmet veriyor.</p>
           </div>
           <div className="landing-location-grid">
-            <article className="landing-map-card">
+            <article className="landing-map-card landing-store-card">
+              <img className="landing-store-mascot" src="/maskot-560.webp" alt="" width="520" height="560" loading="lazy" />
               <div className="landing-map-copy">
                 <span className="landing-map-label"><MapPin size={16} aria-hidden="true" /> MAĞAZAMIZ</span>
                 <h3>Benim Marketim</h3>
@@ -427,7 +410,7 @@ const HomePage = () => {
             <h2 id="landing-faq-title">Merak ettiklerin.</h2>
             <p>Uygulamaya geçerken bilmen gerekenler.</p>
           </div>
-          <div>
+          <div className="landing-faq-list">
             {questions.map(({ title, answer }) => (
               <details key={title}>
                 <summary>
@@ -443,16 +426,23 @@ const HomePage = () => {
 
       <section className="landing-final" aria-labelledby="landing-final-title">
         <div className="landing-shell">
-          <span className="landing-eyebrow">
-            BENİM MARKETİM, BENİM CEBİMDE.
-          </span>
-          <h2 id="landing-final-title">
-            Hadi, alışverişi
-            <br />
-            <span>kolaylaştıralım.</span>
-          </h2>
-          <p>Uygulamayı indir. İhtiyaçların için ilk adımı at.</p>
-          <StoreLinks light />
+          <div className="landing-final-card">
+            <div className="landing-final-copy">
+              <span className="landing-eyebrow">
+                BENİM MARKETİM, BENİM CEBİMDE.
+              </span>
+              <h2 id="landing-final-title">
+                Hadi, alışverişi
+                <br />
+                <span>kolaylaştıralım.</span>
+              </h2>
+              <p>Uygulamayı indir. İhtiyaçların için ilk adımı at.</p>
+              <StoreLinks light />
+            </div>
+            <div className="landing-final-art" aria-hidden="true">
+              <img src="/maskot-560.webp" alt="" width="520" height="560" loading="lazy" />
+            </div>
+          </div>
         </div>
       </section>
     </main>

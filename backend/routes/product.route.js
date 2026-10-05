@@ -1,4 +1,5 @@
 import express from "express";
+import { auditAdminAction } from "../middleware/adminAudit.js";
 import multer from "multer";
 import csv from "csv-parser";
 import fs from "fs";
@@ -216,9 +217,9 @@ router.put("/update-discount/:id", protectRoute, adminRoute, async (req, res) =>
 });
 
 // İndirim işlemleri için yeni route'lar
-router.patch("/:id/discount", protectRoute, adminRoute, updateProductDiscount);
+router.patch("/:id/discount", protectRoute, adminRoute, auditAdminAction("İndirim değişikliği", req => req.params.id), updateProductDiscount);
 router.patch("/:id/image", protectRoute, adminRoute, updateProductImage);
-router.delete("/:id/discount", protectRoute, adminRoute, removeProductDiscount);
+router.delete("/:id/discount", protectRoute, adminRoute, auditAdminAction("İndirim kaldırma", req => req.params.id), removeProductDiscount);
 
 // Mevcut rotalar
 router.get("/", getProducts); // Admin için tüm ürünleri getir
@@ -232,8 +233,8 @@ router.get("/:id", getProductById);
 router.post("/", protectRoute, adminRoute, createProduct);
 router.patch("/:id", protectRoute, adminRoute, toggleFeaturedProduct);
 router.delete("/:id", protectRoute, adminRoute, deleteProduct);
-router.put("/update-price/:id", protectRoute, adminRoute, updateProductPrice);
-router.put("/:id", protectRoute, adminRoute, updateProduct); // Ürün güncelleme endpoint'i
+router.put("/update-price/:id", protectRoute, adminRoute, auditAdminAction("Fiyat değişikliği", req => req.params.id), updateProductPrice);
+router.put("/:id", protectRoute, adminRoute, auditAdminAction("Ürün değişikliği", req => req.params.id), updateProduct); // Ürün güncelleme endpoint'i
 router.patch("/toggle-hidden/:id", protectRoute, adminRoute, toggleHiddenProduct);
 router.patch("/toggle-out-of-stock/:id", protectRoute, adminRoute, toggleOutOfStock);
 router.get('/export-csv', protectRoute, adminRoute, exportProductsToCSV);
@@ -242,7 +243,7 @@ router.get('/detect-brands', protectRoute, adminRoute, detectProductBrands);
 // Toplu İşlem Route'ları
 router.post("/bulk-delete", protectRoute, adminRoute, bulkDeleteProducts);
 router.post("/bulk-visibility", protectRoute, adminRoute, bulkUpdateVisibility);
-router.post("/bulk-price-update", protectRoute, adminRoute, bulkUpdatePrice);
+router.post("/bulk-price-update", protectRoute, adminRoute, auditAdminAction("Toplu fiyat değişikliği", "Ürünler"), bulkUpdatePrice);
 router.post("/bulk-flash-sale", protectRoute, adminRoute, bulkAddFlashSale);
 router.post("/bulk-replace-text", protectRoute, adminRoute, bulkReplaceText);
 

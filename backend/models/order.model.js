@@ -70,6 +70,8 @@ const orderSchema = new mongoose.Schema(
       enum: ["Hazırlanıyor", "Yolda", "Teslim Edildi", "İptal Edildi"],
       default: "Hazırlanıyor",
     },
+    deliveryTracking: { type: String, default: "", maxlength: 120 },
+    statusHistory: [{ status: String, changedAt: Date, changedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" } }],
     // Kupon bilgileri
     couponCode: {
       type: String,

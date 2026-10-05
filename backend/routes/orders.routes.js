@@ -18,8 +18,9 @@ router.put("/cancel-order", protectRoute, async (req, res) => {
     const { orderId } = req.body;
     const order = await Order.findOne({ _id: orderId, user: req.user._id });
     if (!order) return res.status(404).json({ message: "Sipariş bulunamadı" });
-    if (["Teslim edildi", "İptal edildi"].includes(order.status)) return res.status(400).json({ message: "Bu sipariş artık iptal edilemez" });
-    order.status = "İptal edildi";
+    if (["Teslim Edildi", "İptal Edildi"].includes(order.status)) return res.status(400).json({ message: "Bu sipariş artık iptal edilemez" });
+    order.status = "İptal Edildi";
+    order.statusHistory.push({ status: "İptal Edildi", changedAt: new Date(), changedBy: req.user._id });
     await order.save();
     return res.status(200).json({ success: true, order });
   } catch (error) {

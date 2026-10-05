@@ -45,11 +45,14 @@ export const getOrderAnalyticsData = async () => {
         couponDiscount: order.couponDiscount || 0,
         discountPercentage: order.discountPercentage || 0,
         status: order.status,
+        deliveryTracking: order.deliveryTracking || "",
+        statusHistory: order.statusHistory || [],
         note: order.note,
         city: order.city,
         deliveryPoint: order.deliveryPoint,
         deliveryPointName: order.deliveryPointName,
         createdAt: order.createdAt,
+        updatedAt: order.updatedAt,
         // Cihaz bilgisi
         device: order.device || null,
       });
@@ -84,6 +87,7 @@ export const updateOrderStatus = async (req, res) => {
     // Admin tüm durum değişikliklerini yapabilir - kısıtlama yok
 
     order.status = status;
+    order.statusHistory.push({ status, changedAt: new Date(), changedBy: req.user._id });
     await order.save();
 
     // Socket.IO ile kullanıcıya bildirim gönder
@@ -223,6 +227,7 @@ export const cancelOrder = async (req, res) => {
     }
 
     order.status = "İptal Edildi";
+    order.statusHistory.push({ status: "İptal Edildi", changedAt: new Date(), changedBy: req.user._id });
     await order.save();
 
     res.json({ message: "Sipariş başarıyla iptal edildi!", order });

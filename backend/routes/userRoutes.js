@@ -4,13 +4,14 @@ import { getAllUsers, updateUser, addPhoneFieldToAllUsers, deleteUser, resetUser
 import { protectRoute, adminRoute } from "../middleware/auth.middleware.js"; // Yeni middleware'leri import et
 import { getUserInfo, getBestCustomers, deleteAccount } from "../controllers/user.controller.js";
 import { updateLastActive } from "../middleware/updateLastActive.js";
+import { auditAdminAction } from "../middleware/adminAudit.js";
 
 const router = express.Router();
 
 // Yalnızca adminlerin erişebileceği endpoint'ler
 router.get("/", protectRoute, adminRoute, getAllUsers); // Tüm kullanıcıları getir
 router.get("/best-customers", protectRoute, adminRoute, getBestCustomers); // En iyi müşteriler
-router.put("/:userId", protectRoute, adminRoute, updateUser); // Kullanıcıyı güncelle
+router.put("/:userId", protectRoute, adminRoute, auditAdminAction("Müşteri değişikliği", req => req.params.userId), updateUser); // Kullanıcıyı güncelle
 router.delete("/:userId", protectRoute, adminRoute, deleteUser);
 router.post("/:userId/reset-password", protectRoute, adminRoute, resetUserPassword); // Şifre sıfırlama
 

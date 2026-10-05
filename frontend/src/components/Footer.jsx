@@ -1,4 +1,4 @@
-import { Home, LogIn, Smartphone, User, UserPlus } from "lucide-react";
+import { Home, LogIn, User, UserPlus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useUserStore } from "../stores/useUserStore";
 
@@ -12,8 +12,8 @@ const Footer = () => {
         <div className="flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
           <div className="max-w-md">
             <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-300">
-                <Smartphone className="h-5 w-5" />
+              <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-white">
+                <img src="/maskot-yuz.webp" alt="" width="40" height="40" loading="lazy" className="h-full w-full object-cover" />
               </span>
               <div>
                 <p className="font-bold text-white">Benim Marketim</p>

@@ -77,10 +77,8 @@ export const getChats = async (req, res) => {
     const { status = "active", userId, search } = req.query;
 
     // Query oluştur
-    const query = { 
-      status,
-      isDeleted: { $ne: true } // Silinmemiş sohbetleri getir
-    };
+    const query = { isDeleted: { $ne: true } };
+    if (status !== "all") query.status = status;
 
     // Kullanıcıya göre filtrele
     if (userId) {

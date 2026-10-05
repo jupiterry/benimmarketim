@@ -540,6 +540,7 @@ const UserOrders = () => {
                                                         <div>
                                                             <p className="text-gray-400">Teslimat Noktası</p>
                                                             <p className="text-white">📍 {order.deliveryPointName || order.city || "Belirtilmemiş"}</p>
+                                                            {order.deliveryTracking && <p className="text-emerald-300 text-sm">Teslimat takibi: {order.deliveryTracking}</p>}
                                                         </div>
                                                         <div>
                                                             <p className="text-gray-400">Toplam Tutar</p>
@@ -653,6 +654,7 @@ const UserOrders = () => {
                                                         <div>
                                                             <p className="text-gray-400">Teslimat Noktası</p>
                                                             <p className="text-white">📍 {order.deliveryPointName || order.city || "Belirtilmemiş"}</p>
+                                                            {order.deliveryTracking && <p className="text-emerald-300 text-sm">Teslimat takibi: {order.deliveryTracking}</p>}
                                                         </div>
                                                         <div>
                                                             <p className="text-gray-400">Toplam Tutar</p>

@@ -2,6 +2,7 @@ import express from "express";
 import { getSettings, updateSettings } from "../controllers/settings.controller.js";
 import { protectRoute, adminRoute } from "../middleware/auth.middleware.js";
 import { refreshOrderHoursCache } from "../controllers/cart.controller.js";
+import { auditAdminAction } from "../middleware/adminAudit.js";
 
 const router = express.Router();
 
@@ -9,7 +10,7 @@ const router = express.Router();
 router.get("/", getSettings);
 
 // Ayarları güncelle - sadece admin erişebilir
-router.put("/", protectRoute, adminRoute, updateSettings);
+router.put("/", protectRoute, adminRoute, auditAdminAction("Ayar değişikliği", "Mağaza ayarları"), updateSettings);
 
 // Test amaçlı - önbelleği temizle ve durumu kontrol et
 router.get("/refresh-cache", protectRoute, adminRoute, async (req, res) => {

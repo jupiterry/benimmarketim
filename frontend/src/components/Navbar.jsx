@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { Home, LogIn, LogOut, Menu, ShoppingBag, User, UserPlus, X } from "lucide-react";
+import { Home, LogIn, LogOut, Menu, User, UserPlus, X } from "lucide-react";
 import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { useUserStore } from "../stores/useUserStore";
@@ -24,8 +24,8 @@ const Navbar = () => {
     <header className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-[#062f28]/95 backdrop-blur-xl">
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 lg:px-8">
         <Link to="/" onClick={closeMenu} className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 shadow-lg shadow-emerald-500/20">
-            <ShoppingBag className="h-5 w-5 text-white" />
+          <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-white">
+            <img src="/maskot-yuz.webp" alt="" width="40" height="40" className="h-full w-full object-cover" />
           </span>
           <span>
             <span className="block text-base font-bold leading-none text-white">Benim Marketim</span>

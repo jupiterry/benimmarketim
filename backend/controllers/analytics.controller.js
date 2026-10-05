@@ -55,20 +55,20 @@ export const getAnalytics = async (req, res) => {
 		const totalRevenue = allOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
 
 		// Değişim oranları hesaplama
-		const currentPeriodRevenue = currentPeriodOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
-		const previousPeriodRevenue = previousPeriodOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+		const currentPeriodRevenue = currentPeriodOrders.filter(o => o.status !== "İptal Edildi").reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+		const previousPeriodRevenue = previousPeriodOrders.filter(o => o.status !== "İptal Edildi").reduce((sum, order) => sum + (order.totalAmount || 0), 0);
 
-		const revenueChange = previousPeriodRevenue === 0 ? 100 : 
+		const revenueChange = previousPeriodRevenue === 0 ? null :
 			((currentPeriodRevenue - previousPeriodRevenue) / previousPeriodRevenue) * 100;
 
-		const ordersChange = previousPeriodOrders.length === 0 ? 100 :
+		const ordersChange = previousPeriodOrders.length === 0 ? null :
 			((currentPeriodOrders.length - previousPeriodOrders.length) / previousPeriodOrders.length) * 100;
 
 		// Günlük satış verileri
 		const salesByDay = await Order.aggregate([
 			{
 				$match: {
-					createdAt: { $gte: startDate }
+					createdAt: { $gte: startDate }, status: { $ne: "İptal Edildi" }
 				}
 			},
 			{
@@ -91,6 +91,7 @@ export const getAnalytics = async (req, res) => {
 
 		// En çok satan ürünler
 		const popularProducts = await Order.aggregate([
+			{ $match: { createdAt: { $gte: startDate }, status: { $ne: "İptal Edildi" } } },
 			{
 				$unwind: "$products"
 			},
@@ -160,7 +161,8 @@ export const getAnalytics = async (req, res) => {
 		// Yeni metrikler hesaplama
 
 		// Ortalama sipariş değeri
-		const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+		const currentValidCount = currentPeriodOrders.filter(o => o.status !== "İptal Edildi").length;
+		const averageOrderValue = currentValidCount > 0 ? currentPeriodRevenue / currentValidCount : 0;
 
 		// Dönüşüm oranı (basit hesaplama - sipariş veren kullanıcı / toplam kullanıcı)
 		const ordersWithUsers = await Order.distinct("user");
@@ -184,6 +186,7 @@ export const getAnalytics = async (req, res) => {
 
 		// Kategori dağılımı
 		const categoryBreakdown = await Order.aggregate([
+			{ $match: { createdAt: { $gte: startDate }, status: { $ne: "İptal Edildi" } } },
 			{
 				$unwind: "$products"
 			},
@@ -304,13 +307,23 @@ export const getAnalytics = async (req, res) => {
 			}
 		]);
 
+		const cancelled = currentPeriodOrders.filter(o => o.status === "İptal Edildi");
+		const valid = currentPeriodOrders.filter(o => o.status !== "İptal Edildi");
 		res.json({
+			periodRevenue: currentPeriodRevenue,
+			previousPeriodRevenue,
+			periodOrders: valid.length,
+			cancelledCount: cancelled.length,
+			cancelledAmount: cancelled.reduce((sum, o) => sum + (o.totalAmount || 0), 0),
+			returnRate: null,
+			couponOrders: valid.filter(o => o.couponCode).length,
+			couponDiscount: valid.reduce((sum, o) => sum + (o.couponDiscount || 0), 0),
 			totalRevenue,
 			totalOrders,
 			totalUsers,
 			totalProducts,
-			revenueChange: parseFloat(revenueChange.toFixed(2)),
-			ordersChange: parseFloat(ordersChange.toFixed(2)),
+			revenueChange: revenueChange === null ? null : parseFloat(revenueChange.toFixed(2)),
+			ordersChange: ordersChange === null ? null : parseFloat(ordersChange.toFixed(2)),
 			averageOrderValue: parseFloat(averageOrderValue.toFixed(2)),
 			conversionRate: parseFloat(conversionRate.toFixed(2)),
 			customerRetention: parseFloat(customerRetention.toFixed(2)),
