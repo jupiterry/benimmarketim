@@ -33,6 +33,16 @@ const requirementLabels = {
   delivered: "En az 1 teslim edilmiş sipariş",
 };
 
+// Rozet metni ve rengi. "Aktif" olsa bile süresi dolan ya da henüz başlamayan kampanya müşterilere görünmez.
+const statusOf = (campaign) => {
+  if (campaign.rewardIssued) return { label: "Ödül dağıtıldı", tone: "ui-badge--info" };
+  if (!campaign.isActive) return { label: "Pasif", tone: "" };
+  const now = Date.now();
+  if (new Date(campaign.endsAt).getTime() <= now) return { label: "Süresi doldu", tone: "ui-badge--warn" };
+  if (new Date(campaign.startsAt).getTime() > now) return { label: "Başlamadı", tone: "ui-badge--info" };
+  return { label: "Aktif", tone: "ui-badge--ok" };
+};
+
 const CouponRequestCampaignPanel = () => {
   const [campaigns, setCampaigns] = useState([]);
   const [form, setForm] = useState(freshForm);
@@ -51,7 +61,7 @@ const CouponRequestCampaignPanel = () => {
 
   useEffect(() => { load(); }, []);
 
-  const activeCampaign = useMemo(() => campaigns.find((item) => item.isActive), [campaigns]);
+  const activeCampaign = useMemo(() => campaigns.find((item) => statusOf(item).label === "Aktif"), [campaigns]);
 
   const editCampaign = (campaign) => {
     setForm({
@@ -200,13 +210,14 @@ const CouponRequestCampaignPanel = () => {
         {campaigns.map((campaign) => {
           const progress = Math.min(100, Math.round((campaign.weightedCount / campaign.targetCount) * 100));
           const open = expandedId === campaign._id;
+          const status = statusOf(campaign);
           return (
             <div key={campaign._id} className="order-detail-box" style={{ padding: 0, gap: 0, overflow: "hidden" }}>
               <div className="ui-between" style={{ padding: 14 }}>
                 <div className="ui-grow" style={{ flexBasis: 260 }}>
                   <div className="ui-cluster" style={{ gap: 8 }}>
                     <strong className="ui-list-title">{campaign.title}</strong>
-                    <span className={`ui-badge ${campaign.rewardIssued ? "ui-badge--info" : campaign.isActive ? "ui-badge--ok" : ""}`}>{campaign.rewardIssued ? "Ödül dağıtıldı" : campaign.isActive ? "Aktif" : "Pasif"}</span>
+                    <span className={`ui-badge ${status.tone}`}>{status.label}</span>
                   </div>
                   <div className="ui-progress" style={{ marginTop: 8 }}><div style={{ width: `${progress}%` }} /></div>
                   <p className="ui-list-sub" style={{ marginTop: 6 }}>{campaign.requestCount} kişi · {campaign.weightedCount}/{campaign.targetCount} puan · %{campaign.discountPercentage} · {requirementLabels[campaign.orderRequirement]}</p>

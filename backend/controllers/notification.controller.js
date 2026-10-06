@@ -16,6 +16,22 @@ export const BROADCAST_AUDIENCES = {
   noOrder: "Hiç sipariş vermeyenler",
 };
 
+// Yöneticinin bildirimi önce yalnızca kendi telefonunda denemesi için
+export const TEST_AUDIENCE = "self";
+
+// Gönderim başarısız olduğunda yöneticiye gösterilen açıklama ve HTTP durumu
+export const describePushFailure = (result) => {
+  const detail = result?.detail ? ` (${result.detail})` : "";
+  switch (result?.reason) {
+    case "auth": return { status: 502, message: "OneSignal anahtarı kabul edilmedi. Sunucudaki ONESIGNAL_REST_API_KEY ve ONESIGNAL_APP_ID değerlerinin aynı OneSignal uygulamasına ait olduğunu kontrol edin." };
+    case "rejected": return { status: 502, message: `OneSignal isteği reddetti${detail}. Sunucu ayarlarındaki OneSignal bilgilerini kontrol edin.` };
+    case "network": return { status: 502, message: `OneSignal'a ulaşılamadı${detail}. Sunucunun internet bağlantısını kontrol edip birkaç dakika sonra tekrar deneyin.` };
+    case "not_configured": return { status: 503, message: "Bildirim servisi yapılandırılmamış (OneSignal anahtarları eksik)" };
+    case "no_devices": return { status: 422, message: "Bildirim gönderilemedi: bu kitledeki müşterilerin hiçbiri bildirimleri destekleyen uygulama sürümünde oturum açmamış. Müşteriler yeni sürümü kurup giriş yaptıkça ulaşılabilir olurlar." };
+    default: return { status: 422, message: "Bildirim gönderilemedi: seçilen kişiler bildirim almaya izin vermiyor." };
+  }
+};
+
 // Hedef kitle sorgusu; yalnızca müşteri hesapları dahil edilir.
 export const buildAudienceFilter = async (audience, now = new Date()) => {
   const base = { role: { $ne: "admin" } };
@@ -68,24 +84,44 @@ export const sendBroadcast = async (req, res) => {
   const title = String(req.body?.title || "").trim();
   const body = String(req.body?.body || "").trim();
   const audience = String(req.body?.audience || "");
+  const isTest = audience === TEST_AUDIENCE;
   const route = BROADCAST_ROUTES[req.body?.target || "home"];
   if (!title || title.length > 60) return res.status(400).json({ success: false, message: "Başlık 1-60 karakter olmalıdır" });
   if (!body || body.length > 180) return res.status(400).json({ success: false, message: "Mesaj 1-180 karakter olmalıdır" });
-  if (!BROADCAST_AUDIENCES[audience]) return res.status(400).json({ success: false, message: "Geçersiz hedef kitle" });
+  if (!isTest && !BROADCAST_AUDIENCES[audience]) return res.status(400).json({ success: false, message: "Geçersiz hedef kitle" });
   if (!route) return res.status(400).json({ success: false, message: "Geçersiz açılış ekranı" });
   if (!isPushConfigured()) return res.status(503).json({ success: false, message: "Bildirim servisi yapılandırılmamış (OneSignal anahtarları eksik)" });
 
-  // Yanlışlıkla çift gönderimi engelle
-  const duplicate = await PushBroadcast.findOne({ title, body, createdAt: { $gte: new Date(Date.now() - DUPLICATE_WINDOW_MS) } }).select("_id").lean();
-  if (duplicate) return res.status(409).json({ success: false, message: "Aynı bildirim son 10 dakika içinde zaten gönderildi" });
+  let userIds;
+  if (isTest) {
+    // Deneme: yalnızca gönderen yöneticinin kendi hesabına gider
+    userIds = [req.user._id];
+  } else {
+    // Yanlışlıkla çift gönderimi engelle (başarısız denemeler yeniden gönderilebilir)
+    const duplicate = await PushBroadcast.findOne({ title, body, sent: true, audience: { $ne: TEST_AUDIENCE }, createdAt: { $gte: new Date(Date.now() - DUPLICATE_WINDOW_MS) } }).select("_id").lean();
+    if (duplicate) return res.status(409).json({ success: false, message: "Aynı bildirim son 10 dakika içinde zaten gönderildi" });
+    const filter = await buildAudienceFilter(audience);
+    const users = await User.find({ ...filter, ...campaignOptIn }).select("_id").lean();
+    if (!users.length) return res.status(400).json({ success: false, message: "Bu hedef kitlede bildirim alabilecek müşteri yok" });
+    userIds = users.map((user) => user._id);
+  }
 
-  const filter = await buildAudienceFilter(audience);
-  const users = await User.find({ ...filter, ...campaignOptIn }).select("_id").lean();
-  if (!users.length) return res.status(400).json({ success: false, message: "Bu hedef kitlede bildirim alabilecek müşteri yok" });
-
-  const record = await PushBroadcast.create({ title, body, audience, route, audienceSize: users.length, sentBy: req.user._id });
-  const result = await sendPushToUsers(users.map((user) => user._id), { title, body }, { type: "broadcast", broadcastId: String(record._id), route }, { category: "campaigns" });
-  await PushBroadcast.updateOne({ _id: record._id }, { $set: { targetedCount: result.targeted, sent: result.sent } });
-  if (!result.sent) return res.status(502).json({ success: false, message: "Bildirim servisine ulaşılamadı. Lütfen daha sonra tekrar deneyin." });
-  res.json({ success: true, targeted: result.targeted, message: `${result.targeted} müşteriye gönderildi` });
+  const record = await PushBroadcast.create({ title, body, audience, route, audienceSize: userIds.length, sentBy: req.user._id });
+  const result = await sendPushToUsers(userIds, { title, body }, { type: "broadcast", broadcastId: String(record._id), route }, { category: "campaigns" });
+  await PushBroadcast.updateOne({ _id: record._id }, { $set: { targetedCount: result.targeted, sent: result.sent, failureReason: result.sent ? null : result.reason || "unknown", unreachableCount: result.unreachable || 0 } });
+  if (!result.sent) {
+    const failure = describePushFailure(result);
+    const message = isTest && result.reason === "no_devices"
+      ? "Deneme bildirimi gönderilemedi: bu yönetici hesabıyla mobil uygulamanın güncel sürümünde oturum açılmamış. Telefonunuzda uygulamaya bu hesapla girip bildirimlere izin verin."
+      : isTest && !result.reason ? "Deneme bildirimi gönderilemedi: hesabınızda bildirimler ya da kampanya bildirimleri kapalı." : failure.message;
+    return res.status(failure.status).json({ success: false, reason: result.reason || "opted_out", message });
+  }
+  const reached = Math.max(0, result.targeted - (result.unreachable || 0));
+  res.json({
+    success: true,
+    targeted: result.targeted,
+    unreachable: result.unreachable || 0,
+    message: isTest ? "Deneme bildirimi telefonunuza gönderildi"
+      : result.unreachable ? `${reached} müşteriye gönderildi (${result.unreachable} müşterinin kayıtlı cihazı yok)` : `${result.targeted} müşteriye gönderildi`,
+  });
 };

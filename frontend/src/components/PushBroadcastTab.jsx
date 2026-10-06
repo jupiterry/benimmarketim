@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BellRing, RefreshCw, Send, Users } from "lucide-react";
+import { AlertTriangle, FlaskConical, RefreshCw, RotateCcw, Send, Users } from "lucide-react";
 import toast from "react-hot-toast";
 import axios from "../lib/axios";
 import { useConfirm } from "./ConfirmModal";
@@ -13,6 +13,23 @@ const TARGETS = [
   { id: "referral", label: "Davet sayfası" },
   { id: "rate", label: "Mağazada puan ver" },
 ];
+// Tek dokunuşla forma dolan hazır metinler; gönderilmeden önce düzenlenebilir.
+const TEMPLATES = [
+  { id: "deals", label: "Haftanın fırsatları", title: "Haftanın fırsatları başladı 🛒", body: "Seçili ürünlerde bu haftaya özel fiyatlar seni bekliyor. Kaçırmadan göz at!", target: "home" },
+  { id: "cart", label: "Sepet hatırlatma", title: "Sepetin seni bekliyor", body: "Seçtiğin ürünler hâlâ sepetinde. Siparişini birkaç dokunuşla tamamlayabilirsin.", target: "cart" },
+  { id: "community", label: "Topluluk indirimi", title: "Topluluk indirimi açıldı 🎉", body: "Katıl, hedef dolunca indirim kuponun cüzdanına gelsin. Katılım sepet ekranında.", target: "cart" },
+  { id: "mission", label: "Sipariş görevi", title: "Yeni görev: kupon kazan 🔥", body: "Görevi tamamla, indirim kuponunu kap. Ayrıntılar ana sayfada.", target: "home" },
+  { id: "referral", label: "Arkadaşını davet et", title: "Arkadaşını davet et, kazan", body: "Davet kodunu paylaş; arkadaşın ilk siparişini verince ikiniz de kazanın.", target: "referral" },
+  { id: "rate", label: "Puan iste", title: "Bizi değerlendirir misin? ⭐", body: "Uygulamamızı beğendiysen mağazada puan vermen bize çok yardımcı olur.", target: "rate" },
+];
+const TEST_AUDIENCE = "self";
+const FAILURE_LABELS = {
+  no_devices: "Kayıtlı cihaz yok",
+  auth: "Anahtar reddedildi",
+  rejected: "OneSignal reddetti",
+  network: "Bağlantı hatası",
+  not_configured: "Yapılandırılmamış",
+};
 const formatDate = (value) => new Date(value).toLocaleString("tr-TR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 export default function PushBroadcastTab() {
@@ -20,6 +37,9 @@ export default function PushBroadcastTab() {
   const [overview, setOverview] = useState({ configured: true, audiences: [], history: [] });
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [testing, setTesting] = useState(false);
+  // Son gönderim denemesinin hatası; bildirim balonu kaybolsa da ekranda kalır
+  const [failure, setFailure] = useState("");
   const [form, setForm] = useState({ title: "", body: "", audience: "all", target: "home" });
 
   const load = useCallback(async () => {
@@ -36,10 +56,38 @@ export default function PushBroadcastTab() {
   useEffect(() => { load(); }, [load]);
 
   const audience = useMemo(() => overview.audiences.find((item) => item.id === form.audience), [overview.audiences, form.audience]);
-  const audienceLabel = (id) => overview.audiences.find((item) => item.id === id)?.label || id;
+  const audienceLabel = (id) => (id === TEST_AUDIENCE ? "Deneme (yalnızca ben)" : overview.audiences.find((item) => item.id === id)?.label || id);
+  const everyone = overview.audiences.find((item) => item.id === "all");
+  const lastSend = overview.history.find((item) => item.audience !== TEST_AUDIENCE);
   const title = form.title.trim();
   const body = form.body.trim();
-  const canSend = overview.configured && !sending && title && body && (audience?.reachable || 0) > 0;
+  const busy = sending || testing;
+  const canSend = overview.configured && !busy && title && body && (audience?.reachable || 0) > 0;
+  const canTest = overview.configured && !busy && title && body;
+
+  const applyTemplate = (template) => {
+    setForm((current) => ({ ...current, title: template.title, body: template.body, target: template.target }));
+    setFailure("");
+  };
+
+  // Bildirimi herkese göndermeden önce yalnızca kendi telefonunda dene
+  const sendTest = async () => {
+    if (!canTest) return;
+    try {
+      setTesting(true);
+      setFailure("");
+      const { data } = await axios.post("/notifications/broadcasts", { ...form, title, body, audience: TEST_AUDIENCE });
+      toast.success(data.message || "Deneme bildirimi gönderildi");
+      await load();
+    } catch (error) {
+      const message = error.response?.data?.message || "Deneme bildirimi gönderilemedi";
+      setFailure(message);
+      toast.error("Deneme bildirimi gönderilemedi");
+      await load();
+    } finally {
+      setTesting(false);
+    }
+  };
 
   const send = async (event) => {
     event.preventDefault();
@@ -54,12 +102,16 @@ export default function PushBroadcastTab() {
     if (!confirmed) return;
     try {
       setSending(true);
+      setFailure("");
       const { data } = await axios.post("/notifications/broadcasts", { ...form, title, body });
       toast.success(data.message || "Bildirim gönderildi");
       setForm((current) => ({ ...current, title: "", body: "" }));
       await load();
     } catch (error) {
-      toast.error(error.response?.data?.message || "Bildirim gönderilemedi");
+      const message = error.response?.data?.message || "Bildirim gönderilemedi";
+      setFailure(message);
+      toast.error("Bildirim gönderilemedi");
+      await load();
     } finally {
       setSending(false);
     }
@@ -84,12 +136,52 @@ export default function PushBroadcastTab() {
         </div>
       )}
 
+      {failure && (
+        <div className="ui-banner ui-banner--danger push-failure" role="alert">
+          <AlertTriangle />
+          <div className="ui-grow">
+            <strong>Bildirim gönderilemedi</strong>
+            <p>{failure}</p>
+          </div>
+          <button type="button" className="ui-btn ui-btn--sm" onClick={() => setFailure("")}>Kapat</button>
+        </div>
+      )}
+
+      <div className="ui-stats">
+        <div className="ui-stat">
+          <span className="ui-stat-label">Müşteri</span>
+          <span className="ui-stat-value ui-num">{everyone ? everyone.total : "–"}</span>
+        </div>
+        <div className="ui-stat">
+          <span className="ui-stat-label">Kampanya bildirimine izinli</span>
+          <span className="ui-stat-value ui-num">{everyone ? everyone.reachable : "–"}</span>
+        </div>
+        <div className="ui-stat">
+          <span className="ui-stat-label">Son gönderim</span>
+          <span className="ui-stat-value push-stat-text">{lastSend ? formatDate(lastSend.createdAt) : "Henüz yok"}</span>
+        </div>
+        <div className="ui-stat">
+          <span className="ui-stat-label">Son gönderimin durumu</span>
+          <span className="ui-stat-value push-stat-text">{lastSend ? (lastSend.sent ? `${lastSend.targetedCount || 0} kişiye gitti` : FAILURE_LABELS[lastSend.failureReason] || "Başarısız") : "–"}</span>
+        </div>
+      </div>
+
       <div className="push-layout">
         <form className="ui-panel" onSubmit={send}>
           <div className="ui-panel-head">
             <h2>Yeni bildirim</h2>
           </div>
           <div className="ui-panel-body ui-stack">
+            <div>
+              <span className="ui-label">Hazır metinler</span>
+              <div className="push-templates">
+                {TEMPLATES.map((template) => (
+                  <button type="button" key={template.id} className="push-template" onClick={() => applyTemplate(template)}>
+                    {template.label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div>
               <div className="ui-between">
                 <label className="ui-label" htmlFor="push-title">Başlık</label>
@@ -137,12 +229,18 @@ export default function PushBroadcastTab() {
                 ))}
               </div>
             </div>
-            <div className="ui-between">
-              <span className="ui-hint" style={{ marginTop: 0 }}>Aynı bildirim 10 dakika içinde ikinci kez gönderilemez.</span>
-              <button type="submit" className="ui-btn ui-btn--primary" disabled={!canSend}>
-                <Send />
-                {sending ? "Gönderiliyor…" : "Gönder"}
-              </button>
+            <div className="ui-between push-actions">
+              <span className="ui-hint" style={{ marginTop: 0 }}>Önce kendinize gönderip telefonunuzda nasıl göründüğüne bakabilirsiniz. Aynı bildirim 10 dakika içinde ikinci kez gönderilemez.</span>
+              <div className="ui-cluster">
+                <button type="button" className="ui-btn" disabled={!canTest} onClick={sendTest}>
+                  <FlaskConical />
+                  {testing ? "Gönderiliyor…" : "Önce kendime gönder"}
+                </button>
+                <button type="submit" className="ui-btn ui-btn--primary" disabled={!canSend}>
+                  <Send />
+                  {sending ? "Gönderiliyor…" : audience?.reachable ? `${audience.reachable} kişiye gönder` : "Gönder"}
+                </button>
+              </div>
             </div>
           </div>
         </form>
@@ -153,16 +251,23 @@ export default function PushBroadcastTab() {
               <h2>Önizleme</h2>
             </div>
             <div className="ui-panel-body">
-              <div className="push-preview">
-                <span className="push-preview-icon"><BellRing size={16} /></span>
-                <div className="ui-grow">
-                  <div className="ui-between">
-                    <span className="push-preview-app">Benim Marketim</span>
-                    <span className="ui-text-xs ui-muted">şimdi</span>
-                  </div>
-                  <strong className="ui-wrap-anywhere">{title || "Bildirim başlığı"}</strong>
-                  <p className="ui-wrap-anywhere">{body || "Mesajınız burada görünecek."}</p>
+              <div className="push-phone" aria-label="Telefonda görünüm">
+                <div className="push-phone-clock">
+                  <span>{new Date().toLocaleDateString("tr-TR", { weekday: "long", day: "numeric", month: "long" })}</span>
+                  <strong>{new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</strong>
                 </div>
+                <div className="push-preview">
+                  <img className="push-preview-icon" src="/favicon.png" alt="" width="36" height="36" />
+                  <div className="ui-grow">
+                    <div className="ui-between">
+                      <span className="push-preview-app">Benim Marketim</span>
+                      <span className="push-preview-time">şimdi</span>
+                    </div>
+                    <strong className="ui-wrap-anywhere">{title || "Bildirim başlığı"}</strong>
+                    <p className="ui-wrap-anywhere">{body || "Mesajınız burada görünecek."}</p>
+                  </div>
+                </div>
+                <span className="push-phone-target">Dokununca: {TARGETS.find((target) => target.id === form.target)?.label}</span>
               </div>
             </div>
           </section>
@@ -176,11 +281,16 @@ export default function PushBroadcastTab() {
                 <div className="ui-grow">
                   <div className="ui-cluster">
                     <h3 className="ui-list-title ui-wrap-anywhere">{item.title}</h3>
-                    <span className={`ui-badge ${item.sent ? "ui-badge--ok" : "ui-badge--danger"}`}>{item.sent ? "Gönderildi" : "Başarısız"}</span>
+                    <span className={`ui-badge ${item.sent ? "ui-badge--ok" : "ui-badge--danger"}`}>{item.sent ? "Gönderildi" : FAILURE_LABELS[item.failureReason] || "Başarısız"}</span>
+                    {item.audience === TEST_AUDIENCE && <span className="ui-badge ui-badge--info">Deneme</span>}
                   </div>
                   <p className="ui-text-sm ui-wrap-anywhere">{item.body}</p>
-                  <p className="ui-hint">{audienceLabel(item.audience)} · {item.targetedCount || 0} kişi · {formatDate(item.createdAt)}{item.sentBy?.name ? ` · ${item.sentBy.name}` : ""}</p>
+                  <p className="ui-hint">{audienceLabel(item.audience)} · {item.targetedCount || 0} kişi{item.unreachableCount ? ` (${item.unreachableCount} kişinin kayıtlı cihazı yok)` : ""} · {formatDate(item.createdAt)}{item.sentBy?.name ? ` · ${item.sentBy.name}` : ""}</p>
                 </div>
+                <button type="button" className="ui-btn ui-btn--sm" title="Bu metni forma geri yükle"
+                  onClick={() => { setForm((current) => ({ ...current, title: item.title, body: item.body })); setFailure(""); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+                  <RotateCcw /> Tekrar kullan
+                </button>
               </article>
             )) : <div className="ui-empty">{loading ? "Yükleniyor…" : "Henüz toplu bildirim gönderilmedi."}</div>}
           </section>

@@ -9,6 +9,10 @@ const pushBroadcastSchema = new mongoose.Schema({
   audienceSize: { type: Number, default: 0 },
   targetedCount: { type: Number, default: 0 },
   sent: { type: Boolean, default: false },
+  // Gönderilemediyse nedeni (auth | rejected | network | no_devices | not_configured)
+  failureReason: { type: String, default: null },
+  // OneSignal'ın kayıtlı cihazı olmadığını bildirdiği müşteri sayısı
+  unreachableCount: { type: Number, default: 0 },
   sentBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
 }, { timestamps: true });
 

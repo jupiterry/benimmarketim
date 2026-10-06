@@ -2765,38 +2765,101 @@ body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok:hover {
   padding-block: 9px;
   resize: vertical;
 }
+.admin-layout .push-stat-text {
+  font-size: var(--ui-fs-md, 15px);
+}
+.admin-layout .push-failure {
+  align-items: flex-start;
+}
+.admin-layout .push-failure p {
+  margin-top: 2px;
+}
+.admin-layout .push-templates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.admin-layout .push-template {
+  padding: 6px 12px;
+  border: 1px solid var(--ui-line);
+  border-radius: 999px;
+  background: var(--ui-surface-2);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.admin-layout .push-template:hover {
+  border-color: var(--ui-brand);
+  color: var(--ui-brand);
+}
+.admin-layout .push-actions {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.admin-layout .push-actions .ui-hint {
+  flex: 1 1 240px;
+}
+/* Telefon kilit ekranı görünümlü önizleme */
+.admin-layout .push-phone {
+  display: grid;
+  gap: 14px;
+  padding: 22px 16px 16px;
+  border-radius: 26px;
+  background: linear-gradient(165deg, #063f2b 0%, #0b5a3c 55%, #117a48 100%);
+}
+.admin-layout .push-phone-clock {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .push-phone-clock strong {
+  color: #fff;
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.admin-layout .push-phone-target {
+  justify-self: center;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: var(--ui-fs-xs);
+}
 .admin-layout .push-preview {
   display: flex;
   gap: 12px;
   padding: 12px 14px;
-  border: 1px solid var(--ui-line);
-  border-radius: 14px;
-  background: var(--ui-surface-2);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
 }
 .admin-layout .push-preview-icon {
-  display: grid;
-  place-items: center;
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 9px;
-  background: var(--ui-brand);
-  color: #fff;
 }
 .admin-layout .push-preview-app {
-  color: var(--ui-text-3);
+  color: #5f6e66;
   font-size: var(--ui-fs-xs);
   font-weight: 600;
+}
+.admin-layout .push-preview-time {
+  color: #8a968f;
+  font-size: var(--ui-fs-xs);
 }
 .admin-layout .push-preview strong {
   display: block;
   margin-top: 2px;
-  color: var(--ui-text);
+  color: #17231b;
   font-size: var(--ui-fs-sm);
 }
 .admin-layout .push-preview p {
   margin-top: 2px;
-  color: var(--ui-text-2);
+  color: #34443a;
   font-size: var(--ui-fs-sm);
 }
 @media (max-width: 900px) {

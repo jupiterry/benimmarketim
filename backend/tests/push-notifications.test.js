@@ -5,7 +5,7 @@ import Order from "../models/order.model.js";
 import PushBroadcast from "../models/pushBroadcast.model.js";
 import { normalizePreferences, sendPushToUsers } from "../services/push.service.js";
 import { buildCartReminderFilter, checkAndSendCartReminders } from "../services/cartReminder.service.js";
-import { buildAudienceFilter, sendBroadcast, updateNotificationPreferences } from "../controllers/notification.controller.js";
+import { buildAudienceFilter, describePushFailure, sendBroadcast, updateNotificationPreferences } from "../controllers/notification.controller.js";
 
 const chain = (value) => ({ select() { return this; }, populate() { return this; }, sort() { return this; }, limit() { return this; }, lean: async () => value });
 const id = (n) => `507f191e810c19729de86${String(n).padStart(3, "0")}`;
@@ -31,7 +31,7 @@ test("push honours the per-category preference in the user query", async (t) => 
   t.mock.method(User, "find", (query) => { filter = query; return chain([{ _id: id(1) }]); });
   const calls = mockFetch(t);
   const result = await sendPushToUsers([id(1), id(1), null], { title: "a", body: "b" }, { type: "x", route: "/chat/" + id(9), n: 3 }, { category: "messages", collapseId: "c1" });
-  assert.deepEqual(result, { targeted: 1, sent: true });
+  assert.deepEqual(result, { targeted: 1, sent: true, reason: null, detail: "", unreachable: 0 });
   assert.deepEqual(filter._id.$in, [id(1)]);
   assert.deepEqual(filter["notificationPreferences.messages"], { $ne: false });
   assert.deepEqual(filter.pushNotificationsEnabled, { $ne: false });
@@ -127,7 +127,7 @@ test("broadcast validates input, blocks duplicates and records the send", async 
   assert.equal(userFilter.role.$ne, "admin");
   assert.equal(created[0].title, "Haftanın fırsatı");
   assert.equal(calls[0].data.route, "/cart");
-  assert.deepEqual(updates[0], { $set: { targetedCount: 2, sent: true } });
+  assert.deepEqual(updates[0], { $set: { targetedCount: 2, sent: true, failureReason: null, unreachableCount: 0 } });
 });
 
 test("broadcast refuses to run when the push service is not configured", async () => {
@@ -177,4 +177,70 @@ test("an undelivered cart reminder leaves the cart unreminded and is retried lat
   const retry = buildCartReminderFilter(24, now).$and[0].$or;
   assert.deepEqual(retry[0], { cartReminderTriedAt: null });
   assert.equal(retry[1].cartReminderTriedAt.$lt.toISOString(), "2026-10-05T00:00:00.000Z");
+});
+
+test("a failed broadcast tells the admin the real reason instead of a generic message", async (t) => {
+  withKeys(t);
+  t.mock.method(console, "error", () => {});
+  t.mock.method(PushBroadcast, "findOne", () => chain(null));
+  t.mock.method(User, "find", () => chain([{ _id: id(1) }, { _id: id(2) }]));
+  t.mock.method(PushBroadcast, "create", async (doc) => ({ _id: id(50), ...doc }));
+  const updates = [];
+  t.mock.method(PushBroadcast, "updateOne", async (_query, update) => { updates.push(update.$set); return {}; });
+  const send = async () => { const res = response(); await sendBroadcast({ body: { title: "t", body: "b", audience: "all" }, user: { _id: id(99) } }, res); return res; };
+
+  // Kitledeki hiç kimsenin kayıtlı cihazı yok
+  const fetchMock = t.mock.method(globalThis, "fetch", async () => ({ ok: true, status: 200, json: async () => ({ id: "", errors: { invalid_aliases: { external_id: [id(1), id(2)] } } }) }));
+  let res = await send();
+  assert.equal(res.statusCode, 422);
+  assert.equal(res.body.reason, "no_devices");
+  assert.match(res.body.message, /oturum açmamış/);
+  assert.deepEqual(updates.at(-1), { targetedCount: 2, sent: false, failureReason: "no_devices", unreachableCount: 2 });
+
+  // Anahtar reddedildi: diğer kimlik şemasıyla bir kez daha denenir, sonra neden bildirilir
+  const schemes = [];
+  fetchMock.mock.mockImplementation(async (_url, options) => { schemes.push(options.headers.Authorization.split(" ")[0]); return { ok: false, status: 401, json: async () => ({ errors: ["Access denied"] }) }; });
+  res = await send();
+  assert.deepEqual(schemes, ["Basic", "Key"]);
+  assert.equal(res.statusCode, 502);
+  assert.match(res.body.message, /anahtarı kabul edilmedi/);
+  assert.doesNotMatch(res.body.message, /test-only/); // anahtar asla yanıtta yer almaz
+
+  // İstek reddedildi ve bağlantı hatası
+  fetchMock.mock.mockImplementation(async () => ({ ok: false, status: 400, json: async () => ({ errors: ["app_id not found"] }) }));
+  res = await send();
+  assert.match(res.body.message, /reddetti \(app_id not found\)/);
+  fetchMock.mock.mockImplementation(async () => { throw new Error("getaddrinfo ENOTFOUND"); });
+  res = await send();
+  assert.equal(res.body.reason, "network");
+  assert.match(res.body.message, /ulaşılamadı/);
+
+  // Bir kısmına ulaşıldıysa başarılı sayılır ve ulaşılamayanlar bildirilir
+  fetchMock.mock.mockImplementation(async () => ({ ok: true, status: 200, json: async () => ({ id: "n1", errors: { invalid_aliases: { external_id: [id(2)] } } }) }));
+  res = await send();
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.message, "1 müşteriye gönderildi (1 müşterinin kayıtlı cihazı yok)");
+  assert.equal(describePushFailure({ reason: "not_configured" }).status, 503);
+});
+
+test("new-style OneSignal keys use the Key scheme and a test push goes only to the sending admin", async (t) => {
+  withKeys(t);
+  process.env.ONESIGNAL_REST_API_KEY = "os_v2_app_test";
+  const sent = [];
+  t.mock.method(globalThis, "fetch", async (_url, options) => { sent.push({ auth: options.headers.Authorization, body: JSON.parse(options.body) }); return { ok: true, status: 200, json: async () => ({ id: "n1" }) }; });
+  const duplicate = t.mock.method(PushBroadcast, "findOne", () => chain({ _id: "old" }));
+  let query;
+  t.mock.method(User, "find", (filter) => { query = filter; return chain([{ _id: id(99) }]); });
+  const created = [];
+  t.mock.method(PushBroadcast, "create", async (doc) => { created.push(doc); return { _id: id(51), ...doc }; });
+  t.mock.method(PushBroadcast, "updateOne", async () => ({}));
+  const res = response();
+  await sendBroadcast({ body: { title: "Deneme", body: "Merhaba", audience: "self" }, user: { _id: id(99) } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.message, "Deneme bildirimi telefonunuza gönderildi");
+  assert.equal(duplicate.mock.callCount(), 0); // deneme, çift gönderim korumasına takılmaz
+  assert.deepEqual(query._id.$in, [id(99)]);
+  assert.deepEqual(sent[0].body.include_aliases.external_id, [id(99)]);
+  assert.equal(sent[0].auth, "Key os_v2_app_test");
+  assert.equal(created[0].audience, "self");
 });

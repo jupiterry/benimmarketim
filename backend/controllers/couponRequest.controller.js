@@ -159,7 +159,10 @@ export const saveCouponRequestCampaign = async (req, res) => {
   };
   if (!Number.isFinite(values.targetCount) || values.targetCount < 1) return res.status(400).json({ success: false, message: "Hedef en az 1 olmalı." });
   if (!Number.isFinite(values.discountPercentage) || values.discountPercentage < 1 || values.discountPercentage > 100) return res.status(400).json({ success: false, message: "İndirim oranı 1-100 arasında olmalı." });
+  if (Number.isNaN(values.startsAt.getTime()) || Number.isNaN(values.endsAt.getTime())) return res.status(400).json({ success: false, message: "Başlangıç ve bitiş tarihi geçerli olmalı." });
   if (values.endsAt <= values.startsAt) return res.status(400).json({ success: false, message: "Bitiş tarihi başlangıçtan sonra olmalı." });
+  // Süresi dolmuş kampanya "aktif" kaydedilse bile müşterilere görünmez; yayına alırken açıkça uyarılır.
+  if (values.isActive && values.endsAt <= new Date()) return res.status(400).json({ success: false, message: "Bitiş tarihi geçmiş bir kampanya yayına alınamaz. Düzenle'ye basıp bitiş tarihini ileri alın, sonra yayına alın." });
   if (existingCampaign?.rewardIssued && values.isActive) return res.status(400).json({ success: false, message: "Ödülü dağıtılmış kampanya yeniden açılamaz. Yeni kampanya oluşturun." });
   if (values.isActive) await CouponRequest.updateMany({ _id: { $ne: data._id || null }, isActive: true }, { $set: { isActive: false } });
   const campaign = data._id ? await CouponRequest.findByIdAndUpdate(data._id, values, { new: true }) : await CouponRequest.create(values);

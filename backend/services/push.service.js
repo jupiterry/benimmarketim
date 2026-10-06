@@ -29,31 +29,70 @@ const cleanData = (data = {}) => {
   return cleaned;
 };
 
+// Yeni OneSignal anahtarları ("os_v2_...") "Key", eski REST anahtarları "Basic" şemasıyla gönderilir.
+const authScheme = (key) => (/^os_v2_/i.test(String(key || "")) ? "Key" : "Basic");
+
+const countInvalidAliases = (errors) => {
+  const list = errors && !Array.isArray(errors) ? errors.invalid_aliases?.external_id : null;
+  return Array.isArray(list) ? list.length : 0;
+};
+
+const describeErrors = (errors) => {
+  if (!errors) return "";
+  const text = Array.isArray(errors) ? errors.join("; ") : typeof errors === "string" ? errors : Object.keys(errors).join(", ");
+  return String(text).slice(0, 160);
+};
+
+/**
+ * Tek bir OneSignal isteği. Hata fırlatmaz; sonucu nedeniyle birlikte döndürür:
+ * reason: null (gönderildi) | "auth" (anahtar reddedildi) | "rejected" (istek reddedildi) |
+ *         "no_devices" (hedeflenen kimliklerin kayıtlı cihazı yok) | "network" (ulaşılamadı / zaman aşımı)
+ */
 const postToOneSignal = async (externalIds, message, data, collapseId) => {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const key = process.env.ONESIGNAL_REST_API_KEY;
+  const request = async (scheme) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      return await fetch(ONESIGNAL_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `${scheme} ${key}` },
+        body: JSON.stringify({
+          app_id: process.env.ONESIGNAL_APP_ID,
+          target_channel: "push",
+          include_aliases: { external_id: externalIds },
+          headings: { en: message.title, tr: message.title },
+          contents: { en: message.body, tr: message.body },
+          data,
+          ...(collapseId ? { collapse_id: collapseId } : {}),
+        }),
+        signal: controller.signal,
+      });
+    } finally { clearTimeout(timeout); }
+  };
   try {
-    const response = await fetch(ONESIGNAL_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Key ${process.env.ONESIGNAL_REST_API_KEY}` },
-      body: JSON.stringify({
-        app_id: process.env.ONESIGNAL_APP_ID,
-        target_channel: "push",
-        include_aliases: { external_id: externalIds },
-        headings: { en: message.title, tr: message.title },
-        contents: { en: message.body, tr: message.body },
-        data,
-        ...(collapseId ? { collapse_id: collapseId } : {}),
-      }),
-      signal: controller.signal,
-    });
-    if (!response.ok) { console.error("OneSignal bildirimi başarısız:", response.status); return false; }
+    const scheme = authScheme(key);
+    let response = await request(scheme);
+    // Anahtar türü yanlış tahmin edildiyse diğer şemayla bir kez daha denenir
+    if (response.status === 401 || response.status === 403) response = await request(scheme === "Key" ? "Basic" : "Key");
+    const body = typeof response.json === "function" ? await response.json().catch(() => null) : null;
+    const errors = body && typeof body === "object" ? body.errors : null;
+    if (!response.ok) {
+      const detail = describeErrors(errors);
+      console.error("OneSignal bildirimi başarısız:", response.status, detail);
+      const auth = response.status === 401 || response.status === 403;
+      return { ok: false, reason: auth ? "auth" : "rejected", status: response.status, detail, invalid: 0 };
+    }
     // OneSignal, hedeflenen kimlik hiçbir cihazda kayıtlı değilse de 200 döner; o durumda bildirim
     // oluşturulmaz ve "id" boş gelir. Bu, gönderilmiş sayılmaz.
-    const body = typeof response.json === "function" ? await response.json().catch(() => null) : null;
-    if (body && typeof body === "object" && !body.id && (body.id === "" || body.errors)) return false;
-    return true;
-  } finally { clearTimeout(timeout); }
+    if (body && typeof body === "object" && !body.id && (body.id === "" || errors)) {
+      return { ok: false, reason: "no_devices", status: response.status, detail: describeErrors(errors), invalid: externalIds.length };
+    }
+    return { ok: true, reason: null, status: response.status, detail: "", invalid: countInvalidAliases(errors) };
+  } catch (error) {
+    console.error("OneSignal'a ulaşılamadı:", error.name === "AbortError" ? "zaman aşımı" : error.message);
+    return { ok: false, reason: "network", status: 0, detail: error.name === "AbortError" ? "zaman aşımı" : "bağlantı hatası", invalid: 0 };
+  }
 };
 
 const sendViaFcm = async (fcmToken, message, data) => {
@@ -69,10 +108,13 @@ const sendViaFcm = async (fcmToken, message, data) => {
  * @param {{title: string, body: string}} message
  * @param {object} data - Uygulamaya taşınan ek veri (type, route, ...)
  * @param {{category?: "orders"|"messages"|"campaigns", collapseId?: string}} options
- * @returns {Promise<{targeted: number, sent: boolean}>} targeted: izinli kullanıcı sayısı
+ * @returns {Promise<{targeted: number, sent: boolean, reason: string|null, detail: string, unreachable: number}>}
+ *   targeted: izinli kullanıcı sayısı; sent: en az bir kanal bildirimi kabul etti;
+ *   reason: gönderilemediyse nedeni ("not_configured" | "auth" | "rejected" | "network" | "no_devices");
+ *   unreachable: OneSignal'ın kayıtlı cihazı olmadığını bildirdiği kullanıcı sayısı
  */
 export const sendPushToUsers = async (userIds, message, data = {}, { category = "orders", collapseId } = {}) => {
-  const empty = { targeted: 0, sent: false };
+  const empty = { targeted: 0, sent: false, reason: null, detail: "", unreachable: 0 };
   try {
     if (!PUSH_CATEGORIES.includes(category)) throw new Error("PUSH_CATEGORY_INVALID");
     const ids = [...new Set((userIds || []).filter(Boolean).map(String))];
@@ -81,15 +123,24 @@ export const sendPushToUsers = async (userIds, message, data = {}, { category = 
       .select("_id fcmToken").lean();
     if (!users.length) return empty;
     const payload = cleanData(data);
-    const attempts = [];
+    const batches = [];
     if (isPushConfigured()) {
       for (let start = 0; start < users.length; start += ONESIGNAL_BATCH_SIZE) {
-        attempts.push(postToOneSignal(users.slice(start, start + ONESIGNAL_BATCH_SIZE).map((user) => String(user._id)), message, payload, collapseId));
+        batches.push(postToOneSignal(users.slice(start, start + ONESIGNAL_BATCH_SIZE).map((user) => String(user._id)), message, payload, collapseId));
       }
     }
-    if (users.length === 1) attempts.push(sendViaFcm(users[0].fcmToken, message, payload));
-    const results = await Promise.allSettled(attempts);
-    return { targeted: users.length, sent: results.some((result) => result.status === "fulfilled" && result.value === true) };
+    const fcm = users.length === 1 ? sendViaFcm(users[0].fcmToken, message, payload).catch(() => false) : Promise.resolve(false);
+    const [results, fcmSent] = await Promise.all([Promise.all(batches), fcm]);
+    const sent = fcmSent === true || results.some((result) => result.ok);
+    // Birden fazla neden varsa en çok işe yarayanı öne alınır
+    const failed = ["auth", "rejected", "network", "no_devices"].map((reason) => results.find((result) => result.reason === reason)).find(Boolean);
+    return {
+      targeted: users.length,
+      sent,
+      reason: sent ? null : failed?.reason || (isPushConfigured() ? "no_devices" : "not_configured"),
+      detail: sent ? "" : failed?.detail || "",
+      unreachable: fcmSent === true ? 0 : results.reduce((sum, result) => sum + (result.invalid || 0), 0),
+    };
   } catch (error) {
     console.error("Bildirim gönderilemedi:", error.message);
     return empty;
