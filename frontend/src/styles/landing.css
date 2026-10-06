@@ -749,6 +749,12 @@ a.landing-category-card:hover {
   letter-spacing: -0.03em;
   line-height: 1.2;
 }
+/* Mağaza kartındaki yazılı logo */
+.landing-store-logo {
+  display: block;
+  width: auto;
+  height: 56px;
+}
 .landing-map-card address,
 .landing-map-card p {
   color: var(--lp-ink-2);

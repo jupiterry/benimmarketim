@@ -368,7 +368,7 @@ const HomePage = () => {
               <img className="landing-store-mascot" src="/maskot-560.webp" alt="" width="520" height="560" loading="lazy" />
               <div className="landing-map-copy">
                 <span className="landing-map-label"><MapPin size={16} aria-hidden="true" /> MAĞAZAMIZ</span>
-                <h3>Benim Marketim</h3>
+                <h3><img className="landing-store-logo" src="/logo-yazi.webp" alt="Benim Marketim" width="720" height="260" loading="lazy" /></h3>
                 <address>{businessAddress}</address>
                 <div className="landing-map-actions">
                   <a className="landing-primary-link" href={directionsUrl} target="_blank" rel="noopener noreferrer">

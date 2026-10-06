@@ -28,7 +28,7 @@ const Navbar = () => {
             <img src="/maskot-yuz.webp" alt="" width="40" height="40" className="h-full w-full object-cover" />
           </span>
           <span>
-            <span className="block text-base font-bold leading-none text-white">Benim Marketim</span>
+            <img src="/logo-yazi-beyaz.webp" alt="Benim Marketim" width="720" height="260" style={{ display: "block", height: 36, width: "auto" }} />
             <span className="mt-1 block text-[11px] font-medium uppercase tracking-[0.18em] text-emerald-400">Mobilde alışveriş</span>
           </span>
         </Link>

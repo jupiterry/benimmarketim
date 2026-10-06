@@ -16,7 +16,7 @@ const Footer = () => {
                 <img src="/maskot-yuz.webp" alt="" width="40" height="40" loading="lazy" className="h-full w-full object-cover" />
               </span>
               <div>
-                <p className="font-bold text-white">Benim Marketim</p>
+                <img src="/logo-yazi-beyaz.webp" alt="Benim Marketim" width="720" height="260" loading="lazy" style={{ display: "block", height: 36, width: "auto" }} />
                 <p className="text-sm text-gray-400">Alışveriş artık mobil uygulamada.</p>
               </div>
             </div>
