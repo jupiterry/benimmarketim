@@ -4,6 +4,7 @@ import User from "../models/user.model.js";
 import Order from "../models/order.model.js";
 import SupportRequest from "../models/supportRequest.model.js";
 import { answerUserMessage } from "../services/ai/assistant.service.js";
+import { sendPushToUser } from "../services/push.service.js";
 
 // Yeni sohbet oluştur veya mevcut aktif sohbeti getir
 export const createChat = async (req, res) => {
@@ -251,6 +252,12 @@ export const sendMessage = async (req, res) => {
           timestamp: new Date(),
         });
       }
+    }
+
+    // Destek ekibi yanıt yazdığında müşterinin telefonuna bildirim (yanıtı bekletmez)
+    if (sender === "admin") {
+      sendPushToUser(chat.user, { title: "Destek ekibinden yeni mesaj", body: chat.lastMessage.slice(0, 140) },
+        { type: "chat_message", chatId: String(chatId), route: `/chat/${chatId}` }, { category: "messages", collapseId: `chat-${chatId}` });
     }
 
     let aiMessage = null;

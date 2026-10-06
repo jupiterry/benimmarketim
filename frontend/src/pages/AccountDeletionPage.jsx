@@ -25,6 +25,7 @@ import axios from "../lib/axios";
 import toast from "react-hot-toast";
 import { useUserStore } from "../stores/useUserStore";
 import { Link } from "react-router-dom";
+import "../styles/legal.css";
 
 const AccountDeletionPage = () => {
   const { user, logout } = useUserStore();
@@ -120,7 +121,7 @@ const AccountDeletionPage = () => {
           <meta name="description" content="Hesabınız başarıyla silindi." />
         </Helmet>
 
-        <div className="min-h-screen pt-24 pb-16 bg-gray-900 flex items-center justify-center">
+        <div className="legal acct-skin min-h-screen pt-24 pb-16 flex items-center justify-center">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -157,7 +158,7 @@ const AccountDeletionPage = () => {
         <meta name="robots" content="index, follow" />
       </Helmet>
 
-      <div className="min-h-screen pt-24 pb-16 bg-gray-900">
+      <div className="legal acct-skin min-h-screen pt-24 pb-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Başlık */}
           <motion.div

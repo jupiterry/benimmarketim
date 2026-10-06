@@ -24,7 +24,7 @@ export const startCartReminderJob = () => {
     const startTime = Date.now();
 
     try {
-      const result = await checkAndSendCartReminders(24); // 24 hours threshold
+      const result = await checkAndSendCartReminders(24, { respectQuietHours: true }); // 24 hours threshold, gece gönderilmez
       const duration = Date.now() - startTime;
 
       console.log('Cart reminder job completed:', {

@@ -260,7 +260,8 @@ export function dispatchOrderNotifications(io, newOrder, requestUser, phone) {
           _id: requestUser._id,
           name: requestUser.name || orderData.user?.name || "",
           email: requestUser.email || orderData.user?.email || "",
-          phone: requestUser.phone || phone || orderData.phone || "",
+          // Siparişte girilen numara önceliklidir (profildeki eski olabilir).
+          phone: phone || orderData.phone || requestUser.phone || "",
         },
         products,
         totalAmount: newOrder.totalAmount || 0,

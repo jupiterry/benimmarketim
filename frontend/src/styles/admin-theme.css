@@ -2748,3 +2748,59 @@ body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok:hover {
     grid-column: 1 / -1;
   }
 }
+
+/* ── Bildirim gönder sekmesi ─────────────────────────────────────────────── */
+.admin-layout .push-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: var(--ui-gap, 16px);
+  align-items: start;
+}
+.admin-layout .push-options {
+  display: grid;
+  gap: 8px;
+}
+.admin-layout .push-layout textarea.ui-field {
+  min-height: 84px;
+  padding-block: 9px;
+  resize: vertical;
+}
+.admin-layout .push-preview {
+  display: flex;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--ui-line);
+  border-radius: 14px;
+  background: var(--ui-surface-2);
+}
+.admin-layout .push-preview-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--ui-brand);
+  color: #fff;
+}
+.admin-layout .push-preview-app {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+}
+.admin-layout .push-preview strong {
+  display: block;
+  margin-top: 2px;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .push-preview p {
+  margin-top: 2px;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+}
+@media (max-width: 900px) {
+  .admin-layout .push-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

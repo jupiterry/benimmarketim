@@ -26,4 +26,4 @@ export const marketCategories = [
   ["dondurma", "Dondurmalar", "dondurma.png", "Tatlı molası için dondurma çeşitlerini uygulamadan keşfet ve mevcut ürünleri kontrol et."],
 ].map(([slug, name, image, description]) => ({ slug, name, image, description, path: `/category/${slug}` }));
 
-export const publicPages = ["/", "/about", "/contact", "/faq", "/privacy", "/terms", "/distance-sales", "/return-policy", "/cookies", "/kvkk", "/hesap-silme"];
+export const publicPages = ["/", "/about", "/contact", "/faq", "/privacy", "/terms", "/distance-sales", "/return-policy", "/cookies", "/kvkk", "/kvkk-basvuru", "/hesap-silme"];

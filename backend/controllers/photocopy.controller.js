@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import PhotocopyFile from "../models/photocopyFile.model.js";
+import { sendPushToUser } from "../services/push.service.js";
 
 const uploadsDir = path.join(process.cwd(), "uploads", "photocopy");
 if (!fs.existsSync(uploadsDir)) {
@@ -126,8 +127,14 @@ export const adminUpdate = async (req, res) => {
 	try {
 		const { id } = req.params;
 		const update = req.body;
+		const previous = await PhotocopyFile.findById(id).select("status").lean();
 		const file = await PhotocopyFile.findByIdAndUpdate(id, update, { new: true });
 		if (!file) return res.status(404).json({ success: false, message: "Dosya bulunamadı" });
+		// Durum "hazır" olduğunda müşterinin telefonuna bildirim (yanıtı bekletmez)
+		if (file.status === "ready" && previous?.status !== "ready") {
+			sendPushToUser(file.user, { title: "Fotokopiniz hazır", body: `${file.originalName} hazırlandı, teslim alabilirsiniz.`.slice(0, 160) },
+				{ type: "photocopy_ready", fileId: String(file._id), route: "/photocopy-history" }, { category: "orders" });
+		}
 		res.json({ success: true, data: file });
 	} catch (error) {
 		console.error("adminUpdate error", error);

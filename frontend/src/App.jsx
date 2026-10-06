@@ -26,6 +26,7 @@ import ContactPage from "./pages/ContactPage";
 import AboutPage from "./pages/AboutPage";
 import FAQPage from "./pages/FAQPage";
 import KVKKPage from "./pages/KVKKPage";
+import KvkkRequestPage from "./pages/KvkkRequestPage";
 import AccountDeletionPage from "./pages/AccountDeletionPage";
 import ReferralPage from "./pages/ReferralPage";
 import ScrollToTop from "./components/ScrollToTop";
@@ -123,6 +124,7 @@ function App() {
             <Route path="/about" element={<AboutPage />} />
             <Route path="/faq" element={<FAQPage />} />
             <Route path="/kvkk" element={<KVKKPage />} />
+            <Route path="/kvkk-basvuru" element={<KvkkRequestPage />} />
             <Route
               path="/fotokopi"
               element={

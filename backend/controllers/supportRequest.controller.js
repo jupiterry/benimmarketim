@@ -2,6 +2,7 @@ import Chat from "../models/chat.model.js";
 import Message from "../models/message.model.js";
 import SupportRequest from "../models/supportRequest.model.js";
 import { supportAcceptanceFilter } from "../services/ai/policies.js";
+import { sendPushToUser } from "../services/push.service.js";
 
 export const listSupportRequests = async (req, res) => {
   const statuses = req.query.status ? String(req.query.status).split(",") : ["waiting", "accepted", "in_progress"];
@@ -31,6 +32,9 @@ export const acceptSupportRequest = async (req, res) => {
   await Chat.updateOne({ _id: chat._id }, { $set: { lastMessage: message.content, lastMessageAt: message.createdAt, lastMessageSender: "system" }, $inc: { userUnreadCount: 1 } });
   const io = req.app.get("io");
   io?.to(`chat_${chat._id}`).emit("newMessage", { message, chatId: String(chat._id) });
+  // Müşteri uygulamadan çıkmış olabilir; görevlinin katıldığını telefonuna bildir
+  sendPushToUser(chat.user, { title: "Destek görevlisi bağlandı", body: "Ekibimizden bir görevli görüşmenize katıldı. Mesajınızı yazabilirsiniz." },
+    { type: "chat_message", chatId: String(chat._id), route: `/chat/${chat._id}` }, { category: "messages", collapseId: `chat-${chat._id}` });
   io?.to("adminRoom").emit("SupportRequestAccepted", { supportRequestId: String(request._id), conversationId: String(chat._id), agentId: String(req.user._id), agentName: req.user.name });
   res.json({ success: true, supportRequest: request, chat });
 };

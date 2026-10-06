@@ -382,6 +382,12 @@ export const placeOrder = async (req, res) => {
 
     // Sepeti temizle
     req.user.cartItems = [];
+    // Siparişte girilen numara profildekinden farklıysa profil güncellenir;
+    // böylece uygulama bir sonraki siparişte doğru numarayı önerir.
+    const orderPhone = String(phone).trim();
+    if (orderPhone && orderPhone !== (req.user.phone || "")) {
+      req.user.phone = orderPhone;
+    }
     await req.user.save();
 
     // Referral: İlk sipariş kontrolü

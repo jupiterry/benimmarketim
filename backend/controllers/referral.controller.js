@@ -2,6 +2,7 @@ import Referral from "../models/referral.model.js";
 import User from "../models/user.model.js";
 import Coupon from "../models/coupon.model.js";
 import crypto from "crypto";
+import { sendPushToUser } from "../services/push.service.js";
 
 // Kullanıcının referral bilgilerini getir
 export const getReferralInfo = async (req, res) => {
@@ -225,6 +226,10 @@ export const processReferralFirstOrder = async (userId) => {
       }
       
       await referral.save();
+
+      // Davet eden kişiye ödül kuponunu telefonundan haber ver (yanıtı bekletmez)
+      sendPushToUser(referral.referrer, { title: "Ödül kuponunuz hazır 🎁", body: `Davet ettiğiniz arkadaşınız ilk siparişini verdi. %5 indirim kuponunuz: ${rewardCode}` },
+        { type: "referral_reward", couponCode: rewardCode, route: "/referral" }, { category: "campaigns" });
 
       return { 
         success: true, 

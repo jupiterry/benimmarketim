@@ -31,6 +31,8 @@ import ChatTab from "../components/ChatTab";
 import WeeklyProductsTab from "../components/WeeklyProductsTab";
 import AiKnowledgeCenter from "../components/AiKnowledgeCenter";
 import SupportQueueTab from "../components/SupportQueueTab";
+import PushBroadcastTab from "../components/PushBroadcastTab";
+import SiteMessagesTab from "../components/SiteMessagesTab";
 
 import { Package, Upload } from "lucide-react";
 
@@ -128,6 +130,8 @@ const AdminPage = () => {
       "bulk-upload": "Toplu Yükleme",
       settings: "Ayarlar",
       audit: "İşlem kayıtları",
+      push: "Bildirim gönder",
+      "site-messages": "Başvurular ve mesajlar",
     }),
     [],
   );
@@ -323,14 +327,14 @@ const AdminPage = () => {
     };
     // Müşteriden gelen yeni sohbet mesajları (sohbet başına tek satır)
     const handleChatMessage = (data) => {
-      if (!data?.chatId || data.message?.sender === "admin") return;
+      if (!data?.chatId) return;
       if (activeTabRef.current === "chat") return;
       const sender = data.senderName || "Müşteri";
       pushNotification({
         id: `message-${data.chatId}`,
         kind: "message",
         title: sender,
-        detail: String(data.message?.content || "Yeni mesaj").slice(0, 80),
+        detail: String((typeof data.message === "string" ? data.message : data.message?.content) || "Yeni mesaj").slice(0, 80),
         chatId: String(data.chatId),
         time: nowLabel(),
       });
@@ -563,6 +567,10 @@ const AdminPage = () => {
         return <SettingsTab />;
       case "audit":
         return <AdminAuditTab />;
+      case "push":
+        return <PushBroadcastTab />;
+      case "site-messages":
+        return <SiteMessagesTab />;
       default:
         return <DashboardWidgets onNavigate={handleTabChange} />;
     }
@@ -630,7 +638,7 @@ const AdminPage = () => {
           className="admin-content app-content"
           data-tab={activeTab}
         >
-          {!["dashboard", "orders", "analytics", "weekly-products", "coupons", "banners", "referrals", "feedback", "photocopy", "settings", "support-queue"].includes(activeTab) && (
+          {!["dashboard", "orders", "analytics", "weekly-products", "coupons", "banners", "referrals", "feedback", "photocopy", "settings", "support-queue", "push", "site-messages"].includes(activeTab) && (
             <header className="app-pagehead">
               <div>
                 <h1>{tabLabels[activeTab]}</h1>

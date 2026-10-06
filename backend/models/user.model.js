@@ -67,6 +67,17 @@ const userSchema = new mongoose.Schema(
 			type: Boolean,
 			default: true,
 		},
+		// Müşterinin tür bazında bildirim tercihleri (pushNotificationsEnabled ana anahtardır)
+		notificationPreferences: {
+			orders: { type: Boolean, default: true },
+			messages: { type: Boolean, default: true },
+			campaigns: { type: Boolean, default: true },
+		},
+		// Aynı sepet için birden fazla hatırlatma gönderilmesini engeller
+		cartReminderSentAt: {
+			type: Date,
+			default: null,
+		},
 		role: {
 			type: String,
 			enum: ["customer", "admin"],

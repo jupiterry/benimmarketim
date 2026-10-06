@@ -1,7 +1,23 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
 import { Heart, Target, Users, Award, Truck, Shield, Star, Clock } from 'lucide-react';
+import LegalLayout from '../components/LegalLayout';
+
+const features = [
+  { icon: Truck, title: "Hızlı Teslimat", text: "45 dakika içinde kapınızda" },
+  { icon: Shield, title: "Güvenli Alışveriş", text: "SSL şifreleme ile korumalı" },
+  { icon: Star, title: "Kaliteli Ürünler", text: "Seçilmiş tedarikçilerden" },
+  { icon: Clock, title: "7/24 Hizmet", text: "Her zaman yanınızdayız" },
+  { icon: Heart, title: "Müşteri Odaklı", text: "Memnuniyet önceliğimiz" },
+  { icon: Users, title: "Güvenilir Ekip", text: "Deneyimli ve profesyonel" },
+];
+
+const stats = [
+  { value: "500+", label: "Mutlu Müşteri" },
+  { value: "500+", label: "Başarılı Teslimat" },
+  { value: "3,000+", label: "Ürün Çeşidi" },
+  { value: "4.8/5", label: "Müşteri Puanı" },
+];
 
 const AboutPage = () => {
   return (
@@ -11,219 +27,104 @@ const AboutPage = () => {
         <meta name="description" content="Benim Marketim hakkında bilgiler, misyonumuz, vizyonumuz ve değerlerimiz." />
       </Helmet>
 
-      <div className="min-h-screen pt-28 pb-16 bg-gray-900">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Başlık */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center mb-12"
-          >
-            <div className="inline-flex items-center gap-4 mb-6">
-              <div className="w-16 h-16 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-full flex items-center justify-center shadow-2xl">
-                <Heart className="w-8 h-8 text-white" />
-              </div>
-              <div>
-                <h1 className="text-5xl font-bold bg-gradient-to-r from-emerald-400 via-teal-500 to-green-500 bg-clip-text text-transparent">
-                  Hakkımızda
-                </h1>
-                <div className="flex items-center justify-center gap-2 mt-2">
-                  <div className="w-12 h-1 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-full"></div>
-                  <span className="text-gray-400 text-lg">
-                    Benim Marketim Ailesi
-                  </span>
-                  <div className="w-12 h-1 bg-gradient-to-r from-teal-600 to-green-500 rounded-full"></div>
-                </div>
-              </div>
-              <div className="w-16 h-16 bg-gradient-to-r from-teal-600 to-green-500 rounded-full flex items-center justify-center shadow-2xl">
-                <Users className="w-8 h-8 text-white" />
-              </div>
-            </div>
-            
-            <motion.p 
-              className="text-gray-300 text-lg max-w-2xl mx-auto"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.3 }}
-            >
-              Taze ürünler, hızlı teslimat ve kaliteli hizmet anlayışıyla müşteri memnuniyetini ön planda tutan bir e-ticaret platformuyuz.
-            </motion.p>
-          </motion.div>
-
-          {/* Hikayemiz */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-700/50 p-8 mb-8"
-          >
-            <div className="flex items-center gap-3 mb-6">
-              <Heart className="w-6 h-6 text-emerald-400" />
-              <h2 className="text-2xl font-bold text-white">Hikayemiz</h2>
-            </div>
-            <div className="prose prose-lg max-w-none">
-              <p className="text-gray-300 leading-relaxed mb-4">
+      <LegalLayout
+        title="Hakkımızda"
+        subtitle="Benim Marketim Ailesi"
+        description="Taze ürünler, hızlı teslimat ve kaliteli hizmet anlayışıyla müşteri memnuniyetini ön planda tutan bir e-ticaret platformuyuz."
+        icon={Heart}
+        docs={false}
+      >
+        {/* Hikayemiz */}
+        <section className="legal-section">
+          <div className="legal-section-head">
+            <Heart className="legal-icon" />
+            <h2>Hikayemiz</h2>
+          </div>
+          <div className="legal-stack">
+            <p className="legal-text">
               Benim Marketim, 2020 yılında müşterilerin taze ve kaliteli ürünlere kolayca ulaşabilmesi amacıyla kuruldu.
-              </p>
-              <p className="text-gray-300 leading-relaxed mb-4">
+            </p>
+            <p className="legal-text">
               Bugün, binlerce mutlu müşterimizle büyüyen bir aile haline geldik.
               Özellikle üniversite öğrencilerinin ve markete uzak yaşayan kişilerin, yağmurlu havalarda, gece karanlığında veya yorgun bir günün ardından dışarı çıkmak zorunda kalmadan ihtiyaçlarını karşılamalarını sağlıyoruz.
               Sadece birkaç dokunuşla, diledikleri ürünleri kapılarına kadar ulaştırıyoruz.
-              </p>
-              <p className="text-gray-300 leading-relaxed">
+            </p>
+            <p className="legal-text">
               Misyonumuz; herkesin, her koşulda, en taze ürünlere en hızlı şekilde ve en uygun fiyatlarla ulaşmasını sağlamak.
               Her gün, sizlere daha iyi bir alışveriş deneyimi sunmak için çalışıyoruz.
-              </p>  
-            </div>
-          </motion.div>
-
-          {/* Misyon, Vizyon, Değerler */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-700/50 p-8"
-            >
-              <div className="flex items-center gap-3 mb-6">
-                <Target className="w-6 h-6 text-blue-400" />
-                <h2 className="text-xl font-bold text-white">Misyonumuz</h2>
-              </div>
-              <p className="text-gray-300 leading-relaxed">
-                Müşterilerimize taze, kaliteli ve güvenli ürünleri, 
-                hızlı teslimat ile sunarak yaşam kalitelerini artırmak.
-              </p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-700/50 p-8"
-            >
-              <div className="flex items-center gap-3 mb-6">
-                <Award className="w-6 h-6 text-purple-400" />
-                <h2 className="text-xl font-bold text-white">Vizyonumuz</h2>
-              </div>
-              <p className="text-gray-300 leading-relaxed">
-                Türkiye'nin en güvenilir ve tercih edilen online marketi olmak, 
-                teknoloji ile geleneksel değerleri birleştirmek.
-              </p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
-              className="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-700/50 p-8"
-            >
-              <div className="flex items-center gap-3 mb-6">
-                <Star className="w-6 h-6 text-yellow-400" />
-                <h2 className="text-xl font-bold text-white">Değerlerimiz</h2>
-              </div>
-              <p className="text-gray-300 leading-relaxed">
-                Müşteri memnuniyeti, kalite, güvenilirlik, 
-                şeffaflık ve sürekli gelişim bizim temel değerlerimizdir.
-              </p>
-            </motion.div>
+            </p>
           </div>
+        </section>
 
-          {/* Özelliklerimiz */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-            className="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-700/50 p-8 mb-8"
-          >
-            <div className="flex items-center gap-3 mb-8">
-              <Award className="w-6 h-6 text-emerald-400" />
-              <h2 className="text-2xl font-bold text-white">Özelliklerimiz</h2>
+        {/* Misyon, Vizyon, Değerler */}
+        <div className="legal-grid legal-grid--3">
+          <section className="legal-section">
+            <div className="legal-section-head">
+              <Target className="legal-icon" />
+              <h2>Misyonumuz</h2>
             </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="p-6 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-                <div className="flex items-center gap-3 mb-4">
-                  <Truck className="w-6 h-6 text-emerald-400" />
-                  <h3 className="text-lg font-semibold text-emerald-300">Hızlı Teslimat</h3>
-                </div>
-                <p className="text-gray-300 text-sm">45 dakika içinde kapınızda</p>
-              </div>
-
-              <div className="p-6 bg-blue-500/10 border border-blue-500/20 rounded-xl">
-                <div className="flex items-center gap-3 mb-4">
-                  <Shield className="w-6 h-6 text-blue-400" />
-                  <h3 className="text-lg font-semibold text-blue-300">Güvenli Alışveriş</h3>
-                </div>
-                <p className="text-gray-300 text-sm">SSL şifreleme ile korumalı</p>
-              </div>
-
-              <div className="p-6 bg-purple-500/10 border border-purple-500/20 rounded-xl">
-                <div className="flex items-center gap-3 mb-4">
-                  <Star className="w-6 h-6 text-purple-400" />
-                  <h3 className="text-lg font-semibold text-purple-300">Kaliteli Ürünler</h3>
-                </div>
-                <p className="text-gray-300 text-sm">Seçilmiş tedarikçilerden</p>
-              </div>
-
-              <div className="p-6 bg-orange-500/10 border border-orange-500/20 rounded-xl">
-                <div className="flex items-center gap-3 mb-4">
-                  <Clock className="w-6 h-6 text-orange-400" />
-                  <h3 className="text-lg font-semibold text-orange-300">7/24 Hizmet</h3>
-                </div>
-                <p className="text-gray-300 text-sm">Her zaman yanınızdayız</p>
-              </div>
-
-              <div className="p-6 bg-green-500/10 border border-green-500/20 rounded-xl">
-                <div className="flex items-center gap-3 mb-4">
-                  <Heart className="w-6 h-6 text-green-400" />
-                  <h3 className="text-lg font-semibold text-green-300">Müşteri Odaklı</h3>
-                </div>
-                <p className="text-gray-300 text-sm">Memnuniyet önceliğimiz</p>
-              </div>
-
-              <div className="p-6 bg-cyan-500/10 border border-cyan-500/20 rounded-xl">
-                <div className="flex items-center gap-3 mb-4">
-                  <Users className="w-6 h-6 text-cyan-400" />
-                  <h3 className="text-lg font-semibold text-cyan-300">Güvenilir Ekip</h3>
-                </div>
-                <p className="text-gray-300 text-sm">Deneyimli ve profesyonel</p>
-              </div>
+            <p className="legal-text">
+              Müşterilerimize taze, kaliteli ve güvenli ürünleri,
+              hızlı teslimat ile sunarak yaşam kalitelerini artırmak.
+            </p>
+          </section>
+          <section className="legal-section">
+            <div className="legal-section-head">
+              <Award className="legal-icon" />
+              <h2>Vizyonumuz</h2>
             </div>
-          </motion.div>
-
-          {/* İstatistikler */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7 }}
-            className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 rounded-2xl p-8"
-          >
-            <div className="flex items-center gap-3 mb-8">
-              <Award className="w-6 h-6 text-emerald-400" />
-              <h2 className="text-2xl font-bold text-white">Rakamlarla Benim Marketim</h2>
+            <p className="legal-text">
+              Türkiye'nin en güvenilir ve tercih edilen online marketi olmak,
+              teknoloji ile geleneksel değerleri birleştirmek.
+            </p>
+          </section>
+          <section className="legal-section">
+            <div className="legal-section-head">
+              <Star className="legal-icon" />
+              <h2>Değerlerimiz</h2>
             </div>
-            
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-emerald-400 mb-2">500+</div>
-                <div className="text-gray-300">Mutlu Müşteri</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-teal-400 mb-2">500+</div>
-                <div className="text-gray-300">Başarılı Teslimat</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-green-400 mb-2">3,000+</div>
-                <div className="text-gray-300">Ürün Çeşidi</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-cyan-400 mb-2">4.8/5</div>
-                <div className="text-gray-300">Müşteri Puanı</div>
-              </div>
-            </div>
-          </motion.div>
+            <p className="legal-text">
+              Müşteri memnuniyeti, kalite, güvenilirlik,
+              şeffaflık ve sürekli gelişim bizim temel değerlerimizdir.
+            </p>
+          </section>
         </div>
-      </div>
+
+        {/* Özelliklerimiz */}
+        <section className="legal-section">
+          <div className="legal-section-head">
+            <Award className="legal-icon" />
+            <h2>Özelliklerimiz</h2>
+          </div>
+          <div className="legal-grid legal-grid--3">
+            {features.map((feature) => (
+              <div key={feature.title} className="legal-card">
+                <div className="legal-card-head">
+                  <feature.icon aria-hidden="true" />
+                  <h3 className="legal-card-title">{feature.title}</h3>
+                </div>
+                <p className="legal-text legal-text--sm">{feature.text}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* İstatistikler */}
+        <section className="legal-section legal-section--note">
+          <div className="legal-section-head">
+            <Award className="legal-icon" />
+            <h2>Rakamlarla Benim Marketim</h2>
+          </div>
+          <div className="legal-stats">
+            {stats.map((stat) => (
+              <div key={stat.label}>
+                <strong>{stat.value}</strong>
+                <span>{stat.label}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      </LegalLayout>
     </>
   );
 };

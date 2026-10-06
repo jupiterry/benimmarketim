@@ -1,37 +1,47 @@
 // Cart Reminder Service - Handles abandoned cart notifications
+// Bildirimler push.service (OneSignal) üzerinden gönderilir; müşteri kampanya bildirimlerini
+// kapattıysa hatırlatma gitmez. Aynı sepet için yalnızca bir kez hatırlatılır.
 import User from '../models/user.model.js';
-import Product from '../models/product.model.js';
-import { sendPushNotification } from './fcm.service.js';
+import { sendPushToUsers } from './push.service.js';
+
+const MAX_CART_AGE_DAYS = 14; // Çok eski sepetler için hatırlatma gönderilmez
+const QUIET_HOURS = { start: 10, end: 22 }; // İstanbul saatiyle yalnızca 10:00–21:59 arası gönderilir
+
+const istanbulHour = (date) => Number(new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hour12: false, timeZone: 'Europe/Istanbul' }).format(date)) % 24;
+
+// Hatırlatma alacak kullanıcıların sorgusu (istatistik ucu da aynı sorguyu kullanır)
+export const buildCartReminderFilter = (hoursThreshold = 24, now = new Date()) => {
+  const thresholdDate = new Date(now.getTime() - hoursThreshold * 60 * 60 * 1000);
+  const oldestDate = new Date(now.getTime() - MAX_CART_AGE_DAYS * 24 * 60 * 60 * 1000);
+  return {
+    'cartItems.0': { $exists: true },
+    cartLastUpdated: { $lt: thresholdDate, $gte: oldestDate },
+    pushNotificationsEnabled: { $ne: false },
+    'notificationPreferences.campaigns': { $ne: false },
+    // Sepet son değiştikten sonra hatırlatma gönderilmediyse
+    $or: [{ cartReminderSentAt: null }, { $expr: { $lt: ['$cartReminderSentAt', '$cartLastUpdated'] } }],
+  };
+};
 
 /**
  * Find users with abandoned carts and send reminders
  * @param {number} hoursThreshold - Hours since last cart update (default: 24)
+ * @param {{respectQuietHours?: boolean, now?: Date}} options
  * @returns {Promise<object>} - Results with sent count and errors
  */
-export const checkAndSendCartReminders = async (hoursThreshold = 24) => {
+export const checkAndSendCartReminders = async (hoursThreshold = 24, { respectQuietHours = false, now = new Date() } = {}) => {
   try {
-    const thresholdDate = new Date();
-    thresholdDate.setHours(thresholdDate.getHours() - hoursThreshold);
+    if (respectQuietHours) {
+      const hour = istanbulHour(now);
+      if (hour < QUIET_HOURS.start || hour >= QUIET_HOURS.end) {
+        return { success: true, skipped: 'quiet_hours', totalUsers: 0, successCount: 0, failureCount: 0, errors: [] };
+      }
+    }
 
-    // Find users with:
-    // 1. Non-empty cart (cartItems.length > 0)
-    // 2. Cart not updated in the last X hours
-    // 3. Push notifications enabled
-    // 4. Valid FCM token
-    const usersWithAbandonedCarts = await User.find({
-      $and: [
-        { cartItems: { $exists: true, $ne: [] } },
-        {
-          $or: [
-            { cartLastUpdated: { $exists: false } },
-            { cartLastUpdated: { $lt: thresholdDate } },
-          ],
-        },
-        { pushNotificationsEnabled: true },
-        { fcmToken: { $exists: true, $ne: null, $ne: '' } },
-      ],
-    })
-      .populate('cartItems.product', 'name price image')
+    const usersWithAbandonedCarts = await User.find(buildCartReminderFilter(hoursThreshold, now))
+      .select('cartItems')
+      .populate('cartItems.product', 'name isHidden isOutOfStock')
+      .limit(500)
       .lean();
 
     console.log(`Found ${usersWithAbandonedCarts.length} users with abandoned carts`);
@@ -42,15 +52,11 @@ export const checkAndSendCartReminders = async (hoursThreshold = 24) => {
 
     for (const user of usersWithAbandonedCarts) {
       try {
-        // Calculate cart total
-        let cartTotal = 0;
         let itemCount = 0;
         const productNames = [];
 
         for (const item of user.cartItems) {
-          if (item.product) {
-            const price = item.product.discountedPrice || item.product.price || 0;
-            cartTotal += price * (item.quantity || 1);
+          if (item.product && !item.product.isHidden && !item.product.isOutOfStock) {
             itemCount += item.quantity || 1;
             productNames.push(item.product.name);
           }
@@ -63,26 +69,19 @@ export const checkAndSendCartReminders = async (hoursThreshold = 24) => {
         // Create notification message
         const productPreview = productNames.slice(0, 2).join(', ');
         const moreText = productNames.length > 2 ? ` ve ${productNames.length - 2} ürün daha` : '';
-        const notificationBody = `Sepetinizde ${itemCount} ürün var (${productPreview}${moreText}). Siparişinizi tamamlamayı unutmayın!`;
+        const notificationBody = `Sepetinizde ${itemCount} ürün var (${productPreview}${moreText}). Siparişinizi tamamlamayı unutmayın!`.slice(0, 170);
 
-        // Send push notification
-        const success = await sendPushNotification(
-          user.fcmToken,
-          {
-            title: 'Sepetinizi Tamamlayın! 🛒',
-            body: notificationBody,
-          },
-          {
-            type: 'cart_reminder',
-            cartTotal: cartTotal.toString(),
-            itemCount: itemCount.toString(),
-            userId: user._id.toString(),
-          }
+        const result = await sendPushToUsers(
+          [user._id],
+          { title: 'Sepetiniz sizi bekliyor 🛒', body: notificationBody },
+          { type: 'cart_reminder', route: '/cart' },
+          { category: 'campaigns', collapseId: 'cart-reminder' }
         );
 
-        if (success) {
+        if (result.sent) {
           successCount++;
-          console.log(`Cart reminder sent to user ${user._id}`);
+          // Aynı sepet için tekrar hatırlatma gönderilmesin
+          await User.updateOne({ _id: user._id }, { $set: { cartReminderSentAt: now } });
         } else {
           failureCount++;
           errors.push(`Failed to send to user ${user._id}`);
@@ -113,4 +112,3 @@ export const checkAndSendCartReminders = async (hoursThreshold = 24) => {
     };
   }
 };
-

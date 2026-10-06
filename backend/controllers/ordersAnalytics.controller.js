@@ -185,6 +185,8 @@ export const getUserOrders = async (req, res) => {
       _id: order._id,
       orderId: order._id,
       products: order.products.map(p => ({
+        // Mobil "tekrar sipariş" için; ürün silinmişse null döner.
+        productId: p.product?._id || null,
         name: p.product?.name || p.name || "Bilinmeyen Ürün",
         quantity: p.quantity,
         price: p.product?.price || p.price || 0,

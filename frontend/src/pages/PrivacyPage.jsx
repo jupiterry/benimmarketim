@@ -1,7 +1,15 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
 import { Shield, Eye, Lock, Database, UserCheck, AlertTriangle } from 'lucide-react';
+import LegalLayout from '../components/LegalLayout';
+
+const sections = [
+  { id: "toplanan-veriler", label: "Toplanan Veriler" },
+  { id: "veri-kullanimi", label: "Veri Kullanımı" },
+  { id: "veri-guvenligi", label: "Veri Güvenliği" },
+  { id: "haklariniz", label: "Haklarınız" },
+  { id: "iletisim", label: "İletişim" },
+];
 
 const PrivacyPage = () => {
   return (
@@ -11,174 +19,133 @@ const PrivacyPage = () => {
         <meta name="description" content="Benim Marketim gizlilik politikası ve kişisel verilerin korunması hakkında bilgiler." />
       </Helmet>
 
-      <div className="min-h-screen pt-28 pb-16 bg-gray-900">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Başlık */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center mb-12"
-          >
-            <div className="inline-flex items-center gap-4 mb-6">
-              <div className="w-16 h-16 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-full flex items-center justify-center shadow-2xl">
-                <Shield className="w-8 h-8 text-white" />
-              </div>
-              <div>
-                <h1 className="text-5xl font-bold bg-gradient-to-r from-emerald-400 via-teal-500 to-green-500 bg-clip-text text-transparent">
-                  Gizlilik Politikası
-                </h1>
-                <div className="flex items-center justify-center gap-2 mt-2">
-                  <div className="w-12 h-1 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-full"></div>
-                  <span className="text-gray-400 text-lg">
-                    Kişisel Verilerin Korunması
-                  </span>
-                  <div className="w-12 h-1 bg-gradient-to-r from-teal-600 to-green-500 rounded-full"></div>
-                </div>
-              </div>
-              <div className="w-16 h-16 bg-gradient-to-r from-teal-600 to-green-500 rounded-full flex items-center justify-center shadow-2xl">
-                <Lock className="w-8 h-8 text-white" />
-              </div>
+      <LegalLayout
+        title="Gizlilik Politikası"
+        subtitle="Kişisel Verilerin Korunması"
+        description="Kişisel verilerinizin güvenliği bizim için önceliktir. Bu politika, verilerinizin nasıl toplandığını, kullanıldığını ve korunduğunu açıklar."
+        icon={Shield}
+        toc={sections}
+      >
+        {/* Toplanan Veriler */}
+        <section id="toplanan-veriler" className="legal-section">
+          <div className="legal-section-head">
+            <Database className="legal-icon" />
+            <h2>Toplanan Veriler</h2>
+          </div>
+          <div className="legal-stack">
+            <div className="legal-card">
+              <h3 className="legal-card-title">Kimlik Bilgileri</h3>
+              <p className="legal-text">Ad, soyad, e-posta adresi, telefon numarası</p>
             </div>
-            
-            <motion.p 
-              className="text-gray-300 text-lg max-w-2xl mx-auto"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.3 }}
-            >
-              Kişisel verilerinizin güvenliği bizim için önceliktir. Bu politika, verilerinizin nasıl toplandığını, kullanıldığını ve korunduğunu açıklar.
-            </motion.p>
-          </motion.div>
+            <div className="legal-card">
+              <h3 className="legal-card-title">Adres Bilgileri</h3>
+              <p className="legal-text">Teslimat adresi, fatura adresi</p>
+            </div>
+            <div className="legal-card">
+              <h3 className="legal-card-title">Ödeme Bilgileri</h3>
+              <p className="legal-text">Kart bilgileri (şifrelenmiş), ödeme geçmişi</p>
+            </div>
+            <div className="legal-card">
+              <h3 className="legal-card-title">Kullanım Verileri</h3>
+              <p className="legal-text">Site kullanım alışkanlıkları, sipariş geçmişi</p>
+            </div>
+          </div>
+        </section>
 
-          {/* İçerik */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="space-y-8"
-          >
-            {/* Toplanan Veriler */}
-            <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-700/50 p-8">
-              <div className="flex items-center gap-3 mb-6">
-                <Database className="w-6 h-6 text-emerald-400" />
-                <h2 className="text-2xl font-bold text-white">Toplanan Veriler</h2>
-              </div>
-              <div className="space-y-4">
-                <div className="p-4 bg-gray-700/30 rounded-xl">
-                  <h3 className="text-lg font-semibold text-white mb-2">Kimlik Bilgileri</h3>
-                  <p className="text-gray-300">Ad, soyad, e-posta adresi, telefon numarası</p>
-                </div>
-                <div className="p-4 bg-gray-700/30 rounded-xl">
-                  <h3 className="text-lg font-semibold text-white mb-2">Adres Bilgileri</h3>
-                  <p className="text-gray-300">Teslimat adresi, fatura adresi</p>
-                </div>
-                <div className="p-4 bg-gray-700/30 rounded-xl">
-                  <h3 className="text-lg font-semibold text-white mb-2">Ödeme Bilgileri</h3>
-                  <p className="text-gray-300">Kart bilgileri (şifrelenmiş), ödeme geçmişi</p>
-                </div>
-                <div className="p-4 bg-gray-700/30 rounded-xl">
-                  <h3 className="text-lg font-semibold text-white mb-2">Kullanım Verileri</h3>
-                  <p className="text-gray-300">Site kullanım alışkanlıkları, sipariş geçmişi</p>
-                </div>
-              </div>
+        {/* Veri Kullanımı */}
+        <section id="veri-kullanimi" className="legal-section">
+          <div className="legal-section-head">
+            <Eye className="legal-icon" />
+            <h2>Veri Kullanımı</h2>
+          </div>
+          <div className="legal-grid">
+            <div className="legal-card">
+              <h3 className="legal-card-title">Sipariş İşleme</h3>
+              <p className="legal-text legal-text--sm">Siparişlerinizi işlemek ve teslimat yapmak için</p>
             </div>
+            <div className="legal-card">
+              <h3 className="legal-card-title">Müşteri Hizmetleri</h3>
+              <p className="legal-text legal-text--sm">Size daha iyi hizmet verebilmek için</p>
+            </div>
+            <div className="legal-card">
+              <h3 className="legal-card-title">Güvenlik</h3>
+              <p className="legal-text legal-text--sm">Hesabınızı ve verilerinizi korumak için</p>
+            </div>
+            <div className="legal-card">
+              <h3 className="legal-card-title">İletişim</h3>
+              <p className="legal-text legal-text--sm">Önemli güncellemeler hakkında bilgilendirmek için</p>
+            </div>
+          </div>
+        </section>
 
-            {/* Veri Kullanımı */}
-            <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-700/50 p-8">
-              <div className="flex items-center gap-3 mb-6">
-                <Eye className="w-6 h-6 text-teal-400" />
-                <h2 className="text-2xl font-bold text-white">Veri Kullanımı</h2>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-                  <h3 className="text-lg font-semibold text-emerald-300 mb-2">Sipariş İşleme</h3>
-                  <p className="text-gray-300 text-sm">Siparişlerinizi işlemek ve teslimat yapmak için</p>
-                </div>
-                <div className="p-4 bg-teal-500/10 border border-teal-500/20 rounded-xl">
-                  <h3 className="text-lg font-semibold text-teal-300 mb-2">Müşteri Hizmetleri</h3>
-                  <p className="text-gray-300 text-sm">Size daha iyi hizmet verebilmek için</p>
-                </div>
-                <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
-                  <h3 className="text-lg font-semibold text-blue-300 mb-2">Güvenlik</h3>
-                  <p className="text-gray-300 text-sm">Hesabınızı ve verilerinizi korumak için</p>
-                </div>
-                <div className="p-4 bg-purple-500/10 border border-purple-500/20 rounded-xl">
-                  <h3 className="text-lg font-semibold text-purple-300 mb-2">İletişim</h3>
-                  <p className="text-gray-300 text-sm">Önemli güncellemeler hakkında bilgilendirmek için</p>
-                </div>
-              </div>
+        {/* Veri Güvenliği */}
+        <section id="veri-guvenligi" className="legal-section">
+          <div className="legal-section-head">
+            <Lock className="legal-icon" />
+            <h2>Veri Güvenliği</h2>
+          </div>
+          <div className="legal-stack">
+            <div className="legal-item">
+              <div className="legal-dot"></div>
+              <p className="legal-text">Tüm verileriniz SSL şifreleme ile korunmaktadır</p>
             </div>
+            <div className="legal-item">
+              <div className="legal-dot"></div>
+              <p className="legal-text">Ödeme bilgileriniz PCI DSS standartlarına uygun şekilde işlenir</p>
+            </div>
+            <div className="legal-item">
+              <div className="legal-dot"></div>
+              <p className="legal-text">Verileriniz sadece yetkili personel tarafından erişilebilir</p>
+            </div>
+            <div className="legal-item">
+              <div className="legal-dot"></div>
+              <p className="legal-text">Düzenli güvenlik güncellemeleri ve yedekleme yapılır</p>
+            </div>
+          </div>
+        </section>
 
-            {/* Veri Güvenliği */}
-            <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-700/50 p-8">
-              <div className="flex items-center gap-3 mb-6">
-                <Lock className="w-6 h-6 text-green-400" />
-                <h2 className="text-2xl font-bold text-white">Veri Güvenliği</h2>
-              </div>
-              <div className="space-y-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 bg-green-400 rounded-full mt-2"></div>
-                  <p className="text-gray-300">Tüm verileriniz SSL şifreleme ile korunmaktadır</p>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 bg-green-400 rounded-full mt-2"></div>
-                  <p className="text-gray-300">Ödeme bilgileriniz PCI DSS standartlarına uygun şekilde işlenir</p>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 bg-green-400 rounded-full mt-2"></div>
-                  <p className="text-gray-300">Verileriniz sadece yetkili personel tarafından erişilebilir</p>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 bg-green-400 rounded-full mt-2"></div>
-                  <p className="text-gray-300">Düzenli güvenlik güncellemeleri ve yedekleme yapılır</p>
-                </div>
-              </div>
+        {/* Haklarınız */}
+        <section id="haklariniz" className="legal-section">
+          <div className="legal-section-head">
+            <UserCheck className="legal-icon" />
+            <h2>Haklarınız</h2>
+          </div>
+          <div className="legal-grid">
+            <div className="legal-card">
+              <h3 className="legal-card-title">Erişim Hakkı</h3>
+              <p className="legal-text legal-text--sm">Verilerinize erişim talep edebilirsiniz</p>
             </div>
+            <div className="legal-card">
+              <h3 className="legal-card-title">Düzeltme Hakkı</h3>
+              <p className="legal-text legal-text--sm">Yanlış bilgileri düzeltebilirsiniz</p>
+            </div>
+            <div className="legal-card">
+              <h3 className="legal-card-title">Silme Hakkı</h3>
+              <p className="legal-text legal-text--sm">Verilerinizin silinmesini talep edebilirsiniz</p>
+            </div>
+            <div className="legal-card">
+              <h3 className="legal-card-title">İtiraz Hakkı</h3>
+              <p className="legal-text legal-text--sm">Veri işleme faaliyetlerine itiraz edebilirsiniz</p>
+            </div>
+          </div>
+        </section>
 
-            {/* Haklarınız */}
-            <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-700/50 p-8">
-              <div className="flex items-center gap-3 mb-6">
-                <UserCheck className="w-6 h-6 text-blue-400" />
-                <h2 className="text-2xl font-bold text-white">Haklarınız</h2>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
-                  <h3 className="text-lg font-semibold text-blue-300 mb-2">Erişim Hakkı</h3>
-                  <p className="text-gray-300 text-sm">Verilerinize erişim talep edebilirsiniz</p>
-                </div>
-                <div className="p-4 bg-orange-500/10 border border-orange-500/20 rounded-xl">
-                  <h3 className="text-lg font-semibold text-orange-300 mb-2">Düzeltme Hakkı</h3>
-                  <p className="text-gray-300 text-sm">Yanlış bilgileri düzeltebilirsiniz</p>
-                </div>
-                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
-                  <h3 className="text-lg font-semibold text-red-300 mb-2">Silme Hakkı</h3>
-                  <p className="text-gray-300 text-sm">Verilerinizin silinmesini talep edebilirsiniz</p>
-                </div>
-                <div className="p-4 bg-purple-500/10 border border-purple-500/20 rounded-xl">
-                  <h3 className="text-lg font-semibold text-purple-300 mb-2">İtiraz Hakkı</h3>
-                  <p className="text-gray-300 text-sm">Veri işleme faaliyetlerine itiraz edebilirsiniz</p>
-                </div>
-              </div>
-            </div>
-
-            {/* İletişim */}
-            <div className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 rounded-2xl p-8">
-              <div className="flex items-center gap-3 mb-4">
-                <AlertTriangle className="w-6 h-6 text-emerald-400" />
-                <h2 className="text-2xl font-bold text-white">İletişim</h2>
-              </div>
-              <p className="text-gray-300 mb-4">
-                Gizlilik politikamız hakkında sorularınız için bizimle iletişime geçebilirsiniz:
-              </p>
-              <div className="space-y-2">
-                <p className="text-emerald-300">📧 E-posta: info@benimmarketim.com</p>
-                <p className="text-emerald-300">📞 Telefon: +90 (XXX) XXX XX XX</p>
-                <p className="text-emerald-300">📍 Adres: [Şirket Adresi]</p>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </div>
+        {/* İletişim */}
+        <section id="iletisim" className="legal-section legal-section--note">
+          <div className="legal-section-head">
+            <AlertTriangle className="legal-icon" />
+            <h2>İletişim</h2>
+          </div>
+          <p className="legal-text legal-text--gap">
+            Gizlilik politikamız hakkında sorularınız için bizimle iletişime geçebilirsiniz:
+          </p>
+          <div className="legal-stack legal-stack--tight">
+            <p className="legal-strong">📧 E-posta: info@benimmarketim.com</p>
+            <p className="legal-strong">📞 Telefon: +90 (XXX) XXX XX XX</p>
+            <p className="legal-strong">📍 Adres: [Şirket Adresi]</p>
+          </div>
+        </section>
+      </LegalLayout>
     </>
   );
 };

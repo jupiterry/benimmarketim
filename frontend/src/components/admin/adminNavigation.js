@@ -17,6 +17,8 @@ import {
   MessageSquare,
   BrainCircuit,
   Headphones,
+  BellRing,
+  Inbox,
 } from "lucide-react";
 
 export const adminMenuGroups = [
@@ -52,6 +54,8 @@ export const adminMenuGroups = [
       { id: "ai-knowledge", short: "AI bilgi", label: "Yapay Zekâ Bilgi Merkezi", icon: BrainCircuit },
       { id: "referrals", short: "Davetler", label: "Davet sistemi", icon: Gift },
       { id: "feedback", short: "Geri bildirim", label: "Geri bildirimler", icon: MessageSquare },
+      { id: "site-messages", short: "Başvurular", label: "Başvurular ve mesajlar", icon: Inbox },
+      { id: "push", short: "Bildirim gönder", label: "Bildirim gönder", icon: BellRing },
     ],
   },
   {

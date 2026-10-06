@@ -31,6 +31,8 @@ import chatRoutes from "./routes/chat.route.js";
 import aiRoutes from "./routes/ai.route.js";
 import supportRequestRoutes from "./routes/supportRequest.route.js";
 import weeklyProductRoutes from "./routes/weeklyProductRoutes.js";
+import notificationRoutes from "./routes/notification.route.js";
+import siteMessageRoutes from "./routes/siteMessage.route.js";
 import Product from "./models/product.model.js";
 import User from "./models/user.model.js";
 import Chat from "./models/chat.model.js";
@@ -297,6 +299,8 @@ app.use("/api/chat", chatRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/support-requests", supportRequestRoutes);
 app.use("/api/weekly-products", weeklyProductRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/site-messages", siteMessageRoutes);
 
 // ============ SEO ENDPOINTS ============
 
