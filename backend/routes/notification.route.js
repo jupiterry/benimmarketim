@@ -1,7 +1,7 @@
 import express from "express";
 import { adminRoute, protectRoute } from "../middleware/auth.middleware.js";
 import { auditAdminAction } from "../middleware/adminAudit.js";
-import { getBroadcastOverview, getNotificationPreferences, sendBroadcast, updateNotificationPreferences } from "../controllers/notification.controller.js";
+import { diagnosePush, getBroadcastOverview, getNotificationPreferences, sendBroadcast, updateNotificationPreferences } from "../controllers/notification.controller.js";
 
 const router = express.Router();
 // Express 4 async hatalarını kendisi yakalamadığı için sarmalayıcı
@@ -16,6 +16,7 @@ router.put("/preferences", protectRoute, safe(updateNotificationPreferences));
 
 // Yönetici
 router.get("/broadcasts", protectRoute, adminRoute, safe(getBroadcastOverview));
+router.get("/broadcasts/diagnose", protectRoute, adminRoute, safe(diagnosePush));
 router.post("/broadcasts", protectRoute, adminRoute, auditAdminAction("Toplu bildirim", (req) => String(req.body?.audience || "")), safe(sendBroadcast));
 
 export default router;

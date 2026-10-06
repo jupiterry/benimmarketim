@@ -5,7 +5,7 @@ import Order from "../models/order.model.js";
 import PushBroadcast from "../models/pushBroadcast.model.js";
 import { normalizePreferences, sendPushToUsers } from "../services/push.service.js";
 import { buildCartReminderFilter, checkAndSendCartReminders } from "../services/cartReminder.service.js";
-import { buildAudienceFilter, describePushFailure, sendBroadcast, updateNotificationPreferences } from "../controllers/notification.controller.js";
+import { buildAudienceFilter, describePushFailure, diagnosePush, sendBroadcast, updateNotificationPreferences } from "../controllers/notification.controller.js";
 
 const chain = (value) => ({ select() { return this; }, populate() { return this; }, sort() { return this; }, limit() { return this; }, lean: async () => value });
 const id = (n) => `507f191e810c19729de86${String(n).padStart(3, "0")}`;
@@ -243,4 +243,42 @@ test("new-style OneSignal keys use the Key scheme and a test push goes only to t
   assert.deepEqual(sent[0].body.include_aliases.external_id, [id(99)]);
   assert.equal(sent[0].auth, "Key os_v2_app_test");
   assert.equal(created[0].audience, "self");
+});
+
+test("the diagnosis explains why an account cannot receive pushes", async (t) => {
+  withKeys(t);
+  const admin = { _id: id(99), name: "Deniz", email: "deniz@example.com" };
+  const run = async (query = {}) => { const res = response(); await diagnosePush({ query, user: admin }, res); return res; };
+  let url;
+  const fetchMock = t.mock.method(globalThis, "fetch", async (target) => { url = target; return { ok: false, status: 404, json: async () => ({}) }; });
+
+  let res = await run();
+  assert.match(url, new RegExp(`/apps/app-test/users/by/external_id/${id(99)}$`));
+  assert.equal(res.body.state, "not_found");
+  assert.equal(res.body.ready, false);
+  assert.match(res.body.steps[0], /aynı e-posta/);
+
+  const user = (subscriptions) => async () => ({ ok: true, status: 200, json: async () => ({ identity: { external_id: id(99) }, subscriptions }) });
+  fetchMock.mock.mockImplementation(user([{ type: "Email", enabled: true, token: "a@b.c" }]));
+  assert.equal((await run()).body.state, "no_subscription");
+  fetchMock.mock.mockImplementation(user([{ type: "iOSPush", enabled: false, token: "" }]));
+  res = await run();
+  assert.equal(res.body.state, "no_token");
+  assert.match(res.body.steps.join(" "), /APNs/);
+  fetchMock.mock.mockImplementation(user([{ type: "iOSPush", enabled: false, token: "abc" }]));
+  assert.equal((await run()).body.state, "disabled");
+  fetchMock.mock.mockImplementation(user([{ type: "iOSPush", enabled: true, token: "secret-device-token", device_model: "iPhone15,2", app_version: "6.0.0" }]));
+  res = await run();
+  assert.equal(res.body.ready, true);
+  assert.deepEqual(res.body.devices, [{ platform: "iPhone", enabled: true, hasToken: true, model: "iPhone15,2", appVersion: "6.0.0" }]);
+  assert.doesNotMatch(JSON.stringify(res.body), /secret-device-token|test-only/); // cihaz adresi ve anahtar yanıtta yer almaz
+
+  // Başka bir hesabı e-postasıyla denetleme; kampanya bildirimi kapalıysa ayrıca belirtilir
+  t.mock.method(User, "findOne", () => chain({ _id: id(5), name: "Ayşe", email: "ayse@example.com", notificationPreferences: { campaigns: false } }));
+  res = await run({ email: " Ayse@Example.com " });
+  assert.match(fetchMock.mock.calls.at(-1).arguments[0], new RegExp(`${id(5)}$`));
+  assert.equal(res.body.ready, false);
+  assert.match(res.body.title, /kampanya bildirimleri kapalı/);
+  User.findOne.mock.mockImplementation(() => chain(null));
+  assert.equal((await run({ email: "yok@example.com" })).statusCode, 404);
 });

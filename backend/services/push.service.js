@@ -95,6 +95,49 @@ const postToOneSignal = async (externalIds, message, data, collapseId) => {
   }
 };
 
+/**
+ * Bir kullanıcının OneSignal'daki kaydını ve bildirim aboneliklerini okur (yalnızca tanılama içindir).
+ * state: "ready" (en az bir cihaz bildirim alabilir) | "not_found" (hesap OneSignal'da hiç görünmüyor) |
+ *        "no_subscription" (hesap var, bildirim aboneliği yok) | "no_token" (cihaz bildirim adresi alamamış) |
+ *        "disabled" (cihazda bildirim izni kapalı) | "auth" | "rejected" | "network" | "not_configured"
+ */
+export const inspectPushUser = async (userId) => {
+  if (!isPushConfigured()) return { state: "not_configured", devices: [] };
+  const key = process.env.ONESIGNAL_REST_API_KEY;
+  const url = `https://api.onesignal.com/apps/${encodeURIComponent(process.env.ONESIGNAL_APP_ID)}/users/by/external_id/${encodeURIComponent(String(userId))}`;
+  const request = async (scheme) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try { return await fetch(url, { method: "GET", headers: { Authorization: `${scheme} ${key}` }, signal: controller.signal }); }
+    finally { clearTimeout(timeout); }
+  };
+  try {
+    const scheme = authScheme(key);
+    let response = await request(scheme);
+    if (response.status === 401 || response.status === 403) response = await request(scheme === "Key" ? "Basic" : "Key");
+    if (response.status === 404) return { state: "not_found", devices: [] };
+    if (response.status === 401 || response.status === 403) return { state: "auth", devices: [] };
+    const body = typeof response.json === "function" ? await response.json().catch(() => null) : null;
+    if (!response.ok) return { state: "rejected", devices: [], detail: describeErrors(body?.errors) || `HTTP ${response.status}` };
+    // Yalnızca telefon bildirimi abonelikleri; e-posta ve SMS abonelikleri sayılmaz
+    const devices = (Array.isArray(body?.subscriptions) ? body.subscriptions : [])
+      .filter((item) => /push/i.test(String(item?.type || "")))
+      .map((item) => ({
+        platform: /ios/i.test(item.type) ? "iPhone" : /android/i.test(item.type) ? "Android" : String(item.type),
+        enabled: item.enabled === true,
+        hasToken: Boolean(item.token),
+        model: String(item.device_model || "").slice(0, 40),
+        appVersion: String(item.app_version || "").slice(0, 20),
+      }));
+    const state = !devices.length ? "no_subscription"
+      : devices.some((device) => device.enabled) ? "ready"
+      : devices.some((device) => device.hasToken) ? "disabled" : "no_token";
+    return { state, devices };
+  } catch (error) {
+    return { state: "network", devices: [], detail: error.name === "AbortError" ? "zaman aşımı" : "bağlantı hatası" };
+  }
+};
+
 const sendViaFcm = async (fcmToken, message, data) => {
   if (!fcmToken) return false;
   // firebase-admin yalnızca gerçekten token varsa yüklenir

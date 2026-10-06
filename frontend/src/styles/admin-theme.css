@@ -2801,6 +2801,81 @@ body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok:hover {
 .admin-layout .push-actions .ui-hint {
   flex: 1 1 240px;
 }
+/* Kurulum denetimi sonucu */
+.admin-layout .push-check-form {
+  display: flex;
+  gap: 8px;
+}
+.admin-layout .push-check-form .ui-field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.admin-layout .push-check {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--ui-line);
+  border-radius: 14px;
+  background: var(--ui-surface-2);
+}
+.admin-layout .push-check--ok {
+  border-color: #b9e2c8;
+  background: #eefaf2;
+}
+.admin-layout .push-check--bad {
+  border-color: #f2c4c4;
+  background: #fdf1f1;
+}
+.admin-layout .push-check-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.admin-layout .push-check-head svg {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+}
+.admin-layout .push-check--ok .push-check-head svg {
+  color: #168a52;
+}
+.admin-layout .push-check--bad .push-check-head svg {
+  color: #d93b3b;
+}
+.admin-layout .push-check-head strong {
+  display: block;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .push-check-head span {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .push-check ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  list-style: disc;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+  line-height: 1.5;
+}
+.admin-layout .push-check-device {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--ui-line);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .push-check-device svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
 /* Telefon kilit ekranı görünümlü önizleme */
 .admin-layout .push-phone {
   display: grid;

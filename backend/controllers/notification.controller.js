@@ -1,7 +1,7 @@
 import User from "../models/user.model.js";
 import Order from "../models/order.model.js";
 import PushBroadcast from "../models/pushBroadcast.model.js";
-import { PUSH_CATEGORIES, isPushConfigured, normalizePreferences, sendPushToUsers } from "../services/push.service.js";
+import { PUSH_CATEGORIES, inspectPushUser, isPushConfigured, normalizePreferences, sendPushToUsers } from "../services/push.service.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DUPLICATE_WINDOW_MS = 10 * 60 * 1000;
@@ -78,6 +78,60 @@ export const getBroadcastOverview = async (_req, res) => {
   }));
   const history = await PushBroadcast.find().sort({ createdAt: -1 }).limit(20).populate("sentBy", "name").lean();
   res.json({ success: true, configured: isPushConfigured(), audiences, history });
+};
+
+// Tanılama sonucunun yöneticiye gösterilen açıklaması ve yapılacaklar
+export const describeDiagnosis = (state, who) => {
+  switch (state) {
+    case "ready": return { ok: true, title: "Bildirim almaya hazır", steps: [`${who} en az bir cihazda bildirim alabiliyor.`] };
+    case "not_found": return { ok: false, title: "Bu hesap OneSignal'da hiç görünmüyor", steps: [
+      "Telefonda uygulamanın güncel sürümünde tam olarak bu hesapla (aynı e-posta) oturum açın; başka bir hesapla girildiyse çıkış yapıp bununla girin.",
+      "Giriş yaptıktan sonra uygulamayı tamamen kapatıp yeniden açın, bir dakika bekleyip yeniden denetleyin.",
+      "Sonuç değişmezse telefondaki sürüm bildirim desteği olmayan eski bir derleme olabilir.",
+    ] };
+    case "no_subscription": return { ok: false, title: "Hesap tanınıyor ama telefon bildirim aboneliği oluşturmamış", steps: [
+      "Telefonun Ayarlar > Bildirimler bölümünde Benim Marketim için bildirimlere izin verin.",
+      "iPhone için: OneSignal panelinde Settings > Push & In-App > Apple iOS (APNs) ayarının yapılmış olması gerekir (.p8 anahtarı, Team ID ve paket adı com.jupi.benimmarketim). Bu ayar yoksa hiçbir iPhone bildirim alamaz.",
+    ] };
+    case "no_token": return { ok: false, title: "Telefon, bildirim adresini alamamış", steps: [
+      "iPhone için: OneSignal panelinde Settings > Push & In-App > Apple iOS (APNs) ayarını kontrol edin (.p8 anahtarı, Key ID, Team ID, paket adı com.jupi.benimmarketim).",
+      "Apple Developer hesabında uygulama kimliğinde Push Notifications yetkisinin açık olduğunu doğrulayın.",
+      "Android için: OneSignal panelinde Google Android (FCM) ayarının yapılmış olması gerekir.",
+    ] };
+    case "disabled": return { ok: false, title: "Telefonda bildirim izni kapalı", steps: [
+      "Telefonun Ayarlar > Bildirimler bölümünde Benim Marketim için bildirimleri açın, ardından uygulamayı kapatıp yeniden açın.",
+    ] };
+    case "auth": return { ok: false, title: "OneSignal anahtarı kabul edilmedi", steps: ["Sunucudaki ONESIGNAL_REST_API_KEY ve ONESIGNAL_APP_ID değerlerinin aynı OneSignal uygulamasına ait olduğunu kontrol edin ve sunucuyu yeniden başlatın."] };
+    case "not_configured": return { ok: false, title: "Bildirim servisi yapılandırılmamış", steps: ["Sunucu ayarlarına OneSignal anahtarlarını ekleyip sunucuyu yeniden başlatın."] };
+    case "network": return { ok: false, title: "OneSignal'a ulaşılamadı", steps: ["Sunucunun internet bağlantısını kontrol edip birkaç dakika sonra tekrar deneyin."] };
+    default: return { ok: false, title: "OneSignal isteği reddetti", steps: ["Sunucu ayarlarındaki OneSignal bilgilerini kontrol edin."] };
+  }
+};
+
+// GET /api/notifications/broadcasts/diagnose?email=...
+// Bir hesabın bildirim alıp alamadığını ve alamıyorsa nedenini gösterir. E-posta verilmezse yöneticinin kendi hesabı denetlenir.
+export const diagnosePush = async (req, res) => {
+  const email = String(req.query?.email || "").trim().toLowerCase();
+  let target = req.user;
+  if (email) {
+    target = await User.findOne({ email }).select("_id name email pushNotificationsEnabled notificationPreferences").lean();
+    if (!target) return res.status(404).json({ success: false, message: "Bu e-posta ile kayıtlı hesap bulunamadı." });
+  }
+  const who = email ? `${target.name || target.email}` : "Hesabınız";
+  const result = await inspectPushUser(target._id);
+  const diagnosis = describeDiagnosis(result.state, who);
+  const preferences = normalizePreferences(target);
+  const optedOut = target.pushNotificationsEnabled === false || preferences.campaigns === false;
+  if (optedOut) diagnosis.steps = [...diagnosis.steps, "Bu hesapta uygulama içi bildirim ayarlarında bildirimler ya da kampanya bildirimleri kapalı; toplu bildirimler bu hesaba gönderilmez."];
+  res.json({
+    success: true,
+    account: { name: target.name || "", email: target.email || "" },
+    state: result.state,
+    ready: diagnosis.ok && !optedOut,
+    title: diagnosis.ok && optedOut ? "Cihaz hazır ama hesapta kampanya bildirimleri kapalı" : diagnosis.title,
+    steps: diagnosis.steps,
+    devices: result.devices,
+  });
 };
 
 export const sendBroadcast = async (req, res) => {

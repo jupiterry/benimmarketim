@@ -10,6 +10,7 @@ import {
   commitCouponUsage,
   dispatchOrderNotifications,
 } from "../services/order.service.js";
+import { applyCartSync, normalizeSyncedCart } from "../services/cartSync.service.js";
 
 // ─────────────────────────────────────────────────────────────────
 // #12 — Sipariş saatleri: Redis-based cache (PM2 cluster uyumlu)
@@ -211,6 +212,22 @@ export const getCartProducts = async (req, res) => {
   } catch (error) {
     console.error("getCartProducts hatası:", error.message);
     res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// ─────────────────────────────────────────────
+// Mobil uygulamadaki sepeti sunucuya eşitle (ayrıntı: services/cartSync.service.js)
+// PUT /api/cart/sync  { items: [{ productId, quantity }] }
+// ─────────────────────────────────────────────
+export const syncCart = async (req, res) => {
+  try {
+    const items = normalizeSyncedCart(req.body?.items);
+    if (!items) return res.status(400).json({ success: false, message: "Sepet içeriği okunamadı" });
+    const changed = await applyCartSync(req.user, items);
+    res.json({ success: true, changed, count: items.length });
+  } catch (error) {
+    console.error("syncCart hatası:", error.message);
+    res.status(500).json({ success: false, message: "Sepet eşitlenemedi" });
   }
 };
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, FlaskConical, RefreshCw, RotateCcw, Send, Users } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FlaskConical, RefreshCw, RotateCcw, Send, Smartphone, Stethoscope, Users } from "lucide-react";
 import toast from "react-hot-toast";
 import axios from "../lib/axios";
 import { useConfirm } from "./ConfirmModal";
@@ -40,6 +40,10 @@ export default function PushBroadcastTab() {
   const [testing, setTesting] = useState(false);
   // Son gönderim denemesinin hatası; bildirim balonu kaybolsa da ekranda kalır
   const [failure, setFailure] = useState("");
+  // Kurulum denetimi: bir hesabın bildirim alıp alamadığı ve alamıyorsa nedeni
+  const [checking, setChecking] = useState(false);
+  const [checkEmail, setCheckEmail] = useState("");
+  const [diagnosis, setDiagnosis] = useState(null);
   const [form, setForm] = useState({ title: "", body: "", audience: "all", target: "home" });
 
   const load = useCallback(async () => {
@@ -64,6 +68,21 @@ export default function PushBroadcastTab() {
   const busy = sending || testing;
   const canSend = overview.configured && !busy && title && body && (audience?.reachable || 0) > 0;
   const canTest = overview.configured && !busy && title && body;
+
+  const runDiagnosis = async (event) => {
+    event?.preventDefault();
+    if (checking) return;
+    try {
+      setChecking(true);
+      const email = checkEmail.trim();
+      const { data } = await axios.get("/notifications/broadcasts/diagnose", { params: email ? { email } : {} });
+      setDiagnosis(data);
+    } catch (error) {
+      setDiagnosis({ ready: false, title: "Denetim yapılamadı", steps: [error.response?.data?.message || "Sunucuya ulaşılamadı. Lütfen tekrar deneyin."], devices: [], account: null });
+    } finally {
+      setChecking(false);
+    }
+  };
 
   const applyTemplate = (template) => {
     setForm((current) => ({ ...current, title: template.title, body: template.body, target: template.target }));
@@ -269,6 +288,48 @@ export default function PushBroadcastTab() {
                 </div>
                 <span className="push-phone-target">Dokununca: {TARGETS.find((target) => target.id === form.target)?.label}</span>
               </div>
+            </div>
+          </section>
+
+          <section className="ui-panel" aria-label="Kurulum denetimi">
+            <div className="ui-panel-head">
+              <h2>Kurulum denetimi</h2>
+            </div>
+            <div className="ui-panel-body ui-stack">
+              <p className="ui-hint" style={{ marginTop: 0 }}>
+                Bir hesabın telefonuna bildirim gidip gitmeyeceğini, gitmiyorsa nedenini gösterir. Boş bırakırsanız kendi hesabınız denetlenir. Bildirim gönderilmez.
+              </p>
+              <form className="push-check-form" onSubmit={runDiagnosis}>
+                <input className="ui-field" type="email" value={checkEmail} placeholder="Müşteri e-postası (isteğe bağlı)" aria-label="Denetlenecek hesabın e-postası"
+                  onChange={(event) => setCheckEmail(event.target.value)} />
+                <button type="submit" className="ui-btn" disabled={checking}>
+                  <Stethoscope />
+                  {checking ? "Denetleniyor…" : "Denetle"}
+                </button>
+              </form>
+              {diagnosis && (
+                <div className={`push-check ${diagnosis.ready ? "push-check--ok" : "push-check--bad"}`} role="status">
+                  <div className="push-check-head">
+                    {diagnosis.ready ? <CheckCircle2 /> : <AlertTriangle />}
+                    <div>
+                      <strong>{diagnosis.title}</strong>
+                      {diagnosis.account?.email && <span>{diagnosis.account.name ? `${diagnosis.account.name} · ` : ""}{diagnosis.account.email}</span>}
+                    </div>
+                  </div>
+                  {diagnosis.steps?.length > 0 && (
+                    <ul>
+                      {diagnosis.steps.map((step) => <li key={step}>{step}</li>)}
+                    </ul>
+                  )}
+                  {diagnosis.devices?.map((device, index) => (
+                    <div className="push-check-device" key={`${device.platform}-${index}`}>
+                      <Smartphone />
+                      <span className="ui-grow">{device.platform}{device.model ? ` · ${device.model}` : ""}{device.appVersion ? ` · sürüm ${device.appVersion}` : ""}</span>
+                      <span className={`ui-badge ${device.enabled ? "ui-badge--ok" : "ui-badge--danger"}`}>{device.enabled ? "Bildirim açık" : device.hasToken ? "İzin kapalı" : "Adres alınamamış"}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </section>
 
