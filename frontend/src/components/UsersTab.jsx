@@ -23,7 +23,8 @@ const APP_PERIODS = [
   { id: 'week', label: 'Son 7 gün' },
   { id: 'month', label: 'Son 30 gün' },
 ];
-const APP_ONLINE_MS = 5 * 60 * 1000;
+// Sunucu uygulamanın kapandığını göremez; son istekten bu kadar sonra "uygulamada" sayılmaz.
+const APP_ONLINE_MS = 2 * 60 * 1000;
 const toMs = (value) => (value ? new Date(value).getTime() : 0);
 const appPeriodStart = (period) => {
   if (period === 'today') return new Date().setHours(0, 0, 0, 0);
@@ -467,6 +468,12 @@ const UsersTab = ({ users, loading, error, onRefresh, onOpenChat }) => {
   const [loadingBest, setLoadingBest] = useState(false);
   const [appPeriod, setAppPeriod] = useState("today");
   const [appFilter, setAppFilter] = useState(null);
+  // "Şu an uygulamada" bilgisi zamana bağlıdır; yeni veri gelmese de 20 saniyede bir yeniden hesaplanır
+  const [clock, setClock] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setClock(value => value + 1), 20000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     fetchBestCustomers();
@@ -565,7 +572,7 @@ const UsersTab = ({ users, loading, error, onRefresh, onOpenChat }) => {
       { id: 'noOrder', label: 'Açtı, sipariş vermedi', value: count('noOrder'), tone: 'warn' },
       { id: 'notOpened', label: 'Hiç açmadı', value: count('notOpened') },
     ];
-  }, [users, appSince]);
+  }, [users, appSince, clock]);
 
   const filteredUsers = useMemo(() => {
     let result = users.filter(u => {
@@ -584,7 +591,7 @@ const UsersTab = ({ users, loading, error, onRefresh, onOpenChat }) => {
       return aVal < bVal ? 1 : -1;
     });
     return result;
-  }, [users, searchTerm, filterRole, sortBy, sortDir, appFilter, appSince]);
+  }, [users, searchTerm, filterRole, sortBy, sortDir, appFilter, appSince, clock]);
 
   const stats = {
     total: users.length,

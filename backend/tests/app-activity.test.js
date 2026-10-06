@@ -52,12 +52,13 @@ test("the first request after a long pause starts a visit and notifies the panel
   const later = new Date(start.getTime() + 10 * 60_000);
   assert.deepEqual(await recordAppActivity(user, null, { io, now: later }), { newVisit: false });
   assert.equal(state.lastSeenAt, later);
-  assert.equal(io.sent.length, 1);
+  assert.deepEqual(io.sent.map((item) => item.event), ["appOpened", "appSeen"]);
+  assert.deepEqual(io.sent[1].payload, { userId: user._id, lastSeenAt: later.toISOString() });
 
   // 30 dakikadan uzun aradan sonra yeni ziyaret ve yeni bildirim
   const again = new Date(later.getTime() + VISIT_GAP_MS + 1000);
   assert.deepEqual(await recordAppActivity(user, null, { io, now: again }), { newVisit: true });
-  assert.equal(io.sent.length, 2);
+  assert.equal(io.sent.filter((item) => item.event === "appOpened").length, 2);
   assert.equal(state.visitCount, 2);
 });
 
@@ -71,7 +72,8 @@ test("funnel steps are stamped even right after another request", async (t) => {
   const order = new Date(start.getTime() + 9000);
   await recordAppActivity(user, "order", { io, now: order });
   assert.equal(state.orderAt, order);
-  assert.equal(io.sent.length, 1);
+  assert.equal(io.sent.filter((item) => item.event === "appOpened").length, 1);
+  assert.deepEqual(io.sent.at(-1), { room: "adminRoom", event: "appSeen", payload: { userId: user._id, lastSeenAt: order.toISOString(), orderAt: order.toISOString() } });
   assert.equal(await recordAppActivity(user, "bilinmeyen", { io, now: order }), null);
 });
 

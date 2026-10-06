@@ -370,6 +370,18 @@ const AdminPage = () => {
       }
       toast(`${customer} uygulamayı açtı`, { id: key, icon: "📱", duration: 4000, position: "top-right" });
     };
+    // Açık ziyaret sürerken gelen sessiz güncelleme: son görülme ve huni adımları
+    const handleAppSeen = (data) => {
+      if (!data?.userId) return;
+      const { userId, ...fields } = data;
+      setUsers((current) =>
+        current.map((item) =>
+          item._id === userId
+            ? { ...item, appActivity: { ...item.appActivity, ...fields } }
+            : item,
+        ),
+      );
+    };
     const handleNewOrder = (data) => {
       if (!data?.order || data.order.id === "test") return;
 
@@ -475,6 +487,7 @@ const AdminPage = () => {
     socket.on("SupportRequestCreated", handleSupportRequest);
     socket.on("newChatMessage", handleChatMessage);
     socket.on("appOpened", handleAppOpened);
+    socket.on("appSeen", handleAppSeen);
     if (socket.connected) joinAdminRoom();
 
     if ("Notification" in window && Notification.permission === "default") {
@@ -487,6 +500,7 @@ const AdminPage = () => {
       socket.off("SupportRequestCreated", handleSupportRequest);
       socket.off("newChatMessage", handleChatMessage);
       socket.off("appOpened", handleAppOpened);
+      socket.off("appSeen", handleAppSeen);
       window.__adminGlobalOrderNotifications = false;
     };
   }, [user?.role, user?.accessToken]);

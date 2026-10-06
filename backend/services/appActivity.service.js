@@ -8,6 +8,7 @@ import User from "../models/user.model.js";
 //    yönetici paneline `appOpened` olayı gönderilir.
 //  - "checkout": sepet / sipariş ekranı açılırken yapılan kampanya sorgusu.
 //  - "order": uygulamadan verilen sipariş.
+// Aynı ziyaret içindeki sonraki istekler panele sessiz bir `appSeen` olayıyla bildirilir.
 //
 // Oturum açmamış ziyaretçiler tanınamadığı için izlenmez. Hiçbir hata, çağıran
 // isteği etkilemez.
@@ -62,6 +63,12 @@ export const recordAppActivity = async (user, stage = null, { io = null, now = n
 
   if (!started) {
     await User.updateOne({ _id: user._id }, { $set: set }, { timestamps: false });
+    // Panel "şu an uygulamada" bilgisini ve adımları yenilemeden güncel tutar
+    io?.to("adminRoom").emit("appSeen", {
+      userId,
+      lastSeenAt: now.toISOString(),
+      ...(stage ? { [`${stage}At`]: now.toISOString() } : {}),
+    });
     return { newVisit: false };
   }
 
