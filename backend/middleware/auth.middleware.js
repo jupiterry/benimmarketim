@@ -1,6 +1,7 @@
 // backend/middleware/auth.middleware.js
 import jwt from "jsonwebtoken";
 import User from "../models/user.model.js"; // Kullanıcı modeliniz
+import { noteAppRequest } from "../services/appActivity.service.js";
 
 export const protectRoute = async (req, res, next) => {
   try {
@@ -23,6 +24,8 @@ export const protectRoute = async (req, res, next) => {
       }
 
       req.user = user;
+      // Mobil uygulamadan gelen isteklerde "uygulamayı açtı" kaydı (yanıtı bekletmez)
+      noteAppRequest(req);
 
       next();
     } catch (error) {

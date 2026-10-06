@@ -101,6 +101,15 @@ const userSchema = new mongoose.Schema(
 			type: String,
 			enum: ["desktop", "mobile", "tablet", "unknown"],
 			default: "unknown"
+		},
+		// Mobil uygulama kullanımı (services/appActivity.service.js doldurur).
+		// Bir "ziyaret", 30 dakikadan uzun aradan sonra gelen ilk istekle başlar.
+		appActivity: {
+			visitStartedAt: { type: Date, default: null },
+			lastSeenAt: { type: Date, default: null },
+			checkoutAt: { type: Date, default: null },
+			orderAt: { type: Date, default: null },
+			visitCount: { type: Number, default: 0 },
 		}
 	},
 	{

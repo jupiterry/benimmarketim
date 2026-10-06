@@ -3423,3 +3423,42 @@ body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok:hover {
     display: none;
   }
 }
+
+/* ── Kullanıcılar: mobil uygulama takibi ─────────────────────────────────── */
+.admin-layout .users-cols {
+  grid-template-columns: minmax(220px, 2.4fr) 100px minmax(150px, 1.2fr) minmax(170px, 1.1fr) 140px;
+}
+.admin-layout .app-track {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+.admin-layout .app-track-tile {
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: none;
+  transition: border-color 0.15s var(--ui-ease), background 0.15s var(--ui-ease);
+}
+.admin-layout .app-track-tile:hover {
+  border-color: var(--ui-line-strong);
+}
+.admin-layout .app-track-tile[aria-pressed="true"] {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand-soft);
+}
+.admin-layout .app-track-tile:focus-visible {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: 2px;
+}
+.admin-layout .app-track-active {
+  padding-block: 10px;
+  border-bottom: 1px solid var(--ui-line);
+}
+.admin-layout .app-track-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}

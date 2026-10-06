@@ -16,6 +16,57 @@ const getDeviceIcon = (type) => {
 
 const getDeviceName = (type) => ({ desktop: 'Bilgisayar', mobile: 'Telefon', tablet: 'Tablet' }[type] || 'Bilinmiyor');
 
+// ── Mobil uygulama takibi ────────────────────────────────────────────
+// Veriler backend/services/appActivity.service.js tarafından doldurulur.
+const APP_PERIODS = [
+  { id: 'today', label: 'Bugün' },
+  { id: 'week', label: 'Son 7 gün' },
+  { id: 'month', label: 'Son 30 gün' },
+];
+const APP_ONLINE_MS = 5 * 60 * 1000;
+const toMs = (value) => (value ? new Date(value).getTime() : 0);
+const appPeriodStart = (period) => {
+  if (period === 'today') return new Date().setHours(0, 0, 0, 0);
+  return Date.now() - (period === 'week' ? 7 : 30) * 86400000;
+};
+// 0: dönemde açmadı · 1: açtı · 2: sepet / sipariş ekranına girdi · 3: sipariş verdi
+const getAppStage = (user, since) => {
+  const activity = user.appActivity;
+  if (!activity || toMs(activity.lastSeenAt) < since) return 0;
+  if (toMs(activity.orderAt) >= since) return 3;
+  if (toMs(activity.checkoutAt) >= since) return 2;
+  return 1;
+};
+const isInAppNow = (user) => Date.now() - toMs(user.appActivity?.lastSeenAt) < APP_ONLINE_MS;
+const APP_STAGE_BADGES = {
+  1: { label: 'Açtı, baktı', tone: 'info' },
+  2: { label: 'Siparişe geldi, vermedi', tone: 'warn' },
+  3: { label: 'Sipariş verdi', tone: 'ok' },
+};
+const APP_FILTERS = {
+  now: (user) => isInAppNow(user),
+  opened: (user, since) => getAppStage(user, since) >= 1,
+  checkout: (user, since) => getAppStage(user, since) >= 2,
+  ordered: (user, since) => getAppStage(user, since) === 3,
+  noOrder: (user, since) => [1, 2].includes(getAppStage(user, since)),
+  notOpened: (user, since) => getAppStage(user, since) === 0,
+};
+const formatDateTime = (value) => `${new Date(value).toLocaleDateString('tr-TR')} ${new Date(value).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`;
+
+const AppStatus = ({ user, since }) => {
+  const lastSeen = user.appActivity?.lastSeenAt;
+  if (!lastSeen) return null;
+  const badge = APP_STAGE_BADGES[getAppStage(user, since)];
+  return (
+    <span className="app-track-cell">
+      {badge && <span className={`ui-badge ui-badge--${badge.tone}`}>{badge.label}</span>}
+      <span className="ui-text-sm ui-muted ui-num">
+        {isInAppNow(user) ? <><span className="ui-dot ui-dot--ok" /> Şu an uygulamada</> : `Uygulama: ${formatDateTime(lastSeen)}`}
+      </span>
+    </span>
+  );
+};
+
 // Stat Card Component
 const StatCard = ({ label, value, tone }) => (
   <div className="ui-stat">
@@ -154,6 +205,27 @@ const UserDetailModal = ({ user, onClose, orders, chats, onOpenChat }) => {
               ) : (
                 <dd className="ui-muted">-</dd>
               )}
+            </div>
+            {/* Mobil uygulama takibi */}
+            <div>
+              <dt>Uygulamada son görülme</dt>
+              {user.appActivity?.lastSeenAt ? (
+                <dd>{isInAppNow(user) ? 'Şu an uygulamada' : formatDateTime(user.appActivity.lastSeenAt)}</dd>
+              ) : (
+                <dd className="ui-muted">Kayıt yok</dd>
+              )}
+            </div>
+            <div>
+              <dt>Uygulama ziyareti</dt>
+              <dd className="ui-num">{user.appActivity?.visitCount || 0}</dd>
+            </div>
+            <div>
+              <dt>Sepet / sipariş ekranı</dt>
+              {user.appActivity?.checkoutAt ? <dd>{formatDateTime(user.appActivity.checkoutAt)}</dd> : <dd className="ui-muted">-</dd>}
+            </div>
+            <div>
+              <dt>Uygulamadan son sipariş</dt>
+              {user.appActivity?.orderAt ? <dd>{formatDateTime(user.appActivity.orderAt)}</dd> : <dd className="ui-muted">-</dd>}
             </div>
           </dl>
 
@@ -316,7 +388,7 @@ const PasswordModal = ({ user, onClose }) => {
 };
 
 // User Row Component
-const UserRow = ({ user, selected, onSelect, onView, onEdit, onResetPw, onDelete }) => (
+const UserRow = ({ user, appSince, selected, onSelect, onView, onEdit, onResetPw, onDelete }) => (
   <div className="ui-list-row users-cols" data-selected={selected}>
     <div className="products-product">
       {/* Checkbox */}
@@ -362,8 +434,11 @@ const UserRow = ({ user, selected, onSelect, onView, onEdit, onResetPw, onDelete
     </div>
 
     <div>
-      <span className="ui-cell-label">Cihaz</span>
-      {user.deviceType ? <span className="ui-badge" title={getDeviceName(user.deviceType)}>{getDeviceIcon(user.deviceType)} {getDeviceName(user.deviceType)}</span> : <span className="ui-muted">-</span>}
+      <span className="ui-cell-label">Cihaz / Uygulama</span>
+      <div className="app-track-cell">
+        {user.deviceType ? <span className="ui-badge" title={getDeviceName(user.deviceType)}>{getDeviceIcon(user.deviceType)} {getDeviceName(user.deviceType)}</span> : <span className="ui-muted">-</span>}
+        <AppStatus user={user} since={appSince} />
+      </div>
     </div>
 
     {/* Actions */}
@@ -390,6 +465,8 @@ const UsersTab = ({ users, loading, error, onRefresh, onOpenChat }) => {
   const [userOrders, setUserOrders] = useState([]);
   const [userChats, setUserChats] = useState([]);
   const [loadingBest, setLoadingBest] = useState(false);
+  const [appPeriod, setAppPeriod] = useState("today");
+  const [appFilter, setAppFilter] = useState(null);
 
   useEffect(() => {
     fetchBestCustomers();
@@ -474,11 +551,28 @@ const UsersTab = ({ users, loading, error, onRefresh, onOpenChat }) => {
   const selectAll = () => setSelectedUsers(filteredUsers.map(u => u._id));
   const clearSelection = () => setSelectedUsers([]);
 
+  // Liste yenilendiğinde dönem başlangıcı da yeniden hesaplanır
+  const appSince = useMemo(() => appPeriodStart(appPeriod), [appPeriod, users]);
+  // Uygulama takibinde yalnızca müşteriler sayılır (yönetici hesapları izlenmez)
+  const appTiles = useMemo(() => {
+    const customers = users.filter(u => u.role !== 'admin');
+    const count = (id) => customers.filter(u => APP_FILTERS[id](u, appSince)).length;
+    return [
+      { id: 'now', label: 'Şu an uygulamada', value: count('now'), tone: 'ok' },
+      { id: 'opened', label: 'Uygulamayı açtı', value: count('opened') },
+      { id: 'checkout', label: 'Sepet / sipariş ekranına girdi', value: count('checkout') },
+      { id: 'ordered', label: 'Sipariş verdi', value: count('ordered') },
+      { id: 'noOrder', label: 'Açtı, sipariş vermedi', value: count('noOrder'), tone: 'warn' },
+      { id: 'notOpened', label: 'Hiç açmadı', value: count('notOpened') },
+    ];
+  }, [users, appSince]);
+
   const filteredUsers = useMemo(() => {
     let result = users.filter(u => {
       const matchSearch = u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || u.email?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchRole = filterRole === 'all' || u.role === filterRole;
-      return matchSearch && matchRole;
+      const matchApp = !appFilter || (u.role !== 'admin' && APP_FILTERS[appFilter](u, appSince));
+      return matchSearch && matchRole && matchApp;
     });
     result.sort((a, b) => {
       let aVal = a[sortBy], bVal = b[sortBy];
@@ -490,7 +584,7 @@ const UsersTab = ({ users, loading, error, onRefresh, onOpenChat }) => {
       return aVal < bVal ? 1 : -1;
     });
     return result;
-  }, [users, searchTerm, filterRole, sortBy, sortDir]);
+  }, [users, searchTerm, filterRole, sortBy, sortDir, appFilter, appSince]);
 
   const stats = {
     total: users.length,
@@ -511,6 +605,30 @@ const UsersTab = ({ users, loading, error, onRefresh, onOpenChat }) => {
         <StatCard label="Müşteriler" value={stats.customers} />
         <StatCard label="Son 24 Saat Aktif" value={stats.active24h} tone="ok" />
       </div>
+
+      {/* Mobil uygulama takibi */}
+      <section className="ui-card">
+        <div className="ui-card-header">
+          <div>
+            <h3 className="ui-title">Uygulama takibi</h3>
+            <p className="ui-subtitle">Mobil uygulamayı açan müşteriler ve siparişe kadar geldikleri adım. Bir kutuya tıklayınca aşağıdaki liste süzülür.</p>
+          </div>
+          <select value={appPeriod} onChange={e => setAppPeriod(e.target.value)} aria-label="Uygulama takibi dönemi" className="ui-field ui-field--auto">
+            {APP_PERIODS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+          </select>
+        </div>
+        <div className="ui-card-body app-track">
+          {appTiles.map(tile => (
+            <button key={tile.id} type="button" className="ui-stat app-track-tile" aria-pressed={appFilter === tile.id} onClick={() => setAppFilter(appFilter === tile.id ? null : tile.id)}>
+              <span className="ui-stat-label">
+                {tile.tone && <span className={`ui-dot ui-dot--${tile.tone}`} />}
+                {tile.label}
+              </span>
+              <span className="ui-stat-value">{tile.value}</span>
+            </button>
+          ))}
+        </div>
+      </section>
 
       {/* Best Customers */}
       <section className="ui-card">
@@ -555,6 +673,15 @@ const UsersTab = ({ users, loading, error, onRefresh, onOpenChat }) => {
           <button onClick={onRefresh} className="ui-btn" style={{ minHeight: 38 }}><RefreshCw />Yenile</button>
         </div>
 
+        {appFilter && (
+          <div className="ui-card-body ui-cluster app-track-active">
+            <span className="ui-badge ui-badge--brand">{appTiles.find(t => t.id === appFilter)?.label}</span>
+            <span className="ui-text-sm ui-muted">{filteredUsers.length} müşteri{appFilter !== 'now' ? ` · ${APP_PERIODS.find(p => p.id === appPeriod)?.label}` : ''}</span>
+            <span className="ui-grow" />
+            <button onClick={() => setAppFilter(null)} className="ui-btn ui-btn--ghost ui-btn--sm"><X />Süzgeci kaldır</button>
+          </div>
+        )}
+
         {selectedUsers.length > 0 && (
           <div className="ui-bulkbar" style={{ position: "static", border: 0, borderRadius: 0, borderBottom: "1px solid #b9d6c6" }}>
             <span className="ui-bulkbar-count">{selectedUsers.length} kullanıcı seçildi</span>
@@ -568,12 +695,12 @@ const UsersTab = ({ users, loading, error, onRefresh, onOpenChat }) => {
           <div className="ui-cluster"><button onClick={selectAll} className="ui-btn ui-btn--ghost ui-btn--sm" style={{ marginLeft: -8 }}>Tümünü Seç</button></div>
           <div>Rol</div>
           <div>Son giriş</div>
-          <div>Cihaz</div>
+          <div>Cihaz / Uygulama</div>
           <div className="ui-right">İşlemler</div>
         </div>
         <div>
           {filteredUsers.map(user => (
-            <UserRow key={user._id} user={user} selected={selectedUsers.includes(user._id)} onSelect={toggleSelect} onView={handleViewUser} onEdit={setEditUser} onResetPw={setPwUser} onDelete={handleDeleteUser} />
+            <UserRow key={user._id} user={user} appSince={appSince} selected={selectedUsers.includes(user._id)} onSelect={toggleSelect} onView={handleViewUser} onEdit={setEditUser} onResetPw={setPwUser} onDelete={handleDeleteUser} />
           ))}
         </div>
         {filteredUsers.length === 0 && <div className="ui-empty"><Users /><p>Kullanıcı bulunamadı</p></div>}

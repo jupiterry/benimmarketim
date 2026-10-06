@@ -10,6 +10,7 @@ import {
   ShoppingBag,
   Headphones,
   MessageCircle,
+  Smartphone,
   X,
   Plus,
   CalendarDays,
@@ -149,10 +150,17 @@ export default function AdminHeader({
                         <Headphones size={15} />
                       ) : n.kind === "message" ? (
                         <MessageCircle size={15} />
+                      ) : n.kind === "app-open" ? (
+                        <Smartphone size={15} />
                       ) : (
                         <ShoppingBag size={15} />
                       )}
-                      {n.kind === "support" || n.kind === "message" ? (
+                      {n.kind === "app-open" ? (
+                        <span>
+                          <strong>{n.title}</strong>
+                          <small>Mobil uygulama · {String(n.detail || "").slice(0, 60)}</small>
+                        </span>
+                      ) : n.kind === "support" || n.kind === "message" ? (
                         <span>
                           <strong>{n.title}</strong>
                           <small>

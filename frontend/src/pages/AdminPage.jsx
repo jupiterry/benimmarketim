@@ -295,10 +295,15 @@ const AdminPage = () => {
       new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
     const pushNotification = (notification) => {
       setNotifications((current) => {
+        // Uygulama açılışları sık gelir; sipariş ve mesaj bildirimlerini
+        // listeden itmemesi için en yeni 10 tanesi tutulur.
+        let appOpens = 0;
         const next = [
           notification,
           ...current.filter((item) => item.id !== notification.id),
-        ].slice(0, 30);
+        ]
+          .filter((item) => item.kind !== "app-open" || ++appOpens <= 10)
+          .slice(0, 30);
         localStorage.setItem("admin-order-notifications", JSON.stringify(next));
         return next;
       });
@@ -340,6 +345,30 @@ const AdminPage = () => {
       });
       setAdminBadges((current) => ({ ...current, chats: current.chats + 1 }));
       toast(`${sender} yeni mesaj gönderdi`, { id: `message-${data.chatId}`, icon: "💬", duration: 5000, position: "top-right" });
+    };
+    // Müşteri mobil uygulamayı açtı (müşteri başına tek satır, sessiz uyarı)
+    const handleAppOpened = (data) => {
+      if (!data?.userId) return;
+      const customer = data.name || "Müşteri";
+      const key = `app-${data.userId}`;
+      pushNotification({
+        id: key,
+        kind: "app-open",
+        title: customer,
+        detail: "Uygulamayı açtı",
+        userId: String(data.userId),
+        time: nowLabel(),
+      });
+      if (data.appActivity) {
+        setUsers((current) =>
+          current.map((item) =>
+            item._id === data.userId
+              ? { ...item, appActivity: data.appActivity }
+              : item,
+          ),
+        );
+      }
+      toast(`${customer} uygulamayı açtı`, { id: key, icon: "📱", duration: 4000, position: "top-right" });
     };
     const handleNewOrder = (data) => {
       if (!data?.order || data.order.id === "test") return;
@@ -445,6 +474,7 @@ const AdminPage = () => {
     socket.on("newOrder", handleNewOrder);
     socket.on("SupportRequestCreated", handleSupportRequest);
     socket.on("newChatMessage", handleChatMessage);
+    socket.on("appOpened", handleAppOpened);
     if (socket.connected) joinAdminRoom();
 
     if ("Notification" in window && Notification.permission === "default") {
@@ -456,6 +486,7 @@ const AdminPage = () => {
       socket.off("newOrder", handleNewOrder);
       socket.off("SupportRequestCreated", handleSupportRequest);
       socket.off("newChatMessage", handleChatMessage);
+      socket.off("appOpened", handleAppOpened);
       window.__adminGlobalOrderNotifications = false;
     };
   }, [user?.role, user?.accessToken]);
@@ -615,6 +646,7 @@ const AdminPage = () => {
           onClearNotifications={clearNotifications}
           onViewNotifications={(notification) => {
             if (notification?.kind === "support") return setActiveTab("support-queue");
+            if (notification?.kind === "app-open") return setActiveTab("users");
             if (notification?.kind === "message") {
               if (notification.chatId) {
                 const url = new URL(window.location.href);

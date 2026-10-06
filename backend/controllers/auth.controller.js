@@ -5,6 +5,7 @@ import Feedback from "../models/feedback.model.js";
 import jwt from "jsonwebtoken";
 import { sendToN8N } from "../services/n8n.service.js";
 import { processReferralSignup } from "./referral.controller.js";
+import { noteAppRequest } from "../services/appActivity.service.js";
 
 const generateTokens = (userId) => {
 	// Access token artık çok uzun süreli (1 yıl) - kullanıcı kendisi çıkış yapana kadar geçerli
@@ -126,6 +127,9 @@ export const login = async (req, res) => {
 			setCookies(res, accessToken, refreshToken);
 
 			console.log("Login successful, tokens generated"); // Debug log
+
+			// Uygulamadan giriş yapıldıysa yönetici paneline "uygulamayı açtı" bildirimi düşer
+			noteAppRequest(req, null, user);
 
 			// n8n'e kullanıcı girişi webhook'u gönder (asenkron, hata olsa bile ana işlemi engellemez)
 			// n8n'e kullanıcı girişi webhook'u gönder (asenkron, hata olsa bile ana işlemi engellemez)
