@@ -5,7 +5,8 @@ import { PUSH_CATEGORIES, isPushConfigured, normalizePreferences, sendPushToUser
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DUPLICATE_WINDOW_MS = 10 * 60 * 1000;
-const BROADCAST_ROUTES = { home: "/home", cart: "/cart", orders: "/orders", referral: "/referral" };
+// rate: uygulamanın mağaza sayfasını açar (puan ve yorum için)
+const BROADCAST_ROUTES = { home: "/home", cart: "/cart", orders: "/orders", referral: "/referral", rate: "/rate-app" };
 
 export const BROADCAST_AUDIENCES = {
   all: "Tüm müşteriler",

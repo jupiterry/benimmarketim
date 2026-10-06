@@ -62,6 +62,20 @@ const feedbackSchema = new mongoose.Schema(
       enum: ["public", "private"],
       default: "public",
     },
+    // Sipariş sonrası deneyim anketi (1., 5. ve 15. teslim edilen siparişte sorulur)
+    milestone: {
+      type: Number,
+      default: null,
+    },
+    order: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Order",
+      default: null,
+    },
+    tags: {
+      type: [String],
+      default: [],
+    },
   },
   { timestamps: true }
 );

@@ -54,6 +54,12 @@ const AI_SUGGESTIONS = {
   }
 };
 
+// Mobil uygulamadaki sipariş sonrası anketin hazır seçenekleri (backend FEEDBACK_TAGS ile aynı)
+const FEEDBACK_TAG_LABELS = {
+  hizli: "Hızlı geldi", taze: "Ürünler tazeydi", kurye: "Kurye nazikti", fiyat: "Fiyatlar uygundu", kolay: "Uygulama kolaydı",
+  gec: "Geç geldi", eksik: "Eksik ürün vardı", yanlis: "Yanlış ürün geldi", bozuk: "Ürün bozuk/ezikti", pahali: "Fiyatlar yüksekti", uygulama: "Uygulamada sorun yaşadım",
+};
+
 const FeedbackList = () => {
   const [feedbacks, setFeedbacks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -462,6 +468,12 @@ const FeedbackList = () => {
                         </span>
                       </div>
 
+                      {(feedback.milestone || feedback.tags?.length > 0) && (
+                        <div className="ui-cluster" style={{ marginTop: 8 }}>
+                          {feedback.milestone && <span className="ui-badge ui-badge--brand">{feedback.milestone}. sipariş anketi</span>}
+                          {(feedback.tags || []).map((tag) => <span key={tag} className="ui-badge">{FEEDBACK_TAG_LABELS[tag] || tag}</span>)}
+                        </div>
+                      )}
                       {feedback.title && (
                         <h5 className="ui-strong" style={{ marginTop: 8 }}>{feedback.title}</h5>
                       )}

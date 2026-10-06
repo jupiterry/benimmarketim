@@ -12,7 +12,7 @@ const ONESIGNAL_BATCH_SIZE = 2000; // OneSignal bir istekte en fazla 2000 extern
 // Müşterinin ayrı ayrı açıp kapatabildiği bildirim türleri
 export const PUSH_CATEGORIES = ["orders", "messages", "campaigns"];
 // Bildirime dokununca uygulamada açılabilecek ekranlar (mobil taraf da aynı listeyi doğrular)
-const ALLOWED_ROUTE = /^\/(home|cart|orders|referral|photocopy-history|chat(\/[a-f\d]{24})?)$/i;
+const ALLOWED_ROUTE = /^\/(home|cart|orders|referral|photocopy-history|rate-app|chat(\/[a-f\d]{24})?)$/i;
 
 export const isPushConfigured = () => Boolean(process.env.ONESIGNAL_REST_API_KEY && process.env.ONESIGNAL_APP_ID);
 

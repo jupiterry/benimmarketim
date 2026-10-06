@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import axios from "../lib/axios";
 import {
   Search, Package2, ChevronLeft, ChevronRight, RefreshCw, Printer, SlidersHorizontal, X,
@@ -88,15 +88,38 @@ const StatusBadge = ({ status }) => {
   );
 };
 
+// Liste ve detayda kullanılan görsel yardımcılar
+const STATUS_FLOW = ["Hazırlanıyor", "Yolda", "Teslim Edildi"];
+
+const getInitials = (name) =>
+  String(name || "").trim().split(/\s+/).filter(Boolean).slice(0, 2)
+    .map((part) => part.charAt(0).toLocaleUpperCase("tr-TR")).join("") || "?";
+
+const formatOrderClock = (createdAt) => {
+  const date = new Date(createdAt);
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+};
+
+// Listeyi günlere ayıran başlık: "Bugün", "Dün" veya "4 Ekim Cumartesi"
+const getDayLabel = (createdAt) => {
+  const date = new Date(createdAt);
+  if (Number.isNaN(date.getTime())) return "Tarih yok";
+  const startOfDay = (value) => new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
+  const dayDiff = Math.round((startOfDay(new Date()) - startOfDay(date)) / 86400000);
+  if (dayDiff === 0) return "Bugün";
+  if (dayDiff === 1) return "Dün";
+  return date.toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "long" });
+};
+
 const getPlatformLabel = (platform) =>
   platform === "ios" ? "iOS" : platform === "android" ? "Android" : "Web";
 
-// Liste satırı: tek satırda müşteri, teslimat, süre, durum ve tutar
+// Liste satırı: müşteri (avatar, sipariş no, teslimat noktası), süre, durum ve tutar
 const OrderRow = ({ order, active, selected, onSelectChange, onOpen }) => {
   const warningLevel = getWarningLevel(order.createdAt, order.status);
 
   return (
-    <div className="ord-row" data-active={active} data-checked={selected}>
+    <div className="ord-row" data-active={active} data-checked={selected} data-tone={STATUS_UI[order.status]?.tone}>
       <input
         type="checkbox"
         checked={selected}
@@ -109,17 +132,17 @@ const OrderRow = ({ order, active, selected, onSelectChange, onOpen }) => {
         aria-label={`${order.user?.name || "Müşteri"} siparişinin detayını aç`}
         aria-current={active ? "true" : undefined}
       >
+        <span className="ord-avatar" aria-hidden="true">{getInitials(order.user?.name)}</span>
         <span className="ord-c-customer">
           <strong>
             <span>{order.user?.name}</span>
             {order.isFirstOrder && <span className="ui-badge ui-badge--brand">Yeni</span>}
           </strong>
           <small>
-            #{order.orderId.slice(-6).toUpperCase()} · {order.products?.length || 0} ürün
+            <span className="ui-mono">#{order.orderId.slice(-6).toUpperCase()}</span>
+            <span>{order.products?.length || 0} ürün</span>
+            <span className="ord-c-point"><MapPin />{order.deliveryPointName || order.city || "Belirtilmemiş"}</span>
           </small>
-        </span>
-        <span className="ord-c-point">
-          {order.deliveryPointName || order.city || "Belirtilmemiş"}
         </span>
         <span className="ord-c-time" data-level={warningLevel || undefined} title="Sipariş süresi">
           {warningLevel ? <AlertCircle /> : <Timer />}
@@ -128,7 +151,10 @@ const OrderRow = ({ order, active, selected, onSelectChange, onOpen }) => {
         <span className="ord-c-status">
           <StatusBadge status={order.status} />
         </span>
-        <span className="ord-c-total">₺{order.totalAmount?.toFixed(2)}</span>
+        <span className="ord-c-total">
+          <strong>₺{order.totalAmount?.toFixed(2)}</strong>
+          <small>{formatOrderClock(order.createdAt)}</small>
+        </span>
       </button>
     </div>
   );
@@ -142,7 +168,8 @@ const OrderDetail = ({ order, onClose, onStatusUpdate, onDeliveryTracking, onPri
   return (
     <>
       <div className="ord-d-head">
-        <div>
+        <span className="ord-avatar ord-avatar--lg" aria-hidden="true">{getInitials(order.user?.name)}</span>
+        <div className="ord-d-title">
           <h2>
             {order.user?.name}
             {order.isFirstOrder && <span className="ui-badge ui-badge--brand">Yeni</span>}
@@ -171,10 +198,12 @@ const OrderDetail = ({ order, onClose, onStatusUpdate, onDeliveryTracking, onPri
               </span>
             )}
           </div>
-          <div className="ui-segmented" role="group" aria-label="Sipariş durumunu değiştir">
+          <div className="ord-steps" role="group" aria-label="Sipariş durumunu değiştir" data-cancelled={order.status === "İptal Edildi"}>
             {ORDER_STATUSES.map(status => {
               const ui = STATUS_UI[status];
               const Icon = ui.icon;
+              const stepIndex = STATUS_FLOW.indexOf(status);
+              const currentIndex = STATUS_FLOW.indexOf(order.status);
               return (
                 <button
                   key={status}
@@ -182,8 +211,10 @@ const OrderDetail = ({ order, onClose, onStatusUpdate, onDeliveryTracking, onPri
                   title={`${status} olarak güncelle`}
                   aria-pressed={order.status === status}
                   data-tone={ui.tone}
+                  data-step={stepIndex === -1 ? "cancel" : stepIndex < currentIndex ? "done" : stepIndex === currentIndex ? "current" : "todo"}
                 >
-                  <Icon /> {ui.short}
+                  <span className="ord-step-dot"><Icon /></span>
+                  <span className="ord-step-label">{ui.short}</span>
                 </button>
               );
             })}
@@ -205,8 +236,8 @@ const OrderDetail = ({ order, onClose, onStatusUpdate, onDeliveryTracking, onPri
         <section className="ord-d-section">
           <h3 className="ui-overline">Müşteri ve teslimat</h3>
           <dl className="ord-d-facts">
-            <div><dt><Mail /> E-posta</dt><dd>{order.user?.email || "E-posta yok"}</dd></div>
-            <div><dt><Phone /> Telefon</dt><dd>{order.phone || order.user?.phone || '-'}</dd></div>
+            <div><dt><Mail /> E-posta</dt><dd>{order.user?.email ? <a className="ui-link" href={`mailto:${order.user.email}`}>{order.user.email}</a> : "E-posta yok"}</dd></div>
+            <div><dt><Phone /> Telefon</dt><dd>{(order.phone || order.user?.phone) ? <a className="ui-link ui-num" href={`tel:${order.phone || order.user?.phone}`}>{order.phone || order.user?.phone}</a> : '-'}</dd></div>
             <div><dt><MapPin /> Teslimat</dt><dd>{order.deliveryPointName || order.deliveryPoint || order.city || 'Belirtilmemiş'}</dd></div>
             <div><dt><Calendar /> Sipariş zamanı</dt><dd>{formatOrderDate(order.createdAt)}</dd></div>
           </dl>
@@ -964,38 +995,44 @@ const OrdersList = () => {
         const pendingOrders = todayOrders.filter(o => o.status === 'Hazırlanıyor').length;
 
         return (
-          <section className="ui-metrics ord-metrics" aria-label="Sipariş özeti">
-            <div className="ui-metric">
-              <span className="ui-metric-label">Bugün</span>
-              <strong className="ui-metric-value">{todayOrders.length} <small>sipariş</small></strong>
-              <span className="ui-metric-note">
-                {pendingOrders > 0 ? `${pendingOrders} bekliyor` : "Bekleyen yok"}
-              </span>
+          <section className="ord-overview" aria-label="Sipariş özeti">
+            <div className="ord-today">
+              <span className="ord-today-label">Bugün</span>
+              <strong className="ord-today-value">{todayOrders.length} <small>sipariş</small></strong>
+              <dl className="ord-today-facts">
+                <div><dt>Ciro</dt><dd>₺{todayRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</dd></div>
+                <div><dt>Ort. sepet</dt><dd>₺{avgOrderValue.toFixed(0)}</dd></div>
+                <div><dt>Bekleyen</dt><dd>{pendingOrders > 0 ? pendingOrders : "Yok"}</dd></div>
+              </dl>
             </div>
-            <div className="ui-metric">
-              <span className="ui-metric-label">Bugünkü ciro</span>
-              <strong className="ui-metric-value">₺{todayRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</strong>
-              <span className="ui-metric-note">₺{avgOrderValue.toFixed(0)} ort. sepet</span>
-            </div>
-            <div className="ui-metric">
-              <span className="ui-metric-label"><i className="ui-dot ui-dot--warn" />Hazırlanıyor</span>
-              <strong className="ui-metric-value">{stats.preparing}</strong>
-            </div>
-            <div className="ui-metric">
-              <span className="ui-metric-label"><i className="ui-dot ui-dot--info" />Yolda</span>
-              <strong className="ui-metric-value">{stats.onWay}</strong>
-            </div>
-            <div className="ui-metric">
-              <span className="ui-metric-label"><i className="ui-dot ui-dot--ok" />Teslim Edildi</span>
-              <strong className="ui-metric-value">{stats.delivered}</strong>
-            </div>
-            <div className="ui-metric">
-              <span className="ui-metric-label"><i className="ui-dot ui-dot--danger" />İptal Edildi</span>
-              <strong className="ui-metric-value">{stats.cancelled}</strong>
-            </div>
-            <div className="ui-metric">
-              <span className="ui-metric-label">Toplam Sipariş</span>
-              <strong className="ui-metric-value">{stats.total}</strong>
+            <div className="ord-flow">
+              <div className="ord-flow-head">
+                <span className="ui-overline">Sipariş akışı</span>
+                <span className="ord-flow-total"><strong className="ui-num">{stats.total}</strong> sipariş</span>
+              </div>
+              <ol className="ord-flow-steps">
+                {[
+                  { status: "Hazırlanıyor", count: stats.preparing },
+                  { status: "Yolda", count: stats.onWay },
+                  { status: "Teslim Edildi", count: stats.delivered },
+                  { status: "İptal Edildi", count: stats.cancelled },
+                ].map(({ status, count }) => {
+                  const ui = STATUS_UI[status];
+                  const Icon = ui.icon;
+                  const share = stats.total > 0 ? Math.round((count / stats.total) * 100) : 0;
+                  return (
+                    <li key={status} className="ord-flow-step" data-tone={ui.tone} data-empty={count === 0}>
+                      <span className="ord-flow-icon"><Icon /></span>
+                      <span className="ord-flow-text">
+                        <strong className="ui-num">{count}</strong>
+                        <span>{status}</span>
+                      </span>
+                      <span className="ord-flow-bar" aria-hidden="true"><i style={{ width: `${share}%` }} /></span>
+                      <span className="ord-flow-share ui-num">%{share}</span>
+                    </li>
+                  );
+                })}
+              </ol>
             </div>
           </section>
         );
@@ -1143,7 +1180,6 @@ const OrdersList = () => {
             ) : (
               <div className="ord-cols" aria-hidden="true">
                 <span>Müşteri</span>
-                <span>Teslimat</span>
                 <span>Süre</span>
                 <span>Durum</span>
                 <span>Tutar</span>
@@ -1152,16 +1188,22 @@ const OrdersList = () => {
           </div>
 
           {currentOrders.length > 0 ? (
-            currentOrders.map((order) => (
-              <OrderRow
-                key={order.orderId}
-                order={order}
-                active={detailOrder?.orderId === order.orderId}
-                selected={selectedOrderIds.includes(order.orderId)}
-                onSelectChange={e => setSelectedOrderIds(e.target.checked ? [...selectedOrderIds, order.orderId] : selectedOrderIds.filter(id => id !== order.orderId))}
-                onOpen={(order) => setDetailModalOrder(order)}
-              />
-            ))
+            currentOrders.map((order, index) => {
+              const dayLabel = getDayLabel(order.createdAt);
+              const startsDay = index === 0 || getDayLabel(currentOrders[index - 1].createdAt) !== dayLabel;
+              return (
+                <Fragment key={order.orderId}>
+                  {startsDay && <div className="ord-day">{dayLabel}</div>}
+                  <OrderRow
+                    order={order}
+                    active={detailOrder?.orderId === order.orderId}
+                    selected={selectedOrderIds.includes(order.orderId)}
+                    onSelectChange={e => setSelectedOrderIds(e.target.checked ? [...selectedOrderIds, order.orderId] : selectedOrderIds.filter(id => id !== order.orderId))}
+                    onOpen={(order) => setDetailModalOrder(order)}
+                  />
+                </Fragment>
+              );
+            })
           ) : (
             <div className="ui-empty">
               <Search />

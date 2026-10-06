@@ -11,6 +11,7 @@ const TARGETS = [
   { id: "cart", label: "Sepet" },
   { id: "orders", label: "Siparişlerim" },
   { id: "referral", label: "Davet sayfası" },
+  { id: "rate", label: "Mağazada puan ver" },
 ];
 const formatDate = (value) => new Date(value).toLocaleString("tr-TR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 

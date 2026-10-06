@@ -2804,3 +2804,484 @@ body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok:hover {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ══ Siparişler v3: bugün kartı, sipariş akışı, avatarlı satırlar, adım adım durum ══
+   Yukarıdaki "Siparişler" kurallarının üzerine yazar; duyarlı kurallar bu bölümün sonundadır. */
+.ord {
+  gap: 14px;
+}
+/* Özet: bugün + akış */
+.ord-overview {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  gap: 12px;
+}
+.ord-today {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: linear-gradient(140deg, #0c3a28 0%, var(--ui-brand) 100%);
+  color: #fff;
+}
+.ord-today-label {
+  color: #b9dcc8;
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.ord-today-value {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.ord-today-value small {
+  color: #b9dcc8;
+  font-size: var(--ui-fs-sm);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.ord-today-facts {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+}
+.ord-today-facts dt {
+  color: #b9dcc8;
+  font-size: 11px;
+}
+.ord-today-facts dd {
+  margin: 1px 0 0;
+  font-size: var(--ui-fs-lg);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ord-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--ui-line);
+  border-radius: 14px;
+  background: var(--ui-surface);
+}
+.ord-flow-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ord-flow-total {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
+.ord-flow-total strong {
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+}
+.ord-flow-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ord-flow-step {
+  --tone: var(--ui-text-3);
+  --tone-bg: var(--ui-surface-3);
+  --tone-ink: var(--ui-text-2);
+  position: relative;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--ui-surface-2);
+}
+.ord-flow-step[data-tone="warn"] { --tone: var(--ui-warn); --tone-bg: var(--ui-warn-bg); --tone-ink: var(--ui-warn-ink); }
+.ord-flow-step[data-tone="info"] { --tone: var(--ui-info); --tone-bg: var(--ui-info-bg); --tone-ink: var(--ui-info-ink); }
+.ord-flow-step[data-tone="ok"] { --tone: var(--ui-ok); --tone-bg: var(--ui-ok-bg); --tone-ink: var(--ui-ok-ink); }
+.ord-flow-step[data-tone="danger"] { --tone: var(--ui-danger); --tone-bg: var(--ui-danger-bg); --tone-ink: var(--ui-danger-ink); }
+/* Akış yönü: ilk üç adım arasında ok */
+.ord-flow-step:nth-child(-n + 2)::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: -9px;
+  z-index: 1;
+  width: 8px;
+  height: 8px;
+  border: solid var(--ui-line-strong);
+  border-width: 2px 2px 0 0;
+  transform: translateY(-50%) rotate(45deg);
+}
+.ord-flow-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--tone-bg);
+  color: var(--tone-ink);
+}
+.ord-flow-icon svg {
+  width: 17px;
+  height: 17px;
+}
+.ord-flow-text {
+  min-width: 0;
+}
+.ord-flow-text strong {
+  display: block;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.ord-flow-text span {
+  display: block;
+  overflow: hidden;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ord-flow-share {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: start;
+  color: var(--ui-text-3);
+  font-size: 11px;
+}
+.ord-flow-bar {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--ui-surface-3);
+  overflow: hidden;
+}
+.ord-flow-bar i {
+  display: block;
+  min-width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--tone);
+}
+.ord-flow-step[data-empty="true"] .ord-flow-text strong {
+  color: var(--ui-text-3);
+}
+/* Liste */
+.ord-list {
+  border-radius: 14px;
+}
+.ord-cols,
+.ord-row-main {
+  grid-template-columns: 36px minmax(0, 1fr) 78px 128px 96px;
+}
+.ord-cols > :first-child {
+  grid-column: 1 / 3;
+}
+.ord-row {
+  min-height: 60px;
+}
+.ord-row-main {
+  padding: 10px 0;
+}
+.ord-day {
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--ui-line);
+  background: var(--ui-surface-2);
+  color: var(--ui-text-2);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.ord-avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+/* Aktif siparişler avatar rengiyle öne çıkar; tamamlananlar nötr kalır */
+.ord-row[data-tone="warn"] .ord-avatar {
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+.ord-row[data-tone="info"] .ord-avatar {
+  background: var(--ui-info-bg);
+  color: var(--ui-info-ink);
+}
+.ord-row[data-tone="danger"] .ord-avatar {
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+}
+.ord-c-customer strong {
+  font-size: 14px;
+}
+.ord-c-customer small {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-top: 2px;
+}
+.ord-c-customer small > span {
+  flex-shrink: 0;
+}
+.ord-c-customer small > span + span::before {
+  content: "·";
+  margin: 0 6px;
+  color: var(--ui-text-3);
+}
+.ord-c-customer small > .ord-c-point {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  min-width: 0;
+  color: var(--ui-text-3);
+}
+.ord-c-point svg {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  margin-right: 3px;
+}
+.ord-c-total {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+.ord-c-total strong {
+  font-size: 14px;
+  font-weight: 650;
+}
+.ord-c-total small {
+  color: var(--ui-text-3);
+  font-size: 11px;
+  font-weight: 500;
+}
+/* Detay paneli */
+.ord-detail {
+  border-radius: 14px;
+}
+.ord-d-head {
+  align-items: center;
+  padding: 16px;
+  background: var(--ui-surface-2);
+}
+.ord-avatar--lg {
+  width: 44px;
+  height: 44px;
+  background: var(--ui-brand);
+  color: #fff;
+  font-size: 14px;
+}
+.ord-d-title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.ord-d-foot {
+  border-radius: 0 0 14px 14px;
+}
+/* Durum: adım adım akış + ayrı iptal */
+.ord-steps {
+  display: flex;
+  align-items: flex-start;
+  padding: 14px 8px 12px;
+  border: 1px solid var(--ui-line);
+  border-radius: 12px;
+  background: var(--ui-surface);
+}
+.ord-steps > button {
+  --tone: var(--ui-brand);
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+}
+.ord-steps > button[data-tone="warn"] { --tone: var(--ui-warn); }
+.ord-steps > button[data-tone="info"] { --tone: var(--ui-info); }
+.ord-steps > button[data-tone="ok"] { --tone: var(--ui-ok); }
+.ord-steps > button[data-tone="danger"] { --tone: var(--ui-danger); }
+.ord-step-dot {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 2px solid var(--ui-line-strong);
+  border-radius: 50%;
+  background: var(--ui-surface);
+  color: var(--ui-text-3);
+  transition: border-color var(--ui-ease), background-color var(--ui-ease), color var(--ui-ease);
+}
+.ord-step-dot svg {
+  width: 16px;
+  height: 16px;
+}
+/* Adımlar arası çizgi (ikinci ve üçüncü adımın solunda) */
+.ord-steps > button:nth-child(2)::before,
+.ord-steps > button:nth-child(3)::before {
+  content: "";
+  position: absolute;
+  top: 16px;
+  right: 50%;
+  left: -50%;
+  height: 2px;
+  background: var(--ui-line-strong);
+}
+.ord-steps > button[data-step="done"]::before,
+.ord-steps > button[data-step="current"]::before {
+  background: var(--ui-ok);
+}
+.ord-steps > button[data-step="done"] {
+  color: var(--ui-text-2);
+}
+.ord-steps > button[data-step="done"] .ord-step-dot {
+  border-color: var(--ui-ok);
+  background: var(--ui-ok-bg);
+  color: var(--ui-ok-ink);
+}
+.ord-steps > button[data-step="current"] {
+  color: var(--ui-text);
+}
+.ord-steps > button[data-step="current"] .ord-step-dot {
+  border-color: var(--tone);
+  background: var(--tone);
+  color: #fff;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--tone) 18%, transparent);
+}
+.ord-steps > button:hover .ord-step-dot {
+  border-color: var(--tone);
+  color: var(--tone);
+}
+.ord-steps > button[data-step="current"]:hover .ord-step-dot {
+  color: #fff;
+}
+.ord-steps > button[data-step="cancel"] {
+  flex: 0 0 64px;
+  margin-left: 8px;
+  padding-left: 8px;
+  border-left: 1px dashed var(--ui-line-strong);
+}
+.ord-steps > button[data-step="cancel"][aria-pressed="true"] {
+  color: var(--ui-danger-ink);
+}
+.ord-steps > button[data-step="cancel"][aria-pressed="true"] .ord-step-dot {
+  border-color: var(--ui-danger);
+  background: var(--ui-danger);
+  color: #fff;
+}
+.ord-steps > button:focus-visible {
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+.ord-d-facts dd .ui-link {
+  font-weight: 500;
+}
+@media (max-width: 1100px) {
+  .ord-overview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ord-today {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 16px;
+  }
+  .ord-today-facts {
+    flex: 1 1 260px;
+    margin: 0;
+    padding: 0 0 0 16px;
+    border-top: 0;
+    border-left: 1px solid rgba(255, 255, 255, 0.16);
+  }
+}
+@media (max-width: 760px) {
+  .ord-flow-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ord-flow-step::after {
+    display: none;
+  }
+  .ord-flow-step {
+    grid-template-columns: 36px minmax(0, 1fr);
+    padding: 8px 10px;
+  }
+  .ord-flow-share {
+    display: none;
+  }
+  .ord-today {
+    padding: 14px 16px;
+  }
+  .ord-today-value {
+    font-size: 28px;
+  }
+  .ord-today {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .ord-today-facts {
+    flex: none;
+    margin-top: 10px;
+    padding: 10px 0 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.16);
+    border-left: 0;
+  }
+  .ord-row-main {
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    gap: 6px 10px;
+    padding: 10px 0;
+  }
+  .ord-avatar {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .ord-c-customer {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .ord-c-total {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .ord-c-status {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .ord-c-time {
+    grid-column: 3;
+    grid-row: 2;
+    justify-self: end;
+  }
+  .ord-c-customer small > .ord-c-point {
+    display: none;
+  }
+}
