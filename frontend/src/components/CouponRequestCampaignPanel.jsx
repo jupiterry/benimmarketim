@@ -105,6 +105,21 @@ const CouponRequestCampaignPanel = () => {
     }
   };
 
+  const activateCampaign = async (campaign) => {
+    try {
+      await axios.post("/coupon-requests/admin", {
+        ...campaign,
+        isActive: true,
+        startsAt: new Date(campaign.startsAt).toISOString(),
+        endsAt: new Date(campaign.endsAt).toISOString(),
+      });
+      toast.success("Kampanya yeniden yayına alındı");
+      await load();
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Kampanya yayına alınamadı");
+    }
+  };
+
   const deleteCampaign = async (campaign) => {
     const confirmed = await confirm({
       title: "Kampanyayı Sil",
@@ -200,6 +215,9 @@ const CouponRequestCampaignPanel = () => {
                   <button type="button" onClick={() => editCampaign(campaign)} className="ui-btn ui-btn--sm">Düzenle</button>
                   {campaign.isActive && (
                     <button type="button" onClick={() => deactivateCampaign(campaign)} className="ui-btn ui-btn--sm ui-btn--warn"><Power /> Pasife al</button>
+                  )}
+                  {!campaign.isActive && !campaign.rewardIssued && (
+                    <button type="button" onClick={() => activateCampaign(campaign)} className="ui-btn ui-btn--sm ui-btn--primary"><Power /> Yayına al</button>
                   )}
                   <button type="button" onClick={() => setExpandedId(open ? null : campaign._id)} aria-expanded={open} className="ui-btn ui-btn--sm"><Users /> Katılımcılar {open ? <ChevronUp /> : <ChevronDown />}</button>
                   <button type="button" onClick={() => deleteCampaign(campaign)} className="ui-btn ui-btn--sm ui-btn--danger"><Trash2 /> Sil</button>
