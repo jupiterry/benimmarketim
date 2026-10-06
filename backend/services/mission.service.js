@@ -56,15 +56,38 @@ const awardMission = async (mission, userId, now) => {
   return code;
 };
 
-/** Müşterinin süren görevlerini değerlendirir; hedefe ulaşılanlarda ödülü verir. */
-export const evaluateMissionsForUser = async (userId, now = new Date()) => {
+const orderCountsFor = (mission, order) => Number(order?.totalAmount) >= (Number(mission.minOrderAmount) || 0)
+  && new Date(order.createdAt) >= new Date(mission.startsAt) && new Date(order.createdAt) <= new Date(mission.endsAt);
+
+export const missionProgressMessage = (mission, count) => {
+  const remaining = mission.targetOrders - count;
+  const reward = formatAmount(mission.rewardAmount);
+  const amount = Number(mission.minOrderAmount) > 0 ? `${formatAmount(mission.minOrderAmount)} TL ve üzeri ` : "";
+  return {
+    title: `Görevde ${count}/${mission.targetOrders} tamam 🔥`,
+    body: remaining === 1 ? `${amount}bir sipariş daha ver, ${reward} TL kupon senin!` : `${amount}${remaining} sipariş daha ver, ${reward} TL kupon kazan.`,
+  };
+};
+
+/**
+ * Müşterinin süren görevlerini değerlendirir; hedefe ulaşılanlarda ödülü verir.
+ * deliveredOrder verilirse (sipariş az önce teslim edildiyse) ve bu sipariş görevi ilerlettiyse,
+ * hedefe henüz ulaşmamış müşteriye kalan sipariş sayısını bildiren bir bildirim gönderilir.
+ */
+export const evaluateMissionsForUser = async (userId, now = new Date(), { deliveredOrder = null } = {}) => {
   const awarded = [];
   try {
     const missions = await Mission.find({ isActive: true, startsAt: { $lte: now }, endsAt: { $gte: now } }).lean();
     for (const mission of missions) {
       if (completionOf(mission, userId)) continue;
       const count = await countQualifyingOrders(mission, userId);
-      if (count < mission.targetOrders) continue;
+      if (count < mission.targetOrders) {
+        if (deliveredOrder && count > 0 && orderCountsFor(mission, deliveredOrder)) {
+          sendPushToUser(userId, missionProgressMessage(mission, count), { type: "mission_progress", missionId: String(mission._id), route: "/home" },
+            { category: "campaigns", collapseId: `mission-${mission._id}` });
+        }
+        continue;
+      }
       const code = await awardMission(mission, userId, now);
       if (code) awarded.push({ missionId: String(mission._id), couponCode: code });
     }

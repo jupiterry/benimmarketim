@@ -96,7 +96,7 @@ export const updateOrderStatus = async (req, res) => {
     // Müşterinin telefonuna anlık bildirim (yanıtı bekletmez, hata siparişi etkilemez)
     notifyOrderStatusChange(order, previousStatus);
     // Teslim edilen sipariş bir görevi tamamlıyorsa ödül kuponu tanımlanır (yanıtı bekletmez)
-    if (status === "Teslim Edildi" && previousStatus !== status) evaluateMissionsForUser(order.user);
+    if (status === "Teslim Edildi" && previousStatus !== status) evaluateMissionsForUser(order.user, new Date(), { deliveredOrder: order });
 
     // Socket.IO ile kullanıcıya bildirim gönder
     try {

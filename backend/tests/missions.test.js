@@ -4,7 +4,7 @@ import Mission from "../models/mission.model.js";
 import Order from "../models/order.model.js";
 import Coupon from "../models/coupon.model.js";
 import User from "../models/user.model.js";
-import { evaluateMissionsForUser, getMissionsForUser, missionCouponCode, missionRule } from "../services/mission.service.js";
+import { evaluateMissionsForUser, getMissionsForUser, missionCouponCode, missionProgressMessage, missionRule } from "../services/mission.service.js";
 import { validateMission } from "../controllers/mission.controller.js";
 
 const USER = "507f191e810c19729de860ea";
@@ -87,4 +87,36 @@ test("customers see their progress capped at the target", async (t) => {
   assert.equal(item.completed, false);
   assert.equal(item.rule, "300 TL ve üzeri 3 sipariş ver, 50 TL kupon kazan");
   assert.equal(item.completions, undefined);
+});
+
+test("a delivered order that advances a mission sends a progress push, once per delivery", async (t) => {
+  const previous = { key: process.env.ONESIGNAL_REST_API_KEY, app: process.env.ONESIGNAL_APP_ID };
+  process.env.ONESIGNAL_REST_API_KEY = "test-only"; process.env.ONESIGNAL_APP_ID = "app-test";
+  t.after(() => {
+    if (previous.key === undefined) delete process.env.ONESIGNAL_REST_API_KEY; else process.env.ONESIGNAL_REST_API_KEY = previous.key;
+    if (previous.app === undefined) delete process.env.ONESIGNAL_APP_ID; else process.env.ONESIGNAL_APP_ID = previous.app;
+  });
+  const sent = [];
+  t.mock.method(globalThis, "fetch", async (_url, options) => { sent.push(JSON.parse(options.body)); return { ok: true, status: 200 }; });
+  t.mock.method(User, "find", () => chain([{ _id: USER }]));
+  t.mock.method(Mission, "find", () => chain([mission({ rewardAmount: 100 })]));
+  t.mock.method(Order, "countDocuments", async () => 2);
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 10));
+  const order = (extra = {}) => ({ _id: "507f191e810c19729de86fff", user: USER, totalAmount: 320, createdAt: new Date("2026-10-06T10:00:00Z"), ...extra });
+
+  await evaluateMissionsForUser(USER, NOW, { deliveredOrder: order() }); await flush();
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].headings.tr, "Görevde 2/3 tamam 🔥");
+  assert.equal(sent[0].contents.tr, "300 TL ve üzeri bir sipariş daha ver, 100 TL kupon senin!");
+  assert.equal(sent[0].data.route, "/home");
+  assert.equal(sent[0].data.type, "mission_progress");
+
+  // Uygulama görevleri her açtığında (teslim edilen sipariş yokken) bildirim gitmez
+  await evaluateMissionsForUser(USER, NOW); await getMissionsForUser(USER, NOW); await flush();
+  // Alt tutarın altındaki ya da görev süresi dışındaki sipariş görevi ilerletmez, bildirim de göndermez
+  await evaluateMissionsForUser(USER, NOW, { deliveredOrder: order({ totalAmount: 120 }) });
+  await evaluateMissionsForUser(USER, NOW, { deliveredOrder: order({ createdAt: new Date("2026-09-20T10:00:00Z") }) }); await flush();
+  assert.equal(sent.length, 1);
+
+  assert.deepEqual(missionProgressMessage(mission({ minOrderAmount: 0, targetOrders: 5 }), 2), { title: "Görevde 2/5 tamam 🔥", body: "3 sipariş daha ver, 50 TL kupon kazan." });
 });

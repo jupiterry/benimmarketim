@@ -265,16 +265,51 @@ test("cart item text is parsed into names and quantities", async () => {
   assert.ok(cartMatchScore("Süt 1 L", ["sut"]) > cartMatchScore("Sütlü Çikolata", ["sut"]));
 });
 
-test("a cart over budget is trimmed by quantity first, then by dropping items", async () => {
+test("a cart over budget is trimmed by quantity first, then by dropping the priciest items", async () => {
   const { fitCartToBudget } = await import("../services/ai/tools.js");
   const items = [{ name: "Süt", price: 40, quantity: 2 }, { name: "Peynir", price: 120, quantity: 1 }, { name: "Zeytin", price: 90, quantity: 1 }];
   assert.equal(fitCartToBudget(items, null).total, 290);
   const fitted = fitCartToBudget(items, 200);
   assert.ok(fitted.total <= 200);
-  assert.deepEqual(fitted.lines.map((line) => [line.name, line.quantity]), [["Süt", 1], ["Peynir", 1]]);
-  assert.deepEqual(fitted.removed, ["Zeytin"]);
+  assert.deepEqual(fitted.lines.map((line) => [line.name, line.quantity]), [["Süt", 1], ["Zeytin", 1]]);
+  assert.deepEqual(fitted.removed, ["Peynir"]);
   assert.equal(items[0].quantity, 2); // girdi değişmez
   assert.equal(fitCartToBudget([{ name: "Pahalı", price: 500, quantity: 1 }], 100).lines.length, 0);
+});
+
+test("one expensive item does not push affordable items out of the cart", async () => {
+  const { fitCartToBudget } = await import("../services/ai/tools.js");
+  const line = (name, price, alternatives) => ({ productId: name, name, price, quantity: 1, alternatives });
+  // Canlıda görülen durum: 600 TL bütçede pahalı çay yüzünden şeker, tuz ve yağ da çıkarılıyordu.
+  const items = [line("Makarna", 35), line("Pirinç", 50), line("Bulgur", 50), line("Ekmek", 20), line("Ayran", 60), line("Yoğurt", 75), line("Dökme Çay", 330), line("Kraker", 25), line("Şeker", 55), line("Tuz", 20), line("Ayçiçek Yağı", 110), line("Zeytinyağı", 380)];
+  const fitted = fitCartToBudget(items, 600);
+  assert.deepEqual(fitted.removed, ["Zeytinyağı", "Dökme Çay"]);
+  assert.equal(fitted.lines.length, 10);
+  assert.equal(fitted.total, 500);
+  // Aynı isteğin daha uygun fiyatlı dengi varsa ürün çıkarılmaz, onunla değiştirilir.
+  const swapped = fitCartToBudget([line("Ekmek", 20), line("Pahalı Çay", 330, [{ productId: "c2", name: "Uygun Çay", price: 90 }])], 150);
+  assert.deepEqual(swapped.lines.map((item) => item.name), ["Ekmek", "Uygun Çay"]);
+  assert.deepEqual(swapped.removed, []);
+  assert.equal("alternatives" in swapped.lines[0], false);
+  // Çıkarılan kalem, kalan bütçeye sığan dengiyle geri eklenir.
+  const refilled = fitCartToBudget([line("Ekmek", 20), line("Teneke Salça", 200, [{ productId: "s2", name: "Küçük Salça", price: 60 }]), line("Büyük Çay", 330, [{ productId: "c3", name: "Küçük Çay", price: 250 }])], 300);
+  assert.deepEqual(refilled.lines.map((item) => item.name).sort(), ["Ekmek", "Küçük Salça"].sort());
+  assert.deepEqual(refilled.removed, ["Küçük Çay"]);
+});
+
+test("cart matching prefers the product itself over flavoured or derived products", async () => {
+  const { cartMatchScore } = await import("../services/ai/tools.js");
+  assert.ok(cartMatchScore("Sütaş Kaymaklı Yoğurt 1 Kg", ["yogurt"]) > cartMatchScore("Lays Yoğurt Mevsim Yeşillikleri", ["yogurt"]));
+  assert.ok(cartMatchScore("Efsane Baldo Pirinç 1kg", ["pirinc"]) > cartMatchScore("Yazar Sade Pirinç Unu 500Gr", ["pirinc"]));
+  assert.ok(cartMatchScore("Marmarabirlik Zeytin 400 gr", ["zeytin"]) > cartMatchScore("Kristal Zeytin Yağı 1 lt", ["zeytin"]));
+  // Ek almış ad eşleşir; yalnızca türevi bulunan ürün eşiğin altında kalır ve sepete eklenmez.
+  assert.ok(cartMatchScore("Tat Domates Salçası 400 gr", ["salca"]) > 0);
+  assert.ok(cartMatchScore("Yayla Baldo Pirinci 1 kg", ["pirinc"]) > 0);
+  assert.ok(cartMatchScore("Yazar Sade Pirinç Unu 500Gr", ["pirinc"]) <= 0);
+  assert.ok(cartMatchScore("Sütlü Çikolata", ["sut"]) <= 0);
+  // İstenen şey türevin kendisiyse ceza uygulanmaz.
+  assert.ok(cartMatchScore("Yudum Ayçiçek Yağı 1 lt", ["aycicek", "yagi"]) > 5);
+  assert.ok(cartMatchScore("Lays Klasik Cips", ["cips"]) > 0);
 });
 
 test("suggestCart resolves items to in-stock catalogue products and respects the budget", async (t) => {
@@ -310,7 +345,7 @@ test("the assistant stores the cart proposal with its reply so the app can offer
   const reply = await answerUserMessage({ chat, query: "4 kişilik makarna yapacağım" });
   assert.equal(calls, 2);
   assert.equal(reply.meta.cartProposal.total, 56);
-  assert.deepEqual(reply.meta.cartProposal.items[0], { productId: "507f191e810c19729de860a3", name: "Burgu Makarna 500 g", price: 28, quantity: 2, lineTotal: 56 });
+  assert.deepEqual(reply.meta.cartProposal.items[0], { productId: "507f191e810c19729de860a3", name: "Burgu Makarna 500 g", price: 28, quantity: 2, lineTotal: 56, alternatives: [] });
 });
 
 test("the cart quick button asks what to prepare without calling the model", async (t) => {

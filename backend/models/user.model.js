@@ -78,6 +78,11 @@ const userSchema = new mongoose.Schema(
 			type: Date,
 			default: null,
 		},
+		// Hatırlatma denenip cihaza ulaşmadıysa (ör. bildirim kimliği henüz kayıtlı değil) son deneme zamanı
+		cartReminderTriedAt: {
+			type: Date,
+			default: null,
+		},
 		role: {
 			type: String,
 			enum: ["customer", "admin"],

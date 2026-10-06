@@ -47,8 +47,12 @@ const postToOneSignal = async (externalIds, message, data, collapseId) => {
       }),
       signal: controller.signal,
     });
-    if (!response.ok) console.error("OneSignal bildirimi başarısız:", response.status);
-    return response.ok;
+    if (!response.ok) { console.error("OneSignal bildirimi başarısız:", response.status); return false; }
+    // OneSignal, hedeflenen kimlik hiçbir cihazda kayıtlı değilse de 200 döner; o durumda bildirim
+    // oluşturulmaz ve "id" boş gelir. Bu, gönderilmiş sayılmaz.
+    const body = typeof response.json === "function" ? await response.json().catch(() => null) : null;
+    if (body && typeof body === "object" && !body.id && (body.id === "" || body.errors)) return false;
+    return true;
   } finally { clearTimeout(timeout); }
 };
 

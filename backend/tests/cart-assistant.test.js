@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import Settings from "../models/settings.model.js";
 import Product from "../models/product.model.js";
 import WeeklyProduct from "../models/weeklyProduct.model.js";
-import { extractBudget, pickTemplate, suggestCartForPrompt } from "../services/ai/cartAssistant.service.js";
+import Order from "../models/order.model.js";
+import { extractBudget, pickTemplate, suggestCartForPrompt, suggestExtras } from "../services/ai/cartAssistant.service.js";
 import { suggestCart } from "../controllers/cartAssistant.controller.js";
 
 const USER = "507f191e810c19729de860ea";
@@ -46,6 +47,10 @@ test("ready-made lists cover the common requests", () => {
   assert.equal(pickTemplate("film gecesi için atıştırmalık", null).id, "atistirmalik");
   assert.equal(pickTemplate("bu hafta 600 TL'm var", 600).id, "temel");
   assert.equal(pickTemplate("merhaba nasılsın", null), null);
+  // Ana sayfadaki tek dokunuşluk kısayollar
+  assert.equal(pickTemplate("Kahvaltılık hazırla", null).id, "kahvalti");
+  assert.equal(pickTemplate("Akşam yemeği için alışveriş", null).id, "aksam");
+  assert.equal(pickTemplate("Misafir geliyor, ikramlık lazım", null).id, "misafir");
 });
 
 test("the AI plan is resolved against the catalogue and kept within the budget", async (t) => {
@@ -108,4 +113,47 @@ test("the endpoint validates input and never leaks internal errors", async (t) =
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.success, true);
   assert.ok(res.body.proposal.items.every((item) => item.productId && item.quantity >= 1));
+});
+
+test("each proposed item carries swap options that are not already in the cart", async (t) => {
+  t.mock.method(WeeklyProduct, "find", () => chain([]));
+  t.mock.method(Settings, "getSettings", async () => ({ ai: { enabled: false } }));
+  t.mock.method(Order, "find", () => chain([]));
+  const p = (n, name, price) => ({ _id: `507f191e810c19729de87${String(n).padStart(3, "0")}`, name, price });
+  t.mock.method(Product, "find", (filter) => {
+    const key = JSON.stringify(filter).toLowerCase();
+    if (key.includes("isfeatured")) return chain([]);
+    if (key.includes("\"makarna\"")) return chain([p(1, "Ankara Burgu Makarna 500 g", 35), p(2, "Filiz Kalem Makarna 500 g", 28), p(3, "Makarna Sosu", 60)]);
+    return chain([]);
+  });
+  const result = await suggestCartForPrompt({ prompt: "4 kişilik makarna", userId: USER });
+  const [line] = result.proposal.items;
+  assert.equal(line.name, "Filiz Kalem Makarna 500 g"); // aynı ölçüde uyanlardan en uygun fiyatlısı
+  assert.deepEqual(line.alternatives, [{ productId: p(1)._id, name: "Ankara Burgu Makarna 500 g", price: 35 }]);
+});
+
+test("money left in the budget is offered as products the customer buys most often", async (t) => {
+  t.mock.method(WeeklyProduct, "find", () => chain([]));
+  const a = "507f191e810c19729de88001"; const b = "507f191e810c19729de88002"; const c = "507f191e810c19729de88003"; const d = "507f191e810c19729de88004";
+  t.mock.method(Order, "find", () => chain([
+    { products: [{ product: a, quantity: 1 }, { product: b, quantity: 2 }] },
+    { products: [{ product: b, quantity: 1 }, { product: c, quantity: 1 }, { product: d, quantity: 1 }] },
+  ]));
+  t.mock.method(Product, "find", (filter) => chain(filter.isFeatured
+    ? [{ _id: "507f191e810c19729de88009", name: "Öne Çıkan", price: 30 }]
+    : [{ _id: a, name: "Süt", price: 40 }, { _id: b, name: "Ekmek", price: 20 }, { _id: c, name: "Zeytinyağı", price: 400 }, { _id: d, name: "Yumurta", price: 90 }]));
+  const frequent = await suggestExtras({ userId: USER, left: 100, excludeIds: [d] });
+  assert.equal(frequent.source, "frequent");
+  // En sık alınan önce; bütçeyi aşan (Zeytinyağı) ve sepette olan (Yumurta) önerilmez
+  assert.deepEqual(frequent.items, [{ productId: b, name: "Ekmek", price: 20 }, { productId: a, name: "Süt", price: 40 }]);
+  // Geçmiş siparişi olmayan müşteriye öne çıkan ürünler önerilir
+  Order.find.mock.mockImplementation(() => chain([]));
+  const featured = await suggestExtras({ userId: USER, left: 100 });
+  assert.equal(featured.source, "featured");
+  assert.equal(featured.items[0].name, "Öne Çıkan");
+  // Kalan tutar çok azsa ya da sorgu hata verirse öneri boş döner, istek bozulmaz
+  assert.deepEqual(await suggestExtras({ userId: USER, left: 5 }), { source: null, items: [] });
+  t.mock.method(console, "error", () => {});
+  Order.find.mock.mockImplementation(() => { throw new Error("db down"); });
+  assert.deepEqual(await suggestExtras({ userId: USER, left: 100 }), { source: null, items: [] });
 });

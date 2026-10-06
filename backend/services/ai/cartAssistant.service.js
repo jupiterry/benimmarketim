@@ -3,9 +3,11 @@
 // Ürün listesini yapay zekâ planlar; sağlayıcıya ulaşılamazsa veya asistan kapalıysa hazır listelere düşülür,
 // böylece müşteri her durumda bir öneri alır. Ürünler ve fiyatlar her zaman katalogdan gelir.
 import Settings from "../../models/settings.model.js";
+import Order from "../../models/order.model.js";
+import Product from "../../models/product.model.js";
 import { createAiProvider, AI_TOOL_DEFINITIONS } from "./providers.js";
 import { classifyMessage } from "./policies.js";
-import { parseCartItems, runAiTool } from "./tools.js";
+import { effectivePriceMap, parseCartItems, runAiTool } from "./tools.js";
 
 const normalize = (value) => String(value || "").toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/ı/g, "i");
 const money = (value) => `${Number(value || 0).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL`;
@@ -30,6 +32,8 @@ export const CART_TEMPLATES = [
   { id: "atistirmalik", match: /atistirmalik|film|mac gecesi|cerez|abur cubur/, items: "2 cips, 1 çikolata, 1 kola, 1 kraker, 1 çekirdek, 1 bisküvi" },
   { id: "temizlik", match: /temizlik|deterjan/, items: "1 bulaşık deterjanı, 1 çamaşır deterjanı, 1 yüzey temizleyici, 1 çöp torbası, 1 sünger, 1 kağıt havlu" },
   { id: "icecek", match: /icecek|mesrubat/, items: "2 su, 1 kola, 1 meyve suyu, 1 ayran, 1 soda" },
+  { id: "misafir", match: /misafir|ikram|cay saati|gun yapacagim/, items: "1 çay, 1 şeker, 2 bisküvi, 1 kek, 1 kuruyemiş, 1 çikolata, 1 meyve suyu, 1 kola, 1 peçete" },
+  { id: "aksam", match: /aksam yemegi|ogle yemegi|yemek yapacagim|yemeklik|ne pisirsem/, items: "1 tavuk, 1 pirinç, 1 makarna, 1 salça, 1 soğan, 1 domates, 1 yoğurt, 1 ayçiçek yağı, 1 ekmek" },
   { id: "temel", match: /haftalik|aylik|temel|butce|ihtiyac|market alisverisi/, items: "2 makarna, 1 pirinç, 1 yumurta, 1 süt, 1 ekmek, 1 beyaz peynir, 1 salça, 1 ayçiçek yağı, 1 çay, 1 şeker, 1 domates, 1 patates, 1 soğan, 1 yoğurt, 1 tavuk" },
 ];
 
@@ -82,6 +86,42 @@ const describe = (result, source) => {
   return parts.join(" ");
 };
 
+const MIN_LEFT_FOR_EXTRAS = 15;
+const MAX_EXTRAS = 4;
+
+// Bütçeden para arttıysa, kalan tutara sığan ürünler önerilir: önce müşterinin geçmiş siparişlerinde
+// en sık aldıkları, hiç yoksa mağazanın öne çıkan ürünleri. Sepette zaten olan ürünler önerilmez.
+export const suggestExtras = async ({ userId, left, excludeIds = [] }) => {
+  try {
+    if (!(left >= MIN_LEFT_FOR_EXTRAS)) return { source: null, items: [] };
+    const excluded = new Set(excludeIds.map(String));
+    const fields = "name price discountedPrice isDiscounted isOutOfStock category";
+    const available = { isHidden: { $ne: true }, isOutOfStock: { $ne: true } };
+    const pick = async (products, rank) => (await effectivePriceMap(products))
+      .filter((product) => !excluded.has(String(product.id)) && product.price > 0 && product.price <= left)
+      .sort((a, b) => rank(b) - rank(a) || a.price - b.price).slice(0, MAX_EXTRAS)
+      .map((product) => ({ productId: String(product.id), name: product.name, price: product.price }));
+
+    const orders = await Order.find({ user: userId, status: { $ne: "İptal Edildi" } }).sort({ createdAt: -1 }).select("products.product products.quantity").limit(20).lean();
+    const counts = new Map();
+    for (const order of orders || []) for (const item of order.products || []) {
+      if (!item?.product) continue;
+      counts.set(String(item.product), (counts.get(String(item.product)) || 0) + 1);
+    }
+    if (counts.size) {
+      const products = await Product.find({ ...available, _id: { $in: [...counts.keys()] } }).select(fields).limit(60).lean();
+      const items = await pick(products, (product) => counts.get(String(product.id)) || 0);
+      if (items.length) return { source: "frequent", items };
+    }
+    const featured = await Product.find({ ...available, isFeatured: true }).select(fields).limit(30).lean();
+    const items = await pick(featured, () => 0);
+    return { source: items.length ? "featured" : null, items };
+  } catch (error) {
+    console.error("Sepet asistanı ek öneri hazırlayamadı:", String(error.message).slice(0, 120));
+    return { source: null, items: [] };
+  }
+};
+
 const EMPTY_MESSAGE = "Bunun için bir sepet hazırlayamadım. Ne almak istediğinizi biraz daha açık yazar mısınız? Örneğin: “300 TL'ye kahvaltılık”, “4 kişilik makarna” ya da “haftalık 600 TL bütçem var”.";
 
 /**
@@ -102,10 +142,12 @@ export const suggestCartForPrompt = async ({ prompt, budget = null, userId }) =>
   for (const attempt of attempts) {
     const result = await runAiTool({ name: "suggestCart", items: attempt.items, budget: limit }, userId);
     if (!result.found) continue;
+    const left = result.budget ? Math.round((result.budget - result.total) * 100) / 100 : 0;
+    const extras = await suggestExtras({ userId, left, excludeIds: result.items.map((item) => item.productId) });
     return {
       source: attempt.source,
       message: describe(result, attempt.source),
-      proposal: { items: result.items, total: result.total, budget: result.budget, missing: result.missing, removedForBudget: result.removedForBudget },
+      proposal: { items: result.items, total: result.total, budget: result.budget, missing: result.missing, removedForBudget: result.removedForBudget, extras: extras.items, extrasSource: extras.source },
     };
   }
   return { proposal: null, message: attempts.length ? "İstediğiniz ürünleri şu an katalogda bulamadım. Ürün adlarını yazarak tekrar deneyebilirsiniz (ör. “2 süt, 1 ekmek, 1 yumurta”)." : EMPTY_MESSAGE, source: "none" };

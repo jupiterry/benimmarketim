@@ -145,3 +145,36 @@ test("customers can only set boolean values for known preference categories", as
   assert.deepEqual(update, { $set: { "notificationPreferences.campaigns": false } });
   assert.deepEqual(res.body.preferences, { orders: true, messages: true, campaigns: false });
 });
+
+test("a push OneSignal could not deliver to any device is not reported as sent", async (t) => {
+  withKeys(t);
+  t.mock.method(User, "find", () => chain([{ _id: id(1) }]));
+  // Kimlik hiçbir cihazda kayıtlı değilken OneSignal 200 ve boş id döner
+  const fetchMock = t.mock.method(globalThis, "fetch", async () => ({ ok: true, status: 200, json: async () => ({ id: "", errors: { invalid_aliases: { external_id: [id(1)] } } }) }));
+  assert.equal((await sendPushToUsers([id(1)], { title: "a", body: "b" })).sent, false);
+  fetchMock.mock.mockImplementation(async () => ({ ok: true, status: 200, json: async () => ({ id: "", errors: ["All included players are not subscribed"] }) }));
+  assert.equal((await sendPushToUsers([id(1)], { title: "a", body: "b" })).sent, false);
+  fetchMock.mock.mockImplementation(async () => ({ ok: true, status: 200, json: async () => ({ id: "9f1c" }) }));
+  assert.equal((await sendPushToUsers([id(1)], { title: "a", body: "b" })).sent, true);
+  // Gövdesi okunamayan başarılı yanıt eskisi gibi gönderilmiş sayılır
+  fetchMock.mock.mockImplementation(async () => ({ ok: true, status: 200, json: async () => { throw new Error("bad json"); } }));
+  assert.equal((await sendPushToUsers([id(1)], { title: "a", body: "b" })).sent, true);
+});
+
+test("an undelivered cart reminder leaves the cart unreminded and is retried later", async (t) => {
+  withKeys(t);
+  t.mock.method(console, "log", () => {});
+  t.mock.method(globalThis, "fetch", async () => ({ ok: true, status: 200, json: async () => ({ id: "", errors: { invalid_aliases: { external_id: [id(1)] } } }) }));
+  const marked = [];
+  t.mock.method(User, "updateOne", async (query, update) => { marked.push([query, update]); return {}; });
+  t.mock.method(User, "find", (query) => chain(query._id ? [{ _id: id(1) }] : [{ _id: id(1), cartItems: [{ quantity: 1, product: { name: "Süt" } }] }]));
+  const now = new Date("2026-10-05T12:00:00Z");
+  const result = await checkAndSendCartReminders(24, { now });
+  assert.equal(result.successCount, 0);
+  assert.equal(result.failureCount, 1);
+  assert.deepEqual(marked, [[{ _id: id(1) }, { $set: { cartReminderTriedAt: now } }]]);
+  // Ulaşmayan hatırlatma 12 saat geçmeden yeniden denenmez
+  const retry = buildCartReminderFilter(24, now).$and[0].$or;
+  assert.deepEqual(retry[0], { cartReminderTriedAt: null });
+  assert.equal(retry[1].cartReminderTriedAt.$lt.toISOString(), "2026-10-05T00:00:00.000Z");
+});

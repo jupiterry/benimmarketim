@@ -1,10 +1,13 @@
 // Cart Reminder Service - Handles abandoned cart notifications
 // Bildirimler push.service (OneSignal) üzerinden gönderilir; müşteri kampanya bildirimlerini
 // kapattıysa hatırlatma gitmez. Aynı sepet için yalnızca bir kez hatırlatılır.
+// Sepet, ancak bildirim gerçekten bir cihaza gönderildiyse "hatırlatıldı" sayılır; ulaşmadıysa
+// (ör. müşteri bildirimleri destekleyen sürüme henüz geçmedi) belirli aralıkla yeniden denenir.
 import User from '../models/user.model.js';
 import { sendPushToUsers } from './push.service.js';
 
 const MAX_CART_AGE_DAYS = 14; // Çok eski sepetler için hatırlatma gönderilmez
+const RETRY_AFTER_HOURS = 12; // Ulaşmayan hatırlatma en erken bu kadar sonra yeniden denenir
 const QUIET_HOURS = { start: 10, end: 22 }; // İstanbul saatiyle yalnızca 10:00–21:59 arası gönderilir
 
 const istanbulHour = (date) => Number(new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hour12: false, timeZone: 'Europe/Istanbul' }).format(date)) % 24;
@@ -13,6 +16,7 @@ const istanbulHour = (date) => Number(new Intl.DateTimeFormat('en-GB', { hour: '
 export const buildCartReminderFilter = (hoursThreshold = 24, now = new Date()) => {
   const thresholdDate = new Date(now.getTime() - hoursThreshold * 60 * 60 * 1000);
   const oldestDate = new Date(now.getTime() - MAX_CART_AGE_DAYS * 24 * 60 * 60 * 1000);
+  const retryDate = new Date(now.getTime() - RETRY_AFTER_HOURS * 60 * 60 * 1000);
   return {
     'cartItems.0': { $exists: true },
     cartLastUpdated: { $lt: thresholdDate, $gte: oldestDate },
@@ -20,6 +24,8 @@ export const buildCartReminderFilter = (hoursThreshold = 24, now = new Date()) =
     'notificationPreferences.campaigns': { $ne: false },
     // Sepet son değiştikten sonra hatırlatma gönderilmediyse
     $or: [{ cartReminderSentAt: null }, { $expr: { $lt: ['$cartReminderSentAt', '$cartLastUpdated'] } }],
+    // Yakın zamanda denenip ulaşmayanlar her saat yeniden denenmez
+    $and: [{ $or: [{ cartReminderTriedAt: null }, { cartReminderTriedAt: { $lt: retryDate } }] }],
   };
 };
 
@@ -85,6 +91,8 @@ export const checkAndSendCartReminders = async (hoursThreshold = 24, { respectQu
         } else {
           failureCount++;
           errors.push(`Failed to send to user ${user._id}`);
+          // Sepet hatırlatılmış sayılmaz; yalnızca deneme zamanı yazılır ki sonra yeniden denensin
+          await User.updateOne({ _id: user._id }, { $set: { cartReminderTriedAt: now } });
         }
       } catch (error) {
         failureCount++;

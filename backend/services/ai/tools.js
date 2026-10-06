@@ -70,26 +70,73 @@ export const parseCartItems = (value) => String(value || "").split(/[,;\n]+/).ma
   return { name: (match ? match[2] : part).slice(0, 60).trim(), quantity };
 }).filter((item) => item.name.length >= 2);
 
-// Ürün adının istenen kelimelerle ne kadar örtüştüğü: tam kelime eşleşmesi ve adın o kelimeyle başlaması öne alınır.
+// Ürün adının istenen kelimelerle ne kadar örtüştüğü. Tam kelime eşleşmesi, adın o kelimeyle başlaması ve
+// kelimenin ürünün asıl adı olması ("Sütaş Yoğurt 1 Kg") öne alınır; kelimenin yalnızca çeşni ya da hammadde
+// olduğu ürünler ("Lays Yoğurt Mevsim Yeşillikleri", "Pirinç Unu") geriye düşer.
+const SIZE_WORD = /^(\d.*|gr|g|kg|lt|l|ml|cl|adet|li|lu|lik|luk|paket|pet|cam|sise|kutu|teneke|x)$/;
+const DERIVATIVE_WORDS = new Set(["unu", "cipsi", "suyu", "sosu", "tozu", "kremasi", "kolonyasi", "sabunu", "sampuani", "sirkesi", "ezmesi", "kurabiyesi", "biskuvisi", "gofreti", "cikolatasi", "dondurmasi", "receli", "salatasi", "corbasi", "harci", "salcasi", "puresi", "nisastasi", "yagi", "cayi", "cesnisi", "bulyon", "aromasi", "kokusu", "mamasi", "krakeri", "kraker", "patlagi", "kolasi", "gazozu", "sakizi", "sekeri"]);
+const INFLECTION_SUFFIXES = new Set(["i", "u", "si", "su", "lar", "ler", "lari", "leri"]);
+const FLAVOUR_WORDS = new Set(["lays", "doritos", "ruffles", "cheetos", "pringles", "patos", "cerezza", "cips", "aromali", "cesnili", "tadinda", "soslu"]);
 export const cartMatchScore = (productName, terms) => {
   const words = normalize(productName).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-  return terms.reduce((score, term) => score + (words.includes(term) ? 3 : 0) + (words[0] === term ? 2 : 0), 0) - words.length * 0.1;
+  const nameWords = words.filter((word) => !SIZE_WORD.test(word));
+  let score = -words.length * 0.1;
+  for (const term of terms) {
+    // Tam kelime yoksa ek almış hâli de sayılır ("salça" → "Salçası", "pirinç" → "Pirinci"); "-li/-lu" türevleri sayılmaz ("Sütlü").
+    const exact = words.indexOf(term);
+    const index = exact !== -1 ? exact : words.findIndex((word) => word.startsWith(term) && INFLECTION_SUFFIXES.has(word.slice(term.length)));
+    if (index === -1) continue;
+    score += (exact !== -1 ? 3 : 2.5) + (index === 0 ? 2 : 0) + (nameWords[nameWords.length - 1] === words[index] ? 2 : 0);
+    const next = words[index + 1];
+    if (next && DERIVATIVE_WORDS.has(next) && !terms.includes(next)) score -= 4;
+  }
+  if (!terms.some((term) => FLAVOUR_WORDS.has(term)) && words.some((word) => FLAVOUR_WORDS.has(word))) score -= 4;
+  return score;
 };
 
-// Bütçeyi aşan sepeti önce adetleri azaltarak, sonra sondan ürün çıkararak bütçeye indirir.
-export const fitCartToBudget = (items, budget) => {
-  const lines = items.map((item) => ({ ...item }));
+// Bütçeyi aşan sepeti sırasıyla şu adımlarla bütçeye indirir: adetleri azaltır, pahalı ürünü aynı isteğin
+// daha uygun fiyatlı dengiyle değiştirir, en son en pahalı kalemden başlayarak ürün çıkarır.
+// Böylece tek bir pahalı ürün yüzünden bütçeye sığan diğer ürünler sepetten atılmaz.
+export const fitCartToBudget = (items, budget, { keepAlternatives = false } = {}) => {
+  const lines = items.map((item) => ({ ...item, alternatives: [...(item.alternatives || [])] }));
   const removed = [];
   const total = () => lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
-  if (!(budget > 0)) return { lines, removed, total: total() };
+  const finish = () => ({ lines: lines.map(({ alternatives, ...line }) => (keepAlternatives ? { ...line, alternatives } : line)), removed, total: total() });
+  // Bir satırın ürünü değişince eski ürün, müşteri geri dönebilsin diye denkler arasına alınır.
+  const replace = (line, option) => {
+    const previous = { productId: line.productId, name: line.name, price: line.price };
+    line.alternatives = [previous, ...line.alternatives.filter((item) => item.productId !== option.productId)];
+    Object.assign(line, { productId: option.productId, name: option.name, price: option.price });
+  };
+  if (!(budget > 0)) return finish();
   while (total() > budget) {
     const reducible = lines.filter((line) => line.quantity > 1).sort((a, b) => b.price - a.price)[0];
-    if (reducible) { reducible.quantity -= 1; continue; }
-    if (lines.length <= 1) break;
-    removed.push(lines.pop().name);
+    if (!reducible) break;
+    reducible.quantity -= 1;
   }
-  if (total() > budget && lines.length === 1) { removed.push(lines.pop().name); }
-  return { lines, removed, total: total() };
+  while (total() > budget) {
+    const used = new Set(lines.map((line) => line.productId));
+    const swap = lines.map((line) => ({ line, option: line.alternatives.filter((option) => option.price < line.price && !used.has(option.productId)).sort((a, b) => a.price - b.price)[0] }))
+      .filter((entry) => entry.option).sort((a, b) => (b.line.price - b.option.price) - (a.line.price - a.option.price))[0];
+    if (!swap) break;
+    replace(swap.line, swap.option);
+  }
+  const dropped = [];
+  while (total() > budget && lines.length) {
+    const priciest = lines.reduce((worst, line) => (line.price > worst.price ? line : worst), lines[0]);
+    dropped.push(priciest);
+    lines.splice(lines.indexOf(priciest), 1);
+  }
+  // Çıkarılan kalemler, kalan bütçeye sığan en uygun fiyatlı dengiyle geri eklenir; sığmayanlar müşteriye bildirilir.
+  for (const line of dropped) {
+    const used = new Set(lines.map((item) => item.productId));
+    const option = [{ productId: line.productId, name: line.name, price: line.price }, ...line.alternatives]
+      .filter((item) => !used.has(item.productId) && item.price * line.quantity <= budget - total()).sort((a, b) => a.price - b.price)[0];
+    if (!option) { removed.push(line.name); continue; }
+    if (option.productId !== line.productId) replace(line, option);
+    lines.push(line);
+  }
+  return finish();
 };
 
 export const detectToolIntent = (query) => {
@@ -122,7 +169,7 @@ export const detectToolIntent = (query) => {
   return null;
 };
 
-const effectivePriceMap = async (products) => {
+export const effectivePriceMap = async (products) => {
   const ids = products.map((product) => product._id);
   const weekly = await WeeklyProduct.find({ isActive: true, product: { $in: ids } }).select("product weeklyPrice").lean();
   const map = new Map(weekly.map((item) => [String(item.product), Number(item.weeklyPrice)]));
@@ -239,18 +286,30 @@ export const runAiTool = async (intent, authenticatedUserId) => {
       if (!terms.length) { missing.push(item.name); continue; }
       const patterns = terms.map((term) => turkishInsensitivePattern(term));
       const base = { isHidden: { $ne: true }, isOutOfStock: { $ne: true } };
-      let candidates = await Product.find({ ...base, $and: patterns.map((pattern) => ({ name: { $regex: pattern, $options: "i" } })) }).select(fields).limit(12).lean();
+      let candidates = await Product.find({ ...base, $and: patterns.map((pattern) => ({ name: { $regex: pattern, $options: "i" } })) }).select(fields).limit(60).lean();
+      const byName = candidates.length > 0;
       if (!candidates.length) candidates = await Product.find({ ...base, category: { $regex: patterns[0], $options: "i" } }).select(fields).limit(12).lean();
       if (!candidates.length) { missing.push(item.name); continue; }
       // Önce adı isteğe en çok uyan ("süt" için "Sütlü çikolata" değil "Süt 1 L"), sonra en uygun fiyatlı ürün seçilir; aynı ürün iki kez eklenmez.
+      // Aynı ölçüde uyan diğer ürünler, bütçe aşılırsa yerine konabilecek denkler olarak saklanır.
       const priced = (await effectivePriceMap(candidates)).filter((product) => !resolved.some((line) => line.productId === product.id))
         .map((product) => ({ product, score: cartMatchScore(product.name, terms) }))
-        .sort((a, b) => b.score - a.score || a.product.price - b.product.price).map(({ product }) => product);
+        .sort((a, b) => b.score - a.score || a.product.price - b.product.price);
       if (!priced.length) continue;
-      resolved.push({ productId: priced[0].id, name: priced[0].name, price: priced[0].price, quantity: item.quantity });
+      const [best, ...rest] = priced;
+      // Ada göre bulunan en iyi aday bile istenen ürünün kendisi değilse ("pirinç" için yalnızca "Pirinç Unu") yanlış ürün eklenmez.
+      if (byName && best.score <= 0) { missing.push(item.name); continue; }
+      const alternatives = rest.filter((entry) => entry.score >= best.score - 1).slice(0, 5).map(({ product }) => ({ productId: product.id, name: product.name, price: product.price }));
+      resolved.push({ productId: best.product.id, name: best.product.name, price: best.product.price, quantity: item.quantity, alternatives });
     }
-    const fitted = fitCartToBudget(resolved, budget);
-    const items = fitted.lines.map((line) => ({ ...line, lineTotal: Math.round(line.price * line.quantity * 100) / 100 }));
+    const fitted = fitCartToBudget(resolved, budget, { keepAlternatives: true });
+    const inCart = new Set(fitted.lines.map((line) => line.productId));
+    // Her kalemin yanında, müşterinin tek dokunuşla geçebileceği en fazla üç denk ürün döner.
+    const items = fitted.lines.map(({ alternatives, ...line }) => ({
+      ...line,
+      lineTotal: Math.round(line.price * line.quantity * 100) / 100,
+      alternatives: alternatives.filter((option) => !inCart.has(option.productId)).slice(0, 3),
+    }));
     return { tool: intent.name, found: items.length > 0, items, missing, removedForBudget: fitted.removed, total: Math.round(fitted.total * 100) / 100, budget, currency: "TRY" };
   }
   if (intent.name === "getMyCart") {
