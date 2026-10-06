@@ -56,6 +56,42 @@ export const extractCategoryTerm = (query) => {
   return words.length ? words.join(" ") : null;
 };
 
+// "300 TL'ye kahvaltılık hazırla", "4 kişilik makarna yapacağım", "600 TL bütçem var" gibi
+// sepet kurma istekleri: ürün listesini model planlar, bu yüzden tek adımlı araç yönlendirmesi atlanır.
+export const isCartRequest = (query) => {
+  const text = normalize(query);
+  return /(sepet|liste|alisveris).{0,24}(hazirla|olustur|yap|kur|oner|cikar)|(hazirla|olustur|oner).{0,24}(sepet|liste)|butce|\d+\s*(tl|lira).{0,30}(hazirla|olustur|sepet|alisveris|yetecek|ne alabilirim|ne alinir)|\d+\s*kisilik|yapacagim|pisirecegim|yapmak istiyorum|malzeme(ler)?i|tarif/.test(text);
+};
+
+// "2 süt, 1 yumurta, makarna" → [{ name: "süt", quantity: 2 }, ...]
+export const parseCartItems = (value) => String(value || "").split(/[,;\n]+/).map((part) => part.trim()).filter(Boolean).slice(0, 15).map((part) => {
+  const match = part.match(/^(\d{1,2})\s*(?:x|adet|tane|paket|kutu|sise)?\s+(.+)$/i);
+  const quantity = match ? Math.min(Math.max(Number(match[1]), 1), 20) : 1;
+  return { name: (match ? match[2] : part).slice(0, 60).trim(), quantity };
+}).filter((item) => item.name.length >= 2);
+
+// Ürün adının istenen kelimelerle ne kadar örtüştüğü: tam kelime eşleşmesi ve adın o kelimeyle başlaması öne alınır.
+export const cartMatchScore = (productName, terms) => {
+  const words = normalize(productName).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  return terms.reduce((score, term) => score + (words.includes(term) ? 3 : 0) + (words[0] === term ? 2 : 0), 0) - words.length * 0.1;
+};
+
+// Bütçeyi aşan sepeti önce adetleri azaltarak, sonra sondan ürün çıkararak bütçeye indirir.
+export const fitCartToBudget = (items, budget) => {
+  const lines = items.map((item) => ({ ...item }));
+  const removed = [];
+  const total = () => lines.reduce((sum, line) => sum + line.price * line.quantity, 0);
+  if (!(budget > 0)) return { lines, removed, total: total() };
+  while (total() > budget) {
+    const reducible = lines.filter((line) => line.quantity > 1).sort((a, b) => b.price - a.price)[0];
+    if (reducible) { reducible.quantity -= 1; continue; }
+    if (lines.length <= 1) break;
+    removed.push(lines.pop().name);
+  }
+  if (total() > budget && lines.length === 1) { removed.push(lines.pop().name); }
+  return { lines, removed, total: total() };
+};
+
 export const detectToolIntent = (query) => {
   const text = normalize(query);
   const id = String(query).match(/\b[a-f\d]{24}\b/i)?.[0] || null;
@@ -190,6 +226,33 @@ export const runAiTool = async (intent, authenticatedUserId) => {
     const products = [...counts.values()].sort((a, b) => b.orderCount - a.orderCount || b.totalQuantity - a.totalQuantity).slice(0, 6);
     return { tool: intent.name, found: products.length > 0, orderCount: orders.length, products };
   }
+  if (intent.name === "suggestCart") {
+    // Model ürün listesini planlar; burada her kalem katalogdaki gerçek, stokta olan bir ürüne bağlanır.
+    const wanted = parseCartItems(intent.items);
+    const budget = Number(intent.budget) > 0 ? Math.min(Number(intent.budget), 100000) : null;
+    if (!wanted.length) return { tool: intent.name, found: false, items: [], missing: [], total: 0, budget };
+    const fields = "name price discountedPrice isDiscounted isOutOfStock category";
+    const resolved = [];
+    const missing = [];
+    for (const item of wanted) {
+      const terms = getProductSearchTerms(item.name);
+      if (!terms.length) { missing.push(item.name); continue; }
+      const patterns = terms.map((term) => turkishInsensitivePattern(term));
+      const base = { isHidden: { $ne: true }, isOutOfStock: { $ne: true } };
+      let candidates = await Product.find({ ...base, $and: patterns.map((pattern) => ({ name: { $regex: pattern, $options: "i" } })) }).select(fields).limit(12).lean();
+      if (!candidates.length) candidates = await Product.find({ ...base, category: { $regex: patterns[0], $options: "i" } }).select(fields).limit(12).lean();
+      if (!candidates.length) { missing.push(item.name); continue; }
+      // Önce adı isteğe en çok uyan ("süt" için "Sütlü çikolata" değil "Süt 1 L"), sonra en uygun fiyatlı ürün seçilir; aynı ürün iki kez eklenmez.
+      const priced = (await effectivePriceMap(candidates)).filter((product) => !resolved.some((line) => line.productId === product.id))
+        .map((product) => ({ product, score: cartMatchScore(product.name, terms) }))
+        .sort((a, b) => b.score - a.score || a.product.price - b.product.price).map(({ product }) => product);
+      if (!priced.length) continue;
+      resolved.push({ productId: priced[0].id, name: priced[0].name, price: priced[0].price, quantity: item.quantity });
+    }
+    const fitted = fitCartToBudget(resolved, budget);
+    const items = fitted.lines.map((line) => ({ ...line, lineTotal: Math.round(line.price * line.quantity * 100) / 100 }));
+    return { tool: intent.name, found: items.length > 0, items, missing, removedForBudget: fitted.removed, total: Math.round(fitted.total * 100) / 100, budget, currency: "TRY" };
+  }
   if (intent.name === "getMyCart") {
     const user = await User.findById(authenticatedUserId).select("cartItems").populate({ path: "cartItems.product", select: "name price discountedPrice isDiscounted isOutOfStock isHidden category" }).lean();
     const products = (user?.cartItems || []).filter((item) => item.product && !item.product.isHidden);
@@ -207,7 +270,7 @@ export const executeModelToolCall = async (call, authenticatedUserId) => {
   try { args = JSON.parse(call?.function?.arguments || "{}"); }
   catch { throw new Error("AI_TOOL_ARGUMENTS_INVALID"); }
   if (!args || typeof args !== "object" || Array.isArray(args)) throw new Error("AI_TOOL_ARGUMENTS_INVALID");
-  const allowed = new Set(["searchProducts", "getProductDetails", "getProductStock", "getProductPrice", "getMyActiveOrders", "getMyLastOrder", "getOrderStatus", "getOrderDetails", "getActiveCampaigns", "getCouponInfo", "getMyCoupons", "getStoreInfo", "getMyCart", "getCategoryProducts", "getMyFrequentProducts"]);
+  const allowed = new Set(["searchProducts", "getProductDetails", "getProductStock", "getProductPrice", "getMyActiveOrders", "getMyLastOrder", "getOrderStatus", "getOrderDetails", "getActiveCampaigns", "getCouponInfo", "getMyCoupons", "getStoreInfo", "getMyCart", "getCategoryProducts", "getMyFrequentProducts", "suggestCart"]);
   if (!allowed.has(name)) throw new Error("AI_TOOL_NOT_ALLOWED");
   const safeArgs = Object.fromEntries(Object.entries(args).filter(([key]) => key !== "userId" && key !== "user_id"));
   const intent = { ...safeArgs, name: name === "getStoreInfo" ? "getStoreSettings" : name };
@@ -226,6 +289,7 @@ export const toolResponseWithoutModel = (result) => {
   if (result.tool === "getMyCoupons" && !result.found) return "Hesabınıza tanımlı, şu anda kullanılabilir bir kupon görünmüyor. Elinizde bir kupon kodu varsa yazın, geçerli olup olmadığını kontrol edeyim.";
   if (result.tool === "getMyActiveOrders" && !result.found) return "Şu anda hazırlanan veya yolda olan bir siparişiniz görünmüyor. Dilerseniz son siparişinizin durumuna bakabilirim.";
   if (result.tool === "getMyCart" && result.found && !result.items?.length) return "Sepetiniz şu anda boş görünüyor.";
+  if (result.tool === "suggestCart" && !result.found) return "İstediğiniz ürünleri şu anda katalogda bulamadım. Ürün adlarını yazarsanız tekrar bakabilirim.";
   if (result.tool.startsWith("getMy") && !result.found && result.tool !== "getMyCart" && result.tool !== "getMyFrequentProducts") return "Hesabınızda bu ölçüte uyan bir sipariş bulamadım.";
   return null;
 };
@@ -267,6 +331,14 @@ export const formatToolResult = (result) => {
   }
   if (result.tool === "getCategoryProducts" && result.products?.length) {
     return `Bu kategoride bulduklarım:\n${result.products.slice(0, 8).map(productLine).join("\n")}`;
+  }
+  if (result.tool === "suggestCart" && result.items?.length) {
+    const lines = result.items.map((item) => `• ${item.quantity} × ${item.name} — ${formatMoney(item.lineTotal)}`);
+    const notes = [
+      result.missing?.length ? `Bulamadıklarım: ${result.missing.join(", ")}.` : "",
+      result.removedForBudget?.length ? `Bütçeye sığmadığı için çıkardıklarım: ${result.removedForBudget.join(", ")}.` : "",
+    ].filter(Boolean).join(" ");
+    return `Sizin için hazırladığım sepet:\n${lines.join("\n")}\nToplam: ${formatMoney(result.total)}${result.budget ? ` (bütçe ${formatMoney(result.budget)})` : ""}${notes ? `\n${notes}` : ""}\nBeğendiyseniz aşağıdaki düğmeyle sepetinize ekleyebilirsiniz.`;
   }
   if (result.tool === "getMyFrequentProducts" && result.products?.length) {
     return `Son siparişlerinizde en sık aldıklarınız:\n${result.products.map((item) => `• ${item.name} — ${item.orderCount} siparişte`).join("\n")}`;

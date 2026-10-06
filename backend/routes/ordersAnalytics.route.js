@@ -4,6 +4,7 @@ import AdminAudit from "../models/adminAudit.model.js";
 import { auditAdminAction } from "../middleware/adminAudit.js";
 import { adminRoute, protectRoute } from "../middleware/auth.middleware.js";
 import { notifyOrderStatusChange } from "../services/orderStatusNotifier.js";
+import { evaluateMissionsForUser } from "../services/mission.service.js";
 import {
   getOrderAnalyticsData,
   getDailyOrdersData,
@@ -57,6 +58,7 @@ router.put("/bulk-status", protectRoute, adminRoute, auditAdminAction("Toplu sip
     order.statusHistory.push({ status, changedAt: new Date(), changedBy: req.user._id });
     await order.save();
     notifyOrderStatusChange(order, previousStatus);
+    if (status === "Teslim Edildi" && previousStatus !== status) evaluateMissionsForUser(order.user);
     req.app.get("io")?.to(`user_${order.user.toString()}`).to("adminRoom").emit("orderStatusUpdated", { orderId: order._id, newStatus: status, message: `Sipariş durumu güncellendi: ${status}` });
   }
   return res.json({ updated: orders.length });

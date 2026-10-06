@@ -1,6 +1,7 @@
 import Order from "../models/order.model.js";
 import User from "../models/user.model.js";
 import { notifyOrderStatusChange } from "../services/orderStatusNotifier.js";
+import { evaluateMissionsForUser } from "../services/mission.service.js";
 
 // Tüm siparişleri getirirken "status" bilgisini de ekleyelim
 export const getOrderAnalyticsData = async () => {
@@ -94,6 +95,8 @@ export const updateOrderStatus = async (req, res) => {
 
     // Müşterinin telefonuna anlık bildirim (yanıtı bekletmez, hata siparişi etkilemez)
     notifyOrderStatusChange(order, previousStatus);
+    // Teslim edilen sipariş bir görevi tamamlıyorsa ödül kuponu tanımlanır (yanıtı bekletmez)
+    if (status === "Teslim Edildi" && previousStatus !== status) evaluateMissionsForUser(order.user);
 
     // Socket.IO ile kullanıcıya bildirim gönder
     try {

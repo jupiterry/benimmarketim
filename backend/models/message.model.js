@@ -41,6 +41,11 @@ const messageSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // Mesaja eşlik eden yapılandırılmış veri (ör. asistanın sepet önerisi: { cartProposal })
+    meta: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
   },
   { timestamps: true }
 );

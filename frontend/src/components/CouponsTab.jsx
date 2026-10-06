@@ -8,6 +8,7 @@ import toast from "react-hot-toast";
 import axios from "../lib/axios";
 import { useConfirm } from "./ConfirmModal";
 import CouponRequestCampaignPanel from "./CouponRequestCampaignPanel";
+import MissionsPanel from "./MissionsPanel";
 
 // Stat Card Component
 const StatCard = ({ title, value, tone, subtext }) => (
@@ -506,6 +507,8 @@ const CouponsTab = () => {
       </header>
 
       <CouponRequestCampaignPanel />
+
+      <MissionsPanel />
 
       {/* Stats */}
       <div className="ui-stats">

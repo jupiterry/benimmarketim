@@ -249,3 +249,75 @@ test("order answers carry the delivery tracking note when the store set one", ()
   const text = formatToolResult({ tool: "getMyActiveOrders", found: true, orders: [{ id: "1", status: "Yolda", totalAmount: 100, createdAt: new Date("2026-10-05T10:00:00Z"), deliveryTracking: "Kurye 10 dk içinde kapıda" }] });
   assert.match(text, /Teslimat notu: Kurye 10 dk içinde kapıda/);
 });
+
+test("cart requests are recognised and left to the model instead of a single lookup", async () => {
+  const { isCartRequest } = await import("../services/ai/tools.js");
+  for (const text of ["300 TL'ye kahvaltılık hazırla", "4 kişilik makarna yapacağım", "Bu hafta 600 TL bütçem var", "bana haftalık sepet oluştur", "menemen malzemeleri"]) assert.equal(isCartRequest(text), true, text);
+  for (const text of ["süt var mı", "sepetimde ne var", "siparişim nerede", "kuponlarım neler", "ekmek kaç tl"]) assert.equal(isCartRequest(text), false, text);
+});
+
+test("cart item text is parsed into names and quantities", async () => {
+  const { parseCartItems, cartMatchScore } = await import("../services/ai/tools.js");
+  assert.deepEqual(parseCartItems("2 süt, 1 adet yumurta, makarna; 3x salça"), [{ name: "süt", quantity: 2 }, { name: "yumurta", quantity: 1 }, { name: "makarna", quantity: 1 }, { name: "salça", quantity: 3 }]);
+  assert.equal(parseCartItems("99 süt")[0].quantity, 20);
+  assert.equal(parseCartItems("").length, 0);
+  // "süt" için tam kelime eşleşmesi, "sütlü" gibi türevlerin önüne geçer
+  assert.ok(cartMatchScore("Süt 1 L", ["sut"]) > cartMatchScore("Sütlü Çikolata", ["sut"]));
+});
+
+test("a cart over budget is trimmed by quantity first, then by dropping items", async () => {
+  const { fitCartToBudget } = await import("../services/ai/tools.js");
+  const items = [{ name: "Süt", price: 40, quantity: 2 }, { name: "Peynir", price: 120, quantity: 1 }, { name: "Zeytin", price: 90, quantity: 1 }];
+  assert.equal(fitCartToBudget(items, null).total, 290);
+  const fitted = fitCartToBudget(items, 200);
+  assert.ok(fitted.total <= 200);
+  assert.deepEqual(fitted.lines.map((line) => [line.name, line.quantity]), [["Süt", 1], ["Peynir", 1]]);
+  assert.deepEqual(fitted.removed, ["Zeytin"]);
+  assert.equal(items[0].quantity, 2); // girdi değişmez
+  assert.equal(fitCartToBudget([{ name: "Pahalı", price: 500, quantity: 1 }], 100).lines.length, 0);
+});
+
+test("suggestCart resolves items to in-stock catalogue products and respects the budget", async (t) => {
+  const filters = [];
+  t.mock.method(WeeklyProduct, "find", () => chain([]));
+  t.mock.method(Product, "find", (filter) => {
+    filters.push(filter);
+    const key = JSON.stringify(filter);
+    if (/\[sşSŞ\]\[uüUÜ\]t/.test(key)) return chain([{ _id: "507f191e810c19729de860a1", name: "Sütlü Çikolata", price: 15 }, { _id: "507f191e810c19729de860a2", name: "Süt 1 L", price: 42 }]);
+    if (/makarna/.test(key)) return chain([{ _id: "507f191e810c19729de860a3", name: "Burgu Makarna 500 g", price: 28 }]);
+    return chain([]);
+  });
+  const result = await runAiTool({ name: "suggestCart", items: "2 süt, 3 makarna, 1 ejderha meyvesi", budget: 120 }, USER_ID);
+  assert.ok(filters.every((filter) => filter.isHidden.$ne === true && filter.isOutOfStock.$ne === true));
+  assert.equal(result.items[0].name, "Süt 1 L");
+  assert.deepEqual(result.missing, ["ejderha meyvesi"]);
+  assert.ok(result.total <= 120);
+  assert.equal(result.total, result.items.reduce((sum, item) => sum + item.lineTotal, 0));
+  assert.match(formatToolResult(result), /Toplam: .* TL \(bütçe 120,00 TL\)/);
+});
+
+test("the assistant stores the cart proposal with its reply so the app can offer an add-to-cart button", async (t) => {
+  mockConversation(t);
+  t.mock.method(WeeklyProduct, "find", () => chain([]));
+  t.mock.method(Product, "find", () => chain([{ _id: "507f191e810c19729de860a3", name: "Burgu Makarna 500 g", price: 28 }]));
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async () => {
+    calls += 1;
+    return { ok: true, json: async () => ({ choices: [{ message: calls === 1
+      ? { content: "", tool_calls: [{ id: "c1", type: "function", function: { name: "suggestCart", arguments: JSON.stringify({ items: "2 makarna", userId: "baskasi" }) } }] }
+      : { content: "Makarna için 2 paket Burgu Makarna önerdim, toplam 56 TL." } }] }) };
+  });
+  const reply = await answerUserMessage({ chat, query: "4 kişilik makarna yapacağım" });
+  assert.equal(calls, 2);
+  assert.equal(reply.meta.cartProposal.total, 56);
+  assert.deepEqual(reply.meta.cartProposal.items[0], { productId: "507f191e810c19729de860a3", name: "Burgu Makarna 500 g", price: 28, quantity: 2, lineTotal: 56 });
+});
+
+test("the cart quick button asks what to prepare without calling the model", async (t) => {
+  mockConversation(t);
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async () => { calls += 1; return { ok: true, json: async () => ({}) }; });
+  const reply = await answerUserMessage({ chat, query: "🧺 Sepet Hazırla" });
+  assert.match(reply.content, /Ne için sepet hazırlayayım/);
+  assert.equal(calls, 0);
+});

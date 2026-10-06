@@ -41,6 +41,7 @@ export const AI_TOOL_DEFINITIONS = [
   ["getActiveCampaigns", "Şu anda aktif kampanyaları ve haftanın özel fiyatlı ürünlerini getirir.", {}, []],
   ["getCategoryProducts", "Bir kategorideki (ör. içecek, atıştırmalık) ürünleri güncel fiyat ve stokla listeler.", { category: { type: "string", description: "Kategori adı" } }, ["category"]],
   ["getMyFrequentProducts", "Giriş yapmış kullanıcının geçmiş siparişlerinde en sık aldığı ürünleri getirir.", {}, []],
+  ["suggestCart", "Müşteri için sepet önerisi hazırlar: yazdığın ürün listesini katalogdaki gerçek, stokta olan ürünlerle ve güncel fiyatlarla eşleştirir, bütçe verildiyse toplamı bütçeye sığdırır. Sepete eklemez; müşteri onaylar.", { items: { type: "string", description: "Virgülle ayrılmış 'adet ürün' listesi. Örnek: '2 makarna, 1 salça, 1 ayçiçek yağı'" }, budget: { type: "number", description: "Müşterinin belirttiği bütçe (TL). Bütçe yoksa gönderme." } }, ["items"]],
   ["getCouponInfo", "Kupon kodunun giriş yapmış kullanıcı için uygunluğunu kontrol eder.", { code: { type: "string" } }, ["code"]],
   ["getMyCoupons", "Giriş yapmış kullanıcıya tanımlı, kullanılabilir kuponları listeler.", {}, []],
   ["getStoreInfo", "Sipariş saatleri, sipariş açık durumu, minimum tutar ve public teslimat noktası ayarlarını getirir.", {}, []],
