@@ -30,6 +30,10 @@ jobs:
             frontend/package-lock.json
       - run: bash -n ops/deploy/deploy.sh ops/deploy/ssh-entry.sh
       - run: python3 ops/deploy/test_deploy.py
+      - name: Install image build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends build-essential pkg-config libpng-dev autoconf automake libtool nasm
       - run: npm ci --no-audit --no-fund
       - run: npm run test:ai-support
       - run: npm ci --prefix frontend --no-audit --no-fund

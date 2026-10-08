@@ -63,6 +63,8 @@ Bu yedekler gizli dosyalar içerebilir; yalnızca sunucuda root erişiminde tutu
 
 ## 2. Sunucunun GitHub'dan kod okuyabilmesi
 
+Linux'taki temiz npm kurulumu için resim işleme paketlerinin derleme araçları da gerekir. Debian/Ubuntu sunucuda `build-essential pkg-config libpng-dev autoconf automake libtool nasm` paketlerini kurun. Workflow bunları GitHub runner'da otomatik kurar.
+
 Bu anahtar, GitHub Actions'ın sunucuya bağlanacağı anahtardan **ayrıdır**.
 Özel repo için root oturumunda salt okunur repo anahtarı oluşturun:
 
