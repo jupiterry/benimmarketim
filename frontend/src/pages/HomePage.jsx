@@ -16,6 +16,7 @@ import {
 import { useUserStore } from "../stores/useUserStore";
 import "../styles/landing.css";
 import MarketCategories from "../components/MarketCategories";
+import AppScreenshots from "../components/AppScreenshots";
 import { homeTitle, homeDescription, homeKeywords, siteUrl } from "../data/seo";
 
 const businessAddress =
@@ -248,6 +249,8 @@ const HomePage = () => {
           </a>
         </div>
       </section>
+
+      <AppScreenshots />
 
       <section
         className="landing-how"

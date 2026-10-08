@@ -5,6 +5,7 @@ import Order from "../models/order.model.js";
 import SupportRequest from "../models/supportRequest.model.js";
 import { answerUserMessage } from "../services/ai/assistant.service.js";
 import { sendPushToUser } from "../services/push.service.js";
+import { takeOverChat, takeOverFailureMessage } from "../services/chatTakeover.service.js";
 
 // Yeni sohbet oluştur veya mevcut aktif sohbeti getir
 export const createChat = async (req, res) => {
@@ -179,7 +180,7 @@ export const sendMessage = async (req, res) => {
       return res.status(400).json({ message: "Mesaj en fazla 2000 karakter olabilir" });
     }
 
-    const chat = await Chat.findById(chatId);
+    let chat = await Chat.findById(chatId);
     if (!chat) {
       return res.status(404).json({ message: "Sohbet bulunamadı!" });
     }
@@ -194,8 +195,14 @@ export const sendMessage = async (req, res) => {
       return res.status(400).json({ message: "Bu sohbet kapatılmış!" });
     }
 
-    if (isAdmin && (chat.mode !== "HUMAN" || String(chat.assignedAgent || "") !== String(userId))) {
-      return res.status(409).json({ message: "Mesaj göndermeden önce bekleyen desteği Görüşmeyi Al düğmesiyle üstlenin." });
+    // Yönetici yapay zekâ ile süren ya da bekleyen bir sohbete yazarsa görüşmeyi üstlenir;
+    // böylece yapay zekâ ile aynı anda cevap verilmez.
+    let systemMessage = null;
+    if (isAdmin) {
+      const takeover = await takeOverChat({ chat, admin: req.user, io: req.app.get("io") });
+      if (!takeover.ok) return res.status(409).json({ message: takeOverFailureMessage(takeover.reason) });
+      chat = takeover.chat;
+      systemMessage = takeover.systemMessage || null;
     }
 
     const sender = isAdmin ? "admin" : "user";
@@ -265,7 +272,7 @@ export const sendMessage = async (req, res) => {
       aiMessage = await answerUserMessage({ chat, query: cleanContent, io });
     }
 
-    res.status(201).json({ success: true, message, aiMessage });
+    res.status(201).json({ success: true, message, aiMessage, systemMessage, chatMode: chat.mode });
   } catch (error) {
     console.error("Mesaj gönderilirken hata:", error.message);
     res.status(500).json({ message: "Server hatası", error: error.message });

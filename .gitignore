@@ -14,6 +14,12 @@ dist-ssr
 
 .env
 .telegram.env
+.env.*
+!.env.example
+uploads/
+*.zip
+*.rar
+frontend/.vite-image-cache/
 
 # Editor directories and files
 .vscode/*

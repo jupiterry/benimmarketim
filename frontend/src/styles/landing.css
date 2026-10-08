@@ -391,6 +391,104 @@
   color: var(--lp-green-strong);
 }
 
+/* ── Uygulama ekran görüntüleri ────────────────────────────────────── */
+.landing-shots {
+  --shots-gap: 22px;
+  --shots-visible: 4;
+  /* .landing-shell ile aynı genişlik ve kenar boşluğu */
+  --shots-shell: min(1184px, calc(100% - 48px));
+  --shots-gutter: calc((100% - var(--shots-shell)) / 2);
+  padding-block: 88px 24px;
+  background: #fff;
+  scroll-margin-top: 80px;
+}
+.landing-shots-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 32px;
+}
+.landing-shots-head h2 {
+  margin-top: 10px;
+}
+.landing-shots-nav {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+.landing-shots-nav button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--lp-line);
+  border-radius: 50%;
+  background: var(--lp-cream);
+  color: var(--lp-ink);
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    opacity 0.18s ease;
+}
+.landing-shots-nav button:hover:not(:disabled) {
+  border-color: var(--lp-mint-2);
+  background: var(--lp-mint);
+  color: var(--lp-green-strong);
+}
+.landing-shots-nav button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.landing-shots-nav button:focus-visible,
+.landing-shots-track:focus-visible {
+  outline: 3px solid var(--lp-green);
+  outline-offset: 4px;
+}
+/* Şerit sayfanın iki kenarına kadar uzanır; ilk kart sayfa hizasında başlar. */
+.landing-shots-track {
+  display: flex;
+  gap: var(--shots-gap);
+  margin: 36px 0 0;
+  padding: 4px var(--shots-gutter) 24px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  list-style: none;
+  scroll-padding-inline: var(--shots-gutter);
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+}
+.landing-shots-track::-webkit-scrollbar {
+  display: none;
+}
+.landing-shots-track li {
+  /* %100 = şeridin iç genişliği (sayfa genişliği); aynı anda --shots-visible kart sığar. */
+  flex: 0 0
+    calc(
+      (100% - (var(--shots-visible) - 1) * var(--shots-gap)) /
+        var(--shots-visible)
+    );
+  overflow: hidden;
+  border: 1px solid var(--lp-line);
+  border-radius: var(--lp-radius);
+  background: var(--lp-cream);
+  box-shadow: 0 18px 30px -24px #10231c59;
+  scroll-snap-align: start;
+}
+/* Kart, görselin kendi oranını alır: kırpma olmaz. */
+.landing-shots-track img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 600 / 1298;
+  object-fit: contain;
+  user-select: none;
+}
+
 /* ── Nasıl çalışır ─────────────────────────────────────────────────── */
 .landing-how {
   padding-block: 88px;
@@ -960,6 +1058,10 @@ a.landing-category-card:hover {
   .landing-section-heading {
     grid-template-columns: minmax(0, 1fr);
   }
+  .landing-shots {
+    --shots-visible: 3;
+    padding-block: 64px 8px;
+  }
   .landing-how,
   .landing-categories,
   .landing-membership,
@@ -999,9 +1101,25 @@ a.landing-category-card:hover {
     width: 240px;
   }
 }
+@media (max-width: 760px) {
+  .landing-shots {
+    --shots-visible: 2.25;
+    --shots-gap: 20px;
+  }
+}
 @media (max-width: 600px) {
   .landing-shell {
     width: calc(100% - 32px);
+  }
+  .landing-shots {
+    --shots-visible: 1.4;
+    --shots-shell: calc(100% - 32px);
+  }
+  .landing-shots-nav {
+    display: none;
+  }
+  .landing-shots-track {
+    margin-top: 28px;
   }
   .landing-desktop-break {
     display: none;

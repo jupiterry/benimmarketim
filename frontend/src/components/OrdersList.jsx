@@ -450,6 +450,8 @@ const OrdersList = () => {
       const printWindow = window.open('', '_blank', 'width=400,height=700');
       if (!printWindow) return;
   
+      // Termal yazıcı yalnızca siyah/beyaz basar: renk, gri ve emoji noktalı (silik)
+      // çıkar. Fişte yalnızca düz siyah metin ve çizgi kullanılır.
       const css = `
         <style>
           @page { size: 76mm 127mm; margin: 0; }
@@ -466,95 +468,171 @@ const OrdersList = () => {
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
-  
+
           .receipt {
             width: 76mm;
             height: 127mm;
             box-sizing: border-box;
-            padding: 6mm;
+            padding: 4mm 5mm;
             overflow: hidden;
           }
-          .header { text-align: center; margin-bottom: 6px; }
-          .title { font-size: 14px; font-weight: bold; }
+          .header { text-align: center; }
+          .brand { font-size: 15px; font-weight: bold; letter-spacing: 0.5px; }
+          .order-no { font-size: 20px; font-weight: bold; margin-top: 2px; }
           .meta { font-size: 11px; }
+          .flag { font-size: 11px; font-weight: bold; }
+          .point {
+            margin: 5px 0 4px;
+            padding: 3px 4px;
+            border: 2px solid #000;
+            text-align: center;
+            font-size: 15px;
+            font-weight: bold;
+            text-transform: uppercase;
+            word-break: break-word;
+          }
           .row {
             display: flex;
             justify-content: space-between;
             font-size: 11px;
-            margin: 3px 0;
-            gap: 6px;
+            margin: 2px 0;
+            gap: 8px;
           }
-          .items {
-            border-top: 1px dashed #000;
-            border-bottom: 1px dashed #000;
-            padding: 4px 0;
-            margin: 4px 0;
+          .row > div:last-child { text-align: right; word-break: break-word; }
+          .strong > div:last-child { font-weight: bold; }
+          .phone > div:last-child { font-size: 14px; font-weight: bold; }
+          .note {
+            margin: 5px 0 2px;
+            padding: 3px 5px;
+            border: 1.5px dashed #000;
+            font-size: 12px;
+            font-weight: bold;
+            word-break: break-word;
           }
+          .rule { border-top: 1px dashed #000; margin: 5px 0; }
+          .rule-solid { border-top: 2px solid #000; margin: 5px 0; }
           .item {
             display: grid;
-            grid-template-columns: 1fr auto;
-            column-gap: 8px;
+            grid-template-columns: auto 1fr auto;
+            column-gap: 6px;
             font-size: 11px;
+            margin: 3px 0;
             align-items: start;
           }
-          .item .name { max-width: 60%; word-break: break-word; }
-          .item .price { min-width: 48px; text-align: right; font-weight: bold; }
-          .totals { font-size: 12px; font-weight: bold; }
+          .item .qty { font-weight: bold; min-width: 22px; }
+          .item .name { word-break: break-word; }
+          .item .unit { font-size: 10px; }
+          .item .price { text-align: right; font-weight: bold; white-space: nowrap; }
+          .count { font-size: 10px; text-align: right; }
+          .discount { font-weight: bold; }
+          .total {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            font-size: 18px;
+            font-weight: bold;
+          }
+          .footer { text-align: center; margin-top: 6px; }
+          .footer div { font-size: 10px; font-weight: bold; margin-top: 2px; }
           * { page-break-inside: avoid; }
         </style>
       `;
-  
-      const createdAt = new Date(order.createdAt).toLocaleString('tr-TR');
-      const itemsHtml = order.products.map(p => `
+
+      // Müşterinin yazdığı not, ürün adı vb. HTML olarak çalışmasın diye kaçırılır
+      const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
+      ));
+      const money = (value) => `₺${Number(value || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+      const createdAt = new Date(order.createdAt).toLocaleString('tr-TR', {
+        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+      });
+      const shortId = String(order.orderId || order._id || '').slice(-6).toUpperCase();
+      const products = order.products || [];
+      const unitCount = products.reduce((sum, p) => sum + (Number(p.quantity) || 0), 0);
+
+      // Fiyat birim fiyattır; satırda adet × birim fiyat tutarı gösterilir
+      const itemsHtml = products.map(p => {
+        const qty = Number(p.quantity) || 0;
+        const unit = Number(p.price || 0);
+        return `
         <div class="item">
-          <div class="name">${p.name} x ${p.quantity}</div>
-          <div class="price">₺${Number(p.price || 0).toFixed(2)}</div>
+          <div class="qty">${qty}x</div>
+          <div class="name">${esc(p.name)}${qty > 1 ? `<div class="unit">${qty} × ${money(unit)}</div>` : ''}</div>
+          <div class="price">${money(unit * qty)}</div>
         </div>
-      `).join('');
-  
-      const noteHtml = order.note
-        ? `<div class="row"><div>Not:</div><div>${order.note}</div></div>`
+      `;
+      }).join('');
+
+      const deliveryInfo = order.deliveryPointName || order.city || 'Teslimat noktası belirtilmemiş';
+      const phone = order.phone || order.user?.phone || '-';
+      const orderCount = Number(order.userOrderCount) || 0;
+      const flagHtml = orderCount === 1
+        ? '<div class="flag">* İLK SİPARİŞ *</div>'
+        : orderCount > 1 ? `<div class="meta">Müşterinin ${orderCount}. siparişi</div>` : '';
+      const noteHtml = order.note && String(order.note).trim()
+        ? `<div class="note">NOT: ${esc(String(order.note).trim())}</div>`
         : '';
-  
-      const deliveryInfo = order.deliveryPointName || order.city || 'Teslimat Noktası Belirtilmemiş';
-      
+      const discountHtml = order.couponCode ? `
+              <div class="row"><div>Ara Toplam</div><div>${money(order.subtotalAmount || order.totalAmount)}</div></div>
+              <div class="row discount"><div>Kupon indirimi (${esc(order.couponCode)})</div><div>-${money(order.couponDiscount)}</div></div>
+      ` : '';
+
       const html = `
         <html>
-          <head><meta charset="utf-8"/>${css}</head>
+          <head><meta charset="utf-8"/><title>Sipariş #${esc(shortId)}</title>${css}</head>
           <body>
             <div class="receipt">
               <div class="header">
-                <div class="title">Benim Marketim</div>
-                <div class="meta">Sipariş ID: ${order.orderId}</div>
-                <div class="meta">Tarih: ${createdAt}</div>
-                <div class="meta">📍 ${deliveryInfo}</div>
+                <div class="brand">BENİM MARKETİM</div>
+                <div class="order-no">#${esc(shortId)}</div>
+                <div class="meta">${esc(createdAt)}</div>
+                ${flagHtml}
               </div>
-              <div class="row"><div>Müşteri</div><div>${order.user.name}</div></div>
-              <div class="row"><div>Telefon</div><div>${order.user.phone || '-'}</div></div>
-              <div class="row"><div>Adres</div><div style="max-width: 170px; text-align:right;">${order.user.address || '-'}</div></div>
-              <div class="items">${itemsHtml}</div>
-              ${order.couponCode ? `
-                <div class="row"><div>Ara Toplam</div><div>₺${(order.subtotalAmount || order.totalAmount).toFixed(2)}</div></div>
-                <div class="row" style="color: #9333ea;"><div>🎟️ Kupon (${order.couponCode})</div><div>-₺${(order.couponDiscount || 0).toFixed(2)}</div></div>
-              ` : ''}
-              <div class="totals row"><div>Toplam</div><div>₺${(order.totalAmount).toFixed(2)}</div></div>
+              <div class="point">${esc(deliveryInfo)}</div>
+              <div class="row strong"><div>Müşteri</div><div>${esc(order.user?.name || '-')}</div></div>
+              <div class="row phone"><div>Telefon</div><div>${esc(phone)}</div></div>
+              ${order.user?.address ? `<div class="row"><div>Adres</div><div>${esc(order.user.address)}</div></div>` : ''}
               ${noteHtml}
-              <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #000; text-align: center;">
-                <div style="font-size: 11px; font-weight: bold;">Bizi tercih ettiğiniz için teşekkür ederiz! ❤️</div>
-                <div style="font-size: 10px; margin-top: 4px; color: #666;">📲 Uygulamayı güncellemeyi unutmayın!</div>
+              <div class="rule"></div>
+              ${itemsHtml}
+              <div class="count">${products.length} çeşit · ${unitCount} adet</div>
+              <div class="rule"></div>
+              ${discountHtml}
+              <div class="rule-solid"></div>
+              <div class="total"><div>TOPLAM</div><div>${money(order.totalAmount)}</div></div>
+              <div class="rule-solid"></div>
+              <div class="footer">
+                <div>Bizi tercih ettiğiniz için teşekkür ederiz!</div>
+                <div>Uygulamayı güncellemeyi unutmayın!</div>
               </div>
             </div>
             <script>
+              // Fiş tek etikete sığmıyorsa yazı küçültülür. Önceki yöntem kutuyu
+              // kesip sonra küçülttüğü için uzun siparişlerde toplam kayboluyordu;
+              // burada kutu genişletilip yeniden ölçülür, yazı en fazla %60'a iner,
+              // daha uzunsa fiş ikinci sayfaya devam eder.
               window.onload = function(){
                 try {
                   const el = document.querySelector('.receipt');
+                  const width = el.clientWidth;
                   const maxH = el.clientHeight;
-                  const actual = el.scrollHeight;
-                  if (actual > maxH) {
-                    const scale = maxH / actual;
-                    el.style.transformOrigin = 'top left';
-                    el.style.transform = 'scale(' + scale.toFixed(3) + ')';
-                    el.style.height = maxH + 'px';
+                  const MIN_SCALE = 0.6;
+                  el.style.height = 'auto';
+                  el.style.overflow = 'visible';
+                  let scale = 1;
+                  for (let i = 0; i < 8 && el.offsetHeight * scale > maxH + 1; i++) {
+                    scale = Math.max(MIN_SCALE, maxH / el.offsetHeight);
+                    el.style.width = (width / scale) + 'px';
+                    if (scale === MIN_SCALE) break;
+                  }
+                  if (scale < 1) el.style.zoom = String(scale);
+                  if (el.offsetHeight * scale > maxH + 1) {
+                    document.documentElement.style.height = 'auto';
+                    document.body.style.height = 'auto';
+                  } else {
+                    el.style.height = (maxH / scale) + 'px';
+                    el.style.overflow = 'hidden';
                   }
                 } catch(e){}
                 window.print();

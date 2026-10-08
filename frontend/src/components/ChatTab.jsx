@@ -197,21 +197,28 @@ const ChatTab = () => {
     e.preventDefault();
     if (!newMessage.trim() || !selectedChat) return;
 
+    const content = newMessage;
     try {
-      const content = newMessage;
       setNewMessage(""); 
       const { data } = await axios.post(`/chat/${selectedChat._id}/send`, {
         content, type: "text"
       });
       shouldKeepAtBottomRef.current = true;
-      setMessages(prev => [...prev, data.message]);
+      // Yapay zekâ ile süren sohbete yazınca görüşme üstlenilir; "görüşmeye katıldı" notu da gelir.
+      // Aynı mesaj soket üzerinden de gelebildiği için tekrar eklenmez.
+      const added = [data.systemMessage, data.message].filter(Boolean);
+      setMessages(prev => [...prev, ...added.filter(m => !prev.some(p => p._id === m._id))]);
+      const chatMode = data.chatMode;
+      if (chatMode) setSelectedChat(prev => prev && prev._id === selectedChat._id ? { ...prev, mode: chatMode } : prev);
       setChats(prev => prev.map(c => 
         c._id === selectedChat._id 
-          ? { ...c, lastMessage: content, lastMessageAt: new Date() } 
+          ? { ...c, lastMessage: content, lastMessageAt: new Date(), ...(chatMode ? { mode: chatMode } : {}) } 
           : c
       ));
     } catch (error) {
-      toast.error("Mesaj gönderilemedi");
+      // Gönderilemeyen mesaj kaybolmasın; kutuya geri konur ve nedeni gösterilir
+      setNewMessage(prev => prev || content);
+      toast.error(error.response?.data?.message || "Mesaj gönderilemedi");
     }
   };
 
@@ -245,7 +252,7 @@ const ChatTab = () => {
       newMessage: (data) => {
         if (selectedChat?._id === data.chatId && data.message.sender !== "admin") {
           shouldKeepAtBottomRef.current = isNearMessageBottom();
-          setMessages(prev => [...prev, data.message]);
+          setMessages(prev => prev.some(m => m._id && m._id === data.message._id) ? prev : [...prev, data.message]);
         }
       },
       userTyping: ({ chatId }) => setTypingUsers(prev => ({ ...prev, [chatId]: true })),
@@ -508,3 +515,4 @@ const ChatTab = () => {
 };
 
 export default ChatTab;
+
