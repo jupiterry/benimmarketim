@@ -115,6 +115,30 @@ test("OpenAI-compatible providers send native tools and auto tool choice", async
   }
 });
 
+test("OpenRouter free models include free-only fallbacks for rate limits", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalKey = process.env.OPENROUTER_API_KEY;
+  let payload;
+  globalThis.fetch = async (_url, options) => {
+    payload = JSON.parse(options.body);
+    return { ok: true, json: async () => ({ choices: [{ message: { content: "Hazır" } }] }) };
+  };
+  process.env.OPENROUTER_API_KEY = "test-key";
+  try {
+    const provider = new OpenAiCompatibleProvider({ name: "openrouter", url: "https://example.invalid", apiKey: process.env.OPENROUTER_API_KEY, model: "google/gemma-4-26b-a4b-it:free" });
+    await provider.complete([{ role: "user", content: "Bildirim metni yaz" }], []);
+    assert.deepEqual(payload.models, [
+      "google/gemma-4-26b-a4b-it:free",
+      "google/gemma-4-31b-it:free",
+      "nvidia/nemotron-3-super-120b-a12b:free",
+    ]);
+    assert.equal(payload.model, undefined);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalKey === undefined) delete process.env.OPENROUTER_API_KEY; else process.env.OPENROUTER_API_KEY = originalKey;
+  }
+});
+
 test("store schedule handles daytime, overnight, midnight and closed intervals", () => {
   const localDate = (hour, minute) => new Date(`2026-01-01T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00+03:00`);
   assert.equal(isWithinOrderSchedule({ startHour: 10, startMinute: 30, endHour: 18, endMinute: 0 }, localDate(12, 0)), true);

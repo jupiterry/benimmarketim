@@ -2,6 +2,14 @@ const DEFAULT_TIMEOUT_MS = 15000;
 
 const RETRY_DELAY_MS = 600;
 
+// OpenRouter free-tier model havuzu: seçili model limitteyse ücretsiz yedekler denenir.
+// Kişisel verileri üçüncü taraf ücretsiz araştırma uç noktasına yönlendirmemek için Inkling eklenmedi.
+const OPENROUTER_FREE_FALLBACKS = [
+  "google/gemma-4-26b-a4b-it:free",
+  "google/gemma-4-31b-it:free",
+  "nvidia/nemotron-3-super-120b-a12b:free",
+];
+
 const requestOnce = async (url, options) => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
@@ -55,9 +63,12 @@ export class OpenAiCompatibleProvider {
   constructor({ name, url, apiKey, model, extraHeaders = {} }) { Object.assign(this, { name, url, apiKey, model, extraHeaders }); }
   async complete(messages, tools = AI_TOOL_DEFINITIONS, { temperature = 0.15, maxTokens = 450 } = {}) {
     if (!this.apiKey) throw new Error("AI_API_KEY_MISSING");
+    const freeModels = this.name === "openrouter" && this.model.endsWith(":free")
+      ? [this.model, ...OPENROUTER_FREE_FALLBACKS.filter((model) => model !== this.model)]
+      : null;
     const body = await requestJson(this.url, {
       method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.apiKey}`, ...this.extraHeaders },
-      body: JSON.stringify({ model: this.model, messages, ...(tools.length ? { tools, tool_choice: "auto" } : {}), temperature, max_tokens: maxTokens }),
+      body: JSON.stringify({ ...(freeModels ? { models: freeModels } : { model: this.model }), messages, ...(tools.length ? { tools, tool_choice: "auto" } : {}), temperature, max_tokens: maxTokens }),
     });
     const message = body.choices?.[0]?.message;
     if (!message || (!message.content?.trim() && !message.tool_calls?.length)) throw new Error("AI_EMPTY_RESPONSE");
