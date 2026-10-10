@@ -108,6 +108,8 @@ test("draft endpoint returns options with the first one as title/body", async (t
   assert.equal(res.body.title, "Günaydın ☕");
   assert.equal(res.body.options.length, 2);
   assert.equal(payload.temperature, 0.9);
+  assert.equal(payload.max_tokens, 1800);
+  assert.deepEqual(payload.reasoning, { enabled: false });
   assert.equal(payload.tools, undefined);
   assert.match(payload.messages[0].content, /Eski başlık/);
 });

@@ -61,18 +61,32 @@ export const AI_TOOL_DEFINITIONS = [
 // options: { temperature, maxTokens } — verilmezse asistanın kullandığı değerler (0.15 / 450) geçerlidir.
 export class OpenAiCompatibleProvider {
   constructor({ name, url, apiKey, model, extraHeaders = {} }) { Object.assign(this, { name, url, apiKey, model, extraHeaders }); }
-  async complete(messages, tools = AI_TOOL_DEFINITIONS, { temperature = 0.15, maxTokens = 450 } = {}) {
+  async complete(messages, tools = AI_TOOL_DEFINITIONS, { temperature = 0.15, maxTokens = 450, reasoning, retryEmpty = false } = {}) {
     if (!this.apiKey) throw new Error("AI_API_KEY_MISSING");
     const freeModels = this.name === "openrouter" && this.model.endsWith(":free")
       ? [this.model, ...OPENROUTER_FREE_FALLBACKS.filter((model) => model !== this.model)]
       : null;
-    const body = await requestJson(this.url, {
-      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.apiKey}`, ...this.extraHeaders },
-      body: JSON.stringify({ ...(freeModels ? { models: freeModels } : { model: this.model }), messages, ...(tools.length ? { tools, tool_choice: "auto" } : {}), temperature, max_tokens: maxTokens }),
-    });
-    const message = body.choices?.[0]?.message;
-    if (!message || (!message.content?.trim() && !message.tool_calls?.length)) throw new Error("AI_EMPTY_RESPONSE");
-    return { role: "assistant", content: message.content?.trim() || "", ...(message.tool_calls?.length ? { tool_calls: message.tool_calls } : {}) };
+    let remainingModels = freeModels;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const body = await requestJson(this.url, {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.apiKey}`, ...this.extraHeaders },
+        body: JSON.stringify({ ...(remainingModels ? { models: remainingModels } : { model: this.model }), messages, ...(tools.length ? { tools, tool_choice: "auto" } : {}), temperature, max_tokens: maxTokens, ...(this.name === "openrouter" && reasoning === false ? { reasoning: { enabled: false } } : {}) }),
+      });
+      if (body.error) throw new Error(Number.isInteger(body.error.code) ? `AI_PROVIDER_${body.error.code}` : "AI_PROVIDER_INVALID_RESPONSE");
+      const message = body.choices?.[0]?.message;
+      if (message?.refusal || body.choices?.[0]?.finish_reason === "content_filter") throw new Error("AI_RESPONSE_REFUSED");
+      if (!message || (!message.content?.trim() && !message.tool_calls?.length)) {
+        if (retryEmpty && remainingModels && attempt === 0) {
+          // HTTP 200 boş yanıtı OpenRouter'ın HTTP hata yedeklemesini tetiklemez.
+          // Yalnızca bir ek deneme yap; boş dönen modeli tekrar listeye koyma.
+          const failedModel = remainingModels.includes(body.model) ? body.model : remainingModels[0];
+          remainingModels = remainingModels.filter((model) => model !== failedModel);
+          if (remainingModels.length) continue;
+        }
+        throw new Error("AI_EMPTY_RESPONSE");
+      }
+      return { role: "assistant", content: message.content?.trim() || "", ...(message.tool_calls?.length ? { tool_calls: message.tool_calls } : {}) };
+    }
   }
 }
 

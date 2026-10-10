@@ -5,6 +5,36 @@ import { detectToolIntent, escapeRegex, getProductSearchTerms, ownedOrderFilter 
 import { AI_TOOL_DEFINITIONS, OpenAiCompatibleProvider } from "../services/ai/providers.js";
 import { isWithinOrderSchedule } from "../services/ai/storeInfo.service.js";
 
+test("empty free-model draft retries once excluding the actual failed model", async (t) => {
+  const payloads = [];
+  t.mock.method(globalThis, "fetch", async (_url, options) => {
+    payloads.push(JSON.parse(options.body));
+    return { ok: true, json: async () => payloads.length === 1
+      ? { model: "google/gemma-4-31b-it:free", choices: [{ finish_reason: "length", message: { content: null, reasoning: "not final text" } }] }
+      : { choices: [{ message: { content: "Hazır" } }] } };
+  });
+  const provider = new OpenAiCompatibleProvider({ name: "openrouter", model: "google/gemma-4-26b-a4b-it:free", apiKey: "test", url: "https://example.invalid" });
+  const result = await provider.complete([], [], { retryEmpty: true, reasoning: false });
+  assert.equal(result.content, "Hazır");
+  assert.equal(payloads.length, 2);
+  assert.ok(!payloads[1].models.includes("google/gemma-4-31b-it:free"));
+  assert.deepEqual(payloads[1].reasoning, { enabled: false });
+});
+
+test("empty recovery is bounded and never retries a refusal or embedded error", async (t) => {
+  const provider = new OpenAiCompatibleProvider({ name: "openrouter", model: "google/gemma-4-26b-a4b-it:free", apiKey: "test", url: "https://example.invalid" });
+  for (const [body, expected, count] of [
+    [{ choices: [{ message: { content: "" } }] }, /AI_EMPTY_RESPONSE/, 2],
+    [{ choices: [{ message: { refusal: "refused", content: null } }] }, /AI_RESPONSE_REFUSED/, 1],
+    [{ error: { code: 429 } }, /AI_PROVIDER_429/, 1],
+  ]) {
+    const mock = t.mock.method(globalThis, "fetch", async () => ({ ok: true, json: async () => body }));
+    await assert.rejects(provider.complete([], [], { retryEmpty: true }), expected);
+    assert.equal(mock.mock.callCount(), count);
+    mock.mock.restore();
+  }
+});
+
 test("explicit human requests are handed to an agent", () => {
   assert.equal(classifyMessage("Yetkiliye bağlanmak istiyorum"), "human_request");
   assert.equal(classifyMessage("Canlı destek"), "human_request");

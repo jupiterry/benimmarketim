@@ -64,7 +64,7 @@ export const generateBroadcastDraft = async (req, res) => {
     // Yaratıcı metin için asistandan daha yüksek sıcaklık; sınıra uymazsa bir kez daha denenir
     let options = [];
     for (let attempt = 0; attempt < 2 && !options.length; attempt += 1) {
-      const response = await provider.complete(messages, [], { temperature: 0.9, maxTokens: 900 });
+      const response = await provider.complete(messages, [], { temperature: 0.9, maxTokens: 1800, reasoning: false, retryEmpty: true });
       options = parseDraftOptions(response.content);
     }
     if (!options.length) return res.status(502).json({ success: false, message: "Üretilen metin karakter sınırına uymadı. Yeniden deneyin." });
