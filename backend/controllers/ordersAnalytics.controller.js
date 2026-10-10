@@ -50,6 +50,8 @@ export const getOrderAnalyticsData = async () => {
         deliveryTracking: order.deliveryTracking || "",
         statusHistory: order.statusHistory || [],
         note: order.note,
+        // Siparişte girilen telefon; müşteri her siparişte farklı numara verebilir
+        phone: order.phone,
         city: order.city,
         deliveryPoint: order.deliveryPoint,
         deliveryPointName: order.deliveryPointName,
@@ -239,6 +241,17 @@ export const cancelOrder = async (req, res) => {
     order.status = "İptal Edildi";
     order.statusHistory.push({ status: "İptal Edildi", changedAt: new Date(), changedBy: req.user._id });
     await order.save();
+
+    // Yönetim paneli müşterinin iptalini 30 sn'lik yenilemeyi beklemeden görsün
+    try {
+      req.app.get("io")?.to("adminRoom").emit("orderStatusUpdated", {
+        orderId: order._id,
+        newStatus: order.status,
+        message: "Müşteri siparişi iptal etti",
+      });
+    } catch (socketError) {
+      console.error("Socket.IO iptal bildirimi gönderilirken hata:", socketError);
+    }
 
     res.json({ message: "Sipariş başarıyla iptal edildi!", order });
   } catch (error) {
