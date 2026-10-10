@@ -538,8 +538,7 @@ const BoardCard = ({ order, active, fresh, dragging, onOpen, onAdvance, onDragSt
           <span className="ord-card-name">
             <strong>{order.user?.name || "Müşteri"}</strong>
             <small>
-              <span className="ui-mono">#{String(order.orderId).slice(-6).toUpperCase()}</span> · {order.products?.length || 0} ürün
-              {compact && <> · {formatShortWhen(order.createdAt)}</>}
+              <span className="ui-mono">#{String(order.orderId).slice(-6).toUpperCase()}</span> · {compact ? formatShortWhen(order.createdAt) : `${order.products?.length || 0} ürün`}
             </small>
           </span>
           <span className="ord-card-total ui-num">{formatMoney(order.totalAmount)}</span>
