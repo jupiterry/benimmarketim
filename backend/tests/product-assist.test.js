@@ -5,15 +5,28 @@ import {
   PRODUCT_CATEGORIES,
   buildIdentifyPrompt,
   describeAssistFailure,
+  identifyProductPhoto,
   makeTransparentProductImage,
   parseIdentification,
+  normalizeSearxngImages,
   rankImageResults,
+  searchProductImages,
 } from "../services/productAssist.service.js";
 
 test("identify prompt lists every store category slug", () => {
   const prompt = buildIdentifyPrompt();
   for (const { slug } of PRODUCT_CATEGORIES) assert.match(prompt, new RegExp(`- ${slug}:`));
   assert.match(prompt, /uydurma/);
+});
+
+test("photo identification defaults to Gemini Flash latest", async (t) => {
+  let requestedUrl = "";
+  t.mock.method(globalThis, "fetch", async (url) => {
+    requestedUrl = String(url);
+    return { ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({ recognized: true, names: ["Ülker Gofret"], categories: ["atistirma"] }) }] } }] }) };
+  });
+  await identifyProductPhoto({ mimeType: "image/jpeg", base64: "dGVzdA==" }, { apiKey: "test-key", model: "gemini-flash-latest" });
+  assert.match(requestedUrl, /\/models\/gemini-flash-latest:generateContent$/);
 });
 
 test("identification keeps valid names and known categories only", () => {
@@ -84,4 +97,43 @@ test("provider failures become clear admin messages", () => {
   assert.equal(describeAssistFailure(new Error("FIRECRAWL_402")).message.includes("kredisi"), true);
   assert.equal(describeAssistFailure(new Error("GEMINI_API_KEY_MISSING")).status, 503);
   assert.equal(describeAssistFailure(new Error("IMAGE_URL_INVALID")).status, 400);
+});
+
+test("SearXNG image results are normalised (resolution, protocol-relative urls)", () => {
+  const images = normalizeSearxngImages({ results: [
+    { img_src: "//cdn.dsmcdn.com/ty/1.jpg", url: "https://www.trendyol.com/x-p-1", title: "Gofret", resolution: "1200 x 1800" },
+    { url: "https://example.com", title: "görselsiz" },
+  ] });
+  assert.equal(images.length, 1);
+  assert.deepEqual(images[0], { imageUrl: "https://cdn.dsmcdn.com/ty/1.jpg", url: "https://www.trendyol.com/x-p-1", title: "Gofret", imageWidth: 1200, imageHeight: 1800, position: 1 });
+});
+
+test("image search uses the free SearXNG instance and needs no paid key", async (t) => {
+  const requested = [];
+  t.mock.method(globalThis, "fetch", async (url) => {
+    requested.push(String(url));
+    const getir = String(url).includes("getir");
+    return { ok: true, status: 200, json: async () => ({ results: [
+      { img_src: getir ? "https://cdn.getir.com/p/1.png" : "https://cdn.dsmcdn.com/ty/1.jpg", url: getir ? "https://getir.com/urun/1" : "https://www.trendyol.com/x-p-1", resolution: "800 x 800" },
+    ] }) };
+  });
+  const images = await searchProductImages("Ülker Gofret 36 g", { searxngUrl: "http://127.0.0.1:8888", firecrawlKey: "" });
+  assert.equal(requested.length, 2);
+  assert.ok(requested.every((url) => url.startsWith("http://127.0.0.1:8888/search?") && url.includes("format=json") && url.includes("categories=images")));
+  assert.deepEqual(images.map((image) => image.source).sort(), ["Getir", "Trendyol"]);
+  await assert.rejects(searchProductImages("Ülker Gofret", { searxngUrl: "", firecrawlKey: "" }), /IMAGE_SEARCH_NOT_CONFIGURED/);
+  assert.equal(describeAssistFailure(new Error("IMAGE_SEARCH_NOT_CONFIGURED")).status, 503);
+});
+
+test("paid Firecrawl is never used unless explicitly selected", async (t) => {
+  const requested = [];
+  t.mock.method(globalThis, "fetch", async (url) => {
+    requested.push(String(url));
+    return { ok: true, status: 200, json: async () => ({ data: { images: [] } }) };
+  });
+  await assert.rejects(searchProductImages("Ülker Gofret", { searxngUrl: "", firecrawlKey: "present" }), /IMAGE_SEARCH_NOT_CONFIGURED/);
+  assert.equal(requested.length, 0);
+  await searchProductImages("Ülker Gofret", { searxngUrl: "", firecrawlKey: "present", provider: "firecrawl" });
+  assert.equal(requested.length, 2);
+  assert.ok(requested.every((url) => url === "https://api.firecrawl.dev/v2/search"));
 });

@@ -1,0 +1,16 @@
+# Benim Marketim — ürün görseli araması için SearXNG ayarı.
+# Yalnızca backend kullanır; dışarıya açılmaz (docker 127.0.0.1'e bağlanır).
+use_default_settings: true
+
+server:
+  # Kurulumda rastgele bir değerle değiştirilir (KURULUM.md, adım 2)
+  secret_key: "BURAYI_DEGISTIR"
+  limiter: false
+  image_proxy: false
+
+search:
+  safe_search: 1
+  default_lang: "tr"
+  formats:
+    - html
+    - json

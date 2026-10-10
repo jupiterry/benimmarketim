@@ -1,6 +1,6 @@
 // Fotoğraftan ürün ekleme yardımcısı.
 // 1) Gemini, yöneticinin çektiği fotoğraftan ürün adı ve kategori seçenekleri önerir.
-// 2) Firecrawl, ürün adıyla Trendyol / Getir başta olmak üzere internetten görsel adayları bulur.
+// 2) Kendi sunucudaki ücretsiz SearXNG (ya da tanımlıysa Firecrawl), ürün adıyla Trendyol / Getir öncelikli görsel adayları bulur.
 // 3) Seçilen görselin düz arka planı kaldırılır; kare, ortalanmış, şeffaf bir görsel hazırlanır.
 // Bu dosya ürün kaydetmez; yalnızca seçenek üretir. Kaydı yönetici onaylar.
 
@@ -111,7 +111,7 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = DEFAULT_TIMEOUT_M
 /** Fotoğrafı Gemini'ye gönderir. image: { mimeType, base64 } */
 export const identifyProductPhoto = async ({ mimeType, base64 }, {
   apiKey = process.env.GEMINI_API_KEY,
-  model = process.env.GEMINI_VISION_MODEL || "gemini-3.8-flash",
+  model = process.env.GEMINI_VISION_MODEL || "gemini-flash-latest",
 } = {}) => {
   if (!apiKey) throw new Error("GEMINI_API_KEY_MISSING");
   const response = await fetchWithTimeout(
@@ -133,7 +133,7 @@ export const identifyProductPhoto = async ({ mimeType, base64 }, {
   return result;
 };
 
-// ── 2. Görsel adayları (Firecrawl) ─────────────────────────────────────
+// ── 2. Görsel adayları (SearXNG / Firecrawl) ─────────────────────────────────────
 
 const PREFERRED_SOURCES = [
   { pattern: /trendyol\.com|dsmcdn\.com/i, label: "Trendyol", rank: 0 },
@@ -176,19 +176,53 @@ export const rankImageResults = (lists) => {
   return items.sort((a, b) => a.score - b.score).slice(0, IMAGE_OPTION_COUNT).map(({ score, ...rest }) => rest);
 };
 
-/** Ürün adıyla Trendyol ve Getir öncelikli görsel arar. */
-export const searchProductImages = async (query, { apiKey = process.env.FIRECRAWL_API_KEY } = {}) => {
-  if (!apiKey) throw new Error("FIRECRAWL_API_KEY_MISSING");
-  const search = async (q) => {
-    const response = await fetchWithTimeout("https://api.firecrawl.dev/v2/search", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ query: q, sources: ["images"], limit: 10, location: "Turkey" }),
+// "1000 x 1000" → { width, height }
+const parseResolution = (value) => {
+  const match = String(value || "").match(/(\d{2,5})\s*[x×]\s*(\d{2,5})/i);
+  return match ? { width: Number(match[1]), height: Number(match[2]) } : { width: 0, height: 0 };
+};
+
+/** SearXNG görsel sonuçlarını ortak biçime çevirir. */
+export const normalizeSearxngImages = (body) =>
+  (Array.isArray(body?.results) ? body.results : [])
+    .filter((item) => item?.img_src)
+    .map((item, index) => {
+      const { width, height } = parseResolution(item.resolution);
+      return { imageUrl: String(item.img_src).replace(/^\/\//, "https://"), url: item.url || "", title: item.title || "", imageWidth: width, imageHeight: height, position: index + 1 };
     });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(`FIRECRAWL_${response.status}`);
-    return body?.data?.images || [];
-  };
+
+// Ücretsiz, kendi sunucunuzda çalışan açık kaynak arama motoru (bkz. ops/searxng/KURULUM.md)
+const searchSearxng = async (q, baseUrl) => {
+  const url = new URL("/search", baseUrl);
+  url.search = new URLSearchParams({ q, categories: "images", format: "json", language: "tr", safesearch: "1" }).toString();
+  const response = await fetchWithTimeout(url, { headers: { Accept: "application/json" } }, 20000);
+  if (!response.ok) throw new Error(`SEARXNG_${response.status}`);
+  return normalizeSearxngImages(await response.json().catch(() => ({})));
+};
+
+// İsteğe bağlı ücretli yedek: yalnızca FIRECRAWL_API_KEY tanımlıysa kullanılır
+const searchFirecrawl = async (q, apiKey) => {
+  const response = await fetchWithTimeout("https://api.firecrawl.dev/v2/search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ query: q, sources: ["images"], limit: 10, location: "Turkey" }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(`FIRECRAWL_${response.status}`);
+  return body?.data?.images || [];
+};
+
+/** Ürün adıyla Trendyol ve Getir öncelikli görsel arar. Önce ücretsiz SearXNG, tanımlıysa Firecrawl. */
+export const searchProductImages = async (query, {
+  searxngUrl = process.env.SEARXNG_URL,
+  firecrawlKey = process.env.FIRECRAWL_API_KEY,
+  provider = process.env.IMAGE_SEARCH_PROVIDER || "searxng",
+} = {}) => {
+  // Firecrawl ücret doğurabileceğinden açıkça seçilmedikçe hiçbir zaman kullanılmaz.
+  const search = provider === "firecrawl"
+    ? (firecrawlKey ? (q) => searchFirecrawl(q, firecrawlKey) : null)
+    : (searxngUrl ? (q) => searchSearxng(q, searxngUrl) : null);
+  if (!search) throw new Error(provider === "firecrawl" ? "FIRECRAWL_API_KEY_MISSING" : "IMAGE_SEARCH_NOT_CONFIGURED");
   // İki arama paralel yapılır; biri başarısız olsa da diğerinin sonuçları kullanılır.
   const settled = await Promise.allSettled([search(`${query} trendyol`), search(`${query} getir`)]);
   const lists = settled.filter((item) => item.status === "fulfilled").map((item) => item.value);
@@ -339,15 +373,17 @@ export const makeTransparentProductImage = async (input, { tolerance = 26 } = {}
 export const describeAssistFailure = (error) => {
   const code = String(error?.message || "");
   const status = Number(code.match(/_(\d{3})$/)?.[1]);
-  if (code === "GEMINI_API_KEY_MISSING") return { status: 503, message: "Gemini anahtarı sunucuda tanımlı değil. .env dosyasına GEMINI_API_KEY ekleyin." };
-  if (code === "FIRECRAWL_API_KEY_MISSING") return { status: 503, message: "Firecrawl anahtarı sunucuda tanımlı değil. .env dosyasına FIRECRAWL_API_KEY ekleyin." };
+  if (code === "GEMINI_API_KEY_MISSING") return { status: 503, message: "Gemini anahtarı sunucuda tanımlı değil. Google AI Studio'dan ücretsiz bir anahtar alıp .env dosyasına GEMINI_API_KEY olarak ekleyin." };
+  if (code === "IMAGE_SEARCH_NOT_CONFIGURED") return { status: 503, message: "Ücretsiz görsel arama ayarlı değil. Sunucuya SearXNG kurup .env dosyasına SEARXNG_URL ekleyin (ops/searxng/KURULUM.md)." };
+  if (code.startsWith("SEARXNG_")) return { status: 502, message: `Görsel arama motoru (SearXNG) yanıt vermedi${status ? ` (HTTP ${status})` : ""}. Sunucuda çalıştığını ve JSON biçiminin açık olduğunu kontrol edin.` };
+  if (code === "fetch failed" || error?.cause?.code === "ECONNREFUSED") return { status: 502, message: "Görsel arama motoruna bağlanılamadı. SearXNG'nin sunucuda çalıştığını kontrol edin." };
   if (code === "SHARP_MISSING") return { status: 503, message: "Görsel işleme kütüphanesi (sharp) sunucuda kurulu değil. Sunucuda npm install çalıştırın." };
   if (code === "GEMINI_UNREADABLE") return { status: 502, message: "Yapay zekâ fotoğrafı yorumlayamadı. Ürünün ön yüzünü daha net çekip tekrar deneyin." };
   if (code.startsWith("GEMINI_")) {
     if (status === 400) return { status: 502, message: `Gemini isteği reddetti (HTTP 400). GEMINI_VISION_MODEL değerini ve fotoğrafı kontrol edin.` };
     if (status === 401 || status === 403) return { status: 502, message: `Gemini anahtarı kabul edilmedi (HTTP ${status}).` };
     if (status === 404) return { status: 502, message: "Gemini modeli bulunamadı (HTTP 404). .env dosyasındaki GEMINI_VISION_MODEL değerini kontrol edin." };
-    if (status === 429) return { status: 502, message: "Gemini kullanım limiti doldu (HTTP 429). Biraz sonra tekrar deneyin." };
+    if (status === 429) return { status: 502, message: "Gemini ücretsiz kullanım limiti doldu (HTTP 429). Bir dakika sonra tekrar deneyin; günlük limit dolduysa yarın sıfırlanır." };
     return { status: 502, message: `Gemini şu anda yanıt vermiyor${status ? ` (HTTP ${status})` : ""}. Tekrar deneyin.` };
   }
   if (code.startsWith("FIRECRAWL_")) {
