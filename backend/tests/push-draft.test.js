@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import Settings from "../models/settings.model.js";
+import Settings, { DEFAULT_AI_MODEL, migrateLegacyAiModel } from "../models/settings.model.js";
 import PushBroadcast from "../models/pushBroadcast.model.js";
 import { generateBroadcastDraft } from "../controllers/notification.controller.js";
 import { buildDraftMessages, parseDraftOptions, DRAFT_TITLE_LIMIT } from "../services/pushDraft.service.js";
@@ -9,6 +9,18 @@ const response = () => {
   const res = { statusCode: 200, body: null, status(code) { res.statusCode = code; return res; }, json(body) { res.body = body; return res; } };
   return res;
 };
+
+test("settings migrate the old OpenRouter default to the selected free Gemma model", async () => {
+  let saved = false;
+  const settings = { ai: { provider: "openrouter", model: "openai/gpt-4o" }, async save() { saved = true; } };
+  assert.equal(await migrateLegacyAiModel(settings), settings);
+  assert.equal(settings.ai.model, "google/gemma-4-26b-a4b-it:free");
+  assert.equal(saved, true);
+  const custom = { ai: { provider: "openrouter", model: "custom/model" }, async save() { throw new Error("custom model must not be rewritten"); } };
+  await migrateLegacyAiModel(custom);
+  assert.equal(custom.ai.model, "custom/model");
+  assert.equal(DEFAULT_AI_MODEL, "google/gemma-4-26b-a4b-it:free");
+});
 
 test("push draft uses the configured AI and returns an editable title/body without sending", async (t) => {
   const oldKey = process.env.OPENROUTER_API_KEY;

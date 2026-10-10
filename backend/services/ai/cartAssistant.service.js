@@ -60,7 +60,7 @@ const planWithAi = async (prompt, budget) => {
     const settings = await Settings.getSettings();
     const ai = settings?.ai || {};
     if (ai.enabled === false) return null;
-    const provider = createAiProvider({ provider: ai.provider || process.env.AI_DEFAULT_PROVIDER || "openrouter", model: ai.model || process.env.AI_DEFAULT_MODEL || "openai/gpt-4o" });
+    const provider = createAiProvider({ provider: ai.provider || process.env.AI_DEFAULT_PROVIDER || "openrouter", model: ai.model || process.env.AI_DEFAULT_MODEL || "google/gemma-4-26b-a4b-it:free" });
     const userMessage = budget ? `${prompt}\n(Bütçe: ${budget} TL)` : prompt;
     const response = await provider.complete([{ role: "system", content: PLANNER_PROMPT }, { role: "user", content: userMessage }], PLANNER_TOOL);
     const call = (response.tool_calls || []).find((item) => item.function?.name === "suggestCart");

@@ -140,7 +140,7 @@ export const answerUserMessage = async ({ chat, query, io }) => {
     if (smallTalk) return saveAiReply({ chat, content: smallTalk, io });
   }
   const providerName = aiSettings.provider || process.env.AI_DEFAULT_PROVIDER || "openrouter";
-  const model = aiSettings.model || process.env.AI_DEFAULT_MODEL || "openai/gpt-4o";
+  const model = aiSettings.model || process.env.AI_DEFAULT_MODEL || "google/gemma-4-26b-a4b-it:free";
   // Canlı veri aracı çalışmadıysa bilgi merkezi baştan aranır; model tek çağrıda hem araçları hem kayıtları görür.
   const knowledge = toolResult ? [] : await findKnowledge(query);
   logAiDebug(`knowledge=${knowledge.length}`);

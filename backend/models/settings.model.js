@@ -1,5 +1,8 @@
 import mongoose from "mongoose";
 
+export const DEFAULT_AI_MODEL = "google/gemma-4-26b-a4b-it:free";
+const LEGACY_AI_MODEL = "openai/gpt-4o";
+
 const settingsSchema = new mongoose.Schema(
   {
     orderStartHour: {
@@ -132,7 +135,7 @@ const settingsSchema = new mongoose.Schema(
     ai: {
       enabled: { type: Boolean, default: true },
       provider: { type: String, enum: ["groq", "openrouter", "gemini"], default: () => process.env.AI_DEFAULT_PROVIDER || "openrouter" },
-      model: { type: String, default: () => process.env.AI_DEFAULT_MODEL || "openai/gpt-4o" },
+      model: { type: String, default: () => process.env.AI_DEFAULT_MODEL || DEFAULT_AI_MODEL },
       maxHistoryMessages: { type: Number, default: 12, min: 2, max: 30 },
     }
   },
@@ -140,14 +143,18 @@ const settingsSchema = new mongoose.Schema(
 );
 
 // Varsayılan ayarları getiren statik metod
-settingsSchema.statics.getSettings = async function () {
-  const settings = await this.findOne({ name: "default" });
-  if (settings) {
-    return settings;
+export const migrateLegacyAiModel = async (settings) => {
+  if (settings.ai?.provider === "openrouter" && settings.ai.model === LEGACY_AI_MODEL) {
+    settings.ai.model = DEFAULT_AI_MODEL;
+    await settings.save();
   }
-  
-  // Eğer ayarlar yoksa varsayılan değerlerle oluştur
-  return await this.create({ name: "default" });
+  return settings;
+};
+
+settingsSchema.statics.getSettings = async function () {
+  let settings = await this.findOne({ name: "default" });
+  if (!settings) settings = await this.create({ name: "default" });
+  return migrateLegacyAiModel(settings);
 };
 
 const Settings = mongoose.model("Settings", settingsSchema);

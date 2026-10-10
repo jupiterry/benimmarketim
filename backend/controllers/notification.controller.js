@@ -51,7 +51,7 @@ export const generateBroadcastDraft = async (req, res) => {
     const settings = await Settings.getSettings();
     const ai = settings.ai || {};
     providerName = ai.provider || process.env.AI_DEFAULT_PROVIDER || "openrouter";
-    model = ai.model || process.env.AI_DEFAULT_MODEL || "openai/gpt-4o";
+    model = ai.model || process.env.AI_DEFAULT_MODEL || "google/gemma-4-26b-a4b-it:free";
     // Son başlıklar modele verilir ki aynı kalıpları tekrar etmesin
     let recent = [];
     try {
