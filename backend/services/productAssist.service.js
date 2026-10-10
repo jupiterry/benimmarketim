@@ -124,6 +124,7 @@ export const identifyProductPhoto = async ({ mimeType, base64 }, {
         generationConfig: { temperature: 0.2, responseMimeType: "application/json", maxOutputTokens: 4096 },
       }),
     },
+    90000, // Free-tier photo recognition can exceed 30 seconds.
   );
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(`GEMINI_${response.status}`);
