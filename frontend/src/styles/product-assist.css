@@ -251,3 +251,551 @@
     max-width: none;
   }
 }
+
+/* ══ Tek ürün / toplu ekleme seçimi ══════════════════════════════════════ */
+.admin-layout .pa-shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s4, 16px);
+}
+.admin-layout .pa-mode {
+  align-self: flex-start;
+}
+.admin-layout .pa-mode > button {
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .pa-mode-hint {
+  color: var(--ui-text-3);
+  font-weight: 500;
+}
+
+/* ══ Toplu ekleme ════════════════════════════════════════════════════════ */
+.admin-layout .pab {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.admin-layout .pab-select .ui-panel-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.admin-layout .pab-select .ui-panel-head h2 svg {
+  width: 18px;
+  height: 18px;
+  color: var(--ui-brand);
+}
+.admin-layout .pab-modes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.admin-layout .pab-modes .ui-option {
+  align-items: flex-start;
+}
+.admin-layout .pab-modes .ui-option > span:not(.pa-dot):not(.ui-badge) {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+}
+.admin-layout .pab-modes .ui-option small {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  font-weight: 500;
+  line-height: 1.4;
+}
+.admin-layout .pab-modes .ui-option > svg,
+.admin-layout .pab-modes .pa-dot {
+  margin-top: 2px;
+}
+.admin-layout .pab-modes .ui-badge {
+  flex-shrink: 0;
+}
+
+/* Seçilen fotoğraflar */
+.admin-layout .pab-photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
+  gap: 10px;
+}
+.admin-layout .pab-photo {
+  position: relative;
+  aspect-ratio: 1;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-2);
+}
+.admin-layout .pab-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.admin-layout .pab-photo figcaption {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(16, 24, 40, 0.72);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 22px;
+  text-align: center;
+}
+.admin-layout .pab-photo-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--ui-text);
+  box-shadow: 0 0 0 1px var(--ui-line);
+}
+.admin-layout .pab-photo-remove:hover {
+  color: var(--ui-danger-ink);
+}
+.admin-layout .pab-photo-remove svg {
+  width: 14px;
+  height: 14px;
+}
+.admin-layout .pab-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  aspect-ratio: 1;
+  min-height: 0;
+}
+.admin-layout .pab-add small {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .pab-select-actions {
+  flex-wrap: wrap;
+}
+
+/* Özet ve kayıt çubuğu (kaydırırken üstte kalır) */
+.admin-layout .pab-bar {
+  position: sticky;
+  top: calc(var(--app-top, 56px) + 8px);
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 10px 14px;
+}
+.admin-layout .pab-bar-stats,
+.admin-layout .pab-bar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.admin-layout .pab-bar-stats > strong {
+  font-size: var(--ui-fs-lg);
+}
+.admin-layout .pab-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+}
+.admin-layout .pab-stat svg {
+  width: 15px;
+  height: 15px;
+}
+.admin-layout .pab-stat[data-tone="ok"] { color: var(--ui-ok-ink); }
+.admin-layout .pab-stat[data-tone="warn"] { color: var(--ui-warn-ink); }
+.admin-layout .pab-stat[data-tone="brand"] { color: var(--ui-brand-ink); }
+.admin-layout .pab-bar .ui-toggle span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.admin-layout .pab-bar .ui-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+.admin-layout .pab-hint {
+  margin: 0;
+}
+
+/* Ürün listesi */
+.admin-layout .pab-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  list-style: none;
+  border: 1px solid var(--ui-line);
+  border-radius: 14px;
+  background: var(--ui-surface);
+}
+.admin-layout .pab-item + .pab-item {
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .pab-item[data-included="false"]:not([data-saved]) .pab-row > :not(.pab-include):not(.pab-toggle) {
+  opacity: 0.5;
+}
+.admin-layout .pab-item[data-saved] {
+  background: var(--ui-ok-bg);
+}
+.admin-layout .pab-item[data-open] {
+  background: var(--ui-surface-2);
+}
+.admin-layout .pab-row {
+  display: grid;
+  grid-template-columns: 18px 64px minmax(0, 1fr) 190px 132px 150px 32px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+}
+.admin-layout .pab-include input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--ui-brand);
+}
+.admin-layout .pab-thumb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  padding: 4px;
+  overflow: hidden;
+  border: 1px solid var(--ui-line);
+  border-radius: 10px;
+  background-color: #fff;
+  background-image:
+    linear-gradient(45deg, #f1f3f5 25%, transparent 25%),
+    linear-gradient(-45deg, #f1f3f5 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #f1f3f5 75%),
+    linear-gradient(-45deg, transparent 75%, #f1f3f5 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+  color: var(--ui-text-3);
+}
+.admin-layout .pab-thumb:not(:disabled):hover {
+  border-color: var(--ui-brand);
+}
+.admin-layout .pab-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.admin-layout .pab-thumb img.pab-thumb-photo {
+  object-fit: cover;
+  opacity: 0.6;
+  border-radius: 6px;
+}
+.admin-layout .pab-thumb > svg {
+  width: 20px;
+  height: 20px;
+  color: var(--ui-brand);
+}
+.admin-layout .pab-thumb-flag {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+.admin-layout .pab-thumb-flag svg {
+  width: 11px;
+  height: 11px;
+}
+.admin-layout .pab-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.admin-layout .pab-name {
+  font-weight: 600;
+}
+.admin-layout .pab-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .pab-no {
+  color: var(--ui-text-2);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .pab-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.admin-layout .pab-flag svg {
+  width: 12px;
+  height: 12px;
+}
+.admin-layout .pab-flag[data-tone="danger"] {
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+}
+.admin-layout .pab-flag[data-tone="warn"] {
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+.admin-layout .pab-price {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.admin-layout .pab-price > span {
+  position: absolute;
+  top: 0;
+  left: 10px;
+  display: flex;
+  align-items: center;
+  height: 34px;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-sm);
+  pointer-events: none;
+}
+.admin-layout .pab-price .ui-field {
+  padding-left: 24px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.admin-layout .pab-shelf {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+  font-size: 11px;
+  font-weight: 600;
+}
+.admin-layout .pab-shelf svg {
+  width: 11px;
+  height: 11px;
+}
+.admin-layout .pab-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  line-height: 1.3;
+}
+.admin-layout .pab-state svg {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+}
+.admin-layout .pab-state[data-stage="ready"],
+.admin-layout .pab-state[data-stage="saved"] { color: var(--ui-ok-ink); }
+.admin-layout .pab-state[data-stage="missing"] { color: var(--ui-warn-ink); }
+.admin-layout .pab-state[data-stage="error"] { color: var(--ui-danger-ink); }
+.admin-layout .pab-state[data-stage="busy"],
+.admin-layout .pab-state[data-stage="saving"] { color: var(--ui-info-ink); }
+.admin-layout .pab-toggle svg {
+  transition: transform var(--ui-ease);
+}
+.admin-layout .pab-toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+.admin-layout .pab-row-error {
+  margin: 0 14px 10px;
+}
+
+/* Satır ayrıntısı */
+.admin-layout .pab-detail {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 16px;
+  padding: 4px 14px 16px 108px;
+}
+.admin-layout .pab-detail-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.admin-layout .pab-source {
+  width: 150px;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border: 1px solid var(--ui-line);
+  border-radius: 10px;
+}
+.admin-layout .pab-remove {
+  color: var(--ui-danger-ink);
+}
+.admin-layout .pab-names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.admin-layout .pab-names .ui-option {
+  width: auto;
+  padding: 6px 10px;
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .pab-similar {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.admin-layout .pab-grid {
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+}
+.admin-layout .pab-done {
+  align-items: center;
+}
+.admin-layout .pab-done > span {
+  flex: 1 1 auto;
+}
+.admin-layout .pab-foot {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 1100px) {
+  .admin-layout .pab-row {
+    grid-template-columns: 18px 56px minmax(0, 1fr) 132px 32px;
+    grid-template-areas:
+      "check thumb main price toggle"
+      "check thumb category state toggle";
+  }
+  .admin-layout .pab-include { grid-area: check; }
+  .admin-layout .pab-thumb { grid-area: thumb; width: 56px; height: 56px; }
+  .admin-layout .pab-main { grid-area: main; }
+  .admin-layout .pab-category { grid-area: category; }
+  .admin-layout .pab-price { grid-area: price; }
+  .admin-layout .pab-state { grid-area: state; }
+  .admin-layout .pab-toggle { grid-area: toggle; }
+  .admin-layout .pab-detail {
+    padding-left: 14px;
+  }
+}
+@media (max-width: 640px) {
+  .admin-layout .pab-modes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-layout .pab-photos {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .admin-layout .pab-row {
+    grid-template-columns: 18px 52px minmax(0, 1fr) 32px;
+    grid-template-areas:
+      "check thumb main toggle"
+      "check thumb category category"
+      "check thumb price price"
+      "check thumb state state";
+    gap: 8px 10px;
+    padding: 10px 12px;
+  }
+  .admin-layout .pab-thumb { width: 52px; height: 52px; }
+  .admin-layout .pab-detail {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 4px 12px 14px;
+  }
+  .admin-layout .pab-source {
+    width: 96px;
+  }
+  .admin-layout .pab-bar {
+    top: calc(var(--app-top, 56px) + 4px);
+  }
+  .admin-layout .pab-bar-actions {
+    width: 100%;
+  }
+  .admin-layout .pab-bar-actions .ui-btn--primary {
+    flex: 1 1 100%;
+  }
+}
+
+/* İnternetteki fiyatlar (yalnızca referans) */
+.admin-layout .pab-web {
+  background: var(--ui-info-bg);
+  color: var(--ui-info-ink);
+}
+.admin-layout .pab-prices {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.admin-layout .pab-prices .ui-label,
+.admin-layout .pab-prices .ui-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+.admin-layout .pab-prices .ui-label svg,
+.admin-layout .pab-prices .ui-hint svg {
+  width: 14px;
+  height: 14px;
+}
+.admin-layout .pab-prices ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-layout .pab-prices li {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--ui-line);
+  border-radius: 999px;
+  background: var(--ui-surface);
+}
+.admin-layout .pab-offer-use {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 4px 4px 10px;
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .pab-offer-use span {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .pab-offer-use:hover strong {
+  color: var(--ui-brand-ink);
+  text-decoration: underline;
+}
+.admin-layout .pab-prices li .ui-icon-btn svg {
+  width: 13px;
+  height: 13px;
+}

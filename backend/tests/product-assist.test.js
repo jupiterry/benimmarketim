@@ -2,10 +2,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import sharp from "sharp";
 import {
+  MAX_BATCH_PRODUCTS,
   PRODUCT_CATEGORIES,
+  buildBatchIdentifyPrompt,
   buildIdentifyPrompt,
   describeAssistFailure,
   identifyProductPhoto,
+  identifyProductPhotos,
+  parseBatchIdentification,
+  extractPrices,
+  parseTurkishPrice,
+  rankPriceResults,
+  searchProductPrices,
   makeTransparentProductImage,
   parseIdentification,
   normalizeSearxngImages,
@@ -136,4 +144,125 @@ test("paid Firecrawl is never used unless explicitly selected", async (t) => {
   await searchProductImages("Ülker Gofret", { searxngUrl: "", firecrawlKey: "present", provider: "firecrawl" });
   assert.equal(requested.length, 2);
   assert.ok(requested.every((url) => url === "https://api.firecrawl.dev/v2/search"));
+});
+
+// ── Toplu tanıma ──────────────────────────────────────────────────────
+
+const geminiReply = (text) => ({ ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text }] } }] }) });
+
+test("batch prompt explains both modes and lists every category", () => {
+  const separate = buildBatchIdentifyPrompt({ photoCount: 3, mode: "separate" });
+  const group = buildBatchIdentifyPrompt({ photoCount: 2, mode: "group" });
+  assert.match(separate, /3 fotoğraf/);
+  assert.match(separate, /tam olarak bir ürün/);
+  assert.match(group, /FARKLI ürünü ayrı yaz/);
+  assert.match(group, new RegExp(`en fazla ${MAX_BATCH_PRODUCTS} ürün`));
+  for (const { slug } of PRODUCT_CATEGORIES) assert.match(group, new RegExp(`- ${slug}:`));
+  assert.match(separate, /shelfPrice/);
+});
+
+test("all photos go to Gemini in a single request, each labelled", async (t) => {
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    calls.push(JSON.parse(options.body));
+    return geminiReply(JSON.stringify({ products: [
+      { photo: 1, recognized: true, names: ["Ülker Çikolatalı Gofret 36 g"], categories: ["atistirma"], searchQuery: "ülker gofret 36 g" },
+      { photo: 2, recognized: true, names: ["Coca-Cola 1 L"], categories: ["icecekler"] },
+    ] }));
+  });
+  const photos = [{ mimeType: "image/jpeg", base64: "YQ==" }, { mimeType: "image/png", base64: "Yg==" }];
+  const { products } = await identifyProductPhotos(photos, { mode: "separate" }, { apiKey: "k", model: "gemini-flash-latest" });
+  assert.equal(calls.length, 1, "tek istek");
+  const parts = calls[0].contents[0].parts;
+  assert.deepEqual(parts.slice(0, 4).map((part) => part.text || part.inlineData.mimeType), ["Fotoğraf 1", "image/jpeg", "Fotoğraf 2", "image/png"]);
+  assert.match(parts.at(-1).text, /2 fotoğraf/);
+  assert.deepEqual(products.map((p) => p.names[0]), ["Ülker Çikolatalı Gofret 36 g", "Coca-Cola 1 L"]);
+  assert.equal(products[1].categories[0].slug, "icecekler");
+});
+
+test("separate mode returns exactly one entry per photo, in photo order", () => {
+  const raw = JSON.stringify({ products: [
+    { photo: 3, names: ["Filiz Burgu Makarna 500 g"], categories: ["makarna"] },
+    { photo: 1, names: ["Pınar Süt 1 L"], categories: ["sut", "uydurma"] },
+    { photo: 1, names: ["Fazladan kayıt"] },
+    { photo: 9, names: ["Olmayan fotoğraf"] },
+  ] });
+  const { products } = parseBatchIdentification(raw, { photoCount: 3, mode: "separate" });
+  assert.deepEqual(products.map((p) => p.photo), [1, 2, 3]);
+  assert.equal(products[0].names[0], "Pınar Süt 1 L");
+  assert.deepEqual(products[0].categories.map((c) => c.slug), ["sut"]);
+  assert.equal(products[1].recognized, false, "eksik fotoğraf tanınmadı olarak gelir");
+  assert.equal(products[2].names[0], "Filiz Burgu Makarna 500 g");
+});
+
+test("group mode keeps distinct recognized products, reads shelf prices and counts", () => {
+  const many = Array.from({ length: 20 }, (_, i) => ({ photo: 1, names: [`Ürün ${i}`], categories: ["gida"] }));
+  const raw = "```json\n" + JSON.stringify({ products: [
+    { photo: 1, names: ["Eti Karam Bitter"], categories: ["atistirma"], shelfPrice: "24,50 TL", count: 3 },
+    { photo: 2, names: ["eti karam bitter"], categories: ["atistirma"] },
+    { photo: 2, recognized: false, names: [] },
+    { photo: 2, names: ["Erikli Su 1,5 L"], categories: ["icecekler"], shelfPrice: -5, count: "x" },
+    ...many,
+  ] }) + "\n```";
+  const { products } = parseBatchIdentification(raw, { photoCount: 2, mode: "group" });
+  assert.equal(products.length, MAX_BATCH_PRODUCTS);
+  assert.equal(products[0].shelfPrice, 24.5);
+  assert.equal(products[0].count, 3);
+  assert.equal(products[1].names[0], "Erikli Su 1,5 L", "aynı ürün tekrar yazılmaz, tanınmayan atlanır");
+  assert.equal(products[1].shelfPrice, null);
+  assert.equal(products[1].count, 1);
+});
+
+test("batch parser accepts a bare array or a single object and rejects prose", () => {
+  const array = parseBatchIdentification(JSON.stringify([{ photo: 1, names: ["Tadım Kuruyemiş"] }]), { photoCount: 1, mode: "group" });
+  assert.equal(array.products[0].names[0], "Tadım Kuruyemiş");
+  const single = parseBatchIdentification(JSON.stringify({ names: ["Pınar Süt 1 L"], categories: ["sut"] }), { photoCount: 1, mode: "separate" });
+  assert.equal(single.products[0].names[0], "Pınar Süt 1 L");
+  assert.equal(parseBatchIdentification("hiçbir ürün göremedim", { photoCount: 1, mode: "group" }), null);
+});
+
+test("batch identification surfaces Gemini errors like the single flow", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => ({ ok: false, status: 429, json: async () => ({}) }));
+  await assert.rejects(identifyProductPhotos([{ mimeType: "image/jpeg", base64: "YQ==" }], { mode: "group" }, { apiKey: "k", model: "m" }), /GEMINI_429/);
+  await assert.rejects(identifyProductPhotos([{ mimeType: "image/jpeg", base64: "YQ==" }], { mode: "group" }, { apiKey: "", model: "m" }), /GEMINI_API_KEY_MISSING/);
+});
+
+// ── İnternetteki fiyatlar ──────────────────────────────────────────────
+
+test("Turkish price formats are read correctly", () => {
+  assert.equal(parseTurkishPrice("1.249,90"), 1249.9);
+  assert.equal(parseTurkishPrice("45,90"), 45.9);
+  assert.equal(parseTurkishPrice("45.90"), 45.9);
+  assert.equal(parseTurkishPrice("abc"), null);
+  assert.deepEqual(extractPrices("Ülker Gofret 36 g 12,50 TL, kargo ₺ 39,99 · 2.499 TL"), [12.5, 39.99, 2499]);
+  assert.deepEqual(extractPrices("500 g makarna, 3 adet"), []);
+});
+
+test("price results keep only matching titles and drop outliers", () => {
+  const result = rankPriceResults([
+    { title: "Filiz Burgu Makarna 500 g - Trendyol", url: "https://www.trendyol.com/filiz/burgu-p-1", content: "Filiz Burgu Makarna 500 g 29,90 TL" },
+    { title: "Filiz Burgu Makarna 500 gr Fiyatı - Getir", url: "https://getir.com/urun/filiz-burgu", content: "₺27,50" },
+    { title: "Filiz Burgu Makarna 20'li Koli", url: "https://example.com/koli", content: "489,00 TL" },
+    { title: "Barilla Burgu Makarna", url: "https://example.com/b", content: "45,00 TL" },
+    { title: "Filiz Burgu Makarna 500 g", url: "https://www.migros.com.tr/filiz", content: "Fiyat bilgisi yok" },
+    { title: "Filiz Burgu Makarna 500 g - Trendyol", url: "https://www.trendyol.com/filiz/burgu-p-1", content: "Filiz Burgu Makarna 500 g 29,90 TL" },
+  ], "Filiz Burgu Makarna 500 g");
+  assert.deepEqual(result.offers.map((offer) => offer.price), [27.5, 29.9]);
+  assert.deepEqual(result.offers.map((offer) => offer.source), ["Getir", "Trendyol"]);
+  assert.equal(result.min, 27.5);
+  assert.equal(result.max, 29.9);
+  assert.deepEqual(rankPriceResults([], "x"), { offers: [], min: null, max: null, median: null });
+});
+
+test("price search uses SearXNG web results only", async (t) => {
+  const requested = [];
+  t.mock.method(globalThis, "fetch", async (url) => {
+    requested.push(String(url));
+    return { ok: true, status: 200, json: async () => ({ results: [{ title: "Pınar Süt 1 L", url: "https://getir.com/urun/pinar-sut", content: "38,90 TL" }] }) };
+  });
+  const result = await searchProductPrices("Pınar Süt 1 L", { searxngUrl: "http://127.0.0.1:8888" });
+  assert.equal(requested.length, 2);
+  assert.ok(requested.every((url) => url.includes("categories=general") && url.includes("format=json")));
+  assert.equal(result.median, 38.9);
+  await assert.rejects(searchProductPrices("Pınar Süt", { searxngUrl: "" }), /IMAGE_SEARCH_NOT_CONFIGURED/);
 });

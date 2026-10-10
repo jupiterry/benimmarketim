@@ -7,6 +7,7 @@ import Order from "../../models/order.model.js";
 import User from "../../models/user.model.js";
 import { evaluateCoupon } from "../coupon.service.js";
 import { getStoreInfo } from "./storeInfo.service.js";
+import { preparingMinutes } from "./orderDelay.js";
 
 const normalize = (value) => String(value || "").toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
 export const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -218,7 +219,7 @@ export const runAiTool = async (intent, authenticatedUserId) => {
       const exists = await Order.exists({ _id: orderId });
       return { tool: intent.name, found: false, ownershipDenied: Boolean(exists) };
     }
-    return { tool: intent.name, found: orders.length > 0, orders: orders.map((order) => ({ id: String(order._id), status: order.status, totalAmount: order.totalAmount, deliveryPoint: order.deliveryPointName, createdAt: order.createdAt, ...(order.deliveryTracking ? { deliveryTracking: order.deliveryTracking } : {}), ...(order.products ? { products: order.products.map((item) => ({ name: item.name, quantity: item.quantity, price: item.price })) } : {}), ...(order.couponDiscount ? { couponDiscount: order.couponDiscount } : {}) })) };
+    return { tool: intent.name, found: orders.length > 0, orders: orders.map((order) => ({ id: String(order._id), status: order.status, totalAmount: order.totalAmount, deliveryPoint: order.deliveryPointName, createdAt: order.createdAt, ...(order.status === "Hazırlanıyor" ? { preparingMinutes: preparingMinutes(order) } : {}), ...(order.deliveryTracking ? { deliveryTracking: order.deliveryTracking } : {}), ...(order.products ? { products: order.products.map((item) => ({ name: item.name, quantity: item.quantity, price: item.price })) } : {}), ...(order.couponDiscount ? { couponDiscount: order.couponDiscount } : {}) })) };
   }
   if (intent.name === "getActiveCampaigns") {
     const campaigns = await FlashSale.find({ isActive: true, startDate: { $lte: now }, endDate: { $gte: now } }).populate({ path: "product", match: { isHidden: { $ne: true } }, select: "name price isOutOfStock" }).sort({ endDate: 1 }).limit(10).lean();

@@ -58,18 +58,21 @@ export const buildIdentifyPrompt = () => [
 
 const clean = (value, limit = 200) => (typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, limit) : "");
 
-/** Model cevabını doğrular; bilinmeyen kategoriler ve boş/uzun adlar atılır. */
-export const parseIdentification = (raw) => {
+// Model cevabındaki ilk JSON nesnesini (```json çitleri olsa da) ayıklar
+const extractJson = (raw) => {
   const text = String(raw || "").replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start < 0 || end <= start) return null;
-  let data;
   try {
-    data = JSON.parse(text.slice(start, end + 1));
+    return JSON.parse(text.slice(start, end + 1));
   } catch {
     return null;
   }
+};
+
+/** Tek bir ürün tanımını doğrular; bilinmeyen kategoriler ve boş/uzun adlar atılır. */
+export const normalizeIdentity = (data) => {
   const names = [];
   for (const item of Array.isArray(data?.names) ? data.names : [data?.name]) {
     const name = clean(item, NAME_LIMIT + 1).replace(/^["“”']+|["“”']+$/g, "");
@@ -96,6 +99,12 @@ export const parseIdentification = (raw) => {
   };
 };
 
+/** Model cevabını doğrular; bilinmeyen kategoriler ve boş/uzun adlar atılır. */
+export const parseIdentification = (raw) => {
+  const data = extractJson(raw);
+  return data ? normalizeIdentity(data) : null;
+};
+
 const DEFAULT_TIMEOUT_MS = 30000;
 
 const fetchWithTimeout = async (url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) => {
@@ -108,11 +117,8 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = DEFAULT_TIMEOUT_M
   }
 };
 
-/** Fotoğrafı Gemini'ye gönderir. image: { mimeType, base64 } */
-export const identifyProductPhoto = async ({ mimeType, base64 }, {
-  apiKey = process.env.GEMINI_API_KEY,
-  model = process.env.GEMINI_VISION_MODEL || "gemini-flash-latest",
-} = {}) => {
+// Gemini'ye görsel + metin parçaları gönderir, cevabın metnini döndürür (düşünce parçaları hariç)
+const callGeminiVision = async (parts, { apiKey, model, maxOutputTokens = 4096, timeoutMs = 90000 }) => {
   if (!apiKey) throw new Error("GEMINI_API_KEY_MISSING");
   const response = await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
@@ -120,16 +126,125 @@ export const identifyProductPhoto = async ({ mimeType, base64 }, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ inlineData: { mimeType, data: base64 } }, { text: buildIdentifyPrompt() }] }],
-        generationConfig: { temperature: 0.2, responseMimeType: "application/json", maxOutputTokens: 4096 },
+        contents: [{ role: "user", parts }],
+        generationConfig: { temperature: 0.2, responseMimeType: "application/json", maxOutputTokens },
       }),
     },
-    90000, // Free-tier photo recognition can exceed 30 seconds.
+    timeoutMs, // Ücretsiz katmanda fotoğraf tanıma 30 saniyeyi aşabilir.
   );
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(`GEMINI_${response.status}`);
-  const text = (body.candidates?.[0]?.content?.parts || []).filter((part) => part.text && !part.thought).map((part) => part.text).join("");
+  return (body.candidates?.[0]?.content?.parts || []).filter((part) => part.text && !part.thought).map((part) => part.text).join("");
+};
+
+/** Fotoğrafı Gemini'ye gönderir. image: { mimeType, base64 } */
+export const identifyProductPhoto = async ({ mimeType, base64 }, {
+  apiKey = process.env.GEMINI_API_KEY,
+  model = process.env.GEMINI_VISION_MODEL || "gemini-flash-latest",
+} = {}) => {
+  const text = await callGeminiVision(
+    [{ inlineData: { mimeType, data: base64 } }, { text: buildIdentifyPrompt() }],
+    { apiKey, model, maxOutputTokens: 4096, timeoutMs: 90000 },
+  );
   const result = parseIdentification(text);
+  if (!result) throw new Error("GEMINI_UNREADABLE");
+  return result;
+};
+
+// ── 1b. Toplu tanıma: birden çok fotoğraf tek Gemini isteğiyle ──────────────────
+// "separate": her fotoğrafta tek ürün (en fazla 10 fotoğraf)
+// "group": bir fotoğrafta birden çok ürün olabilir (raf, tezgâh; en fazla 4 fotoğraf, 15 ürün)
+// Tek istek, ücretsiz katmanın dakikalık/günlük istek limitini fotoğraf başına istekten çok daha az harcar.
+
+export const BATCH_PHOTO_LIMITS = { separate: 10, group: 4 };
+export const MAX_BATCH_PRODUCTS = 15;
+
+const categoryLines = () => PRODUCT_CATEGORIES.map((category) => `- ${category.slug}: ${category.name} (${category.hint})`);
+
+export const buildBatchIdentifyPrompt = ({ photoCount, mode }) => [
+  "Sen Devrek'teki Benim Marketim için katalog asistanısın.",
+  `Sana ${photoCount} fotoğraf gönderildi; her fotoğrafın hemen önünde "Fotoğraf N" yazıyor.`,
+  mode === "group"
+    ? `Fotoğraflarda birden fazla market ürünü olabilir (raf, tezgâh, poşet içeriği). Görünen her FARKLI ürünü ayrı yaz; aynı üründen birden çok varsa bir kez yaz, count alanına kaç tane gördüğünü yaz. Toplam en fazla ${MAX_BATCH_PRODUCTS} ürün. Yazıları okunamayan ya da yarısı görünen ürünleri atla.`
+    : "Her fotoğrafta tek bir market ürünü var. Her fotoğraf için tam olarak bir ürün döndür; photo alanına fotoğraf numarasını yaz. Ürünü tanıyamadığın fotoğraf için de recognized=false olan bir kayıt döndür.",
+  "Ambalajdaki yazıları dikkatle oku: marka, ürün adı, çeşit/aroma ve gramaj/hacim.",
+  "",
+  `Her ürün için ad olarak ${NAME_OPTION_COUNT} seçenek yaz. Biçim: "Marka Ürün Çeşit Gramaj" (ör. "Ülker Çikolatalı Gofret 36 g", "Coca-Cola Zero Sugar 1 L", "Filiz Burgu Makarna 500 g").`,
+  "- Türkçe yazım kurallarına uy, her kelimenin baş harfi büyük olsun (gramaj birimi hariç: g, kg, ml, L).",
+  "- Gramajı ambalajda görüyorsan mutlaka ekle; göremiyorsan uydurma, gramajsız yaz.",
+  "- Seçenekler aynı ürünün farklı yazımları olsun, farklı ürünler değil.",
+  "- Okuyamadığın bilgiyi tahmin etme.",
+  "",
+  "Kategori için mağazanın kategorilerinden en uygun en fazla 3 tanesini, en uygun olan önce gelecek şekilde seç. Yalnızca şu slug değerlerini kullan:",
+  ...categoryLines(),
+  "",
+  "searchQuery: ürünü internette aramak için kısa sorgu (marka + ürün + çeşit + gramaj).",
+  "shelfPrice: ürünün raf/fiyat etiketi fotoğrafta açıkça görünüyor ve bu ürüne aitse TL cinsinden sayı (ör. 24.5); emin değilsen null.",
+  "Sadece geçerli JSON döndür, başka hiçbir şey yazma:",
+  '{"products":[{"photo":1,"recognized":true,"names":["...","...","..."],"brand":"...","size":"...","categories":["...","..."],"searchQuery":"...","shelfPrice":null,"count":1,"note":"emin olmadığın bir şey varsa kısa not, yoksa boş"}]}',
+].join("\n");
+
+const toPrice = (value) => {
+  const number = typeof value === "string" ? Number(value.replace(/[^\d.,]/g, "").replace(",", ".")) : Number(value);
+  return Number.isFinite(number) && number > 0 && number < 100000 ? Math.round(number * 100) / 100 : null;
+};
+
+/** Toplu tanıma cevabını doğrular. separate: fotoğraf başına tam bir kayıt; group: tanınan farklı ürünler. */
+export const parseBatchIdentification = (raw, { photoCount, mode }) => {
+  // Model nesne yerine doğrudan dizi ya da tek bir ürün nesnesi döndürmüş olabilir
+  let data;
+  try { data = JSON.parse(String(raw || "").replace(/^```(?:json)?\s*|\s*```$/g, "").trim()); } catch { data = extractJson(raw); }
+  if (!data || typeof data !== "object") return null;
+  const list = Array.isArray(data) ? data
+    : Array.isArray(data.products) ? data.products
+      : (data.names || data.name) ? [data] : [];
+  const items = list.map((entry, index) => {
+    const photo = Number.parseInt(entry?.photo, 10);
+    return {
+      photo: photo >= 1 && photo <= photoCount ? photo : (mode === "separate" ? index + 1 : 1),
+      ...normalizeIdentity(entry),
+      shelfPrice: toPrice(entry?.shelfPrice),
+      count: Math.min(99, Math.max(1, Number.parseInt(entry?.count, 10) || 1)),
+    };
+  });
+
+  if (mode === "separate") {
+    const byPhoto = new Map();
+    for (const item of items) if (item.photo <= photoCount && !byPhoto.has(item.photo)) byPhoto.set(item.photo, item);
+    return {
+      products: Array.from({ length: photoCount }, (_, i) => byPhoto.get(i + 1) || {
+        photo: i + 1, ...normalizeIdentity({ recognized: false, names: [] }), shelfPrice: null, count: 1,
+      }),
+    };
+  }
+
+  const seen = new Set();
+  const products = [];
+  for (const item of items) {
+    if (!item.recognized) continue;
+    const key = item.names[0].toLocaleLowerCase("tr-TR");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    products.push(item);
+    if (products.length === MAX_BATCH_PRODUCTS) break;
+  }
+  return { products };
+};
+
+/** Birden çok fotoğrafı tek istekte tanır. images: [{ mimeType, base64 }] */
+export const identifyProductPhotos = async (images, { mode = "separate" } = {}, {
+  apiKey = process.env.GEMINI_API_KEY,
+  model = process.env.GEMINI_VISION_MODEL || "gemini-flash-latest",
+} = {}) => {
+  const photoCount = images.length;
+  const parts = [];
+  images.forEach(({ mimeType, base64 }, index) => {
+    parts.push({ text: `Fotoğraf ${index + 1}` });
+    parts.push({ inlineData: { mimeType, data: base64 } });
+  });
+  parts.push({ text: buildBatchIdentifyPrompt({ photoCount, mode }) });
+  const text = await callGeminiVision(parts, { apiKey, model, maxOutputTokens: 16384, timeoutMs: 150000 });
+  const result = parseBatchIdentification(text, { photoCount, mode });
   if (!result) throw new Error("GEMINI_UNREADABLE");
   return result;
 };
@@ -229,6 +344,90 @@ export const searchProductImages = async (query, {
   const lists = settled.filter((item) => item.status === "fulfilled").map((item) => item.value);
   if (!lists.length) throw settled[0].reason;
   return rankImageResults(lists);
+};
+
+// ── 2b. İnternetteki fiyatlar (SearXNG web araması) ──────────────────────────
+// Arama sonuçlarının başlık ve özetlerindeki "45,90 TL" / "₺45,90" ifadeleri okunur.
+// Sayfalara girilmez; sonuçlar yalnızca yöneticiye referans olarak gösterilir, fiyat kendiliğinden yazılmaz.
+
+export const PRICE_OFFER_LIMIT = 6;
+
+const PRICE_PATTERN = /(?:₺\s*(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?))|(?:(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)\s*(?:TL|₺|tl)\b)/g;
+
+// "1.249,90" → 1249.9, "45,90" → 45.9, "45.90" → 45.9
+export const parseTurkishPrice = (raw) => {
+  let text = String(raw || "").trim();
+  if (/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(text)) text = text.replace(/\./g, "").replace(",", ".");
+  else text = text.replace(",", ".");
+  const value = Number(text);
+  return Number.isFinite(value) && value > 0 && value < 100000 ? Math.round(value * 100) / 100 : null;
+};
+
+export const extractPrices = (text) => {
+  const prices = [];
+  for (const match of String(text || "").matchAll(PRICE_PATTERN)) {
+    const value = parseTurkishPrice(match[1] || match[2]);
+    if (value) prices.push(value);
+  }
+  return prices;
+};
+
+// Ürün adındaki anlamlı kelimeler (marka, çeşit); sonuçla eşleşme kontrolünde kullanılır
+const keyWords = (query) => String(query || "")
+  .toLocaleLowerCase("tr-TR")
+  .split(/[^\p{L}\p{N}]+/u)
+  .filter((word) => word.length > 2 && !/^\d+$/.test(word) && !["trendyol", "getir", "fiyat", "fiyatı"].includes(word));
+
+/**
+ * Web arama sonuçlarından fiyat teklifleri çıkarır.
+ * Sonuç başlığında ürünün ilk iki anlamlı kelimesi (genelde marka + ürün) geçmiyorsa atlanır;
+ * ortancanın üçte birinden ucuz ya da üç katından pahalı fiyatlar (kampanya kodu, koli fiyatı vb.) elenir.
+ */
+export const rankPriceResults = (results, query) => {
+  const words = keyWords(query).slice(0, 2);
+  const offers = [];
+  const seen = new Set();
+  for (const item of results) {
+    const title = clean(item?.title, 160);
+    const haystack = `${title} ${item?.url || ""}`.toLocaleLowerCase("tr-TR");
+    if (words.length && !words.every((word) => haystack.includes(word))) continue;
+    const price = extractPrices(`${title} ${item?.content || ""}`)[0];
+    if (!price) continue;
+    const pageUrl = typeof item?.url === "string" ? item.url : "";
+    const key = `${pageUrl}|${price}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    offers.push({ price, title, pageUrl, source: sourceOf({ url: pageUrl }).label });
+  }
+  if (!offers.length) return { offers: [], min: null, max: null, median: null };
+  const sorted = [...offers].sort((a, b) => a.price - b.price);
+  const mid = sorted[Math.floor(sorted.length / 2)].price;
+  const kept = sorted.filter((offer) => offer.price >= mid / 3 && offer.price <= mid * 3).slice(0, PRICE_OFFER_LIMIT);
+  const values = kept.map((offer) => offer.price);
+  return {
+    offers: kept,
+    min: Math.min(...values),
+    max: Math.max(...values),
+    median: values[Math.floor(values.length / 2)],
+  };
+};
+
+const searchSearxngWeb = async (q, baseUrl) => {
+  const url = new URL("/search", baseUrl);
+  url.search = new URLSearchParams({ q, categories: "general", format: "json", language: "tr", safesearch: "1" }).toString();
+  const response = await fetchWithTimeout(url, { headers: { Accept: "application/json" } }, 20000);
+  if (!response.ok) throw new Error(`SEARXNG_${response.status}`);
+  const body = await response.json().catch(() => ({}));
+  return Array.isArray(body?.results) ? body.results : [];
+};
+
+/** Ürün adıyla internetteki fiyatları arar (ücretsiz SearXNG). */
+export const searchProductPrices = async (query, { searxngUrl = process.env.SEARXNG_URL } = {}) => {
+  if (!searxngUrl) throw new Error("IMAGE_SEARCH_NOT_CONFIGURED");
+  const settled = await Promise.allSettled([searchSearxngWeb(`${query} fiyat`, searxngUrl), searchSearxngWeb(`${query} trendyol`, searxngUrl)]);
+  const lists = settled.filter((item) => item.status === "fulfilled").map((item) => item.value);
+  if (!lists.length) throw settled[0].reason;
+  return rankPriceResults(lists.flat(), query);
 };
 
 // ── 3. Görseli indir ve arka planı kaldır ──────────────────────────────

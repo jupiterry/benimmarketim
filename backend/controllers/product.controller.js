@@ -150,7 +150,7 @@ export const getFeaturedProducts = async (req, res) => {
 
 export const createProduct = async (req, res) => {
   try {
-    const { name, description, price, image, category, subcategory } = req.body;
+    const { name, description, price, image, category, subcategory, isHidden } = req.body;
 
     if (!name || !price || !category) {
       return res.status(400).json({ message: "Ürün adı, fiyat ve kategori zorunludur!" });
@@ -176,7 +176,8 @@ export const createProduct = async (req, res) => {
       image: cloudinaryResponse?.secure_url || "",
       category,
       subcategory: subcategory || "",
-      isHidden: false, // Yeni ürün varsayılan olarak görünür
+      // Yeni ürün varsayılan olarak görünür; toplu eklemede "gizli ekle" seçilirse kontrol edilene kadar gizli kalır
+      isHidden: isHidden === true,
     });
 
     res.status(201).json({

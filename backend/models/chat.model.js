@@ -54,6 +54,13 @@ const chatSchema = new mongoose.Schema(
       enum: ["user", "admin", "ai", "system"],
       default: "user",
     },
+    // Geciken sipariş akışı (asistan): özür mesajı ve ardından canlı destek teklifi sipariş başına bir kez gösterilir.
+    // stage: "notice" → özür gönderildi, "offer" → canlı destek teklif edildi, "done" → akış bitti.
+    orderDelay: {
+      order: { type: mongoose.Schema.Types.ObjectId, ref: "Order", default: null },
+      stage: { type: String, enum: ["notice", "offer", "done", null], default: null },
+      updatedAt: { type: Date, default: null },
+    },
     isDeleted: {
       type: Boolean,
       default: false, // Soft delete - silinen sohbetler hala veritabanında kalır

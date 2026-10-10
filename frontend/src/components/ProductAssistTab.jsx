@@ -1,56 +1,11 @@
 import { useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { AlertTriangle, Camera, Check, ImageOff, Link2, Loader, RefreshCw, Search, Sparkles, Wand2 } from "lucide-react";
+import { AlertTriangle, Camera, Check, ExternalLink, Globe, ImageOff, Layers, Link2, Loader, RefreshCw, Search, Sparkles, Wand2 } from "lucide-react";
 import axios from "../lib/axios";
+import { CATEGORIES, categoryName, errorMessage, formatPrice, shrinkPhoto } from "../lib/productAssist";
 import { useProductStore } from "../stores/useProductStore";
+import ProductAssistBulk from "./ProductAssistBulk";
 import "../styles/product-assist.css";
-
-// Mağaza kategorileri (CreateProductForm ile aynı sıra; değer = ürünün category alanı)
-const CATEGORIES = [
-  { slug: "kahve", name: "Benim Kahvem" },
-  { slug: "yiyecekler", name: "Yiyecekler" },
-  { slug: "kahvalti", name: "Kahvaltılık Ürünler" },
-  { slug: "gida", name: "Temel Gıda" },
-  { slug: "meyve-sebze", name: "Meyve & Sebze" },
-  { slug: "sut", name: "Süt & Süt Ürünleri" },
-  { slug: "bespara", name: "Beş Para Etmeyen Ürünler" },
-  { slug: "tozicecekler", name: "Toz İçecekler" },
-  { slug: "cips", name: "Cips & Çerez" },
-  { slug: "cayseker", name: "Çay ve Şekerler" },
-  { slug: "atistirma", name: "Atıştırmalıklar" },
-  { slug: "temizlik", name: "Temizlik & Hijyen" },
-  { slug: "kisisel", name: "Kişisel Bakım" },
-  { slug: "makarna", name: "Makarna ve Kuru Bakliyat" },
-  { slug: "et", name: "Şarküteri & Et Ürünleri" },
-  { slug: "icecekler", name: "Buz Gibi İçecekler" },
-  { slug: "dondurulmus", name: "Dondurulmuş Gıdalar" },
-  { slug: "baharat", name: "Baharatlar" },
-  { slug: "dondurma", name: "Dondurmalar" },
-];
-const categoryName = (slug) => CATEGORIES.find((category) => category.slug === slug)?.name || slug;
-
-// Telefondan gelen büyük fotoğrafı yüklemeden önce küçültür (en uzun kenar 1280 px, JPEG).
-const shrinkPhoto = (file) =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("read"));
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = () => reject(new Error("decode"));
-      img.onload = () => {
-        const scale = Math.min(1, 1280 / Math.max(img.width, img.height));
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.round(img.width * scale);
-        canvas.height = Math.round(img.height * scale);
-        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL("image/jpeg", 0.85));
-      };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-  });
-
-const errorMessage = (error, fallback) => error.response?.data?.message || fallback;
 
 const INITIAL = {
   photo: "",
@@ -62,10 +17,12 @@ const INITIAL = {
   selectedUrl: "",
   prepared: null, // { image, backgroundRemoved, reason }
   price: "",
+  prices: null, // internetteki fiyatlar (yalnızca referans)
   description: "",
 };
 
-const ProductAssistTab = () => {
+// Tek ürün: fotoğraf → ad/kategori → görsel → fiyat
+const SingleProductAssist = () => {
   const [state, setState] = useState(INITIAL);
   const [busy, setBusy] = useState(""); // "identify" | "search" | "prepare" | "save"
   const [errors, setErrors] = useState({});
@@ -75,6 +32,17 @@ const ProductAssistTab = () => {
 
   const patch = (changes) => setState((current) => ({ ...current, ...changes }));
   const setError = (key, message) => setErrors((current) => ({ ...current, [key]: message }));
+
+  // İnternetteki fiyatlar arka planda aranır; fiyat kutusu kendiliğinden doldurulmaz
+  const searchPrices = async (query) => {
+    patch({ prices: null });
+    try {
+      const { data } = await axios.post("/product-assist/prices", { query });
+      patch({ prices: { offers: data.offers || [], min: data.min, max: data.max, median: data.median } });
+    } catch {
+      patch({ prices: { offers: [], min: null, max: null, median: null } });
+    }
+  };
 
   const searchImages = async (query) => {
     const q = query.trim();
@@ -122,6 +90,7 @@ const ProductAssistTab = () => {
         setError("identity", "Ürün tanınamadı. Ön yüzü daha net çekin ya da adı aşağıya kendiniz yazın.");
         return;
       }
+      searchPrices(identity.names[0] || identity.searchQuery);
       await searchImages(identity.searchQuery || identity.names[0]);
     } catch (error) {
       setBusy("");
@@ -261,7 +230,7 @@ const ProductAssistTab = () => {
         <header className="ui-panel-head">
           <div>
             <h2 id="pa-image"><span className="pa-num">3</span>Mağaza görseli</h2>
-            <p>Trendyol ve Getir'den bulunan görsellerden birini seçin; arka planı otomatik kaldırılır.</p>
+            <p>Trendyol ve Getir&apos;den bulunan görsellerden birini seçin; arka planı otomatik kaldırılır.</p>
           </div>
         </header>
         <div className="ui-panel-body ui-stack">
@@ -338,6 +307,28 @@ const ProductAssistTab = () => {
                 <p className="pa-summary">{state.category ? categoryName(state.category) : "—"}</p>
               </div>
             </div>
+            {state.prices && (
+              <div className="pab-prices pa-prices" aria-live="polite">
+                <span className="ui-label"><Globe />İnternetteki fiyatlar</span>
+                {!state.prices.offers.length ? <span className="ui-hint">Fiyat bulunamadı.</span> : (
+                  <ul>
+                    {state.prices.offers.map((offer) => (
+                      <li key={`${offer.pageUrl}-${offer.price}`}>
+                        <button type="button" className="pab-offer-use" onClick={() => patch({ price: String(offer.price).replace(".", ",") })} title="Bu fiyatı kullan">
+                          <strong className="ui-num">{formatPrice(offer.price)}</strong>
+                          <span>{offer.source}</span>
+                        </button>
+                        {offer.pageUrl && (
+                          <a href={offer.pageUrl} target="_blank" rel="noopener noreferrer" className="ui-icon-btn ui-icon-btn--sm" aria-label={`${offer.source} sayfasını aç`} title={offer.title}>
+                            <ExternalLink />
+                          </a>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
             <div>
               <label htmlFor="pa-desc" className="ui-label">Açıklama <span className="ui-muted">(isteğe bağlı)</span></label>
               <textarea id="pa-desc" className="ui-field" rows={2} maxLength={500} value={state.description} onChange={(event) => patch({ description: event.target.value })} />
@@ -359,6 +350,32 @@ const ProductAssistTab = () => {
         </div>
       </section>
     </form>
+  );
+};
+
+// Üstte tek ürün / toplu ekleme seçimi. İki ekran da açık kalır; geçiş yapınca yarım iş kaybolmaz.
+const ProductAssistTab = () => {
+  const [mode, setMode] = useState(() => {
+    try { return localStorage.getItem("product-assist-mode") === "bulk" ? "bulk" : "single"; } catch { return "single"; }
+  });
+  const choose = (next) => {
+    setMode(next);
+    try { localStorage.setItem("product-assist-mode", next); } catch { /* tarayıcı depolaması kapalı olabilir */ }
+  };
+
+  return (
+    <div className="pa-shell">
+      <div className="ui-segmented pa-mode" role="tablist" aria-label="Ekleme şekli">
+        <button type="button" role="tab" aria-selected={mode === "single"} aria-pressed={mode === "single"} onClick={() => choose("single")}>
+          <Camera />Tek ürün
+        </button>
+        <button type="button" role="tab" aria-selected={mode === "bulk"} aria-pressed={mode === "bulk"} onClick={() => choose("bulk")}>
+          <Layers />Toplu ekle <span className="pa-mode-hint">5–15 ürün</span>
+        </button>
+      </div>
+      <div hidden={mode !== "single"}><SingleProductAssist /></div>
+      <div hidden={mode !== "bulk"}><ProductAssistBulk /></div>
+    </div>
   );
 };
 

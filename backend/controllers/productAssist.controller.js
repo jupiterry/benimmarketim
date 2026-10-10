@@ -1,14 +1,19 @@
 import Product from "../models/product.model.js";
 import {
+  BATCH_PHOTO_LIMITS,
   describeAssistFailure,
   downloadImage,
   identifyProductPhoto,
+  identifyProductPhotos,
   makeTransparentProductImage,
   searchProductImages,
+  searchProductPrices,
 } from "../services/productAssist.service.js";
 
 const PHOTO_PATTERN = /^data:(image\/(?:jpeg|png|webp|heic|heif));base64,([A-Za-z0-9+/=]+)$/;
 const MAX_PHOTO_BASE64 = 8 * 1024 * 1024;
+// Toplu istekte tüm fotoğrafların toplamı (express.json sınırı 10 MB)
+const MAX_BATCH_BASE64 = 9 * 1024 * 1024;
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -45,6 +50,42 @@ export const identifyPhoto = async (req, res) => {
   }
 };
 
+/**
+ * POST /api/product-assist/identify-batch  { photos: [dataURL], mode: "separate" | "group" }
+ * Tüm fotoğraflar tek Gemini isteğiyle tanınır → { products: [{ photo, names, categories, …, similar }] }
+ */
+export const identifyPhotos = async (req, res) => {
+  const mode = req.body?.mode === "group" ? "group" : "separate";
+  const photos = Array.isArray(req.body?.photos) ? req.body.photos : [];
+  const limit = BATCH_PHOTO_LIMITS[mode];
+  if (photos.length < 1 || photos.length > limit) {
+    return res.status(400).json({ success: false, message: `Tek seferde 1–${limit} fotoğraf gönderebilirsiniz.` });
+  }
+  const images = [];
+  let total = 0;
+  for (const photo of photos) {
+    const match = typeof photo === "string" ? photo.match(PHOTO_PATTERN) : null;
+    if (!match || match[2].length > MAX_PHOTO_BASE64) {
+      return res.status(400).json({ success: false, message: `${images.length + 1}. fotoğraf okunamadı. JPEG, PNG veya WebP fotoğraf yükleyin.` });
+    }
+    total += match[2].length;
+    images.push({ mimeType: match[1], base64: match[2] });
+  }
+  if (total > MAX_BATCH_BASE64) {
+    return res.status(413).json({ success: false, message: "Fotoğrafların toplam boyutu çok büyük. Daha az fotoğrafla deneyin." });
+  }
+  try {
+    const { products } = await identifyProductPhotos(images, { mode });
+    // Katalogda benzer ürün kontrolü; biri başarısız olursa o ürün için boş geçilir
+    const similar = await Promise.all(products.map((product) => (product.names[0]
+      ? findSimilarProducts(product.names[0]).catch(() => [])
+      : Promise.resolve([]))));
+    return res.json({ success: true, mode, products: products.map((product, index) => ({ ...product, similar: similar[index] })) });
+  } catch (error) {
+    return fail(res, error, "toplu tanıma");
+  }
+};
+
 /** POST /api/product-assist/images  { query } → görsel seçenekleri */
 export const findImages = async (req, res) => {
   const query = typeof req.body?.query === "string" ? req.body.query.replace(/\s+/g, " ").trim() : "";
@@ -56,6 +97,19 @@ export const findImages = async (req, res) => {
     return res.json({ success: true, images });
   } catch (error) {
     return fail(res, error, "görsel arama");
+  }
+};
+
+/** POST /api/product-assist/prices  { query } → internetteki fiyatlar (yalnızca referans) */
+export const findPrices = async (req, res) => {
+  const query = typeof req.body?.query === "string" ? req.body.query.replace(/\s+/g, " ").trim() : "";
+  if (query.length < 3 || query.length > 120) {
+    return res.status(400).json({ success: false, message: "Aranacak ürün adı 3–120 karakter olmalı." });
+  }
+  try {
+    return res.json({ success: true, ...(await searchProductPrices(query)) });
+  } catch (error) {
+    return fail(res, error, "fiyat arama");
   }
 };
 
