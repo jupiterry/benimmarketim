@@ -25,10 +25,10 @@ const Navbar = () => {
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 lg:px-8">
         <Link to="/" onClick={closeMenu} className="flex items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-white">
-            <img src="/maskot-yuz.webp" alt="" width="40" height="40" className="h-full w-full object-cover" />
+            <img src="/maskot-yuz.webp" alt="" width="40" height="40" fetchPriority="high" className="h-full w-full object-cover" />
           </span>
           <span>
-            <img src="/logo-yazi-beyaz.webp" alt="Benim Marketim" width="720" height="260" style={{ display: "block", height: 36, width: "auto" }} />
+            <img src="/logo-yazi-beyaz.webp" alt="Benim Marketim" width="720" height="260" fetchPriority="high" style={{ display: "block", height: 36, width: "auto", color: "transparent" }} />
             <span className="mt-1 block text-[11px] font-medium uppercase tracking-[0.18em] text-emerald-400">Mobilde alışveriş</span>
           </span>
         </Link>

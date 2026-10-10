@@ -852,6 +852,8 @@ a.landing-category-card:hover {
   display: block;
   width: auto;
   height: 56px;
+  /* Görsel gelene kadar alternatif metin yazı olarak görünmesin; yer zaten ayrılı. */
+  color: transparent;
 }
 .landing-map-card address,
 .landing-map-card p {

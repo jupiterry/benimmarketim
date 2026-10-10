@@ -1,38 +1,44 @@
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { HelmetProvider } from "react-helmet-async";
 import HomePage from "./pages/HomePage";
 import CategoryLandingPage from "./pages/CategoryLandingPage";
 import { marketCategories, publicPages } from "./data/seo";
-import SignUpPage from "./pages/SignUpPage";
-import LoginPage from "./pages/LoginPage";
-import ProfilePage from "./pages/ProfilePage";
-import AdminPage from "./pages/AdminPage";
 import Navbar from "./components/Navbar";
 import { Toaster } from "react-hot-toast";
 import { useUserStore } from "./stores/useUserStore";
 import LoadingSpinner from "./components/LoadingSpinner";
 import { useSettingsStore } from "./stores/useSettingsStore";
 import Footer from "./components/Footer";
-import BulkUpload from "./components/BulkUpload";
-import FeedbackPage from "./pages/FeedbackPage";
-import PrivacyPage from "./pages/PrivacyPage";
-import PhotocopyPage from "./pages/PhotocopyPage";
-import TermsPage from "./pages/TermsPage";
-import DistanceSalesPage from "./pages/DistanceSalesPage";
-import ReturnPolicyPage from "./pages/ReturnPolicyPage";
-import CookiesPage from "./pages/CookiesPage";
-import ContactPage from "./pages/ContactPage";
-import AboutPage from "./pages/AboutPage";
-import FAQPage from "./pages/FAQPage";
-import KVKKPage from "./pages/KVKKPage";
-import KvkkRequestPage from "./pages/KvkkRequestPage";
-import AccountDeletionPage from "./pages/AccountDeletionPage";
-import ReferralPage from "./pages/ReferralPage";
 import ScrollToTop from "./components/ScrollToTop";
 import { ConfirmProvider } from "./components/ConfirmModal";
-import FloatingChatWidget from "./components/FloatingChatWidget";
-import CustomerAiChatWidget from "./components/CustomerAiChatWidget";
+
+// Ana sayfa ve kategori sayfaları ilk pakette kalır (önceden render edilip
+// hemen gösterilirler). Diğer sayfalar ve admin paneli yalnızca açıldıklarında
+// indirilir; böylece ana sayfanın JavaScript yükü küçülür.
+const loadLoginPage = () => import("./pages/LoginPage");
+const loadSignUpPage = () => import("./pages/SignUpPage");
+const LoginPage = lazy(loadLoginPage);
+const SignUpPage = lazy(loadSignUpPage);
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const AdminPage = lazy(() => import("./pages/AdminPage"));
+const FeedbackPage = lazy(() => import("./pages/FeedbackPage"));
+const PrivacyPage = lazy(() => import("./pages/PrivacyPage"));
+const PhotocopyPage = lazy(() => import("./pages/PhotocopyPage"));
+const TermsPage = lazy(() => import("./pages/TermsPage"));
+const DistanceSalesPage = lazy(() => import("./pages/DistanceSalesPage"));
+const ReturnPolicyPage = lazy(() => import("./pages/ReturnPolicyPage"));
+const CookiesPage = lazy(() => import("./pages/CookiesPage"));
+const ContactPage = lazy(() => import("./pages/ContactPage"));
+const AboutPage = lazy(() => import("./pages/AboutPage"));
+const FAQPage = lazy(() => import("./pages/FAQPage"));
+const KVKKPage = lazy(() => import("./pages/KVKKPage"));
+const KvkkRequestPage = lazy(() => import("./pages/KvkkRequestPage"));
+const AccountDeletionPage = lazy(() => import("./pages/AccountDeletionPage"));
+const ReferralPage = lazy(() => import("./pages/ReferralPage"));
+const BulkUpload = lazy(() => import("./components/BulkUpload"));
+const FloatingChatWidget = lazy(() => import("./components/FloatingChatWidget"));
+const CustomerAiChatWidget = lazy(() => import("./components/CustomerAiChatWidget"));
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useUserStore();
@@ -56,6 +62,20 @@ function App() {
     fetchSettings();
   }, [fetchSettings]);
 
+  // Giriş ve kayıt sayfalarını sayfa boşa çıktığında önceden indir; tıklandığında beklemesin.
+  useEffect(() => {
+    const prefetch = () => {
+      loadLoginPage().catch(() => {});
+      loadSignUpPage().catch(() => {});
+    };
+    if ("requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(prefetch, { timeout: 4000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = window.setTimeout(prefetch, 2500);
+    return () => window.clearTimeout(id);
+  }, []);
+
   const publicPath = location.pathname.replace(/\/+$/, "") || "/";
   const isPublicPage = publicPages.includes(publicPath) ||
     marketCategories.some((category) => category.path === publicPath);
@@ -74,6 +94,7 @@ function App() {
 
         <div className="relative z-50 flex-grow">
           {!isAdminPanel && <Navbar />}
+          <Suspense fallback={<LoadingSpinner />}>
           <Routes>
             <Route path="/" element={<HomePage />} />
             {marketCategories.map((category) => (
@@ -144,12 +165,15 @@ function App() {
             />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </Suspense>
         </div>
 
         {!isAdminPanel && <Footer />}
         <Toaster />
-        {user?.role === "admin" && !isAdminPanel && <FloatingChatWidget />}
-        {user && user.role !== "admin" && <CustomerAiChatWidget />}
+        <Suspense fallback={null}>
+          {user?.role === "admin" && !isAdminPanel && <FloatingChatWidget />}
+          {user && user.role !== "admin" && <CustomerAiChatWidget />}
+        </Suspense>
       </div>
       </ConfirmProvider>
     </HelmetProvider>
