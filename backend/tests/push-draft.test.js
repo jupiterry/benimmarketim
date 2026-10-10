@@ -130,3 +130,14 @@ test("draft endpoint retries once when the first answer is unusable, then fails 
   await generateBroadcastDraft({ body: { prompt: "a" } }, bad);
   assert.equal(bad.statusCode, 400);
 });
+
+test("draft copy is polished and the least flawed option is offered first", () => {
+  const options = parseDraftOptions(JSON.stringify({ options: [
+    { tone: "Eğlenceli", title: "MUHTEŞEM FIRSAT!!! Hemen tıkla 🔥🔥🔥", body: "Kaçırma!!!" },
+    { tone: "Samimi", title: "\"Gece acıktın mı? 🌙🍿🍫.\"", body: "Saat 23:00'e kadar %20 indirim , 1,5 litre kola dahil !! 🛒🎁🍕🥤" },
+  ] }));
+  assert.equal(options[0].tone, "Samimi");
+  assert.equal(options[0].title, "Gece acıktın mı? 🌙🍿");
+  assert.equal(options[0].body, "Saat 23:00'e kadar %20 indirim, 1,5 litre kola dahil! 🛒🎁🍕");
+  assert.equal(options[1].title, "MUHTEŞEM FIRSAT! Hemen tıkla 🔥");
+});

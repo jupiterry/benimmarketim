@@ -1,0 +1,253 @@
+/* Fotoğraftan ürün ekle — admin panelinin ui-* bileşenleri üzerine küçük eklemeler */
+.admin-layout .pa {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ui-s4, 16px);
+  align-items: start;
+}
+.admin-layout .pa-step--wide {
+  grid-column: 1 / -1;
+}
+.admin-layout .pa-step[data-disabled="true"] {
+  opacity: 0.55;
+  pointer-events: none;
+}
+.admin-layout .pa-step .ui-panel-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.admin-layout .pa-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* 1 · Fotoğraf */
+.admin-layout .pa-photo-body {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+}
+.admin-layout .pa-dropzone {
+  width: 100%;
+  min-height: 180px;
+  aspect-ratio: 1;
+}
+.admin-layout .pa-dropzone > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.admin-layout .pa-dropzone > img + span {
+  position: absolute;
+  inset: auto 8px 8px;
+  padding: 4px 8px;
+  border-radius: var(--ui-radius);
+  background: rgba(16, 24, 40, 0.72);
+  color: #fff;
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .pa-photo-status {
+  display: grid;
+  gap: 8px;
+}
+.admin-layout .pa-working,
+.admin-layout .pa-found {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+}
+.admin-layout .pa-working svg,
+.admin-layout .pa-found svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ui-brand);
+}
+.admin-layout .pa-error {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+  font-size: var(--ui-fs-sm);
+}
+
+/* 2 · Seçenekler */
+.admin-layout .pa-options {
+  display: grid;
+  gap: 8px;
+}
+.admin-layout .pa-options--row {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-bottom: 8px;
+}
+.admin-layout .pa-options .ui-badge {
+  margin-left: auto;
+}
+.admin-layout .pa-dot {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border: 1.5px solid var(--ui-line-strong);
+  border-radius: 50%;
+}
+.admin-layout .pa-similar ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+/* 3 · Görsel adayları */
+.admin-layout .pa-search {
+  display: flex;
+  gap: 8px;
+}
+.admin-layout .pa-search .ui-field {
+  flex: 1;
+  min-width: 0;
+}
+.admin-layout .pa-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 10px;
+}
+.admin-layout .pa-tile {
+  position: relative;
+  display: block;
+  aspect-ratio: 1;
+  padding: 8px;
+  overflow: hidden;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: #fff;
+  cursor: pointer;
+  transition: border-color var(--ui-ease), box-shadow var(--ui-ease);
+}
+.admin-layout .pa-tile[hidden] {
+  display: none;
+}
+.admin-layout .pa-tile:hover {
+  border-color: var(--ui-line-strong);
+}
+.admin-layout .pa-tile[data-selected="true"] {
+  border-color: var(--ui-brand);
+  box-shadow: 0 0 0 2px var(--ui-brand-soft);
+}
+.admin-layout .pa-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.admin-layout .pa-tile-source {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--ui-text-2);
+  font-size: 11px;
+  font-weight: 600;
+  box-shadow: 0 0 0 1px var(--ui-line);
+}
+.admin-layout .pa-tile-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  padding: 3px;
+  border-radius: 50%;
+  background: var(--ui-brand);
+  color: #fff;
+}
+.admin-layout .pa-tile-check svg {
+  width: 14px;
+  height: 14px;
+}
+.admin-layout .pa-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 4 · Önizleme ve kayıt */
+.admin-layout .pa-final {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+/* Dama deseni: görselin şeffaf olduğunu gösterir */
+.admin-layout .pa-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background-color: #fff;
+  background-image:
+    linear-gradient(45deg, #eef0f2 25%, transparent 25%),
+    linear-gradient(-45deg, #eef0f2 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #eef0f2 75%),
+    linear-gradient(-45deg, transparent 75%, #eef0f2 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+}
+.admin-layout .pa-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.admin-layout .pa-summary {
+  margin: 0;
+  padding: 8px 0;
+  font-size: var(--ui-fs-md);
+  font-weight: 600;
+  color: var(--ui-text);
+}
+.admin-layout .pa-select {
+  max-width: 320px;
+}
+
+@media (max-width: 900px) {
+  .admin-layout .pa {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 560px) {
+  .admin-layout .pa-photo-body,
+  .admin-layout .pa-final {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-layout .pa-dropzone {
+    max-width: 220px;
+    margin-inline: auto;
+  }
+  .admin-layout .pa-preview {
+    max-width: 260px;
+    width: 100%;
+    margin-inline: auto;
+  }
+  .admin-layout .pa-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .admin-layout .pa-select {
+    max-width: none;
+  }
+}

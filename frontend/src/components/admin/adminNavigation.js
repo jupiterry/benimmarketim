@@ -19,6 +19,7 @@ import {
   Headphones,
   BellRing,
   Inbox,
+  Camera,
 } from "lucide-react";
 
 export const adminMenuGroups = [
@@ -35,6 +36,7 @@ export const adminMenuGroups = [
     items: [
       { id: "products", short: "Ürünler", label: "Ürün kataloğu", icon: Package },
       { id: "create", short: "Yeni ürün", label: "Yeni ürün", icon: Plus },
+      { id: "photo-create", short: "Fotoğraftan", label: "Fotoğraftan ürün ekle", icon: Camera },
       {
         id: "weekly-products",
         short: "Fırsatlar",
