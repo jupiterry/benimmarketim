@@ -22,17 +22,36 @@ export const BROADCAST_AUDIENCES = {
 // Yöneticinin bildirimi önce yalnızca kendi telefonunda denemesi için
 export const TEST_AUDIENCE = "self";
 
+// Yapay zekâ sağlayıcısı hatasını yöneticinin anlayacağı bir açıklamaya çevirir.
+// Uç nokta yalnızca yöneticiye açık olduğu için sağlayıcı ve HTTP kodu mesajda gösterilir.
+export const describeAiDraftFailure = (error, providerName = "", model = "") => {
+  const code = String(error?.message || "");
+  const status = Number(code.match(/^AI_PROVIDER_(\d{3})$/)?.[1]);
+  const where = `${providerName || "sağlayıcı"}${model ? ` / ${model}` : ""}`;
+  if (code === "AI_API_KEY_MISSING") return { status: 503, message: `Yapay zekâ anahtarı sunucuda tanımlı değil (${where}). .env dosyasındaki ilgili API anahtarını kontrol edin.` };
+  if (status === 401 || status === 403) return { status: 502, message: `Yapay zekâ sağlayıcısı API anahtarını kabul etmedi (${where}, HTTP ${status}). Anahtarın geçerli olduğunu kontrol edin.` };
+  if (status === 402) return { status: 502, message: `Yapay zekâ hesabında yeterli kredi yok (${where}, HTTP 402). Sağlayıcı hesabına kredi yükleyin.` };
+  if (status === 404 || status === 400) return { status: 502, message: `Yapay zekâ sağlayıcısı isteği reddetti (${where}, HTTP ${status}). Ayarlardaki model adının bu sağlayıcıda geçerli olduğunu kontrol edin.` };
+  if (status === 429) return { status: 502, message: `Yapay zekâ sağlayıcısının istek limiti doldu (${where}, HTTP 429). Birkaç dakika sonra tekrar deneyin.` };
+  if (status >= 500) return { status: 502, message: `Yapay zekâ sağlayıcısı şu anda yanıt vermiyor (${where}, HTTP ${status}). Biraz sonra tekrar deneyin.` };
+  if (code === "AI_EMPTY_RESPONSE") return { status: 502, message: `Yapay zekâ boş yanıt döndürdü (${where}). Tekrar deneyin.` };
+  if (error?.name === "AbortError") return { status: 504, message: `Yapay zekâ sağlayıcısı zamanında yanıt vermedi (${where}). Tekrar deneyin.` };
+  return { status: 502, message: `Metin şu anda oluşturulamadı (${where}). Tekrar deneyin veya hazır metinlerden birini kullanın.` };
+};
+
 // Taslak üretimi yalnızca metin önerir; hiçbir bildirim göndermez.
 // Farklı tonlarda en fazla 3 seçenek döner; ilki forma doldurulur, diğerleri panelde seçilebilir.
 export const generateBroadcastDraft = async (req, res) => {
   const prompt = typeof req.body?.prompt === "string" ? req.body.prompt.trim() : "";
   const target = typeof req.body?.target === "string" ? req.body.target : "home";
   if (prompt.length < 3 || prompt.length > 600) return res.status(400).json({ success: false, message: "Kampanya açıklaması 3–600 karakter arasında olmalı." });
+  let providerName = "";
+  let model = "";
   try {
     const settings = await Settings.getSettings();
     const ai = settings.ai || {};
-    const providerName = ai.provider || process.env.AI_DEFAULT_PROVIDER || "openrouter";
-    const model = ai.model || process.env.AI_DEFAULT_MODEL || "openai/gpt-4o";
+    providerName = ai.provider || process.env.AI_DEFAULT_PROVIDER || "openrouter";
+    model = ai.model || process.env.AI_DEFAULT_MODEL || "openai/gpt-4o";
     // Son başlıklar modele verilir ki aynı kalıpları tekrar etmesin
     let recent = [];
     try {
@@ -51,8 +70,10 @@ export const generateBroadcastDraft = async (req, res) => {
     if (!options.length) return res.status(502).json({ success: false, message: "Üretilen metin karakter sınırına uymadı. Yeniden deneyin." });
     return res.json({ success: true, title: options[0].title, body: options[0].body, options });
   } catch (error) {
-    const status = error.message === "AI_API_KEY_MISSING" ? 503 : 502;
-    return res.status(status).json({ success: false, message: status === 503 ? "Yapay zekâ sağlayıcısının sunucu ayarı eksik." : "Metin şu anda oluşturulamadı. Tekrar deneyin veya hazır metinlerden birini kullanın." });
+    // Gerçek sebep sunucu kaydına yazılır (önceden sessizce yutuluyordu)
+    console.error(`Bildirim taslağı üretilemedi [${providerName} / ${model}]:`, error?.name === "AbortError" ? "zaman aşımı" : error?.message);
+    const { status, message } = describeAiDraftFailure(error, providerName, model);
+    return res.status(status).json({ success: false, message });
   }
 };
 
