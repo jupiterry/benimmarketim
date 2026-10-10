@@ -8,7 +8,7 @@
 		"start": "node backend/server.js",
 		"build": "npm install && npm install --prefix frontend && npm run build --prefix frontend",
 		"migrate:ai-support": "node backend/scripts/migrate-ai-support.js",
-		"test:ai-support": "node --test backend/tests/ai-support.test.js backend/tests/ai-routing.integration.test.js backend/tests/ai-quality.test.js backend/tests/order-status-notifier.test.js backend/tests/push-notifications.test.js backend/tests/site-messages.test.js backend/tests/order-feedback.test.js backend/tests/missions.test.js backend/tests/cart-assistant.test.js backend/tests/saved-carts.test.js backend/tests/coupon-request.test.js backend/tests/cart-sync.test.js backend/tests/app-activity.test.js backend/tests/chat-takeover.test.js"
+		"test:ai-support": "node --test backend/tests/ai-support.test.js backend/tests/ai-routing.integration.test.js backend/tests/ai-quality.test.js backend/tests/order-status-notifier.test.js backend/tests/push-notifications.test.js backend/tests/site-messages.test.js backend/tests/order-feedback.test.js backend/tests/missions.test.js backend/tests/cart-assistant.test.js backend/tests/saved-carts.test.js backend/tests/coupon-request.test.js backend/tests/cart-sync.test.js backend/tests/app-activity.test.js backend/tests/chat-takeover.test.js backend/tests/push-draft.test.js"
 	},
 	"keywords": [],
 	"author": "",

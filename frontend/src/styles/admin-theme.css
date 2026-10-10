@@ -2760,6 +2760,17 @@ body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok:hover {
   display: grid;
   gap: 8px;
 }
+.admin-layout .push-ai-draft {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius, 12px);
+  background: var(--ui-surface-2);
+}
+.admin-layout .push-ai-draft textarea.ui-field {
+  min-height: 64px;
+}
 .admin-layout .push-layout textarea.ui-field {
   min-height: 84px;
   padding-block: 9px;

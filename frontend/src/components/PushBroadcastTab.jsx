@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, FlaskConical, RefreshCw, RotateCcw, Send, Smartphone, Stethoscope, Users } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FlaskConical, RefreshCw, RotateCcw, Send, Smartphone, Sparkles, Stethoscope, Users } from "lucide-react";
 import toast from "react-hot-toast";
 import axios from "../lib/axios";
 import { useConfirm } from "./ConfirmModal";
@@ -45,6 +45,9 @@ export default function PushBroadcastTab() {
   const [checkEmail, setCheckEmail] = useState("");
   const [diagnosis, setDiagnosis] = useState(null);
   const [form, setForm] = useState({ title: "", body: "", audience: "all", target: "home" });
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [aiError, setAiError] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -87,6 +90,22 @@ export default function PushBroadcastTab() {
   const applyTemplate = (template) => {
     setForm((current) => ({ ...current, title: template.title, body: template.body, target: template.target }));
     setFailure("");
+  };
+
+  const generateDraft = async (event) => {
+    event.preventDefault();
+    if (generating || aiPrompt.trim().length < 3) return;
+    try {
+      setGenerating(true);
+      setAiError("");
+      const { data } = await axios.post("/notifications/broadcasts/draft", { prompt: aiPrompt.trim(), target: form.target });
+      setForm((current) => ({ ...current, title: data.title, body: data.body }));
+      toast.success("Bildirim taslağı hazır; göndermeden önce gözden geçirin.");
+    } catch (error) {
+      setAiError(error.response?.data?.message || "Yapay zekâ metin oluşturamadı. Tekrar deneyin.");
+    } finally {
+      setGenerating(false);
+    }
   };
 
   // Bildirimi herkese göndermeden önce yalnızca kendi telefonunda dene
@@ -200,6 +219,19 @@ export default function PushBroadcastTab() {
                   </button>
                 ))}
               </div>
+            </div>
+            <div className="push-ai-draft">
+              <label className="ui-label" htmlFor="push-ai-prompt">Yapay zekâya kampanyayı anlatın</label>
+              <textarea id="push-ai-prompt" className="ui-field" rows={2} maxLength={600} value={aiPrompt}
+                placeholder="Örn. Bugün makarna ve salçada indirim var; bunu yurtta kalanlara sıcak ve merak uyandıran bir dille duyur."
+                onChange={(event) => { setAiPrompt(event.target.value); setAiError(""); }} />
+              <div className="ui-between">
+                <span className="ui-hint" style={{ marginTop: 0 }}>İndirim, tarih ve şart gibi bilgileri yazın; yapay zekâ bunları uydurmaz. Oluşan metni düzenleyebilirsiniz.</span>
+                <button type="button" className="ui-btn ui-btn--primary" onClick={generateDraft} disabled={generating || aiPrompt.trim().length < 3}>
+                  <Sparkles />{generating ? "Yazıyor…" : "Bildirim metni yaz"}
+                </button>
+              </div>
+              {aiError && <p className="ui-hint" role="alert" style={{ color: "var(--ui-danger, #b42318)" }}>{aiError}</p>}
             </div>
             <div>
               <div className="ui-between">
