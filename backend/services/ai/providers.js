@@ -50,13 +50,14 @@ export const AI_TOOL_DEFINITIONS = [
   type: "function", function: { name, description, parameters: { type: "object", properties, required, additionalProperties: false } },
 }));
 
+// options: { temperature, maxTokens } — verilmezse asistanın kullandığı değerler (0.15 / 450) geçerlidir.
 export class OpenAiCompatibleProvider {
   constructor({ name, url, apiKey, model, extraHeaders = {} }) { Object.assign(this, { name, url, apiKey, model, extraHeaders }); }
-  async complete(messages, tools = AI_TOOL_DEFINITIONS) {
+  async complete(messages, tools = AI_TOOL_DEFINITIONS, { temperature = 0.15, maxTokens = 450 } = {}) {
     if (!this.apiKey) throw new Error("AI_API_KEY_MISSING");
     const body = await requestJson(this.url, {
       method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.apiKey}`, ...this.extraHeaders },
-      body: JSON.stringify({ model: this.model, messages, ...(tools.length ? { tools, tool_choice: "auto" } : {}), temperature: 0.15, max_tokens: 450 }),
+      body: JSON.stringify({ model: this.model, messages, ...(tools.length ? { tools, tool_choice: "auto" } : {}), temperature, max_tokens: maxTokens }),
     });
     const message = body.choices?.[0]?.message;
     if (!message || (!message.content?.trim() && !message.tool_calls?.length)) throw new Error("AI_EMPTY_RESPONSE");
@@ -68,7 +69,7 @@ const geminiTools = (tools) => [{ functionDeclarations: tools.map((tool) => ({ n
 
 class GeminiProvider {
   constructor({ model, apiKey }) { this.name = "gemini"; this.model = model; this.apiKey = apiKey; }
-  async complete(messages, tools = AI_TOOL_DEFINITIONS) {
+  async complete(messages, tools = AI_TOOL_DEFINITIONS, { temperature = 0.15, maxTokens = 450 } = {}) {
     if (!this.apiKey) throw new Error("AI_API_KEY_MISSING");
     const system = messages.find((message) => message.role === "system")?.content || "";
     const contents = [];
@@ -83,7 +84,7 @@ class GeminiProvider {
     }
     const body = await requestJson(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(this.model)}:generateContent?key=${encodeURIComponent(this.apiKey)}`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents, ...(tools.length ? { tools: geminiTools(tools), toolConfig: { functionCallingConfig: { mode: "AUTO" } } } : {}), generationConfig: { temperature: 0.15, maxOutputTokens: 450 } }),
+      body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents, ...(tools.length ? { tools: geminiTools(tools), toolConfig: { functionCallingConfig: { mode: "AUTO" } } } : {}), generationConfig: { temperature, maxOutputTokens: maxTokens } }),
     });
     const parts = body.candidates?.[0]?.content?.parts || [];
     const calls = parts.filter((part) => part.functionCall).map((part, index) => ({ id: `gemini-${Date.now()}-${index}`, type: "function", function: { name: part.functionCall.name, arguments: JSON.stringify(part.functionCall.args || {}) } }));

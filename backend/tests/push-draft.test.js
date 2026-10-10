@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import Settings from "../models/settings.model.js";
+import PushBroadcast from "../models/pushBroadcast.model.js";
 import { generateBroadcastDraft } from "../controllers/notification.controller.js";
+import { buildDraftMessages, parseDraftOptions, DRAFT_TITLE_LIMIT } from "../services/pushDraft.service.js";
 
 const response = () => {
   const res = { statusCode: 200, body: null, status(code) { res.statusCode = code; return res; }, json(body) { res.body = body; return res; } };
@@ -18,7 +20,7 @@ test("push draft uses the configured AI and returns an editable title/body witho
     const request = JSON.parse(options.body);
     assert.equal(request.model, "test-model");
     assert.equal(request.tools, undefined);
-    assert.match(request.messages[1].content, /cart/);
+    assert.match(request.messages[0].content, /sepet ekranı/);
     return { ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({ title: "Bugün sepetine güzel bir fırsat ekle", body: "Bugünün indirimli ürünlerini keşfet; fırsatları sepetinde gör." }) } }] }) };
   };
   t.after(() => { globalThis.fetch = oldFetch; });
@@ -48,4 +50,69 @@ test("push draft rejects provider copy that exceeds push character limits", asyn
   await generateBroadcastDraft({ body: { prompt: "Kampanyayı duyur" } }, res);
   assert.equal(res.statusCode, 502);
   assert.equal(res.body.success, false);
+});
+
+const chain = (rows) => ({ sort() { return this; }, limit() { return this; }, select() { return this; }, lean() { return Promise.resolve(rows); } });
+const aiReply = (content) => ({ ok: true, status: 200, json: async () => ({ choices: [{ message: { content } }] }) });
+
+test("prompt asks for emoji, three tones, no invented facts and the right screen", () => {
+  const [system, user] = buildDraftMessages({ prompt: "Yurtta sabah kahvaltısı", target: "cart", recentTitles: ["Saat 23.00'ü geçti"] });
+  assert.match(system.content, /Emoji kullan/);
+  assert.match(system.content, /3 farklı/);
+  assert.match(system.content, /uydurma/);
+  assert.match(system.content, /sepet ekranı/);
+  assert.match(system.content, /Saat 23\.00'ü geçti/);
+  assert.match(user.content, /Yurtta sabah kahvaltısı/);
+});
+
+test("options are parsed, cleaned, deduplicated and limited", () => {
+  const raw = "```json\n" + JSON.stringify({ options: [
+    { tone: "Eğlenceli", title: "Günaydın ☕🥐", body: "Yurtta  kahvaltı keyfi bir dokunuş uzağında 🍳" },
+    { tone: "Samimi", title: "Günaydın ☕🥐", body: "Yurtta  kahvaltı keyfi bir dokunuş uzağında 🍳" },
+    { tone: "Uzun", title: "x".repeat(DRAFT_TITLE_LIMIT + 1), body: "olmaz" },
+    { tone: "Harekete geçiren", title: "Kahvaltı hazır mı? 🍞", body: "Sabahı hızlı başlat, siparişini ver 🛒" },
+  ] }) + "\n```";
+  const options = parseDraftOptions(raw);
+  assert.equal(options.length, 2);
+  assert.equal(options[0].body, "Yurtta kahvaltı keyfi bir dokunuş uzağında 🍳");
+  assert.deepEqual(parseDraftOptions('{"title":"Eski","body":"Biçim"}'), [{ tone: "", title: "Eski", body: "Biçim" }]);
+  assert.deepEqual(parseDraftOptions("JSON değil"), []);
+});
+
+test("draft endpoint returns options with the first one as title/body", async (t) => {
+  const previousKey = process.env.OPENROUTER_API_KEY;
+  process.env.OPENROUTER_API_KEY = "test-only";
+  t.after(() => { if (previousKey === undefined) delete process.env.OPENROUTER_API_KEY; else process.env.OPENROUTER_API_KEY = previousKey; });
+  t.mock.method(Settings, "getSettings", async () => ({ ai: { provider: "openrouter", model: "test" } }));
+  t.mock.method(PushBroadcast, "find", () => chain([{ title: "Eski başlık" }]));
+  let payload;
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    payload = JSON.parse(options.body);
+    return aiReply(JSON.stringify({ options: [{ tone: "Eğlenceli", title: "Günaydın ☕", body: "Kahvaltın yolda olabilir 🥐" }, { tone: "Samimi", title: "Sabah keyfi 🍳", body: "Yurtta güne güzel başla ☀️" }] }));
+  });
+  const res = response();
+  await generateBroadcastDraft({ body: { prompt: "Yurtta kahvaltı", target: "home" } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.title, "Günaydın ☕");
+  assert.equal(res.body.options.length, 2);
+  assert.equal(payload.temperature, 0.9);
+  assert.equal(payload.tools, undefined);
+  assert.match(payload.messages[0].content, /Eski başlık/);
+});
+
+test("draft endpoint retries once when the first answer is unusable, then fails clearly", async (t) => {
+  const previousKey = process.env.OPENROUTER_API_KEY;
+  process.env.OPENROUTER_API_KEY = "test-only";
+  t.after(() => { if (previousKey === undefined) delete process.env.OPENROUTER_API_KEY; else process.env.OPENROUTER_API_KEY = previousKey; });
+  t.mock.method(Settings, "getSettings", async () => ({ ai: {} }));
+  t.mock.method(PushBroadcast, "find", () => chain([]));
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async () => { calls += 1; return aiReply("üzgünüm"); });
+  const res = response();
+  await generateBroadcastDraft({ body: { prompt: "Kahvaltı" } }, res);
+  assert.equal(calls, 2);
+  assert.equal(res.statusCode, 502);
+  const bad = response();
+  await generateBroadcastDraft({ body: { prompt: "a" } }, bad);
+  assert.equal(bad.statusCode, 400);
 });

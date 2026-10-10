@@ -48,6 +48,8 @@ export default function PushBroadcastTab() {
   const [aiPrompt, setAiPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
   const [aiError, setAiError] = useState("");
+  // Yapay zekânın farklı tonlardaki önerileri; birine dokununca forma dolar
+  const [aiOptions, setAiOptions] = useState([]);
 
   const load = useCallback(async () => {
     try {
@@ -99,8 +101,11 @@ export default function PushBroadcastTab() {
       setGenerating(true);
       setAiError("");
       const { data } = await axios.post("/notifications/broadcasts/draft", { prompt: aiPrompt.trim(), target: form.target });
-      setForm((current) => ({ ...current, title: data.title, body: data.body }));
-      toast.success("Bildirim taslağı hazır; göndermeden önce gözden geçirin.");
+      const options = Array.isArray(data.options) && data.options.length ? data.options : [{ title: data.title, body: data.body }];
+      setAiOptions(options);
+      setForm((current) => ({ ...current, title: options[0].title, body: options[0].body }));
+      setFailure("");
+      toast.success(options.length > 1 ? `${options.length} öneri hazır; birini seçip gözden geçirin.` : "Bildirim taslağı hazır; göndermeden önce gözden geçirin.");
     } catch (error) {
       setAiError(error.response?.data?.message || "Yapay zekâ metin oluşturamadı. Tekrar deneyin.");
     } finally {
@@ -232,6 +237,23 @@ export default function PushBroadcastTab() {
                 </button>
               </div>
               {aiError && <p className="ui-hint" role="alert" style={{ color: "var(--ui-danger, #b42318)" }}>{aiError}</p>}
+              {aiOptions.length > 0 && (
+                <div className="push-ai-options" role="radiogroup" aria-label="Yapay zekâ önerileri">
+                  {aiOptions.map((option, index) => {
+                    const selected = form.title === option.title && form.body === option.body;
+                    return (
+                      <button type="button" key={`${index}-${option.title}`} role="radio" aria-checked={selected}
+                        className="push-ai-option" data-selected={selected}
+                        onClick={() => { setForm((current) => ({ ...current, title: option.title, body: option.body })); setFailure(""); }}>
+                        <span className="push-ai-option-tone">{option.tone || `Öneri ${index + 1}`}{selected && <CheckCircle2 aria-hidden="true" />}</span>
+                        <strong>{option.title}</strong>
+                        <span>{option.body}</span>
+                      </button>
+                    );
+                  })}
+                  <span className="ui-hint" style={{ marginTop: 0 }}>Beğenmediyseniz &quot;Bildirim metni yaz&quot; ile yeniden üretebilir ya da aşağıda düzenleyebilirsiniz.</span>
+                </div>
+              )}
             </div>
             <div>
               <div className="ui-between">

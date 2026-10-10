@@ -3473,3 +3473,49 @@ body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok:hover {
   gap: 4px;
   min-width: 0;
 }
+
+/* Bildirim gönder: yapay zekâ önerileri */
+.admin-layout .push-ai-options {
+  display: grid;
+  gap: 8px;
+}
+.admin-layout .push-ai-option {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--ui-line);
+  border-radius: 10px;
+  background: var(--ui-surface, #fff);
+  color: var(--ui-text-2);
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .15s, background-color .15s;
+}
+.admin-layout .push-ai-option strong {
+  color: var(--ui-text, inherit);
+  font-weight: 600;
+}
+.admin-layout .push-ai-option:hover {
+  border-color: var(--ui-brand);
+}
+.admin-layout .push-ai-option[data-selected="true"] {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand-soft, #eef6f1);
+}
+.admin-layout .push-ai-option-tone {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ui-brand);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+.admin-layout .push-ai-option-tone svg {
+  width: 13px;
+  height: 13px;
+}
