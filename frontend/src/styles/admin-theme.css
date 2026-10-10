@@ -3519,3 +3519,752 @@ body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok:hover {
   width: 13px;
   height: 13px;
 }
+
+/* ══ Bildirim gönder v2: yapay zekâ kartı, adımlar, emoji çubuğu, kitle kartları, yapışkan gönderim paneli ══ */
+.admin-layout .push-layout {
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 18px;
+}
+.admin-layout .push-compose {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.admin-layout .push-side {
+  position: sticky;
+  top: 72px;
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* Yapay zekâ kartı */
+.admin-layout .push-ai {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  overflow: hidden;
+  border: 1px solid #cfe3d7;
+  border-radius: 14px;
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgba(32, 140, 88, 0.16) 0%, rgba(32, 140, 88, 0) 55%),
+    linear-gradient(180deg, #f3faf6 0%, #ffffff 100%);
+}
+.admin-layout .push-ai-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.admin-layout .push-ai-badge {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  background: linear-gradient(145deg, #1f7a52, #0f4530);
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(15, 69, 48, 0.28);
+}
+.admin-layout .push-ai-badge svg {
+  width: 19px;
+  height: 19px;
+}
+.admin-layout .push-ai-head h2 {
+  color: var(--ui-text);
+  font-size: var(--ui-fs-lg);
+  font-weight: 650;
+  line-height: 1.3;
+}
+.admin-layout .push-ai-head p {
+  margin-top: 2px;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .push-ideas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.admin-layout .push-idea {
+  padding: 6px 11px;
+  border: 1px solid #d5e6dc;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--ui-ease), color var(--ui-ease), background var(--ui-ease);
+}
+.admin-layout .push-idea:hover {
+  border-color: var(--ui-brand);
+  background: #fff;
+  color: var(--ui-brand);
+}
+.admin-layout .push-ai-input {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.admin-layout .push-ai-input textarea.ui-field {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 64px;
+  padding-block: 9px;
+  border-color: #d5e6dc;
+  background: #fff;
+  resize: vertical;
+}
+.admin-layout .push-ai-go {
+  flex-shrink: 0;
+  align-self: flex-end;
+  height: 40px;
+  padding-inline: 16px;
+}
+.admin-layout .push-ai-note {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .push-ai-error {
+  color: var(--ui-danger-ink);
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .push-ai .push-ai-options {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.admin-layout .push-ai .push-ai-option {
+  align-content: start;
+  min-height: 116px;
+  border-color: #d5e6dc;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+.admin-layout .push-ai .push-ai-option[data-selected="true"] {
+  border-color: var(--ui-brand);
+  background: #fff;
+  box-shadow: 0 0 0 2px var(--ui-brand-soft), 0 6px 16px rgba(15, 69, 48, 0.1);
+}
+
+/* Adım başlıkları */
+.admin-layout .push-step-head {
+  justify-content: flex-start;
+  gap: 10px;
+}
+.admin-layout .push-step-head--inner {
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .push-step {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+.admin-layout .push-templates-label {
+  align-self: center;
+  margin-right: 2px;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+}
+.admin-layout .push-title-field {
+  font-weight: 600;
+}
+
+/* Karakter sayacı */
+.admin-layout .push-counter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .push-counter-bar {
+  width: 44px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--ui-surface-3);
+}
+.admin-layout .push-counter-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ui-brand);
+  transition: width 160ms ease;
+}
+.admin-layout .push-counter[data-state="near"] { color: var(--ui-warn-ink); }
+.admin-layout .push-counter[data-state="near"] .push-counter-bar span { background: var(--ui-warn); }
+.admin-layout .push-counter[data-state="full"] { color: var(--ui-danger-ink); }
+.admin-layout .push-counter[data-state="full"] .push-counter-bar span { background: var(--ui-danger); }
+
+/* Emoji çubuğu */
+.admin-layout .push-emojis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: -4px;
+}
+.admin-layout .push-emoji {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--ui-surface-2);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform var(--ui-ease), border-color var(--ui-ease), background var(--ui-ease);
+}
+.admin-layout .push-emoji:hover {
+  border-color: var(--ui-line-strong);
+  background: #fff;
+  transform: translateY(-1px);
+}
+
+/* Kitle kartları */
+.admin-layout .push-audiences {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.admin-layout .push-audience {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--ui-line);
+  border-radius: 10px;
+  background: var(--ui-surface);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--ui-ease), background var(--ui-ease), box-shadow var(--ui-ease);
+}
+.admin-layout .push-audience:hover {
+  border-color: var(--ui-line-strong);
+}
+.admin-layout .push-audience[aria-pressed="true"] {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand-soft);
+  box-shadow: 0 0 0 1px var(--ui-brand) inset;
+}
+.admin-layout .push-audience-icon {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+}
+.admin-layout .push-audience[aria-pressed="true"] .push-audience-icon {
+  background: var(--ui-brand);
+  color: #fff;
+}
+.admin-layout .push-audience-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.admin-layout .push-audience-text {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 3px;
+  min-width: 0;
+}
+.admin-layout .push-audience-label {
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+}
+.admin-layout .push-audience-meta {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .push-audience-meta strong {
+  color: var(--ui-text);
+  font-weight: 700;
+}
+.admin-layout .push-audience-bar {
+  height: 4px;
+  margin-top: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--ui-surface-3);
+}
+.admin-layout .push-audience-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ui-brand);
+  opacity: 0.75;
+}
+
+/* Açılacak ekran */
+.admin-layout .push-targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.admin-layout .push-target {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--ui-line);
+  border-radius: 999px;
+  background: var(--ui-surface);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--ui-ease), background var(--ui-ease), color var(--ui-ease);
+}
+.admin-layout .push-target svg {
+  width: 15px;
+  height: 15px;
+}
+.admin-layout .push-target:hover {
+  border-color: var(--ui-line-strong);
+}
+.admin-layout .push-target[aria-pressed="true"] {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand);
+  color: #fff;
+}
+
+/* Önizleme + gönderim kartı */
+.admin-layout .push-sendcard {
+  padding: 14px;
+}
+.admin-layout .push-sendcard .push-phone {
+  position: relative;
+  padding: 30px 14px 18px;
+  border: 6px solid #0d1512;
+  border-radius: 30px;
+  box-shadow: 0 14px 34px rgba(6, 63, 43, 0.25);
+}
+.admin-layout .push-phone-notch {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  width: 72px;
+  height: 18px;
+  border-radius: 999px;
+  background: #0d1512;
+  transform: translateX(-50%);
+}
+.admin-layout .push-summary {
+  display: grid;
+  gap: 0;
+  margin: 14px 0 0;
+  border: 1px solid var(--ui-line);
+  border-radius: 10px;
+}
+.admin-layout .push-summary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .push-summary > div + div {
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .push-summary dt {
+  color: var(--ui-text-3);
+}
+.admin-layout .push-summary dd {
+  margin: 0;
+  color: var(--ui-text);
+  font-weight: 600;
+  text-align: right;
+}
+.admin-layout .push-send-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.admin-layout .push-send {
+  justify-content: center;
+  height: 44px;
+  font-size: var(--ui-fs-lg);
+}
+.admin-layout .push-test {
+  justify-content: center;
+}
+.admin-layout .push-send-note {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  text-align: center;
+}
+
+/* Geçmiş */
+.admin-layout .push-history {
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+}
+.admin-layout .push-history-item {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  padding: 10px 14px 10px 30px;
+}
+.admin-layout .push-history-item::before {
+  content: "";
+  position: absolute;
+  top: 16px;
+  left: 14px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--ui-ok);
+  box-shadow: 0 0 0 3px var(--ui-ok-bg);
+}
+.admin-layout .push-history-item[data-state="bad"]::before {
+  background: var(--ui-danger);
+  box-shadow: 0 0 0 3px var(--ui-danger-bg);
+}
+.admin-layout .push-history-item + .push-history-item {
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .push-history-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.admin-layout .push-history-top h3 {
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+}
+.admin-layout .push-history-item p {
+  margin-top: 2px;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+  line-height: 1.45;
+}
+.admin-layout .push-history-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 6px;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .push-reuse {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  justify-content: center;
+}
+
+/* Kurulum denetimi (açılır) */
+.admin-layout .push-check-panel > summary {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  list-style: none;
+  cursor: pointer;
+}
+.admin-layout .push-check-panel > summary::-webkit-details-marker {
+  display: none;
+}
+.admin-layout .push-check-panel > summary > svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ui-text-3);
+}
+.admin-layout .push-check-panel .push-check-chevron {
+  margin-left: auto;
+  transition: transform var(--ui-ease);
+}
+.admin-layout .push-check-panel[open] .push-check-chevron {
+  transform: rotate(180deg);
+}
+.admin-layout .push-check-panel:not([open]) > summary {
+  border-bottom: 0;
+}
+
+@media (max-width: 1180px) {
+  .admin-layout .push-layout {
+    grid-template-columns: minmax(0, 1fr) 320px;
+  }
+  .admin-layout .push-ai .push-ai-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-layout .push-ai .push-ai-option {
+    min-height: 0;
+  }
+}
+@media (max-width: 900px) {
+  .admin-layout .push-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-layout .push-side {
+    position: static;
+  }
+}
+@media (max-width: 560px) {
+  .admin-layout .push-ai {
+    padding: 16px;
+  }
+  .admin-layout .push-ai-input {
+    flex-direction: column;
+  }
+  .admin-layout .push-ai-go {
+    align-self: stretch;
+    justify-content: center;
+  }
+  .admin-layout .push-audiences {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ══ Siparişler v4: tam genişlik liste, satırda hızlı adım, "Sıradaki" kartları ══ */
+/* Satır: onay kutusu | sipariş | hızlı adım */
+.ord-list-head,
+.ord-row {
+  grid-template-columns: 16px minmax(0, 1fr) 112px;
+}
+.ord-row-act {
+  display: flex;
+  justify-content: flex-end;
+}
+.ord-row-act .ui-btn {
+  gap: 5px;
+  height: 30px;
+  padding-inline: 10px;
+  white-space: nowrap;
+}
+.ord-row-act .ui-btn svg {
+  width: 14px;
+  height: 14px;
+}
+.ord-row-act .ui-btn[data-next="way"] {
+  border-color: #bcd3f3;
+  background: var(--ui-info-bg);
+  color: var(--ui-info-ink);
+}
+.ord-row-act .ui-btn[data-next="done"] {
+  border-color: #b9e2c8;
+  background: var(--ui-ok-bg);
+  color: var(--ui-ok-ink);
+}
+.ord-row-act .ui-btn:hover {
+  filter: brightness(0.97);
+}
+/* Detay kapalıyken liste tüm genişliği kullanır (geniş ekranlarda) */
+@media (min-width: 1241px) {
+  .ord-split[data-detail-open="false"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ord-split[data-detail-open="false"] > .ord-detail {
+    display: none;
+  }
+  .ord-split[data-detail-open="false"] .ord-cols,
+  .ord-split[data-detail-open="false"] .ord-row-main {
+    grid-template-columns: 36px minmax(0, 1fr) 110px 150px 120px;
+  }
+}
+/* Sıradaki: büyük kartlar */
+.ord-next {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 10px;
+  overflow: visible;
+}
+.ord-next-head {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.ord-next-empty {
+  grid-column: 1 / -1;
+  padding: 12px 14px;
+  border: 1px dashed var(--ui-line-strong);
+  border-radius: 12px;
+  background: var(--ui-surface);
+  font-size: var(--ui-fs-sm);
+}
+.ord-next-item {
+  position: relative;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  overflow: hidden;
+  border-radius: 12px;
+}
+.ord-next-item::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--ui-warn);
+}
+.ord-next-item[data-tone="info"]::before {
+  background: var(--ui-info);
+}
+.ord-next-item[data-attention="true"]::before {
+  background: var(--ui-danger);
+}
+.ord-next-open {
+  display: grid;
+  gap: 8px;
+}
+.ord-next-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.ord-next-top .ord-avatar {
+  width: 32px;
+  height: 32px;
+  font-size: 11px;
+}
+.ord-next-item[data-tone="warn"] .ord-avatar {
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+.ord-next-item[data-tone="info"] .ord-avatar {
+  background: var(--ui-info-bg);
+  color: var(--ui-info-ink);
+}
+.ord-next-name {
+  min-width: 0;
+}
+.ord-next-name strong,
+.ord-next-name small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ord-next-name strong {
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+}
+.ord-next-name small {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+.ord-next-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ord-next-wait,
+.ord-next-point {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 3px 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--ui-surface-2);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ord-next-wait svg,
+.ord-next-point svg {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+}
+.ord-next-item[data-attention="true"] .ord-next-wait {
+  background: #fff;
+  color: var(--ui-danger-ink);
+}
+.ord-next-go {
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 34px;
+}
+.ord-next-go svg {
+  width: 15px;
+  height: 15px;
+}
+@media (max-width: 900px) {
+  .ord-next {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .ord-list-head,
+  .ord-row {
+    grid-template-columns: 16px minmax(0, 1fr);
+  }
+  .ord-row-act {
+    grid-column: 2;
+    justify-content: flex-start;
+    padding-bottom: 10px;
+  }
+  .ord-row-act:empty {
+    display: none;
+  }
+}
+/* Detay açıkken satırdaki hızlı düğme gizlenir; aynı işlem paneldeki adımlarda var */
+@media (min-width: 1241px) {
+  .ord-split[data-detail-open="true"] .ord-list-head,
+  .ord-split[data-detail-open="true"] .ord-row {
+    grid-template-columns: 16px minmax(0, 1fr);
+  }
+  .ord-split[data-detail-open="true"] .ord-row-act {
+    display: none;
+  }
+}
+/* Orta genişlikte (dizüstü) "Bugün" kartı üstte yatay durur; akış adımları sığar */
+@media (max-width: 1280px) {
+  .ord-overview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ord-today {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 16px;
+  }
+  .ord-today-facts {
+    flex: 1 1 260px;
+    margin: 0;
+    padding: 0 0 0 16px;
+    border-top: 0;
+    border-left: 1px solid rgba(255, 255, 255, 0.16);
+  }
+}
+@media (max-width: 760px) {
+  .ord-today {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .ord-today-facts {
+    flex: none;
+    margin-top: 10px;
+    padding: 10px 0 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.16);
+    border-left: 0;
+  }
+}

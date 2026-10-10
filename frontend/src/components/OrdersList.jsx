@@ -114,9 +114,17 @@ const getDayLabel = (createdAt) => {
 const getPlatformLabel = (platform) =>
   platform === "ios" ? "iOS" : platform === "android" ? "Android" : "Web";
 
-// Liste satırı: müşteri (avatar, sipariş no, teslimat noktası), süre, durum ve tutar
-const OrderRow = ({ order, active, selected, onSelectChange, onOpen }) => {
+// Aktif siparişin bir sonraki adımı (liste ve "Sıradaki" şeridindeki hızlı düğme)
+const NEXT_STEP = {
+  "Hazırlanıyor": { status: "Yolda", label: "Yola çıkar", icon: Truck },
+  "Yolda": { status: "Teslim Edildi", label: "Teslim et", icon: CheckCircle2 },
+};
+
+// Liste satırı: müşteri (avatar, sipariş no, teslimat noktası), süre, durum, tutar ve hızlı adım
+const OrderRow = ({ order, active, selected, onSelectChange, onOpen, onAdvance }) => {
   const warningLevel = getWarningLevel(order.createdAt, order.status);
+  const next = NEXT_STEP[order.status];
+  const NextIcon = next?.icon;
 
   return (
     <div className="ord-row" data-active={active} data-checked={selected} data-tone={STATUS_UI[order.status]?.tone}>
@@ -156,6 +164,15 @@ const OrderRow = ({ order, active, selected, onSelectChange, onOpen }) => {
           <small>{formatOrderClock(order.createdAt)}</small>
         </span>
       </button>
+      <span className="ord-row-act">
+        {next && onAdvance && (
+          <button type="button" className="ui-btn ui-btn--sm" data-next={next.status === "Yolda" ? "way" : "done"}
+            onClick={() => onAdvance(order.orderId, next.status)}
+            aria-label={`${order.user?.name || "Müşteri"} siparişini “${next.status}” yap`}>
+            <NextIcon />{next.label}
+          </button>
+        )}
+      </span>
     </div>
   );
 };
@@ -350,7 +367,7 @@ const OrdersList = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(new Date());
-  const ordersPerPage = 6;
+  const ordersPerPage = 10;
 
   // Custom item modal states
   const [showAddItemModal, setShowAddItemModal] = useState(false);
@@ -1225,15 +1242,25 @@ const OrdersList = () => {
             const needsAttention = order.status === "Hazırlanıyor" && waitingMinutes >= 20;
             const nextStatus = order.status === "Hazırlanıyor" ? "Yolda" : "Teslim Edildi";
             const nextLabel = order.status === "Hazırlanıyor" ? "Yola çıkar" : "Teslim edildi";
+            const NextIcon = order.status === "Hazırlanıyor" ? Truck : CheckCircle2;
             return (
-              <div key={`priority-${order.orderId}`} className="ord-next-item" data-attention={needsAttention}>
+              <div key={`priority-${order.orderId}`} className="ord-next-item" data-attention={needsAttention} data-tone={STATUS_UI[order.status]?.tone}>
                 <button className="ord-next-open" onClick={() => setDetailModalOrder(order)} title="Detay">
-                  <strong>{order.user?.name || "Müşteri"}</strong>
-                  <small>
-                    #{String(order.orderId).slice(-6).toUpperCase()} · {getOrderDuration(order.createdAt, order.updatedAt, order.status)} · ₺{Number(order.totalAmount || 0).toFixed(2)}
-                  </small>
+                  <span className="ord-next-top">
+                    <span className="ord-avatar" aria-hidden="true">{getInitials(order.user?.name)}</span>
+                    <span className="ord-next-name">
+                      <strong>{order.user?.name || "Müşteri"}</strong>
+                      <small>
+                        <span className="ui-mono">#{String(order.orderId).slice(-6).toUpperCase()}</span> · {order.products?.length || 0} ürün · ₺{Number(order.totalAmount || 0).toFixed(2)}
+                      </small>
+                    </span>
+                  </span>
+                  <span className="ord-next-meta">
+                    <span className="ord-next-wait">{needsAttention ? <AlertCircle /> : <Timer />}{getOrderDuration(order.createdAt, order.updatedAt, order.status)}</span>
+                    <span className="ord-next-point"><MapPin />{order.deliveryPointName || order.city || "Belirtilmemiş"}</span>
+                  </span>
                 </button>
-                <button onClick={() => updateOrderStatus(order.orderId, nextStatus)} className="ui-btn ui-btn--sm ui-btn--primary">{nextLabel}</button>
+                <button onClick={() => updateOrderStatus(order.orderId, nextStatus)} className="ui-btn ui-btn--sm ui-btn--primary ord-next-go"><NextIcon />{nextLabel}</button>
               </div>
             );
           })}
@@ -1278,6 +1305,7 @@ const OrdersList = () => {
                     selected={selectedOrderIds.includes(order.orderId)}
                     onSelectChange={e => setSelectedOrderIds(e.target.checked ? [...selectedOrderIds, order.orderId] : selectedOrderIds.filter(id => id !== order.orderId))}
                     onOpen={(order) => setDetailModalOrder(order)}
+                    onAdvance={updateOrderStatus}
                   />
                 </Fragment>
               );

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, FlaskConical, RefreshCw, RotateCcw, Send, Smartphone, Sparkles, Stethoscope, Users } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, CheckCircle2, ChevronDown, Clock, FlaskConical, Gift, Home, Package, RefreshCw, Repeat, RotateCcw, Send, ShoppingCart, Smartphone, Sparkles, Star, Stethoscope, UserPlus, Users, } from "lucide-react";
 import toast from "react-hot-toast";
 import axios from "../lib/axios";
 import { useConfirm } from "./ConfirmModal";
@@ -7,12 +7,24 @@ import { useConfirm } from "./ConfirmModal";
 const TITLE_LIMIT = 60;
 const BODY_LIMIT = 180;
 const TARGETS = [
-  { id: "home", label: "Ana sayfa" },
-  { id: "cart", label: "Sepet" },
-  { id: "orders", label: "Siparişlerim" },
-  { id: "referral", label: "Davet sayfası" },
-  { id: "rate", label: "Mağazada puan ver" },
+  { id: "home", label: "Ana sayfa", icon: Home },
+  { id: "cart", label: "Sepet", icon: ShoppingCart },
+  { id: "orders", label: "Siparişlerim", icon: Package },
+  { id: "referral", label: "Davet sayfası", icon: Gift },
+  { id: "rate", label: "Mağazada puan ver", icon: Star },
 ];
+const AUDIENCE_ICONS = { all: Users, cart: ShoppingCart, active30: Repeat, inactive30: Clock, noOrder: UserPlus };
+// Yapay zekâ kutusuna tek dokunuşla yazılan fikir başlangıçları; yönetici düzenleyebilir.
+const IDEAS = [
+  { label: "☕ Sabah kahvaltısı", prompt: "Yurtta sabah kahvaltısı için güne güzel başlatan, günaydın temalı bir bildirim yaz." },
+  { label: "🌙 Gece atıştırmalığı", prompt: "Gece ders çalışan öğrencilere atıştırmalık ve içecek hatırlatan sıcak bir bildirim yaz." },
+  { label: "📚 Sınav haftası", prompt: "Sınav haftasında ders çalışanlara moral veren, kahve ve atıştırmalık hatırlatan bir bildirim yaz." },
+  { label: "🎉 Hafta sonu", prompt: "Hafta sonu yurtta kalanlara arkadaşlarla paylaşılacak atıştırmalıkları hatırlatan eğlenceli bir bildirim yaz." },
+  { label: "🌧️ Yağmurlu gün", prompt: "Yağmurlu havada dışarı çıkmadan siparişin kapıya geldiğini hatırlatan samimi bir bildirim yaz." },
+  { label: "🛒 Sepet hatırlatma", prompt: "Sepetinde ürün bırakanlara siparişini tamamlamayı nazikçe hatırlatan bir bildirim yaz." },
+];
+// Başlık veya mesaja imlecin olduğu yere eklenen emojiler
+const EMOJIS = ["🛒", "🔥", "🎁", "🎉", "⏰", "☕", "🥐", "🍕", "🍫", "🥤", "🌙", "📚", "⭐", "💚"];
 // Tek dokunuşla forma dolan hazır metinler; gönderilmeden önce düzenlenebilir.
 const TEMPLATES = [
   { id: "deals", label: "Haftanın fırsatları", title: "Haftanın fırsatları başladı 🛒", body: "Seçili ürünlerde bu haftaya özel fiyatlar seni bekliyor. Kaçırmadan göz at!", target: "home" },
@@ -32,6 +44,16 @@ const FAILURE_LABELS = {
 };
 const formatDate = (value) => new Date(value).toLocaleString("tr-TR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
+const Counter = ({ value, limit }) => {
+  const ratio = value / limit;
+  return (
+    <span className="push-counter" data-state={ratio >= 1 ? "full" : ratio >= 0.85 ? "near" : "ok"}>
+      <span className="push-counter-bar"><span style={{ width: `${Math.min(100, ratio * 100)}%` }} /></span>
+      <span className="ui-num">{value}/{limit}</span>
+    </span>
+  );
+};
+
 export default function PushBroadcastTab() {
   const { confirm } = useConfirm();
   const [overview, setOverview] = useState({ configured: true, audiences: [], history: [] });
@@ -50,6 +72,10 @@ export default function PushBroadcastTab() {
   const [aiError, setAiError] = useState("");
   // Yapay zekânın farklı tonlardaki önerileri; birine dokununca forma dolar
   const [aiOptions, setAiOptions] = useState([]);
+  // Emoji eklemek için son odaklanan alan ve imleç konumu
+  const titleRef = useRef(null);
+  const bodyRef = useRef(null);
+  const lastField = useRef("title");
 
   const load = useCallback(async () => {
     try {
@@ -89,6 +115,26 @@ export default function PushBroadcastTab() {
     }
   };
 
+  const insertEmoji = (emoji) => {
+    const field = lastField.current;
+    const element = field === "body" ? bodyRef.current : titleRef.current;
+    const limit = field === "body" ? BODY_LIMIT : TITLE_LIMIT;
+    const value = form[field];
+    if (value.length + emoji.length > limit) {
+      toast.error(`${field === "body" ? "Mesaj" : "Başlık"} karakter sınırına ulaştı`);
+      return;
+    }
+    const start = element?.selectionStart ?? value.length;
+    const end = element?.selectionEnd ?? value.length;
+    const next = value.slice(0, start) + emoji + value.slice(end);
+    setForm((current) => ({ ...current, [field]: next }));
+    requestAnimationFrame(() => {
+      if (!element) return;
+      element.focus();
+      element.setSelectionRange(start + emoji.length, start + emoji.length);
+    });
+  };
+
   const applyTemplate = (template) => {
     setForm((current) => ({ ...current, title: template.title, body: template.body, target: template.target }));
     setFailure("");
@@ -101,7 +147,9 @@ export default function PushBroadcastTab() {
       setGenerating(true);
       setAiError("");
       const { data } = await axios.post("/notifications/broadcasts/draft", { prompt: aiPrompt.trim(), target: form.target });
-      const options = Array.isArray(data.options) && data.options.length ? data.options : [{ title: data.title, body: data.body }];
+      const options = (Array.isArray(data.options) && data.options.length ? data.options : [{ title: data.title, body: data.body }])
+        .filter((option) => typeof option?.title === "string" && typeof option?.body === "string");
+      if (!options.length) throw new Error("empty-draft");
       setAiOptions(options);
       setForm((current) => ({ ...current, title: options[0].title, body: options[0].body }));
       setFailure("");
@@ -160,8 +208,10 @@ export default function PushBroadcastTab() {
     }
   };
 
+  const targetLabel = TARGETS.find((target) => target.id === form.target)?.label;
+
   return (
-    <div className="ui-page">
+    <div className="ui-page push-page">
       <header className="app-pagehead">
         <div>
           <h1>Bildirim gönder</h1>
@@ -210,145 +260,222 @@ export default function PushBroadcastTab() {
       </div>
 
       <div className="push-layout">
-        <form className="ui-panel" onSubmit={send}>
-          <div className="ui-panel-head">
-            <h2>Yeni bildirim</h2>
-          </div>
-          <div className="ui-panel-body ui-stack">
-            <div>
-              <span className="ui-label">Hazır metinler</span>
-              <div className="push-templates">
+        <form id="push-form" className="push-compose" onSubmit={send}>
+          {/* 1. Yapay zekâ ile yaz */}
+          <section className="push-ai" aria-labelledby="push-ai-title">
+            <div className="push-ai-head">
+              <span className="push-ai-badge"><Sparkles /></span>
+              <div>
+                <h2 id="push-ai-title">Yapay zekâ ile yaz</h2>
+                <p>Ne duyurmak istediğinizi anlatın; emojili, farklı tonlarda 3 öneri hazırlasın.</p>
+              </div>
+            </div>
+            <div className="push-ideas" aria-label="Fikir başlangıçları">
+              {IDEAS.map((idea) => (
+                <button type="button" key={idea.label} className="push-idea" onClick={() => { setAiPrompt(idea.prompt); setAiError(""); }}>
+                  {idea.label}
+                </button>
+              ))}
+            </div>
+            <div className="push-ai-input">
+              <textarea id="push-ai-prompt" className="ui-field" rows={2} maxLength={600} value={aiPrompt} aria-label="Yapay zekâya kampanyayı anlatın"
+                placeholder="Örn. Bugün makarna ve salçada indirim var; yurtta kalanlara sıcak ve merak uyandıran bir dille duyur."
+                onChange={(event) => { setAiPrompt(event.target.value); setAiError(""); }}
+                onKeyDown={(event) => { if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) generateDraft(event); }} />
+              <button type="button" className="ui-btn ui-btn--primary push-ai-go" onClick={generateDraft} disabled={generating || aiPrompt.trim().length < 3}>
+                <Sparkles className={generating ? "ui-spin" : ""} />{generating ? "Yazıyor…" : aiOptions.length ? "Yeniden yaz" : "Öneri al"}
+              </button>
+            </div>
+            <span className="push-ai-note">İndirim, tarih, saat gibi bilgileri siz yazın; yapay zekâ bunları uydurmaz.</span>
+            {aiError && <p className="push-ai-error" role="alert">{aiError}</p>}
+            {aiOptions.length > 0 && (
+              <div className="push-ai-options" role="radiogroup" aria-label="Yapay zekâ önerileri">
+                {aiOptions.map((option, index) => {
+                  const selected = form.title === option.title && form.body === option.body;
+                  return (
+                    <button type="button" key={`${index}-${option.title}`} role="radio" aria-checked={selected}
+                      className="push-ai-option" data-selected={selected}
+                      onClick={() => { setForm((current) => ({ ...current, title: option.title, body: option.body })); setFailure(""); }}>
+                      <span className="push-ai-option-tone">{option.tone || `Öneri ${index + 1}`}{selected && <CheckCircle2 aria-hidden="true" />}</span>
+                      <strong>{option.title}</strong>
+                      <span>{option.body}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          {/* 2. Metin */}
+          <section className="ui-panel" aria-labelledby="push-text-title">
+            <div className="ui-panel-head push-step-head">
+              <span className="push-step">1</span>
+              <h2 id="push-text-title">Bildirim metni</h2>
+            </div>
+            <div className="ui-panel-body ui-stack">
+              <div className="push-templates" aria-label="Hazır metinler">
+                <span className="push-templates-label">Hazır:</span>
                 {TEMPLATES.map((template) => (
                   <button type="button" key={template.id} className="push-template" onClick={() => applyTemplate(template)}>
                     {template.label}
                   </button>
                 ))}
               </div>
-            </div>
-            <div className="push-ai-draft">
-              <label className="ui-label" htmlFor="push-ai-prompt">Yapay zekâya kampanyayı anlatın</label>
-              <textarea id="push-ai-prompt" className="ui-field" rows={2} maxLength={600} value={aiPrompt}
-                placeholder="Örn. Bugün makarna ve salçada indirim var; bunu yurtta kalanlara sıcak ve merak uyandıran bir dille duyur."
-                onChange={(event) => { setAiPrompt(event.target.value); setAiError(""); }} />
-              <div className="ui-between">
-                <span className="ui-hint" style={{ marginTop: 0 }}>İndirim, tarih ve şart gibi bilgileri yazın; yapay zekâ bunları uydurmaz. Oluşan metni düzenleyebilirsiniz.</span>
-                <button type="button" className="ui-btn ui-btn--primary" onClick={generateDraft} disabled={generating || aiPrompt.trim().length < 3}>
-                  <Sparkles />{generating ? "Yazıyor…" : "Bildirim metni yaz"}
-                </button>
-              </div>
-              {aiError && <p className="ui-hint" role="alert" style={{ color: "var(--ui-danger, #b42318)" }}>{aiError}</p>}
-              {aiOptions.length > 0 && (
-                <div className="push-ai-options" role="radiogroup" aria-label="Yapay zekâ önerileri">
-                  {aiOptions.map((option, index) => {
-                    const selected = form.title === option.title && form.body === option.body;
-                    return (
-                      <button type="button" key={`${index}-${option.title}`} role="radio" aria-checked={selected}
-                        className="push-ai-option" data-selected={selected}
-                        onClick={() => { setForm((current) => ({ ...current, title: option.title, body: option.body })); setFailure(""); }}>
-                        <span className="push-ai-option-tone">{option.tone || `Öneri ${index + 1}`}{selected && <CheckCircle2 aria-hidden="true" />}</span>
-                        <strong>{option.title}</strong>
-                        <span>{option.body}</span>
-                      </button>
-                    );
-                  })}
-                  <span className="ui-hint" style={{ marginTop: 0 }}>Beğenmediyseniz &quot;Bildirim metni yaz&quot; ile yeniden üretebilir ya da aşağıda düzenleyebilirsiniz.</span>
+              <div>
+                <div className="ui-between">
+                  <label className="ui-label" htmlFor="push-title">Başlık</label>
+                  <Counter value={form.title.length} limit={TITLE_LIMIT} />
                 </div>
-              )}
-            </div>
-            <div>
-              <div className="ui-between">
-                <label className="ui-label" htmlFor="push-title">Başlık</label>
-                <span className="ui-text-xs ui-muted ui-num">{form.title.length}/{TITLE_LIMIT}</span>
+                <input id="push-title" ref={titleRef} className="ui-field push-title-field" maxLength={TITLE_LIMIT} value={form.title} placeholder="Haftanın fırsatları başladı 🛒"
+                  onFocus={() => { lastField.current = "title"; }}
+                  onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} required />
               </div>
-              <input id="push-title" className="ui-field" maxLength={TITLE_LIMIT} value={form.title} placeholder="Haftanın fırsatları başladı"
-                onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} required />
-            </div>
-            <div>
-              <div className="ui-between">
-                <label className="ui-label" htmlFor="push-body">Mesaj</label>
-                <span className="ui-text-xs ui-muted ui-num">{form.body.length}/{BODY_LIMIT}</span>
+              <div>
+                <div className="ui-between">
+                  <label className="ui-label" htmlFor="push-body">Mesaj</label>
+                  <Counter value={form.body.length} limit={BODY_LIMIT} />
+                </div>
+                <textarea id="push-body" ref={bodyRef} className="ui-field" rows={3} maxLength={BODY_LIMIT} value={form.body} placeholder="Seçili ürünlerde bu haftaya özel fiyatlar seni bekliyor."
+                  onFocus={() => { lastField.current = "body"; }}
+                  onChange={(event) => setForm((current) => ({ ...current, body: event.target.value }))} required />
               </div>
-              <textarea id="push-body" className="ui-field" rows={3} maxLength={BODY_LIMIT} value={form.body} placeholder="Seçili ürünlerde bu haftaya özel fiyatlar sizi bekliyor."
-                onChange={(event) => setForm((current) => ({ ...current, body: event.target.value }))} required />
-            </div>
-            <div>
-              <span className="ui-label">Kime gönderilsin?</span>
-              <div className="push-options">
-                {overview.audiences.map((item) => (
-                  <button type="button" key={item.id} className="ui-option" aria-pressed={form.audience === item.id}
-                    onClick={() => setForm((current) => ({ ...current, audience: item.id }))}>
-                    <Users />
-                    <span className="ui-grow">{item.label}</span>
-                    <span className="ui-num ui-muted">{item.reachable}</span>
+              <div className="push-emojis" aria-label="Emoji ekle">
+                {EMOJIS.map((emoji) => (
+                  <button type="button" key={emoji} className="push-emoji" title="İmlecin olduğu yere ekle"
+                    onMouseDown={(event) => event.preventDefault()} onClick={() => insertEmoji(emoji)}>
+                    {emoji}
                   </button>
                 ))}
+              </div>
+            </div>
+          </section>
+
+          {/* 3. Kitle ve ekran */}
+          <section className="ui-panel" aria-labelledby="push-audience-title">
+            <div className="ui-panel-head push-step-head">
+              <span className="push-step">2</span>
+              <h2 id="push-audience-title">Kime gönderilsin?</h2>
+            </div>
+            <div className="ui-panel-body ui-stack">
+              <div className="push-audiences">
+                {overview.audiences.map((item) => {
+                  const Icon = AUDIENCE_ICONS[item.id] || Users;
+                  const share = item.total ? Math.round((item.reachable / item.total) * 100) : 0;
+                  return (
+                    <button type="button" key={item.id} className="push-audience" aria-pressed={form.audience === item.id}
+                      onClick={() => setForm((current) => ({ ...current, audience: item.id }))}>
+                      <span className="push-audience-icon"><Icon /></span>
+                      <span className="push-audience-text">
+                        <span className="push-audience-label">{item.label}</span>
+                        <span className="push-audience-meta"><strong className="ui-num">{item.reachable}</strong> kişiye ulaşır · {item.total} müşteri</span>
+                        <span className="push-audience-bar" aria-hidden="true"><span style={{ width: `${share}%` }} /></span>
+                      </span>
+                    </button>
+                  );
+                })}
                 {!loading && !overview.audiences.length && <p className="ui-hint">Hedef kitle bilgisi alınamadı.</p>}
               </div>
               {audience && (
-                <p className="ui-hint">
+                <p className="ui-hint" style={{ marginTop: 0 }}>
                   Bu gruptaki {audience.total} müşteriden {audience.reachable} tanesi kampanya bildirimlerine izin veriyor.
                   Uygulamayı yüklememiş veya bildirim izni vermemiş müşterilere ulaşmaz.
                 </p>
               )}
             </div>
-            <div>
-              <span className="ui-label">Dokununca açılacak ekran</span>
-              <div className="ui-segmented">
-                {TARGETS.map((target) => (
-                  <button type="button" key={target.id} aria-pressed={form.target === target.id}
-                    onClick={() => setForm((current) => ({ ...current, target: target.id }))}>
-                    {target.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="ui-between push-actions">
-              <span className="ui-hint" style={{ marginTop: 0 }}>Önce kendinize gönderip telefonunuzda nasıl göründüğüne bakabilirsiniz. Aynı bildirim 10 dakika içinde ikinci kez gönderilemez.</span>
-              <div className="ui-cluster">
-                <button type="button" className="ui-btn" disabled={!canTest} onClick={sendTest}>
-                  <FlaskConical />
-                  {testing ? "Gönderiliyor…" : "Önce kendime gönder"}
-                </button>
-                <button type="submit" className="ui-btn ui-btn--primary" disabled={!canSend}>
-                  <Send />
-                  {sending ? "Gönderiliyor…" : audience?.reachable ? `${audience.reachable} kişiye gönder` : "Gönder"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </form>
-
-        <div className="ui-stack">
-          <section className="ui-panel" aria-label="Önizleme">
-            <div className="ui-panel-head">
-              <h2>Önizleme</h2>
+            <div className="ui-panel-head push-step-head push-step-head--inner">
+              <span className="push-step">3</span>
+              <h2>Dokununca açılacak ekran</h2>
             </div>
             <div className="ui-panel-body">
-              <div className="push-phone" aria-label="Telefonda görünüm">
-                <div className="push-phone-clock">
-                  <span>{new Date().toLocaleDateString("tr-TR", { weekday: "long", day: "numeric", month: "long" })}</span>
-                  <strong>{new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</strong>
-                </div>
-                <div className="push-preview">
-                  <img className="push-preview-icon" src="/favicon.png" alt="" width="36" height="36" />
-                  <div className="ui-grow">
-                    <div className="ui-between">
-                      <span className="push-preview-app">Benim Marketim</span>
-                      <span className="push-preview-time">şimdi</span>
-                    </div>
-                    <strong className="ui-wrap-anywhere">{title || "Bildirim başlığı"}</strong>
-                    <p className="ui-wrap-anywhere">{body || "Mesajınız burada görünecek."}</p>
-                  </div>
-                </div>
-                <span className="push-phone-target">Dokununca: {TARGETS.find((target) => target.id === form.target)?.label}</span>
+              <div className="push-targets">
+                {TARGETS.map((target) => {
+                  const Icon = target.icon;
+                  return (
+                    <button type="button" key={target.id} className="push-target" aria-pressed={form.target === target.id}
+                      onClick={() => setForm((current) => ({ ...current, target: target.id }))}>
+                      <Icon />{target.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </section>
+        </form>
 
-          <section className="ui-panel" aria-label="Kurulum denetimi">
-            <div className="ui-panel-head">
-              <h2>Kurulum denetimi</h2>
+        <aside className="push-side">
+          <section className="ui-panel push-sendcard" aria-label="Önizleme ve gönderim">
+            <div className="push-phone" aria-label="Telefonda görünüm">
+              <div className="push-phone-notch" aria-hidden="true" />
+              <div className="push-phone-clock">
+                <span>{new Date().toLocaleDateString("tr-TR", { weekday: "long", day: "numeric", month: "long" })}</span>
+                <strong>{new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</strong>
+              </div>
+              <div className="push-preview">
+                <img className="push-preview-icon" src="/favicon.png" alt="" width="36" height="36" />
+                <div className="ui-grow">
+                  <div className="ui-between">
+                    <span className="push-preview-app">Benim Marketim</span>
+                    <span className="push-preview-time">şimdi</span>
+                  </div>
+                  <strong className="ui-wrap-anywhere">{title || "Bildirim başlığı"}</strong>
+                  <p className="ui-wrap-anywhere">{body || "Mesajınız burada görünecek."}</p>
+                </div>
+              </div>
             </div>
+            <dl className="push-summary">
+              <div><dt>Kime</dt><dd>{audience ? audience.label : "–"}</dd></div>
+              <div><dt>Ulaşacak</dt><dd className="ui-num">{audience ? `${audience.reachable} kişi` : "–"}</dd></div>
+              <div><dt>Açılacak ekran</dt><dd>{targetLabel}</dd></div>
+            </dl>
+            <div className="push-send-actions">
+              <button type="submit" form="push-form" className="ui-btn ui-btn--primary push-send" disabled={!canSend}>
+                <Send />
+                {sending ? "Gönderiliyor…" : audience?.reachable ? `${audience.reachable} kişiye gönder` : "Gönder"}
+              </button>
+              <button type="button" className="ui-btn push-test" disabled={!canTest} onClick={sendTest}>
+                <FlaskConical />
+                {testing ? "Gönderiliyor…" : "Önce kendime gönder"}
+              </button>
+              <p className="push-send-note">Aynı bildirim 10 dakika içinde ikinci kez gönderilemez.</p>
+            </div>
+          </section>
+
+          <section className="ui-panel" aria-label="Gönderim geçmişi">
+            <div className="ui-panel-head">
+              <h2>Son gönderimler</h2>
+            </div>
+            {overview.history.length ? (
+              <ol className="push-history">
+                {overview.history.map((item) => (
+                  <li key={item._id} className="push-history-item" data-state={item.sent ? "ok" : "bad"}>
+                    <div className="ui-grow">
+                      <div className="push-history-top">
+                        <h3 className="ui-wrap-anywhere">{item.title}</h3>
+                        <button type="button" className="ui-btn ui-btn--sm ui-btn--ghost push-reuse" title="Bu metni forma geri yükle" aria-label={`“${item.title}” metnini tekrar kullan`}
+                          onClick={() => { setForm((current) => ({ ...current, title: item.title, body: item.body })); setFailure(""); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+                          <RotateCcw />
+                        </button>
+                      </div>
+                      <p className="ui-wrap-anywhere">{item.body}</p>
+                      <div className="push-history-meta">
+                        <span className={`ui-badge ${item.sent ? "ui-badge--ok" : "ui-badge--danger"}`}>{item.sent ? "Gönderildi" : FAILURE_LABELS[item.failureReason] || "Başarısız"}</span>
+                        {item.audience === TEST_AUDIENCE && <span className="ui-badge ui-badge--info">Deneme</span>}
+                        <span>{audienceLabel(item.audience)} · {item.targetedCount || 0} kişi{item.unreachableCount ? ` (${item.unreachableCount} kişinin kayıtlı cihazı yok)` : ""}</span>
+                        <span>{formatDate(item.createdAt)}{item.sentBy?.name ? ` · ${item.sentBy.name}` : ""}</span>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            ) : <div className="ui-empty">{loading ? "Yükleniyor…" : "Henüz toplu bildirim gönderilmedi."}</div>}
+          </section>
+
+          <details className="ui-panel push-check-panel">
+            <summary className="ui-panel-head">
+              <Stethoscope />
+              <h2>Kurulum denetimi</h2>
+              <ChevronDown className="push-check-chevron" aria-hidden="true" />
+            </summary>
             <div className="ui-panel-body ui-stack">
               <p className="ui-hint" style={{ marginTop: 0 }}>
                 Bir hesabın telefonuna bildirim gidip gitmeyeceğini, gitmiyorsa nedenini gösterir. Boş bırakırsanız kendi hesabınız denetlenir. Bildirim gönderilmez.
@@ -385,31 +512,8 @@ export default function PushBroadcastTab() {
                 </div>
               )}
             </div>
-          </section>
-
-          <section className="ui-panel" aria-label="Gönderim geçmişi">
-            <div className="ui-panel-head">
-              <h2>Son gönderimler</h2>
-            </div>
-            {overview.history.length ? overview.history.map((item) => (
-              <article key={item._id} className="ui-list-row">
-                <div className="ui-grow">
-                  <div className="ui-cluster">
-                    <h3 className="ui-list-title ui-wrap-anywhere">{item.title}</h3>
-                    <span className={`ui-badge ${item.sent ? "ui-badge--ok" : "ui-badge--danger"}`}>{item.sent ? "Gönderildi" : FAILURE_LABELS[item.failureReason] || "Başarısız"}</span>
-                    {item.audience === TEST_AUDIENCE && <span className="ui-badge ui-badge--info">Deneme</span>}
-                  </div>
-                  <p className="ui-text-sm ui-wrap-anywhere">{item.body}</p>
-                  <p className="ui-hint">{audienceLabel(item.audience)} · {item.targetedCount || 0} kişi{item.unreachableCount ? ` (${item.unreachableCount} kişinin kayıtlı cihazı yok)` : ""} · {formatDate(item.createdAt)}{item.sentBy?.name ? ` · ${item.sentBy.name}` : ""}</p>
-                </div>
-                <button type="button" className="ui-btn ui-btn--sm" title="Bu metni forma geri yükle"
-                  onClick={() => { setForm((current) => ({ ...current, title: item.title, body: item.body })); setFailure(""); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
-                  <RotateCcw /> Tekrar kullan
-                </button>
-              </article>
-            )) : <div className="ui-empty">{loading ? "Yükleniyor…" : "Henüz toplu bildirim gönderilmedi."}</div>}
-          </section>
-        </div>
+          </details>
+        </aside>
       </div>
     </div>
   );
