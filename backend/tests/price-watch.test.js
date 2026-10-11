@@ -113,6 +113,12 @@ test("sıra: hiç bakılmamış → vakti gelen çok satan → vakti gelen diğe
   const order = selectDue({ products, watches, topSellerIds: ["h", "a", "b"], now, limit: 10 }).map((p) => p._id);
   assert.deepEqual(order, ["h", "a", "c", "g"]);
   assert.deepEqual(selectDue({ products, watches, now, limit: 2 }).map((p) => p._id), ["h", "c"]);
+  // Sayfa sınırı dolduysa (camgozOnly) Camgöz'de bulunamamış ürünler atlanır; sayfası bekleyen ürün sınır yokken sıraya girer
+  watches.push({ _id: "h", v, checkedAt: new Date(now - HOUR), camgozMissAt: new Date(now - HOUR), pagesPending: true });
+  assert.ok(!selectDue({ products, watches, now, limit: 10, camgozOnly: true }).some((p) => p._id === "h"));
+  assert.ok(selectDue({ products, watches, now, limit: 10 }).some((p) => p._id === "h"), "pagesPending: süresi dolmadan da sıraya girer");
+  watches.pop();
+
   // Eski sürüm (arama özetinden) kayıt hiç bakılmamış sayılır
   watches[3] = { _id: "d", checkedAt: new Date(now - HOUR) };
   assert.deepEqual(selectDue({ products, watches, now, limit: 2 }).map((p) => p._id), ["d", "h"]);
@@ -195,7 +201,7 @@ const workerDb = () =>
 test("işçi: pencere dışında ve günlük sınırda arama yapmaz", async () => {
   const db = workerDb();
   let searches = 0;
-  const search = async () => { searches += 1; return { offers: [] }; };
+  const search = async () => { searches += 1; return { offers: [], pagesUsed: true }; };
   const settings = { ...priceWatchSettings({ SEARXNG_URL: "x" }), dailyLimit: 1 };
   const noon = new PriceWatchWorker(db, { settings, lookup: search, now: () => new Date("2026-10-11T09:00:00Z") });
   await noon.initialize();
@@ -209,7 +215,42 @@ test("işçi: pencere dışında ve günlük sınırda arama yapmaz", async () =
   await night.step();
   assert.equal(searches, 1, "günlük sınır 1");
   assert.equal(db.data.price_watch_state[0].phase, "limit");
-  assert.equal(db.data.price_watch_state[0].count, 1);
+  assert.equal(db.data.price_watch_state[0].pages, 1);
+  assert.equal(db.data.price_watch_state[0].checks, 1);
+});
+
+test("işçi: sayfa sınırı dolunca Camgöz kredisi varsa yalnızca Camgöz'le devam eder", async () => {
+  const db = fakeDb({ products: Array.from({ length: 4 }, (_, i) => ({ _id: `p${i}`, name: `Ürün ${i}`, price: 10 })) });
+  const previous = process.env.JOJAPI_API_KEY;
+  process.env.JOJAPI_API_KEY = "test-key";
+  try {
+    const calls = [];
+    // İlk ürün market sayfasından (sayfa sınırını doldurur), sonrakiler yalnızca Camgöz'den
+    const lookup = async (query) => {
+      calls.push(query);
+      return calls.length === 1 ? { offers: [], pagesUsed: true } : { offers: [{ price: 9, source: "A101" }], median: 9, min: 9, max: 9, confidence: "high", provider: "camgoz", pagesUsed: false };
+    };
+    const settings = { ...priceWatchSettings({ SEARXNG_URL: "x" }), dailyLimit: 1 };
+    const worker = new PriceWatchWorker(db, { settings, lookup, now: () => new Date(NOW) });
+    await worker.initialize();
+    assert.ok((await worker.step()) >= 20000, "sayfa okunduysa uzun bekleme");
+    assert.equal(await worker.step(), 3000, "yalnızca Camgöz'e sorulduysa kısa bekleme");
+    await worker.step();
+    const state = db.data.price_watch_state.find((doc) => doc._id === "main");
+    assert.equal(calls.length, 3);
+    assert.equal(state.pages, 1);
+    assert.equal(state.checks, 3);
+    assert.equal(state.phase, "running");
+
+    // Kredi bitince durur
+    db.data.price_watch_state.push({ _id: "camgoz", month: "2026-10", used: 500 });
+    await worker.step();
+    assert.equal(calls.length, 3);
+    assert.equal(state.phase, "limit");
+  } finally {
+    if (previous === undefined) delete process.env.JOJAPI_API_KEY;
+    else process.env.JOJAPI_API_KEY = previous;
+  }
 });
 
 test("işçi: arka arkaya hatalarda bir saat ara verir, yeni günde sayaç sıfırlanır", async () => {
@@ -224,10 +265,10 @@ test("işçi: arka arkaya hatalarda bir saat ara verir, yeni günde sayaç sıf�
   assert.match(state.lastError.message, /1 saat/);
   await worker.step();
   assert.equal(state.phase, "paused");
-  assert.equal(state.count, 5);
+  assert.equal(state.checks, 5);
 
   clock = new Date("2026-10-11T22:30:00Z").getTime(); // ertesi gün 01:30
   await worker.step();
   assert.equal(state.day, "2026-10-12");
-  assert.equal(state.count, 1);
+  assert.equal(state.checks, 1);
 });

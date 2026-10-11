@@ -4,7 +4,7 @@
 // Kayıtlar "price_watch" koleksiyonunda tutulur (_id = ürün id'si), işçinin durumu "price_watch_state" içindedir.
 import { searchSearxngWeb } from "./productAssist.service.js";
 import { findMarketPrices } from "./marketPrice.service.js";
-import { BARCODE_SEARCH_CREDITS, NAME_SEARCH_CREDITS, camgozSettings, describeCamgozError, findCamgozPrices } from "./camgoz.service.js";
+import { BARCODE_SEARCH_CREDITS, NAME_SEARCH_CREDITS, describeCamgozError, findCamgozPrices, resolveCamgozSettings } from "./camgoz.service.js";
 
 export const WATCH_COLLECTION = "price_watch";
 export const STATE_COLLECTION = "price_watch_state";
@@ -86,7 +86,7 @@ const ageHours = (date, now) => (date ? (now - new Date(date).getTime()) / HOUR 
  * Sıra: hiç kontrol edilmemişler (önce en çok satanlar) → vakti gelen en çok satanlar → vakti gelen diğerleri;
  * her grupta en eski kontrol önce. Gizli ve "yoksay" işaretli ürünler atlanır.
  */
-export const selectDue = ({ products, watches, topSellerIds = [], now = Date.now(), limit = 1 }) => {
+export const selectDue = ({ products, watches, topSellerIds = [], now = Date.now(), limit = 1, camgozOnly = false }) => {
   const watchMap = new Map(watches.map((watch) => [idOf(watch), watch]));
   const topRank = new Map(topSellerIds.map((id, index) => [idOf(id), index]));
   const due = [];
@@ -96,6 +96,8 @@ export const selectDue = ({ products, watches, topSellerIds = [], now = Date.now
     const watch = watchMap.get(id);
     if (watch?.ignored) continue;
     const isTop = topRank.has(id);
+    // Günlük sayfa sınırı dolduğunda yalnızca Camgöz'de aranabilecek ürünler seçilir
+    if (camgozOnly && !watch?.barcode && watch?.camgozMissAt && ageHours(watch.camgozMissAt, now) < CAMGOZ_MISS_RETRY_DAYS * 24) continue;
     if (!watch?.checkedAt || watch.v !== WATCH_VERSION) {
       due.push({ product, group: 0, rank: isTop ? topRank.get(id) : Infinity, checkedAt: 0 });
       continue;
@@ -103,6 +105,11 @@ export const selectDue = ({ products, watches, topSellerIds = [], now = Date.now
     let interval = isTop ? TOP_SELLER_HOURS : NORMAL_HOURS;
     if (watch.status === "error") interval = Math.min(interval, ERROR_RETRY_HOURS);
     const age = ageHours(watch.checkedAt, now);
+    // Camgöz'de bulunamayıp sayfa sınırı yüzünden market sayfalarına bakılamayan ürün sırası gelince yeniden denenir
+    if (watch.pagesPending && !camgozOnly) {
+      due.push({ product, group: 2, rank: 0, checkedAt: new Date(watch.checkedAt).getTime() });
+      continue;
+    }
     if (age < interval) continue;
     due.push({ product, group: isTop ? 1 : 2, rank: 0, checkedAt: new Date(watch.checkedAt).getTime() });
   }
@@ -146,7 +153,7 @@ const defaultSearch = (q) => {
 export const marketLookup = (options = {}) => (query) => findMarketPrices(query, { search: defaultSearch, ...options });
 
 // ── Camgöz kredi bütçesi ──────────────────────────────────────────
-// Aylık kredi ay boyunca eşit dağıtılır (gece işçisi ilk gün hepsini harcamasın); panelden elle kontrol yalnızca aylık sınıra bakar.
+// Varsayılan: kredi bitene kadar kullanılır. CAMGOZ_PACING=even ise aylık kredi ay boyunca eşit dağıtılır (panelden elle kontrol yalnızca aylık sınıra bakar).
 export const CAMGOZ_STATE_ID = "camgoz";
 export const CAMGOZ_MISS_RETRY_DAYS = 30; // Camgöz'de bulunamayan ürün için isimle arama 30 gün tekrarlanmaz
 const CAMGOZ_PAUSE_MS = 6 * 3600000; // anahtar/kredi hatasında 6 saat Camgöz denenmez
@@ -159,13 +166,13 @@ const monthInfo = (date) => {
 };
 
 /** Bütçe kararı (saf fonksiyon) */
-export const camgozAllowance = (state, { monthly, estimate, manual = false, now = new Date() }) => {
+export const camgozAllowance = (state, { monthly, estimate, manual = false, paced = true, now = new Date() }) => {
   const { month, day, daysLeft } = monthInfo(now);
   const used = state?.month === month ? state.used || 0 : 0;
   const usedToday = state?.day === day ? state.usedToday || 0 : 0;
   if (state?.pausedUntil && new Date(state.pausedUntil) > now) return { ok: false, reason: "paused" };
   if (used + estimate > monthly) return { ok: false, reason: "monthly" };
-  if (manual) return { ok: true };
+  if (manual || !paced) return { ok: true };
   const dailyCap = Math.max(BARCODE_SEARCH_CREDITS, Math.ceil((monthly - (used - usedToday)) / daysLeft));
   if (usedToday + estimate > dailyCap) return { ok: false, reason: "daily" };
   return { ok: true };
@@ -189,31 +196,62 @@ const recordCamgozUse = async (db, credits, now, error) => {
   await states.updateOne({ _id: CAMGOZ_STATE_ID }, { $set: set }, { upsert: true });
 };
 
+/** Camgöz bu an kullanılabilir mi (anahtar var, ara verilmemiş, kredi kalmış)? */
+export const camgozReady = async (db, settings, { now = new Date(), estimate = BARCODE_SEARCH_CREDITS } = {}) => {
+  if (!settings.enabled) return false;
+  const state = await db.collection(STATE_COLLECTION).findOne({ _id: CAMGOZ_STATE_ID });
+  return camgozAllowance(state, { monthly: settings.monthlyCredits, estimate, paced: settings.pacing === "even", now }).ok;
+};
+
+/** Yeni anahtar girilince bu ayın kredi sayacı ve hata/ara bilgisi sıfırlanır */
+export const resetCamgozUsage = async (db, now = new Date()) => {
+  const { month, day } = monthInfo(now);
+  await db.collection(STATE_COLLECTION).updateOne(
+    { _id: CAMGOZ_STATE_ID },
+    { $set: { month, day, used: 0, usedToday: 0, resetAt: now }, $unset: { pausedUntil: "", lastError: "" } },
+    { upsert: true },
+  );
+};
+
 /**
  * Asıl fiyat kaynağı: önce Camgöz (anahtar ve kredi varsa), bulamazsa market sayfaları.
- * lookup(query, { watch }) → { offers, ..., provider, barcode, camgozMiss }
+ * allowPages=false: günlük sayfa sınırı doldu; Camgöz bulamazsa sayfalara bakılmaz, ürün "pagesPending" kalır.
+ * settings verilmezse her çağrıda .env + panel anahtarı okunur.
+ * lookup(query, { watch }) → { offers, ..., provider, barcode, camgozMiss, pagesUsed, pagesSkipped }
  */
-export const priceLookup = ({ db, manual = false, settings = camgozSettings(), camgoz = findCamgozPrices, pages = marketLookup(manual ? { pause: () => new Promise((resolve) => setTimeout(resolve, 1500)) } : {}) } = {}) =>
+export const priceLookup = ({ db, manual = false, allowPages = true, settings, camgoz = findCamgozPrices, pages = marketLookup(manual ? { pause: () => new Promise((resolve) => setTimeout(resolve, 1500)) } : {}) } = {}) =>
   async (query, { watch, now = new Date() } = {}) => {
+    const active = settings || (await resolveCamgozSettings(db));
     let camgozResult = null;
     let camgozNote = "";
     const barcode = watch?.barcode || null;
     const recentMiss = !barcode && watch?.camgozMissAt && (now - new Date(watch.camgozMissAt)) / 86400000 < CAMGOZ_MISS_RETRY_DAYS;
-    if (settings.enabled && !recentMiss) {
+    if (active.enabled && !recentMiss) {
       const estimate = barcode ? BARCODE_SEARCH_CREDITS : NAME_SEARCH_CREDITS;
       const state = await db.collection(STATE_COLLECTION).findOne({ _id: CAMGOZ_STATE_ID });
-      const allowance = camgozAllowance(state, { monthly: settings.monthlyCredits, estimate, manual, now });
+      const allowance = camgozAllowance(state, { monthly: active.monthlyCredits, estimate, manual, paced: active.pacing === "even", now });
       if (allowance.ok) {
         try {
-          camgozResult = await camgoz(query, { barcode, trustedBarcode: watch?.barcodeSource === "manual", settings, now });
+          camgozResult = await camgoz(query, { barcode, trustedBarcode: watch?.barcodeSource === "manual", settings: active, now });
           await recordCamgozUse(db, camgozResult.credits || estimate, now);
-          if (camgozResult.offers.length) return { ...camgozResult, provider: "camgoz" };
+          if (camgozResult.offers.length) return { ...camgozResult, provider: "camgoz", pagesUsed: false };
           camgozNote = camgozResult.note;
         } catch (error) {
           await recordCamgozUse(db, error.credits || 0, now, error);
           camgozNote = describeCamgozError(error);
         }
       } else if (allowance.reason === "monthly") camgozNote = "Camgöz aylık kredisi doldu.";
+    }
+    if (!allowPages) {
+      return {
+        offers: [], rejected: camgozResult?.rejected || [], median: null, min: null, max: null, confidence: null,
+        provider: camgozResult ? "camgoz" : null,
+        barcode: camgozResult?.barcode || barcode,
+        camgozMiss: Boolean(camgozResult && !camgozResult.barcode),
+        pagesUsed: false,
+        pagesSkipped: true,
+        note: [camgozNote, "Market sayfalarına bugünkü sınır dolduğu için sonra bakılacak."].filter(Boolean).join(" "),
+      };
     }
     let fallback;
     try {
@@ -226,6 +264,7 @@ export const priceLookup = ({ db, manual = false, settings = camgozSettings(), c
     return {
       ...fallback,
       provider: "pages",
+      pagesUsed: true,
       barcode: camgozResult?.barcode || barcode,
       camgozMiss: Boolean(camgozResult && !camgozResult.barcode),
       note: fallback.offers.length ? fallback.note : [camgozNote, fallback.note].filter(Boolean).join(" "),
@@ -243,6 +282,7 @@ export const checkProduct = async ({ db, product, lookup = priceLookup({ db }), 
   const existing = await watches.findOne({ _id: product._id });
   const query = watchQuery(product, existing);
   let fields;
+  let pagesUsed; // kaydedilmez; işçi günlük sayfa sınırını bununla sayar
   try {
     const result = await lookup(query, { watch: existing?.v === WATCH_VERSION ? existing : { barcode: existing?.barcode, barcodeSource: existing?.barcodeSource }, now });
     const offers = Array.isArray(result?.offers) ? result.offers : [];
@@ -259,14 +299,17 @@ export const checkProduct = async ({ db, product, lookup = priceLookup({ db }), 
     // Camgöz'ün bulduğu barkod saklanır (yöneticinin yazdığı barkod değiştirilmez)
     if (result?.barcode && existing?.barcodeSource !== "manual") Object.assign(fields, { barcode: String(result.barcode), barcodeSource: "auto" });
     if (result?.camgozMiss) fields.camgozMissAt = now;
+    fields.pagesPending = Boolean(result?.pagesSkipped && !offers.length);
+    pagesUsed = Boolean(result?.pagesUsed);
   } catch (error) {
+    pagesUsed = true; // Camgöz hataları içeride yakalanır; buraya gelen hata market sayfası aramasındandır
     fields = { status: "error", error: describeSearchError(error) };
     // Arama motoru geçici olarak yanıt vermediyse önceki güncel bilgi korunur; eski sürüm bilgi ise silinir
     if (existing?.v !== WATCH_VERSION) Object.assign(fields, { median: null, min: null, max: null, offerCount: 0, offers: [], confidence: null, note: "" });
   }
   Object.assign(fields, { query, ourPrice: product.price, checkedAt: now, v: WATCH_VERSION });
   await watches.updateOne({ _id: product._id }, { $set: fields, $setOnInsert: { ignored: false, createdAt: now } }, { upsert: true });
-  return { ...existing, ...fields, _id: product._id };
+  return { ...existing, ...fields, _id: product._id, pagesUsed };
 };
 
 /** Panel satırı: ürün + piyasa kaydı + sınıflandırma (saf fonksiyon) */

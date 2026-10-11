@@ -5,6 +5,11 @@ import {
   camgozSearch,
   camgozSettings,
   chainOf,
+  decryptApiKey,
+  encryptApiKey,
+  resolveCamgozSettings,
+  testCamgozKey,
+  validApiKeyFormat,
   describeCamgozError,
   findCamgozPrices,
   parseCamgozDate,
@@ -194,9 +199,9 @@ test("kaynak sırası: önce Camgöz, bulamazsa market sayfaları; barkod ve kre
   assert.equal(camgozCalls, 0);
   assert.equal(db.data.price_watch_state.find((doc) => doc._id === "camgoz").used, 16);
 
-  // Gece işçisi için bugünkü pay doldu (16 + 13 > 24) → Camgöz denenmez
+  // CAMGOZ_PACING=even: bugünkü pay doldu (16 + 13 > 24) → Camgöz denenmez
   let skipped = 0;
-  await priceLookup({ db, settings: SETTINGS, camgoz: async () => { skipped += 1; return {}; }, pages })("Pınar Süt 1 L", { now: NOW });
+  await priceLookup({ db, settings: { ...SETTINGS, pacing: "even" }, camgoz: async () => { skipped += 1; return {}; }, pages })("Pınar Süt 1 L", { now: NOW });
   assert.equal(skipped, 0);
 
   // Anahtar hatası (panelden elle kontrol): sayfalara düşer, Camgöz 6 saat beklenir
@@ -210,4 +215,43 @@ test("kaynak sırası: önce Camgöz, bulamazsa market sayfaları; barkod ve kre
   // Camgöz kapalıysa (anahtar yok) doğrudan sayfalar
   const off = await priceLookup({ db, settings: camgozSettings({}), camgoz: async () => assert.fail("çağrılmamalı"), pages })("x", { now: NOW });
   assert.equal(off.provider, "pages");
+});
+
+test("panelden girilen anahtar: şifreli saklanır, .env'in yerine geçer, sır değişirse .env'e dönülür", async () => {
+  const doc = { _id: "camgoz_key", ...encryptApiKey("panel-key-1234", "sır-1"), monthlyCredits: 10000, setAt: NOW };
+  assert.ok(!JSON.stringify(doc).includes("panel-key"), "anahtar düz metin saklanmaz");
+  assert.equal(decryptApiKey(doc, "sır-1"), "panel-key-1234");
+  assert.throws(() => decryptApiKey(doc, "başka-sır"));
+  assert.throws(() => encryptApiKey("k", ""), /NO_SECRET/);
+
+  const db = { collection: () => ({ findOne: async () => doc }) };
+  const panel = await resolveCamgozSettings(db, { JOJAPI_API_KEY: "env-key-9999", ACCESS_TOKEN_SECRET: "sır-1" });
+  assert.equal(panel.apiKey, "panel-key-1234");
+  assert.equal(panel.source, "panel");
+  assert.equal(panel.last4, "1234");
+  assert.equal(panel.monthlyCredits, 10000);
+  assert.equal(panel.pacing, "none", "varsayılan: kredi bitene kadar");
+
+  const rotated = await resolveCamgozSettings(db, { JOJAPI_API_KEY: "env-key-9999", ACCESS_TOKEN_SECRET: "yeni-sır" });
+  assert.equal(rotated.apiKey, "env-key-9999");
+  assert.equal(rotated.source, "env");
+  assert.match(rotated.keyError, /çözülemedi/);
+
+  const empty = await resolveCamgozSettings({ collection: () => ({ findOne: async () => null }) }, { CAMGOZ_PACING: "even" });
+  assert.equal(empty.enabled, false);
+  assert.equal(empty.source, "none");
+  assert.equal(empty.pacing, "even");
+
+  assert.equal(validApiKeyFormat("abc"), false);
+  assert.equal(validApiKeyFormat("abc def ghi"), false);
+  assert.equal(validApiKeyFormat("jojapi_live_abc123XYZ"), true);
+});
+
+test("anahtar denemesi ücretsiz uçla yapılır", async () => {
+  let seen;
+  const ok = await testCamgozKey(" key-12345 ", { fetchImpl: async (url, options) => { seen = { url, key: options.headers["X-JoJAPI-Key"] }; return { ok: true, status: 200, text: async () => "[]" }; } });
+  assert.deepEqual(seen, { url: "https://camgoz.jojapi.net/api/external/last", key: "key-12345" });
+  assert.equal(ok.ok, true);
+  const denied = await testCamgozKey("key-12345", { fetchImpl: async () => ({ ok: false, status: 401, text: async () => JSON.stringify({ message: "Subscription Not Found" }) }) });
+  assert.deepEqual(denied, { ok: false, status: 401, detail: "Subscription Not Found" });
 });

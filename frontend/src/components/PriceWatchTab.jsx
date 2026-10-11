@@ -6,6 +6,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  KeyRound,
+  X,
   HelpCircle,
   Eye,
   EyeOff,
@@ -73,12 +75,20 @@ const diffLabel = (diff) => {
 
 const phaseText = (worker) => {
   const { hours } = worker.settings;
+  const allDay = (hours.end - hours.start + 24) % 24 === 0;
   const span = `${pad(hours.start)}:00–${pad(hours.end)}:00`;
+  const when = allDay ? "Yarın" : `Yarın gece ${span} arasında`;
   switch (worker.phase) {
     case "running":
       return { tone: "ok", title: "Şu an kontrol ediyor", detail: worker.lastProduct ? `Son bakılan: ${worker.lastProduct}` : "" };
     case "limit":
-      return { tone: "info", title: "Bugünkü sınır doldu", detail: `Yarın gece ${span} arasında devam eder.` };
+      return {
+        tone: "info",
+        title: "Bugünkü sınır doldu",
+        detail: worker.camgoz?.exhausted
+          ? `Market sayfası sınırı ve Camgöz kredisi doldu. ${when} sayfalarla devam eder; Camgöz için yeni anahtar girebilirsiniz.`
+          : `Market sayfası sınırı doldu. ${when} devam eder.`,
+      };
     case "done":
       return { tone: "ok", title: "Vakti gelen ürün kalmadı", detail: "Yeni ürünler ve süresi dolanlar sonraki gece kontrol edilir." };
     case "paused":
@@ -88,11 +98,11 @@ const phaseText = (worker) => {
     case "offline":
       return { tone: "danger", title: "Bekçi çalışmıyor", detail: "Sunucuda ayrı süreç olarak başlatılmalı (backend/workers/PRICE_WATCH.md)." };
     default:
-      return { tone: "info", title: `Her gece ${span} arasında çalışır`, detail: worker.camgoz?.enabled ? "Önce Camgöz'den zincir market fiyatlarını alır, bulamazsa Şok, Trendyol ve Hepsiburada sayfalarını okur." : "Ürünün Şok, Trendyol ve Hepsiburada sayfalarını açıp güncel fiyatı okur; ürünler arasında yarım dakika bekler." };
+      return { tone: "info", title: allDay ? "Gün boyu çalışır" : `Her gece ${span} arasında çalışır`, detail: worker.camgoz?.enabled ? "Önce Camgöz'den zincir market fiyatlarını alır, bulamazsa Şok, Trendyol ve Hepsiburada sayfalarını okur." : "Ürünün Şok, Trendyol ve Hepsiburada sayfalarını açıp güncel fiyatı okur; ürünler arasında yarım dakika bekler." };
   }
 };
 
-const StatusCard = ({ worker, coverage }) => {
+const StatusCard = ({ worker, coverage, onCamgoz }) => {
   const phase = phaseText(worker);
   const limit = worker.settings.dailyLimit;
   return (
@@ -111,8 +121,11 @@ const StatusCard = ({ worker, coverage }) => {
           <dt>Bugün</dt>
           <dd>
             {worker.today}
-            <span>/{limit}</span>
+            <span> ürün</span>
           </dd>
+          <p className="pw-status-sub">
+            Sayfa {worker.pagesToday ?? 0}/{limit}
+          </p>
         </div>
         <div>
           <dt>Son 7 gün</dt>
@@ -128,19 +141,46 @@ const StatusCard = ({ worker, coverage }) => {
           <dt>Son kontrol</dt>
           <dd className="pw-status-last">{worker.lastRunAt ? timeAgo(worker.lastRunAt) : "henüz yok"}</dd>
         </div>
-        {worker.camgoz?.enabled && (
+        {worker.camgoz && (
           <div>
-            <dt>Camgöz kredisi (bu ay)</dt>
-            <dd>
-              {worker.camgoz.used}
-              <span>/{worker.camgoz.monthlyCredits}</span>
-            </dd>
-            <div className="pw-meter" aria-hidden="true">
-              <i style={{ width: `${Math.min(100, Math.round((worker.camgoz.used / Math.max(1, worker.camgoz.monthlyCredits)) * 100))}%` }} />
-            </div>
+            <dt className="pw-camgoz-head">
+              Camgöz kredisi (bu ay)
+              <button type="button" className="pw-link-btn" onClick={onCamgoz}>
+                <KeyRound aria-hidden="true" />
+                Anahtar
+              </button>
+            </dt>
+            {worker.camgoz.enabled ? (
+              <>
+                <dd>
+                  {worker.camgoz.used}
+                  <span>/{worker.camgoz.monthlyCredits}</span>
+                </dd>
+                <div className={`pw-meter${worker.camgoz.exhausted ? " pw-meter--full" : ""}`} aria-hidden="true">
+                  <i style={{ width: `${Math.min(100, Math.round((worker.camgoz.used / Math.max(1, worker.camgoz.monthlyCredits)) * 100))}%` }} />
+                </div>
+              </>
+            ) : (
+              <dd className="pw-status-last">Kapalı</dd>
+            )}
           </div>
         )}
       </dl>
+      {worker.camgoz?.exhausted && (
+        <div className="pw-status-alert">
+          <KeyRound aria-hidden="true" />
+          <span className="ui-grow">Camgöz kredisi bitti. Yeni bir JoJ API anahtarı girerek hemen devam edebilirsiniz; o zamana kadar market sayfaları kullanılır.</span>
+          <button type="button" className="ui-btn ui-btn--primary ui-btn--sm" onClick={onCamgoz}>
+            Yeni anahtar gir
+          </button>
+        </div>
+      )}
+      {worker.camgoz?.keyError && (
+        <p className="pw-status-error">
+          <AlertTriangle aria-hidden="true" />
+          <span>{worker.camgoz.keyError}</span>
+        </p>
+      )}
       {worker.camgoz?.lastError?.message && (worker.camgoz.pausedUntil || Date.now() - new Date(worker.camgoz.lastError.at).getTime() < 86400000) && (
         <p className="pw-status-error">
           <AlertTriangle aria-hidden="true" />
@@ -375,6 +415,155 @@ const PriceRow = ({ row, busy, onApply, onCheck, onIgnore, onQuery }) => {
   );
 };
 
+// Camgöz API anahtarı: panelden değiştirilir, sunucuda şifreli saklanır (.env dosyasına dokunulmaz)
+const CamgozDialog = ({ onClose, onSaved }) => {
+  const [config, setConfig] = useState(null);
+  const [apiKey, setApiKey] = useState("");
+  const [monthly, setMonthly] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    axios
+      .get("/price-watch/camgoz")
+      .then((response) => {
+        if (!active) return;
+        setConfig(response.data.camgoz);
+        setMonthly(String(response.data.camgoz.monthlyCredits ?? ""));
+      })
+      .catch((err) => active && setError(errorMessage(err, "Camgöz ayarları okunamadı.")));
+    const onKey = (event) => event.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => {
+      active = false;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+
+  const save = async (event) => {
+    event.preventDefault();
+    const body = {};
+    if (apiKey.trim()) body.apiKey = apiKey.trim();
+    if (monthly !== "" && Number(monthly) !== config?.monthlyCredits) body.monthlyCredits = Number(monthly);
+    if (!Object.keys(body).length) return onClose();
+    setSaving(true);
+    setError("");
+    try {
+      const response = await axios.put("/price-watch/camgoz", body);
+      setConfig(response.data.camgoz);
+      setApiKey("");
+      toast.success(body.apiKey ? "Yeni anahtar denendi ve kaydedildi; kredi sayacı sıfırlandı." : "Camgöz ayarı kaydedildi.");
+      onSaved();
+      onClose();
+    } catch (err) {
+      setError(errorMessage(err, "Kaydedilemedi."));
+    } finally {
+      setSaving(false);
+    }
+    return undefined;
+  };
+
+  const removePanelKey = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      const response = await axios.delete("/price-watch/camgoz");
+      setConfig(response.data.camgoz);
+      toast.success("Panel anahtarı silindi; .env'deki anahtar kullanılacak.");
+      onSaved();
+    } catch (err) {
+      setError(errorMessage(err, "Silinemedi."));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const sourceText = !config
+    ? "Yükleniyor…"
+    : config.source === "panel"
+      ? `Panelden girilen anahtar (…${config.last4})${config.setAt ? ` · ${shortDate(config.setAt)}` : ""}`
+      : config.source === "env"
+        ? `Sunucudaki .env anahtarı (…${config.last4})`
+        : "Anahtar yok";
+
+  return (
+    <div className="ui-modal-backdrop" onClick={onClose}>
+      <form className="ui-modal pw-camgoz-modal" role="dialog" aria-modal="true" aria-labelledby="pw-camgoz-title" onSubmit={save} onClick={(event) => event.stopPropagation()}>
+        <div className="ui-modal-header">
+          <div>
+            <h2 id="pw-camgoz-title" className="ui-title">
+              Camgöz API anahtarı
+            </h2>
+            <p className="pw-modal-sub">{sourceText}</p>
+          </div>
+          <button type="button" className="ui-icon-btn ui-icon-btn--sm" aria-label="Kapat" onClick={onClose}>
+            <X />
+          </button>
+        </div>
+        <div className="ui-modal-body pw-camgoz-body">
+          {config && (
+            <p className="pw-camgoz-usage">
+              Bu ay {config.used} / {config.monthlyCredits} kredi kullanıldı{config.exhausted ? " — kredi bitti." : "."}
+            </p>
+          )}
+          <label className="pw-query-label" htmlFor="pw-camgoz-key">
+            Yeni API anahtarı
+          </label>
+          <input
+            id="pw-camgoz-key"
+            className="ui-field"
+            type="password"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="JoJ panelindeki anahtarı yapıştırın"
+            value={apiKey}
+            onChange={(event) => setApiKey(event.target.value)}
+            autoFocus
+          />
+          <p className="ui-hint">
+            Kaydetmeden önce anahtar Camgöz&apos;ün ücretsiz ucuyla denenir (kredi harcamaz). Anahtar sunucuda şifreli saklanır, bir daha
+            gösterilmez; .env&apos;deki anahtarın yerine geçer ve bu ayın kredi sayacı sıfırlanır. Anahtarın JoJ panelinde Product Barcode API
+            planına abone olması gerekir.
+          </p>
+          <label className="pw-query-label" htmlFor="pw-camgoz-monthly">
+            Aylık kredi
+          </label>
+          <input
+            id="pw-camgoz-monthly"
+            className="ui-field pw-barcode-field"
+            inputMode="numeric"
+            value={monthly}
+            onChange={(event) => setMonthly(event.target.value.replace(/[^\d]/g, ""))}
+          />
+          <p className="ui-hint">Ücretsiz paket 500, Başlangıç paketi 10.000. Bekçi bu sayıya gelince Camgöz&apos;ü durdurur.</p>
+          {error && (
+            <p className="pw-status-error" role="alert">
+              <AlertTriangle aria-hidden="true" />
+              <span>{error}</span>
+            </p>
+          )}
+        </div>
+        <div className="ui-modal-footer">
+          {config?.source === "panel" && (
+            <button type="button" className="ui-btn ui-btn--ghost ui-btn--sm" disabled={saving} onClick={removePanelKey}>
+              Panel anahtarını sil (.env&apos;e dön)
+            </button>
+          )}
+          <span className="ui-grow" />
+          <button type="button" className="ui-btn ui-btn--sm" onClick={onClose}>
+            Vazgeç
+          </button>
+          <button type="submit" className="ui-btn ui-btn--primary ui-btn--sm" disabled={saving || !config}>
+            {saving ? <Loader2 className="pw-spin" /> : null}
+            {apiKey.trim() ? "Dene ve kaydet" : "Kaydet"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
 const PriceWatchTab = () => {
   const updateProductPrice = useProductStore((state) => state.updateProductPrice);
   const [filter, setFilter] = useState("above");
@@ -385,6 +574,8 @@ const PriceWatchTab = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState({});
+  const [camgozOpen, setCamgozOpen] = useState(false);
+  const closeCamgoz = useCallback(() => setCamgozOpen(false), []);
   const request = useRef(0);
 
   useEffect(() => {
@@ -485,7 +676,8 @@ const PriceWatchTab = () => {
 
   return (
     <div className="ui-page pw">
-      {data?.worker && <StatusCard worker={data.worker} coverage={data.coverage} />}
+      {data?.worker && <StatusCard worker={data.worker} coverage={data.coverage} onCamgoz={() => setCamgozOpen(true)} />}
+      {camgozOpen && <CamgozDialog onClose={closeCamgoz} onSaved={() => load({ quiet: true })} />}
 
       <div className="pw-toolbar">
         <div className="ui-chips pw-filters" role="group" aria-label="Fiyat durumu">

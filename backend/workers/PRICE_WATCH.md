@@ -15,9 +15,21 @@ Sonuçlar yönetici panelinde **Katalog → Fiyat bekçisi** sekmesinde görün�
 - Panelde kalemle **barkod** elle yazılabilir; elle yazılan barkod kesin kabul edilir ve otomatik değiştirilmez.
 - Yalnızca zincir marketler sayılır (`CAMGOZ_MARKETS`); küçük online dükkânların fiyatları alınmaz.
 - **Güncellik:** son 90 günde (`CAMGOZ_MAX_AGE_DAYS`) güncellenmemiş market fiyatı, stokta olmayan ürün ve Camgöz'de yanlış ürüne bağlanmış market kaydı (ör. 144 g ürünün altında 4x36 g paket) elenir.
-- **Kredi bütçesi:** `CAMGOZ_MONTHLY_CREDITS` (varsayılan 500 = ücretsiz paket) ay boyunca eşit dağıtılır; gece işçisi günlük payı aşmaz, panelden elle kontrol yalnızca aylık sınıra bakar. Harcanan kredi API'nin `X-Jojapi-Credits-Used` başlığından okunur, `price_watch_state` (`_id: "camgoz"`) içinde tutulur ve panelde görünür.
+- **Kredi:** varsayılan olarak Camgöz kredisi **bitene kadar** kullanılır (`CAMGOZ_PACING=even` yapılırsa ay boyunca eşit dağıtılır). Harcanan kredi API'nin `X-Jojapi-Credits-Used` başlığından okunur, `price_watch_state` (`_id: "camgoz"`) içinde tutulur ve panelde görünür.
+- **Günlük sınır yalnızca market sayfaları için:** `PRICE_WATCH_DAILY_LIMIT` sitelere bakılan ürün sayısını sınırlar. Sınır dolunca bekçi Camgöz kredisi kaldığı sürece yalnızca Camgöz'le devam eder (ürünler arası 3 sn); Camgöz'de bulunamayan ürünlere ertesi gün market sayfalarından bakılır (`pagesPending`).
 - Anahtar hatası / kredi bitti / istek sınırı (401, 402, 403, 429) gelirse Camgöz 6 saat denenmez.
-- Ücretsiz paketle ayda yaklaşık 40 yeni ürün eşleşir ya da ~160 barkodlu ürün kontrol edilir. 1.500 ürünün düzenli takibi için Başlangıç ($9/ay, 10.000 kredi) paketi gerekir; `CAMGOZ_MONTHLY_CREDITS=10000` yapılır.
+- Ücretsiz paket (500 kredi) ile yaklaşık 40 yeni ürün eşleşir ya da ~160 barkodlu ürün kontrol edilir; 1.500 ürünün düzenli takibi için Başlangıç ($9/ay, 10.000 kredi) paketi gerekir.
+
+### Anahtarı panelden değiştirme
+
+Fiyat bekçisi ekranında "Camgöz kredisi" kutusundaki **Anahtar** bağlantısı (kredi bitince "Yeni anahtar gir" düğmesi) açılır:
+- Yeni anahtar önce Camgöz'ün ücretsiz `/api/external/last` ucuyla denenir (kredi harcamaz); abonelik yoksa kaydedilmez ve JoJ'un yanıtı gösterilir.
+- Geçerli anahtar veritabanında (`price_watch_state`, `_id: "camgoz_key"`) `ACCESS_TOKEN_SECRET`'ten türetilen anahtarla **AES-256-GCM şifreli** saklanır; panelde ve API yanıtlarında yalnızca son 4 karakteri görünür, işlem kaydına (Kayıtlar) anahtar yazılmaz.
+- Panel anahtarı `.env`'deki `JOJAPI_API_KEY`'in yerine geçer; **.env dosyasına dokunulmaz**. "Panel anahtarını sil" ile .env anahtarına dönülür.
+- Yeni anahtar kaydedilince bu ayın kredi sayacı ve Camgöz hata/ara bilgisi sıfırlanır; bekçi bir sonraki adımda (en geç 5 dk) yeni anahtarla devam eder, yeniden başlatma gerekmez.
+- Aylık kredi (paket değişince) aynı pencereden güncellenir.
+- `ACCESS_TOKEN_SECRET` değişirse panel anahtarı çözülemez; panel uyarı verir ve .env anahtarı kullanılır — anahtarı yeniden girin.
+- Not: JoJ'un kullanım koşulları ücretsiz kotayı aşmak için birden çok hesap açmayı yasaklıyor olabilir; düzenli kullanımda ücretli pakete geçmek en sağlamı.
 
 ### 2. Market sayfaları (yedek)
 
@@ -69,13 +81,14 @@ API (`benimmarketim-api`) da yeni `/api/price-watch` uçları için `pm2 reload 
 |---|---|---|
 | `PRICE_WATCH_ENABLED` | `true` | `false` ise işçi bekler |
 | `PRICE_WATCH_HOURS` | `1-7` | Çalışma saatleri (İstanbul); `23-6` gibi gece yarısını aşan aralık da olur |
-| `PRICE_WATCH_DAILY_LIMIT` | `300` | Günde en çok kaç ürün |
+| `PRICE_WATCH_DAILY_LIMIT` | `300` | Günde en çok kaç ürünün market sayfasına bakılır (Camgöz kontrolleri hariç) |
 | `PRICE_WATCH_DELAY_SEC` | `20-30` | İki arama arasında rastgele bekleme (en az 5 sn) |
 | `PRICE_WATCH_THRESHOLD` | `20` | Pahalı/ucuz sayılma eşiği (%) |
 | `PRICE_WATCH_TOP_SELLERS` | `100` | Günde bir kontrol edilen en çok satan ürün sayısı |
 | `JOJAPI_API_KEY` | — | Camgöz API anahtarı (yoksa yalnızca market sayfaları) |
 | `CAMGOZ_MONTHLY_CREDITS` | `500` | Aylık kredi bütçesi (paketinize göre) |
 | `CAMGOZ_MAX_AGE_DAYS` | `90` | Bundan eski market fiyatı sayılmaz |
+| `CAMGOZ_PACING` | — | `even`: krediyi ay boyunca eşit dağıt (varsayılan: bitene kadar kullan) |
 | `CAMGOZ_MARKETS` | zincirler | Sayılacak marketler (virgülle) |
 
 ## Sınırlar

@@ -1,6 +1,14 @@
 import mongoose from "mongoose";
 import Product from "../models/product.model.js";
-import { camgozSettings } from "../services/camgoz.service.js";
+import {
+  KEY_COLLECTION,
+  KEY_DOC_ID,
+  cleanApiKey,
+  encryptApiKey,
+  resolveCamgozSettings,
+  testCamgozKey,
+  validApiKeyFormat,
+} from "../services/camgoz.service.js";
 import {
   STATE_COLLECTION,
   WATCH_COLLECTION,
@@ -12,6 +20,7 @@ import {
   CAMGOZ_STATE_ID,
   priceLookup,
   priceWatchSettings,
+  resetCamgozUsage,
 } from "../services/priceWatch.service.js";
 
 const PRODUCT_FIELDS = "name price isDiscounted discountedPrice image thumbnail category isOutOfStock isHidden";
@@ -30,27 +39,37 @@ const loadRows = async (settings) => {
   return products.map((product) => buildRow(product, byId.get(String(product._id)), { threshold: settings.threshold, now }));
 };
 
-const camgozStatus = (state) => {
-  const settings = camgozSettings();
+// Anahtarın kendisi hiçbir yanıtta dönmez; yalnızca kaynağı ve son 4 karakteri gösterilir
+const camgozStatus = (state, settings) => {
   const { day } = istanbulClock();
   const month = day.slice(0, 7);
+  const used = state?.month === month ? state.used || 0 : 0;
+  const recentCreditError = /kredi/i.test(state?.lastError?.message || "") && state?.pausedUntil && new Date(state.pausedUntil) > new Date();
   return {
     enabled: settings.enabled,
+    source: settings.source,
+    last4: settings.last4 || "",
+    setAt: settings.setAt || null,
+    keyError: settings.keyError || "",
+    pacing: settings.pacing,
+    exhausted: settings.enabled && (used + 3 > settings.monthlyCredits || Boolean(recentCreditError)),
+    encryptionReady: Boolean(process.env.ACCESS_TOKEN_SECRET),
     monthlyCredits: settings.monthlyCredits,
-    used: state?.month === month ? state.used || 0 : 0,
+    used,
     usedToday: state?.day === day ? state.usedToday || 0 : 0,
     lastError: state?.lastError || null,
     pausedUntil: state?.pausedUntil && new Date(state.pausedUntil) > new Date() ? state.pausedUntil : null,
   };
 };
 
-const workerStatus = (state, settings, camgozState) => {
+const workerStatus = (state, settings, camgozState, camgoz) => {
   const today = istanbulClock().day;
   const alive = Boolean(state?.heartbeatAt && Date.now() - new Date(state.heartbeatAt).getTime() < WORKER_ALIVE_MS);
   return {
     alive,
     phase: alive ? state.phase || "waiting" : "offline",
-    today: state?.day === today ? state.count || 0 : 0,
+    today: state?.day === today ? state.checks || 0 : 0,
+    pagesToday: state?.day === today ? state.pages || 0 : 0,
     total: state?.total || 0,
     lastRunAt: state?.lastRunAt || null,
     lastProduct: state?.lastProduct || "",
@@ -64,7 +83,7 @@ const workerStatus = (state, settings, camgozState) => {
       threshold: Math.round(settings.threshold * 100),
       delay: settings.delay,
     },
-    camgoz: camgozStatus(camgozState),
+    camgoz: camgozStatus(camgozState, camgoz),
   };
 };
 
@@ -73,17 +92,18 @@ export const getPriceWatch = async (req, res) => {
   try {
     const settings = priceWatchSettings();
     const states = mongoose.connection.db.collection(STATE_COLLECTION);
-    const [rows, state, camgozState] = await Promise.all([
+    const [rows, state, camgozState, camgoz] = await Promise.all([
       loadRows(settings),
       states.findOne({ _id: "main" }),
       states.findOne({ _id: CAMGOZ_STATE_ID }),
+      resolveCamgozSettings(mongoose.connection.db),
     ]);
     const list = listRows(rows, {
       filter: String(req.query.filter || "above"),
       q: String(req.query.q || "").slice(0, 80),
       page: req.query.page,
     });
-    res.json({ success: true, ...list, coverage: coverage(rows), worker: workerStatus(state, settings, camgozState) });
+    res.json({ success: true, ...list, coverage: coverage(rows), worker: workerStatus(state, settings, camgozState, camgoz) });
   } catch (error) {
     console.error("Fiyat bekçisi listesi alınamadı:", error.message);
     res.status(500).json({ success: false, message: "Fiyat bekçisi listesi alınamadı." });
@@ -104,7 +124,7 @@ const findProduct = async (req, res) => {
 export const checkNow = async (req, res) => {
   try {
     const settings = priceWatchSettings();
-    if (!settings.searxngConfigured && !camgozSettings().enabled) {
+    if (!settings.searxngConfigured && !(await resolveCamgozSettings(mongoose.connection.db)).enabled) {
       return res.status(503).json({ success: false, message: "Fiyat kaynağı ayarlı değil. .env dosyasına JOJAPI_API_KEY (Camgöz) ya da SEARXNG_URL ekleyin." });
     }
     const product = await findProduct(req, res);
@@ -167,5 +187,80 @@ export const updateWatch = async (req, res) => {
   } catch (error) {
     console.error("Fiyat bekçisi kaydı güncellenemedi:", error.message);
     return res.status(500).json({ success: false, message: "Kayıt güncellenemedi." });
+  }
+};
+
+// ── Camgöz anahtarı (panelden) ────────────────────────────────────
+
+/** GET /api/price-watch/camgoz → anahtarın kaynağı (panel/.env), son 4 karakteri ve kredi durumu */
+export const getCamgozConfig = async (req, res) => {
+  try {
+    const db = mongoose.connection.db;
+    const [settings, state] = await Promise.all([resolveCamgozSettings(db), db.collection(STATE_COLLECTION).findOne({ _id: CAMGOZ_STATE_ID })]);
+    res.json({ success: true, camgoz: camgozStatus(state, settings) });
+  } catch (error) {
+    console.error("Camgöz ayarları okunamadı:", error.message);
+    res.status(500).json({ success: false, message: "Camgöz ayarları okunamadı." });
+  }
+};
+
+/**
+ * PUT /api/price-watch/camgoz  { apiKey?: string, monthlyCredits?: number }
+ * Yeni anahtar önce ücretsiz uçla denenir (kredi harcamaz); geçerliyse şifrelenip saklanır ve bu ayın kredi sayacı sıfırlanır.
+ * .env dosyasına dokunulmaz: panel anahtarı .env'deki JOJAPI_API_KEY'in yerine geçer.
+ */
+export const updateCamgozConfig = async (req, res) => {
+  try {
+    const db = mongoose.connection.db;
+    const set = { updatedAt: new Date(), updatedBy: req.user?._id || null };
+    const hasKey = typeof req.body?.apiKey === "string" && req.body.apiKey.trim();
+    if (req.body?.monthlyCredits !== undefined) {
+      const monthly = Math.round(Number(req.body.monthlyCredits));
+      if (!Number.isFinite(monthly) || monthly < 0 || monthly > 10000000) {
+        return res.status(400).json({ success: false, message: "Aylık kredi 0 ile 10.000.000 arasında olmalı." });
+      }
+      set.monthlyCredits = monthly;
+    }
+    if (hasKey) {
+      const apiKey = cleanApiKey(req.body.apiKey);
+      if (!validApiKeyFormat(apiKey)) return res.status(400).json({ success: false, message: "API anahtarı 8–200 karakter olmalı ve boşluk içermemeli." });
+      if (!process.env.ACCESS_TOKEN_SECRET) {
+        return res.status(503).json({ success: false, message: "Sunucuda ACCESS_TOKEN_SECRET tanımlı olmadığı için anahtar güvenli saklanamıyor." });
+      }
+      let test;
+      try {
+        test = await testCamgozKey(apiKey);
+      } catch {
+        return res.status(502).json({ success: false, message: "Camgöz'e ulaşılamadı; anahtar denenemedi. Biraz sonra tekrar deneyin." });
+      }
+      if (test.status === 401 || test.status === 403) {
+        return res.status(400).json({ success: false, message: `Anahtar kabul edilmedi${test.detail ? `: "${test.detail}"` : ""}. JoJ panelinde Product Barcode API aboneliğini kontrol edin.` });
+      }
+      Object.assign(set, encryptApiKey(apiKey, process.env.ACCESS_TOKEN_SECRET), { setAt: new Date() });
+    }
+    if (Object.keys(set).length === 2) return res.status(400).json({ success: false, message: "Değiştirilecek alan yok." });
+    await db.collection(KEY_COLLECTION).updateOne({ _id: KEY_DOC_ID }, { $set: set }, { upsert: true });
+    // Yeni anahtarla yeni kredi: sayaç ve önceki hata/ara sıfırlanır
+    if (hasKey) await resetCamgozUsage(db);
+    return getCamgozConfig(req, res);
+  } catch (error) {
+    console.error("Camgöz ayarları kaydedilemedi:", error.message);
+    return res.status(500).json({ success: false, message: "Camgöz ayarları kaydedilemedi." });
+  }
+};
+
+/** DELETE /api/price-watch/camgoz → panel anahtarı silinir, .env'deki anahtara dönülür */
+export const deleteCamgozKey = async (req, res) => {
+  try {
+    const db = mongoose.connection.db;
+    await db.collection(KEY_COLLECTION).updateOne(
+      { _id: KEY_DOC_ID },
+      { $unset: { salt: "", iv: "", tag: "", data: "", setAt: "" }, $set: { updatedAt: new Date(), updatedBy: req.user?._id || null } },
+    );
+    await resetCamgozUsage(db);
+    return getCamgozConfig(req, res);
+  } catch (error) {
+    console.error("Camgöz anahtarı silinemedi:", error.message);
+    return res.status(500).json({ success: false, message: "Camgöz anahtarı silinemedi." });
   }
 };

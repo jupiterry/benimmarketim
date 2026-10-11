@@ -3,9 +3,11 @@
 // Kredi: dönen her ürün 1 kredi + her 10 market fiyatı için 1 kredi. Bu yüzden:
 //   - barkod biliniyorsa barkodla aranır (~2 kredi),
 //   - bilinmiyorsa bir kez isimle aranır (en çok 10 ürün döner, ~12 kredi) ve bulunan barkod saklanır.
+import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
 import { matchProduct, normalizeText, parseSize } from "./marketPrice.service.js";
 
 export const CAMGOZ_URL = "https://camgoz.jojapi.net/api/external/search";
+export const CAMGOZ_TEST_URL = "https://camgoz.jojapi.net/api/external/last"; // ücretsiz uç: anahtar denemesi kredi harcamaz
 export const NAME_SEARCH_CREDITS = 13; // isimle aramanın en kötü durum tahmini
 export const BARCODE_SEARCH_CREDITS = 3;
 
@@ -26,7 +28,69 @@ export const camgozSettings = (env = process.env) => ({
   monthlyCredits: toInt(env.CAMGOZ_MONTHLY_CREDITS, 500, 0, 10000000),
   maxAgeDays: toInt(env.CAMGOZ_MAX_AGE_DAYS, 90, 1, 3650),
   chains: (env.CAMGOZ_MARKETS ? env.CAMGOZ_MARKETS.split(",") : DEFAULT_CHAINS).map((name) => name.trim()).filter(Boolean),
+  // "none": kredi bitene kadar kullanılır (varsayılan); "even": aylık kredi ay boyunca eşit dağıtılır
+  pacing: env.CAMGOZ_PACING === "even" ? "even" : "none",
+  source: cleanApiKey(env.JOJAPI_API_KEY) ? "env" : "none",
+  last4: cleanApiKey(env.JOJAPI_API_KEY).slice(-4),
 });
+
+// ── Panelden girilen anahtar ──────────────────────────────────────
+// Anahtar .env yerine veritabanında, ACCESS_TOKEN_SECRET'ten türetilen anahtarla AES-256-GCM şifreli saklanır.
+// Panel anahtarı varsa .env'deki JOJAPI_API_KEY'in yerine geçer; silinince .env'e dönülür.
+export const KEY_COLLECTION = "price_watch_state";
+export const KEY_DOC_ID = "camgoz_key";
+
+const deriveKey = (secret, salt) => scryptSync(String(secret), salt, 32);
+
+export const encryptApiKey = (apiKey, secret) => {
+  if (!secret) throw new Error("NO_SECRET");
+  const salt = randomBytes(16);
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", deriveKey(secret, salt), iv);
+  const data = Buffer.concat([cipher.update(apiKey, "utf8"), cipher.final()]);
+  return { salt: salt.toString("base64"), iv: iv.toString("base64"), tag: cipher.getAuthTag().toString("base64"), data: data.toString("base64") };
+};
+
+export const decryptApiKey = (doc, secret) => {
+  const decipher = createDecipheriv("aes-256-gcm", deriveKey(secret, Buffer.from(doc.salt, "base64")), Buffer.from(doc.iv, "base64"));
+  decipher.setAuthTag(Buffer.from(doc.tag, "base64"));
+  return Buffer.concat([decipher.update(Buffer.from(doc.data, "base64")), decipher.final()]).toString("utf8");
+};
+
+export const validApiKeyFormat = (value) => /^[\x21-\x7e]{8,200}$/.test(value);
+
+/** .env ayarları + (varsa) panelden girilen anahtar ve aylık kredi */
+export const resolveCamgozSettings = async (db, env = process.env) => {
+  const base = camgozSettings(env);
+  const doc = await db.collection(KEY_COLLECTION).findOne({ _id: KEY_DOC_ID }).catch(() => null);
+  if (!doc) return base;
+  const settings = { ...base };
+  if (Number.isFinite(doc.monthlyCredits)) settings.monthlyCredits = doc.monthlyCredits;
+  if (doc.data) {
+    try {
+      const apiKey = decryptApiKey(doc, env.ACCESS_TOKEN_SECRET || "");
+      Object.assign(settings, { apiKey, enabled: env.CAMGOZ_ENABLED !== "false", source: "panel", last4: apiKey.slice(-4), setAt: doc.setAt || null });
+    } catch {
+      // ACCESS_TOKEN_SECRET değiştiyse panel anahtarı çözülemez: .env'e dönülür, panelde uyarı gösterilir
+      settings.keyError = "Panelden girilen anahtar çözülemedi (ACCESS_TOKEN_SECRET değişmiş olabilir); anahtarı yeniden girin.";
+    }
+  }
+  return settings;
+};
+
+/** Anahtarı ücretsiz uçla dener (kredi harcamaz). { ok, status, detail } */
+export const testCamgozKey = async (apiKey, { fetchImpl = fetch, timeoutMs = 15000 } = {}) => {
+  const key = cleanApiKey(apiKey);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetchImpl(CAMGOZ_TEST_URL, { signal: controller.signal, headers: { "X-JoJAPI-Key": key, Accept: "application/json" } });
+    const text = typeof response.text === "function" ? await response.text().catch(() => "") : "";
+    return { ok: response.ok, status: response.status, detail: response.ok ? "" : gatewayMessage(text, key) };
+  } finally {
+    clearTimeout(timer);
+  }
+};
 
 export const isBarcode = (value) => /^\d{8,14}$/.test(String(value ?? "").trim());
 

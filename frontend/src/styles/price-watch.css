@@ -583,3 +583,85 @@
     animation: none;
   }
 }
+
+/* ── Camgöz anahtarı ve kredi ────────────────────────────────────── */
+.admin-layout .pw-status-sub {
+  margin: 2px 0 0;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .pw-camgoz-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.admin-layout .pw-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ui-brand-ink);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  cursor: pointer;
+}
+.admin-layout .pw-link-btn:hover {
+  text-decoration: underline;
+}
+.admin-layout .pw-link-btn svg {
+  width: 12px;
+  height: 12px;
+}
+.admin-layout .pw-meter--full i {
+  background: var(--ui-danger);
+}
+.admin-layout .pw-status-alert {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .pw-status-alert > svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.admin-layout .pw-modal-sub {
+  margin: 3px 0 0;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text-2);
+}
+.admin-layout .pw-camgoz-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.admin-layout .pw-camgoz-body .pw-query-label {
+  margin-top: 10px;
+}
+.admin-layout .pw-camgoz-body .ui-hint {
+  margin-top: 2px;
+}
+.admin-layout .pw-camgoz-usage {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-2);
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text-2);
+}
+.admin-layout .pw-camgoz-body .pw-status-error {
+  margin-top: 10px;
+}
+.admin-layout .pw-camgoz-modal .ui-modal-footer {
+  align-items: center;
+}

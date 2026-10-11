@@ -1,12 +1,16 @@
-// Fiyat bekçisi işçisi: gece penceresinde (varsayılan 01:00–07:00 İstanbul) ürünleri tek tek,
-// her aramadan sonra 20–30 saniye bekleyerek kontrol eder. Ayrı bir PM2 süreci olarak çalışır.
+// Fiyat bekçisi işçisi: çalışma penceresinde (varsayılan 01:00–07:00 İstanbul) ürünleri tek tek kontrol eder.
+// Market sayfası okunan her üründen sonra 20–30 sn beklenir ve günde en çok PRICE_WATCH_DAILY_LIMIT ürünün sayfasına bakılır.
+// Camgöz (API) kontrolleri bu sınıra takılmaz; kredi bitene kadar devam eder. Ayrı bir PM2 süreci olarak çalışır.
 import dotenv from "dotenv";
 import mongoose from "mongoose";
 import { setTimeout as sleep } from "node:timers/promises";
+import { resolveCamgozSettings } from "../services/camgoz.service.js";
 import {
   STATE_COLLECTION,
   WATCH_COLLECTION,
+  camgozReady,
   checkProduct,
+  priceLookup,
   findTopSellerIds,
   inWindow,
   istanbulClock,
@@ -21,6 +25,7 @@ const MAX_ERRORS = 5; // SearXNG yanıt vermiyorsa
 const MAX_NOT_FOUND = 25; // arama motoru engellendiyse genelde hiçbir şey bulamaz (yöresel ürünler de bulunamaz, o yüzden yüksek)
 const TOP_REFRESH_MS = 6 * 3600000;
 const QUEUE_SIZE = 25;
+const API_DELAY_MS = 3000; // yalnızca Camgöz'e sorulduysa (site açılmadıysa) kısa bekleme
 
 const PRODUCT_FIELDS = { name: 1, price: 1, isHidden: 1, isDiscounted: 1, discountedPrice: 1 };
 
@@ -34,6 +39,7 @@ export class PriceWatchWorker {
     this.log = log;
     this.state = db.collection(STATE_COLLECTION);
     this.queue = [];
+    this.queueMode = null;
     this.topSellerIds = [];
     this.topLoadedAt = 0;
     this.stopped = false;
@@ -41,21 +47,21 @@ export class PriceWatchWorker {
 
   async initialize() {
     await this.db.collection(WATCH_COLLECTION).createIndex({ checkedAt: 1 });
-    await this.state.updateOne({ _id: "main" }, { $setOnInsert: { day: "", count: 0, startedAt: this.now() } }, { upsert: true });
+    await this.state.updateOne({ _id: "main" }, { $setOnInsert: { day: "", checks: 0, pages: 0, startedAt: this.now() } }, { upsert: true });
   }
 
   async readState() {
     const state = (await this.state.findOne({ _id: "main" })) || {};
     const { day } = istanbulClock(this.now());
     if (state.day !== day) {
-      // Yeni gün: sayaç sıfırlanır
-      await this.state.updateOne({ _id: "main" }, { $set: { day, count: 0 } });
-      return { ...state, day, count: 0 };
+      // Yeni gün: sayaçlar sıfırlanır
+      await this.state.updateOne({ _id: "main" }, { $set: { day, checks: 0, pages: 0 } });
+      return { ...state, day, checks: 0, pages: 0 };
     }
     return state;
   }
 
-  async refillQueue() {
+  async refillQueue({ camgozOnly = false } = {}) {
     const now = this.now().getTime();
     if (now - this.topLoadedAt > TOP_REFRESH_MS) {
       this.topSellerIds = await findTopSellerIds(this.db, { top: this.settings.topSellers, now }).catch(() => this.topSellerIds);
@@ -63,9 +69,10 @@ export class PriceWatchWorker {
     }
     const [products, watches] = await Promise.all([
       this.db.collection("products").find({ isHidden: { $ne: true } }, { projection: PRODUCT_FIELDS }).toArray(),
-      this.db.collection(WATCH_COLLECTION).find({}, { projection: { checkedAt: 1, status: 1, ignored: 1, v: 1 } }).toArray(),
+      this.db.collection(WATCH_COLLECTION).find({}, { projection: { checkedAt: 1, status: 1, ignored: 1, v: 1, barcode: 1, camgozMissAt: 1, pagesPending: 1 } }).toArray(),
     ]);
-    this.queue = selectDue({ products, watches, topSellerIds: this.topSellerIds, now, limit: QUEUE_SIZE });
+    this.queue = selectDue({ products, watches, topSellerIds: this.topSellerIds, now, limit: QUEUE_SIZE, camgozOnly });
+    this.queueMode = camgozOnly ? "camgoz" : "all";
   }
 
   /**
@@ -89,26 +96,34 @@ export class PriceWatchWorker {
       await this.state.updateOne({ _id: "main" }, { $set: { ...heartbeat, phase: "waiting" } });
       return IDLE_MS;
     }
-    if ((state.count || 0) >= this.settings.dailyLimit) {
+    const pagesLeft = (state.pages || 0) < this.settings.dailyLimit;
+    // Sayfa sınırı dolduysa Camgöz kredisi kaldığı sürece yalnızca Camgöz'le devam edilir
+    const camgozOnly = !pagesLeft;
+    if (camgozOnly && !(await camgozReady(this.db, await resolveCamgozSettings(this.db), { now }))) {
+      this.queue = [];
       await this.state.updateOne({ _id: "main" }, { $set: { ...heartbeat, phase: "limit" } });
       return IDLE_MS;
     }
-    if (!this.queue.length) await this.refillQueue();
+    if (this.queueMode !== (camgozOnly ? "camgoz" : "all")) this.queue = [];
+    if (!this.queue.length) await this.refillQueue({ camgozOnly });
     const product = this.queue.shift();
     if (!product) {
       await this.state.updateOne({ _id: "main" }, { $set: { ...heartbeat, phase: "done" } });
       return IDLE_MS;
     }
 
-    const result = await checkProduct({ db: this.db, product, now, ...(this.lookup ? { lookup: this.lookup } : {}) });
-    const errors = result.status === "error" ? (state.errors || 0) + 1 : 0;
-    const notFound = result.status === "not-found" ? (state.notFound || 0) + 1 : 0;
+    const lookup = this.lookup || priceLookup({ db: this.db, allowPages: pagesLeft });
+    const result = await checkProduct({ db: this.db, product, now, lookup });
+    // Arka arkaya hata / bulunamadı sayacı yalnızca market sayfası aramalarında işler (arama motoru engeli için)
+    const errors = result.pagesUsed ? (result.status === "error" ? (state.errors || 0) + 1 : 0) : state.errors || 0;
+    const notFound = result.pagesUsed ? (result.status === "not-found" ? (state.notFound || 0) + 1 : 0) : state.notFound || 0;
     const update = {
       ...heartbeat,
       phase: "running",
       lastRunAt: now,
       lastProduct: product.name,
       lastStatus: result.status,
+      lastProvider: result.provider || null,
       errors,
       notFound,
     };
@@ -123,8 +138,8 @@ export class PriceWatchWorker {
       };
       this.log.warn?.(`Fiyat bekçisi: ${update.lastError.message}`);
     }
-    await this.state.updateOne({ _id: "main" }, { $set: update, $inc: { count: 1, total: 1 } });
-    return randomDelayMs(this.settings.delay);
+    await this.state.updateOne({ _id: "main" }, { $set: update, $inc: { checks: 1, pages: result.pagesUsed ? 1 : 0, total: 1 } });
+    return result.pagesUsed ? randomDelayMs(this.settings.delay) : API_DELAY_MS;
   }
 
   async run() {
