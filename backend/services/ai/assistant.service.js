@@ -7,6 +7,7 @@ import Settings from "../../models/settings.model.js";
 import SupportRequest from "../../models/supportRequest.model.js";
 import User from "../../models/user.model.js";
 import { createAiProvider } from "./providers.js";
+import { notifyAdmins } from "../adminFeed.service.js";
 import { buildSupportEventPayload, classifyMessage, isServiceQuestion, providerFailureMessage, rankKnowledgeRows, smallTalkReply, unknownAnswerOffer } from "./policies.js";
 import { detectToolIntent, executeModelToolCall, formatToolResult, isCartRequest, runAiTool, toolResponseWithoutModel } from "./tools.js";
 import { ORDER_TOOL_NAMES, delayAdminNotice, delayNoticeMessage, extractShortOrderCode, isAffirmative, isNegative, liveSupportDeclinedMessage, liveSupportOfferMessage, pickDelayedOrder, preparingMinutes, shortOrderCode } from "./orderDelay.js";
@@ -45,7 +46,7 @@ export const createHandoff = async ({ chat, reason, summary, io, priority = "nor
   emitMessage(io, chat._id, notice);
   const customer = await User.findById(chat.user).select("name").lean();
   const payload = buildSupportEventPayload({ request, chat, customerName: customer?.name, reason, summary, priority });
-  io?.to("adminRoom").emit("SupportRequestCreated", payload);
+  notifyAdmins(io, "SupportRequestCreated", payload);
   io?.to("adminRoom").emit("supportRequestCreated", payload);
   return request;
 };
@@ -109,7 +110,7 @@ const handleOrderDelay = async ({ chat, query, toolIntent, skip, io }) => {
   const reply = await saveAiReply({ chat, content: delayNoticeMessage(order, now), io, meta: { orderDelay: { orderId: String(order._id), minutes: preparingMinutes(order, now) } } });
   // Yönetici panelindeki genel sohbet bildirimi (yeni bir istemci değişikliği gerektirmez).
   const customer = await User.findById(chat.user).select("name").lean();
-  io?.to("adminRoom").emit("newChatMessage", { chatId: String(chat._id), message: delayAdminNotice(order, now), senderName: customer?.name || "Müşteri", timestamp: now });
+  notifyAdmins(io, "newChatMessage", { chatId: String(chat._id), message: delayAdminNotice(order, now), senderName: customer?.name || "Müşteri", timestamp: now });
   logAiDebug(`orderDelay=${preparingMinutes(order, now)}dk`);
   return reply;
 };

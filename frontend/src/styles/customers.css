@@ -1,0 +1,573 @@
+/* Müşteriler ekranı (UsersTab) — admin-system.css belirteçleriyle */
+
+.admin-layout .cu {
+  gap: 14px;
+}
+
+/* ── Özet kutuları ───────────────────────────────────────────────── */
+.admin-layout .cu-kpis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+.admin-layout .cu-kpi {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  min-width: 0;
+}
+.admin-layout .cu-kpi--link {
+  cursor: pointer;
+  transition:
+    border-color var(--ui-ease),
+    background-color var(--ui-ease);
+}
+.admin-layout .cu-kpi--link:hover {
+  border-color: var(--ui-line-strong);
+  background: var(--ui-surface-2);
+}
+.admin-layout .cu-kpi--link:focus-visible {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: 2px;
+}
+.admin-layout .cu-kpi-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+}
+.admin-layout .cu-kpi-icon[data-tone="ok"] {
+  background: var(--ui-ok-bg);
+  color: var(--ui-ok-ink);
+}
+.admin-layout .cu-kpi-icon[data-tone="info"] {
+  background: var(--ui-info-bg);
+  color: var(--ui-info-ink);
+}
+.admin-layout .cu-kpi-icon svg {
+  width: 17px;
+  height: 17px;
+}
+.admin-layout .cu-kpi-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.admin-layout .cu-kpi-label {
+  font-size: var(--ui-fs-sm);
+  font-weight: 550;
+  color: var(--ui-text-2);
+}
+.admin-layout .cu-kpi-value {
+  margin-top: 2px;
+  font-size: 22px;
+  font-weight: 650;
+  line-height: 1.15;
+  color: var(--ui-text);
+}
+.admin-layout .cu-kpi-sub {
+  margin-top: 2px;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+}
+
+/* ── Kayıt grafiği + en iyi müşteriler ───────────────────────────── */
+.admin-layout .cu-top {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.admin-layout .cu-reg-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(220px, 1fr);
+  gap: 20px;
+}
+.admin-layout .cu-chart {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  height: 190px;
+  min-width: 0;
+}
+.admin-layout .cu-chart-col {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.admin-layout .cu-chart-value {
+  height: 14px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-text-2);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .cu-chart-track {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  align-items: flex-end;
+  width: 100%;
+  border-radius: 4px;
+  background: var(--ui-surface-2);
+}
+.admin-layout .cu-chart-track i {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  border-radius: 4px;
+  background: #8fbfa6;
+  transition: height 200ms ease;
+}
+.admin-layout .cu-chart-track i[data-today="true"] {
+  background: var(--ui-brand);
+}
+.admin-layout .cu-chart-col:hover .cu-chart-track i {
+  background: var(--ui-brand-strong);
+}
+.admin-layout .cu-chart-label {
+  height: 14px;
+  overflow: visible;
+  font-size: 10.5px;
+  color: var(--ui-text-3);
+  white-space: nowrap;
+}
+.admin-layout .cu-latest {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.admin-layout .cu-latest-title {
+  margin: 0 0 6px;
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ui-text-3);
+}
+.admin-layout .cu-latest-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 6px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.admin-layout .cu-latest-row:hover {
+  background: var(--ui-surface-2);
+}
+.admin-layout .cu-latest-row .cu-avatar {
+  width: 32px;
+  height: 32px;
+  font-size: 12px;
+}
+.admin-layout .cu-latest-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.admin-layout .cu-latest-name {
+  overflow: hidden;
+  font-weight: 600;
+  color: var(--ui-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-layout .cu-latest-time {
+  flex-shrink: 0;
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  color: var(--ui-brand-ink);
+  white-space: nowrap;
+}
+.admin-layout .cu-best-list {
+  margin: 0;
+  padding: 8px 12px 12px;
+  list-style: none;
+}
+.admin-layout .cu-best-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--ui-line);
+}
+.admin-layout .cu-best-list li:last-child {
+  border-bottom: 0;
+}
+.admin-layout .cu-best-amount {
+  flex-shrink: 0;
+  font-weight: 650;
+  color: var(--ui-text);
+}
+
+/* ── Avatar ──────────────────────────────────────────────────────── */
+.admin-layout .cu-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+.admin-layout .cu-avatar--lg {
+  width: 52px;
+  height: 52px;
+  font-size: 18px;
+}
+.admin-layout .cu-avatar[data-tone="0"] {
+  background: #e3f1e9;
+  color: #1d6143;
+}
+.admin-layout .cu-avatar[data-tone="1"] {
+  background: #e6eefb;
+  color: #285ba6;
+}
+.admin-layout .cu-avatar[data-tone="2"] {
+  background: #fbefdc;
+  color: #8a560a;
+}
+.admin-layout .cu-avatar[data-tone="3"] {
+  background: #f6e5ef;
+  color: #8e2f63;
+}
+.admin-layout .cu-avatar[data-tone="4"] {
+  background: #ece8f8;
+  color: #5340a0;
+}
+.admin-layout .cu-avatar[data-tone="5"] {
+  background: #e2f2f3;
+  color: #1c6c72;
+}
+
+/* ── Liste ───────────────────────────────────────────────────────── */
+.admin-layout .cu-list-card {
+  overflow: hidden;
+}
+.admin-layout .cu-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--ui-line);
+}
+.admin-layout .cu-search {
+  flex: 1 1 240px;
+  max-width: 360px;
+}
+.admin-layout .cu-active {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--ui-line);
+  background: var(--ui-brand-soft);
+}
+.admin-layout .cu-head,
+.admin-layout .cu-row {
+  display: grid;
+  grid-template-columns: minmax(240px, 2.3fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(150px, 1.1fr) 140px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+}
+.admin-layout .cu-head {
+  min-height: 38px;
+  border-bottom: 1px solid var(--ui-line);
+  background: var(--ui-surface-2);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+}
+.admin-layout .cu-head-check {
+  cursor: pointer;
+}
+.admin-layout .cu-row {
+  min-height: 62px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--ui-line);
+  background: var(--ui-surface);
+  transition: background-color var(--ui-ease);
+}
+.admin-layout .cu-row:hover {
+  background: var(--ui-surface-2);
+}
+.admin-layout .cu-row[data-selected="true"] {
+  background: var(--ui-brand-soft);
+}
+.admin-layout .cu-person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.admin-layout .cu-person-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.admin-layout .cu-person-btn:hover .cu-person-name {
+  color: var(--ui-brand-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.admin-layout .cu-person-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.admin-layout .cu-person-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  font-weight: 600;
+  color: var(--ui-text);
+  white-space: nowrap;
+}
+.admin-layout .cu-person-sub {
+  overflow: hidden;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-layout .cu-cell {
+  min-width: 0;
+}
+.admin-layout .cu-cell-label {
+  display: none;
+  margin-bottom: 2px;
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  color: var(--ui-text-3);
+}
+.admin-layout .cu-when {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.admin-layout .cu-when-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  color: var(--ui-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.admin-layout .cu-when-sub {
+  overflow: hidden;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .cu-new {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: var(--ui-ok-bg);
+  color: var(--ui-ok-ink);
+  font-size: 11px;
+  font-weight: 650;
+}
+.admin-layout .cu-device {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+.admin-layout .cu-device-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-2);
+}
+.admin-layout .cu-device-type svg {
+  width: 13px;
+  height: 13px;
+}
+.admin-layout .cu-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+}
+.admin-layout .cu-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 16px;
+}
+
+/* ── Müşteri detayı ──────────────────────────────────────────────── */
+.admin-layout .cu-detail-head {
+  align-items: center;
+}
+.admin-layout .cu-detail-id {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+.admin-layout .cu-detail-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.admin-layout .cu-contact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 4px;
+}
+.admin-layout .cu-contact a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text-2);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.admin-layout .cu-contact a:hover {
+  color: var(--ui-brand-ink);
+  text-decoration: underline;
+}
+.admin-layout .cu-contact svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.admin-layout .cu-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.admin-layout .cu-joined {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+}
+.admin-layout .cu-joined > svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.admin-layout .cu-joined-main {
+  margin: 0;
+  font-weight: 650;
+}
+.admin-layout .cu-joined .cu-when-sub {
+  color: var(--ui-brand-ink);
+  opacity: 0.85;
+  white-space: normal;
+}
+
+/* ── Duyarlı yerleşim ────────────────────────────────────────────── */
+@media (max-width: 1280px) {
+  .admin-layout .cu-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 1100px) {
+  .admin-layout .cu-top,
+  .admin-layout .cu-reg-body {
+    grid-template-columns: 1fr;
+  }
+  .admin-layout .cu-head {
+    display: none;
+  }
+  .admin-layout .cu-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px 12px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+  .admin-layout .cu-row > .cu-person {
+    grid-column: 1 / -1;
+  }
+  .admin-layout .cu-row > .cu-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+  .admin-layout .cu-cell-label {
+    display: block;
+  }
+}
+@media (max-width: 700px) {
+  .admin-layout .cu-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .admin-layout .cu-kpi {
+    padding: 12px;
+  }
+  .admin-layout .cu-kpi-icon {
+    display: none;
+  }
+  .admin-layout .cu-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .admin-layout .cu-row > .cu-cell:last-of-type {
+    grid-column: 1 / -1;
+  }
+  .admin-layout .cu-search {
+    max-width: none;
+  }
+  .admin-layout .cu-chart {
+    height: 150px;
+  }
+  .admin-layout .cu-detail-head {
+    align-items: flex-start;
+  }
+}

@@ -1,4 +1,5 @@
 import User from "../models/user.model.js";
+import { notifyAdmins } from "./adminFeed.service.js";
 
 // Mobil uygulama kullanım takibi.
 //
@@ -72,7 +73,7 @@ export const recordAppActivity = async (user, stage = null, { io = null, now = n
     return { newVisit: false };
   }
 
-  io?.to("adminRoom").emit("appOpened", {
+  notifyAdmins(io, "appOpened", {
     userId,
     name: started.name || "Müşteri",
     phone: started.phone || "",

@@ -5,6 +5,7 @@ import Order from "../models/order.model.js";
 import SupportRequest from "../models/supportRequest.model.js";
 import { answerUserMessage } from "../services/ai/assistant.service.js";
 import { sendPushToUser } from "../services/push.service.js";
+import { notifyAdmins } from "../services/adminFeed.service.js";
 import { takeOverChat, takeOverFailureMessage } from "../services/chatTakeover.service.js";
 
 // Yeni sohbet oluştur veya mevcut aktif sohbeti getir
@@ -252,7 +253,7 @@ export const sendMessage = async (req, res) => {
         
         // Global chat bildirim event'i - Admin panelinde herhangi bir sayfada bildirim göster
         const user = await User.findById(userId).select("name");
-        io.to("adminRoom").emit("newChatMessage", {
+        notifyAdmins(io, "newChatMessage", {
           chatId,
           message: chat.lastMessage,
           senderName: user?.name || "Kullanıcı",

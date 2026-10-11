@@ -18,7 +18,8 @@ export const getAllUsers = async (req, res) => {
     const formattedUsers = users.map(user => {
       // lastActive ve createdAt için güvenli dönüşüm
       const lastActive = user.lastActive ? new Date(user.lastActive) : null;
-      const createdAt = user.createdAt ? new Date(user.createdAt) : null;
+      // Kayıt tarihi: createdAt alanı olmayan eski hesaplarda kimliğin içindeki oluşturma zamanı kullanılır
+      const createdAt = user.createdAt ? new Date(user.createdAt) : (user._id?.getTimestamp?.() || null);
       const lastLoginAt = user.lastLoginAt ? new Date(user.lastLoginAt) : null;
 
       return {

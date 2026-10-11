@@ -1,11 +1,28 @@
 import { useState, useEffect, useMemo } from "react";
 import {
-  Users, Crown, Search, Edit2, Trash2, Key, X, Copy, Monitor, Smartphone, Tablet, Eye,
-  Clock, Download, RefreshCw, ArrowUpDown, Phone
+  Users, Crown, Search, Pencil, Trash2, Key, X, Copy, Monitor, Smartphone, Tablet, Eye,
+  Download, RefreshCw, Phone, Mail, UserPlus, CalendarDays, MessageCircle, Sparkles,
 } from "lucide-react";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
 import { useConfirm } from "./ConfirmModal";
+import {
+  REGISTRATION_RANGES,
+  avatarTone,
+  formatClock,
+  formatDate,
+  formatDateTime,
+  initials,
+  isNewMember,
+  lastSeenAt,
+  matchesSearch,
+  rangeStart,
+  registeredAt,
+  registrationSeries,
+  relativeTime,
+  toCsv,
+} from "../lib/customers";
+import "../styles/customers.css";
 
 // Device helpers
 const getDeviceIcon = (type) => {
@@ -20,8 +37,8 @@ const getDeviceName = (type) => ({ desktop: 'Bilgisayar', mobile: 'Telefon', tab
 // Veriler backend/services/appActivity.service.js tarafından doldurulur.
 const APP_PERIODS = [
   { id: 'today', label: 'Bugün' },
-  { id: 'week', label: 'Son 7 gün' },
-  { id: 'month', label: 'Son 30 gün' },
+  { id: 'week', label: '7 gün' },
+  { id: 'month', label: '30 gün' },
 ];
 // Sunucu uygulamanın kapandığını göremez; son istekten bu kadar sonra "uygulamada" sayılmaz.
 const APP_ONLINE_MS = 2 * 60 * 1000;
@@ -52,195 +69,255 @@ const APP_FILTERS = {
   noOrder: (user, since) => [1, 2].includes(getAppStage(user, since)),
   notOpened: (user, since) => getAppStage(user, since) === 0,
 };
-const formatDateTime = (value) => `${new Date(value).toLocaleDateString('tr-TR')} ${new Date(value).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`;
 
-const AppStatus = ({ user, since }) => {
-  const lastSeen = user.appActivity?.lastSeenAt;
-  if (!lastSeen) return null;
-  const badge = APP_STAGE_BADGES[getAppStage(user, since)];
-  return (
-    <span className="app-track-cell">
-      {badge && <span className={`ui-badge ui-badge--${badge.tone}`}>{badge.label}</span>}
-      <span className="ui-text-sm ui-muted ui-num">
-        {isInAppNow(user) ? <><span className="ui-dot ui-dot--ok" /> Şu an uygulamada</> : `Uygulama: ${formatDateTime(lastSeen)}`}
-      </span>
-    </span>
-  );
-};
-
-// Stat Card Component
-const StatCard = ({ label, value, tone }) => (
-  <div className="ui-stat">
-    <span className="ui-stat-label">
-      {tone && <span className={`ui-dot ui-dot--${tone}`} />}
-      {label}
-    </span>
-    <span className="ui-stat-value">{value}</span>
-  </div>
-);
+const SORTS = [
+  { id: 'seen', label: 'Son görülme' },
+  { id: 'newest', label: 'Kayıt: en yeni' },
+  { id: 'oldest', label: 'Kayıt: en eski' },
+  { id: 'name', label: 'İsim (A–Z)' },
+];
+const PAGE_SIZE = 40;
 
 const orderStatusTone = (status) =>
   status === 'Teslim Edildi' || status === 'delivered' ? 'ok' :
   status === 'İptal Edildi' || status === 'cancelled' ? 'danger' :
   status === 'Yolda' ? 'info' : 'warn';
 
-// User Detail Modal
-const UserDetailModal = ({ user, onClose, orders, chats, onOpenChat }) => {
-  if (!user) return null;
-  
-  // Kullanıcı istatistiklerini hesapla
+const money = (value) => `₺${Number(value || 0).toLocaleString('tr-TR', { maximumFractionDigits: 0 })}`;
+
+const Avatar = ({ name, size }) => (
+  <span className={`cu-avatar${size === 'lg' ? ' cu-avatar--lg' : ''}`} data-tone={avatarTone(name)} aria-hidden="true">
+    {initials(name)}
+  </span>
+);
+
+// Kayıt bilgisi: tarih + saat + ne kadar önce
+const Registered = ({ user, compact }) => {
+  const at = registeredAt(user);
+  if (!at) return <span className="ui-muted">-</span>;
+  return (
+    <span className="cu-when" title={formatDateTime(at)}>
+      <span className="cu-when-main">
+        {formatDate(at)}
+        {isNewMember(user) && <span className="cu-new">Yeni</span>}
+      </span>
+      {!compact && <span className="cu-when-sub">{formatClock(at)} · {relativeTime(at)}</span>}
+    </span>
+  );
+};
+
+const LastSeen = ({ user }) => {
+  const at = lastSeenAt(user);
+  if (!at) return <span className="ui-muted">Hiç görülmedi</span>;
+  const online = isInAppNow(user) || Date.now() - at.getTime() < 5 * 60000;
+  return (
+    <span className="cu-when" title={formatDateTime(at)}>
+      <span className="cu-when-main">
+        {online && <span className="ui-dot ui-dot--ok" />}
+        {online ? 'Şu an aktif' : relativeTime(at)}
+      </span>
+      <span className="cu-when-sub">{formatDateTime(at)}</span>
+    </span>
+  );
+};
+
+const AppStatus = ({ user, since }) => {
+  const badge = APP_STAGE_BADGES[getAppStage(user, since)];
+  return (
+    <span className="cu-device">
+      {user.deviceType && user.deviceType !== 'unknown' && (
+        <span className="cu-device-type" title={getDeviceName(user.deviceType)}>
+          {getDeviceIcon(user.deviceType)} {getDeviceName(user.deviceType)}
+        </span>
+      )}
+      {badge && <span className={`ui-badge ui-badge--${badge.tone}`}>{badge.label}</span>}
+      {!badge && user.appActivity?.lastSeenAt && <span className="cu-when-sub">Uygulama: {relativeTime(user.appActivity.lastSeenAt)}</span>}
+    </span>
+  );
+};
+
+// ── Kayıt grafiği ve son kayıt olanlar ───────────────────────────────
+const RegistrationsCard = ({ users, onView }) => {
+  const [days, setDays] = useState(14);
+  const series = useMemo(() => registrationSeries(users, days), [users, days]);
+  const total = series.reduce((sum, day) => sum + day.count, 0);
+  const max = Math.max(1, ...series.map((day) => day.count));
+  const latest = useMemo(
+    () => [...users].filter((user) => registeredAt(user)).sort((a, b) => registeredAt(b) - registeredAt(a)).slice(0, 6),
+    [users],
+  );
+  const labelEvery = days > 14 ? 5 : 2;
+
+  return (
+    <section className="ui-card cu-reg">
+      <div className="ui-card-header">
+        <div>
+          <h3 className="ui-title">Yeni kayıtlar</h3>
+          <p className="ui-subtitle">
+            Son {days} günde <strong className="ui-num">{total}</strong> kişi kayıt oldu
+          </p>
+        </div>
+        <div className="ui-segmented" role="group" aria-label="Grafik dönemi">
+          {[14, 30].map((value) => (
+            <button key={value} type="button" aria-pressed={days === value} onClick={() => setDays(value)}>
+              {value} gün
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="ui-card-body cu-reg-body">
+        <div className="cu-chart" role="img" aria-label={`Son ${days} günün günlük kayıt sayıları`}>
+          {series.map((day, index) => {
+            const date = new Date(day.start);
+            const isToday = index === series.length - 1;
+            return (
+              <div key={day.start} className="cu-chart-col" title={`${formatDate(date)}: ${day.count} kayıt`}>
+                <span className="cu-chart-value">{day.count || ''}</span>
+                <span className="cu-chart-track">
+                  <i style={{ height: `${(day.count / max) * 100}%` }} data-today={isToday} />
+                </span>
+                <span className="cu-chart-label">
+                  {isToday ? 'Bugün' : (series.length - 1 - index) % labelEvery === 0 ? date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }) : ''}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        <div className="cu-latest">
+          <p className="cu-latest-title">Son kayıt olanlar</p>
+          {latest.length === 0 && <p className="ui-muted ui-text-sm">Henüz kayıt yok</p>}
+          {latest.map((user) => (
+            <button key={user._id} type="button" className="cu-latest-row" onClick={() => onView(user)}>
+              <Avatar name={user.name} />
+              <span className="ui-grow cu-latest-text">
+                <span className="cu-latest-name">{user.name || 'İsimsiz'}</span>
+                <span className="cu-when-sub">{user.phone || user.email}</span>
+              </span>
+              <span className="cu-latest-time" title={formatDateTime(registeredAt(user))}>{relativeTime(registeredAt(user))}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+// ── Müşteri detayı ────────────────────────────────────────────────────
+const UserDetailModal = ({ user, onClose, orders, chats, onOpenChat, onEdit }) => {
   const userStats = useMemo(() => {
     if (!orders || orders.length === 0) {
       return { totalSpent: 0, orderCount: 0, avgOrderValue: 0, favoriteProducts: [], deliveredCount: 0 };
     }
-    
-    const totalSpent = orders.filter(o => o.status !== 'İptal Edildi').reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+    const valid = orders.filter(o => o.status !== 'İptal Edildi');
+    const totalSpent = valid.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
     const orderCount = orders.length;
-    const avgOrderValue = orderCount > 0 ? totalSpent / orderCount : 0;
+    const avgOrderValue = valid.length > 0 ? totalSpent / valid.length : 0;
     const deliveredCount = orders.filter(o => o.status === 'Teslim Edildi' || o.status === 'delivered').length;
-    
-    // Favori ürünleri hesapla
     const productCounts = {};
     orders.forEach(order => {
       order.products?.forEach(product => {
         const name = product.name;
-        if (!productCounts[name]) {
-          productCounts[name] = { name, count: 0, totalSpent: 0 };
-        }
+        if (!productCounts[name]) productCounts[name] = { name, count: 0, totalSpent: 0 };
         productCounts[name].count += product.quantity;
         productCounts[name].totalSpent += (product.price || 0) * product.quantity;
       });
     });
-    
     const favoriteProducts = Object.values(productCounts).sort((a, b) => b.count - a.count).slice(0, 5);
-    
     return { totalSpent, orderCount, avgOrderValue, favoriteProducts, deliveredCount };
   }, [orders]);
-  
+
+  useEffect(() => {
+    const onKey = (event) => event.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const joined = registeredAt(user);
+  const memberDays = joined ? Math.max(0, Math.floor((Date.now() - joined.getTime()) / 86400000)) : null;
+  const phoneDigits = String(user.phone || '').replace(/\D/g, '');
+  const whatsapp = phoneDigits ? `https://wa.me/${phoneDigits.startsWith('0') ? `9${phoneDigits}` : phoneDigits}` : null;
+  const firstOrder = orders?.length ? orders.reduce((first, order) => (new Date(order.createdAt) < new Date(first.createdAt) ? order : first)) : null;
+
   return (
     <div className="ui-modal-backdrop" onClick={onClose}>
-      <div
-        className="ui-modal ui-modal--wide"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Müşteri detayı"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="ui-modal-header">
-          <div className="order-card-head">
-            <div className="ui-avatar">
-              {user.name?.charAt(0).toUpperCase() || '?'}
-            </div>
-            <div className="order-card-id">
-              <h2 className="ui-title ui-cluster" style={{ gap: 6 }}>
+      <div className="ui-modal ui-modal--wide cu-detail" role="dialog" aria-modal="true" aria-label="Müşteri detayı" onClick={e => e.stopPropagation()}>
+        <div className="ui-modal-header cu-detail-head">
+          <div className="cu-detail-id">
+            <Avatar name={user.name} size="lg" />
+            <div className="ui-grow" style={{ minWidth: 0 }}>
+              <h2 className="ui-title cu-detail-name">
                 {user.name || 'İsimsiz'}
                 {user.role === 'admin' && <span className="ui-badge ui-badge--brand"><Crown /> Admin</span>}
+                {isNewMember(user) && <span className="cu-new">Yeni üye</span>}
               </h2>
-              <p className="ui-subtitle ui-wrap-anywhere">{user.email}</p>
-              {user.phone && <p className="orders-meta" style={{ marginTop: 2 }}><Phone /><span>{user.phone}</span></p>}
+              <div className="cu-contact">
+                <a href={`mailto:${user.email}`}><Mail />{user.email}</a>
+                {user.phone && <a href={`tel:${phoneDigits}`}><Phone />{user.phone}</a>}
+                {whatsapp && <a href={whatsapp} target="_blank" rel="noopener noreferrer"><MessageCircle />WhatsApp</a>}
+              </div>
             </div>
           </div>
-          <button onClick={onClose} className="ui-icon-btn" aria-label="Kapat">
-            <X />
-          </button>
+          <div className="cu-detail-actions">
+            <button onClick={() => onEdit(user)} className="ui-btn ui-btn--sm"><Pencil />Düzenle</button>
+            <button onClick={onClose} className="ui-icon-btn" aria-label="Kapat"><X /></button>
+          </div>
         </div>
 
         <div className="ui-modal-body ui-stack">
-          {/* User Stats Summary */}
-          <div className="ui-grid-4">
-            <div className="ui-stat">
-              <span className="ui-stat-label">Toplam Harcama</span>
-              <span className="ui-stat-value">₺{userStats.totalSpent.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</span>
-            </div>
-            <div className="ui-stat">
-              <span className="ui-stat-label">Toplam Sipariş</span>
-              <span className="ui-stat-value">{userStats.orderCount}</span>
-            </div>
-            <div className="ui-stat">
-              <span className="ui-stat-label">Ortalama Sepet</span>
-              <span className="ui-stat-value">₺{userStats.avgOrderValue.toFixed(0)}</span>
-            </div>
-            <div className="ui-stat">
-              <span className="ui-stat-label">Başarı Oranı</span>
-              <span className="ui-stat-value">{userStats.orderCount > 0 ? Math.round((userStats.deliveredCount / userStats.orderCount) * 100) : 0}%</span>
+          <div className="cu-joined">
+            <CalendarDays />
+            <div>
+              <p className="cu-joined-main">{joined ? `${formatDateTime(joined)} tarihinde kayıt oldu` : 'Kayıt tarihi bilinmiyor'}</p>
+              {joined && (
+                <p className="cu-when-sub">
+                  {relativeTime(joined)} · {memberDays === 0 ? 'bugün üye oldu' : `${memberDays} gündür üye`}
+                  {firstOrder && ` · ilk sipariş ${formatDate(firstOrder.createdAt)}`}
+                </p>
+              )}
             </div>
           </div>
 
-          {/* Info Grid */}
+          <div className="ui-grid-4 cu-detail-stats">
+            <div className="ui-stat"><span className="ui-stat-label">Toplam harcama</span><span className="ui-stat-value">{money(userStats.totalSpent)}</span></div>
+            <div className="ui-stat"><span className="ui-stat-label">Sipariş</span><span className="ui-stat-value">{userStats.orderCount}</span></div>
+            <div className="ui-stat"><span className="ui-stat-label">Ortalama sepet</span><span className="ui-stat-value">{money(userStats.avgOrderValue)}</span></div>
+            <div className="ui-stat"><span className="ui-stat-label">Teslim oranı</span><span className="ui-stat-value">{userStats.orderCount > 0 ? Math.round((userStats.deliveredCount / userStats.orderCount) * 100) : 0}%</span></div>
+          </div>
+
           <dl className="ui-kv">
-            <div>
-              <dt>Rol</dt>
-              <dd>{user.role === 'admin' ? 'Admin' : 'Müşteri'}</dd>
-            </div>
-            <div>
-              <dt>Kayıt Tarihi</dt>
-              <dd>{user.createdAt ? new Date(user.createdAt).toLocaleDateString('tr-TR') : '-'}</dd>
-            </div>
-            <div>
-              <dt>Cihaz</dt>
-              <dd className="ui-cluster" style={{ gap: 6 }}>
-                {getDeviceIcon(user.deviceType)}
-                {getDeviceName(user.deviceType)}
-              </dd>
-            </div>
-            {/* Login Info Cards */}
-            <div>
-              <dt>Son Giriş</dt>
-              {user.lastLoginAt ? (
-                <dd>
-                  {new Date(user.lastLoginAt).toLocaleDateString('tr-TR')}
-                  <span className="ui-muted"> {new Date(user.lastLoginAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
-                </dd>
-              ) : (
-                <dd className="ui-muted">Henüz giriş yapmadı</dd>
-              )}
-            </div>
-            <div>
-              <dt>Son Aktivite</dt>
-              {user.lastActive ? (
-                <dd>
-                  {new Date(user.lastActive).toLocaleDateString('tr-TR')}
-                  <span className="ui-muted"> {new Date(user.lastActive).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
-                </dd>
-              ) : (
-                <dd className="ui-muted">-</dd>
-              )}
-            </div>
-            {/* Mobil uygulama takibi */}
-            <div>
-              <dt>Uygulamada son görülme</dt>
-              {user.appActivity?.lastSeenAt ? (
-                <dd>{isInAppNow(user) ? 'Şu an uygulamada' : formatDateTime(user.appActivity.lastSeenAt)}</dd>
-              ) : (
-                <dd className="ui-muted">Kayıt yok</dd>
-              )}
-            </div>
-            <div>
-              <dt>Uygulama ziyareti</dt>
-              <dd className="ui-num">{user.appActivity?.visitCount || 0}</dd>
-            </div>
-            <div>
-              <dt>Sepet / sipariş ekranı</dt>
-              {user.appActivity?.checkoutAt ? <dd>{formatDateTime(user.appActivity.checkoutAt)}</dd> : <dd className="ui-muted">-</dd>}
-            </div>
-            <div>
-              <dt>Uygulamadan son sipariş</dt>
-              {user.appActivity?.orderAt ? <dd>{formatDateTime(user.appActivity.orderAt)}</dd> : <dd className="ui-muted">-</dd>}
-            </div>
+            <div><dt>Son görülme</dt><dd>{lastSeenAt(user) ? `${relativeTime(lastSeenAt(user))} · ${formatDateTime(lastSeenAt(user))}` : '-'}</dd></div>
+            <div><dt>Son giriş</dt><dd>{user.lastLoginAt ? formatDateTime(user.lastLoginAt) : <span className="ui-muted">Henüz giriş yapmadı</span>}</dd></div>
+            <div><dt>Cihaz</dt><dd className="ui-cluster" style={{ gap: 6 }}>{getDeviceIcon(user.deviceType)}{getDeviceName(user.deviceType)}</dd></div>
+            <div><dt>Uygulamada son görülme</dt><dd>{user.appActivity?.lastSeenAt ? (isInAppNow(user) ? 'Şu an uygulamada' : formatDateTime(user.appActivity.lastSeenAt)) : <span className="ui-muted">Kayıt yok</span>}</dd></div>
+            <div><dt>Uygulama ziyareti</dt><dd className="ui-num">{user.appActivity?.visitCount || 0}</dd></div>
+            <div><dt>Sepet / sipariş ekranı</dt><dd>{user.appActivity?.checkoutAt ? formatDateTime(user.appActivity.checkoutAt) : <span className="ui-muted">-</span>}</dd></div>
+            <div><dt>Uygulamadan son sipariş</dt><dd>{user.appActivity?.orderAt ? formatDateTime(user.appActivity.orderAt) : <span className="ui-muted">-</span>}</dd></div>
+            <div><dt>İptal / destek</dt><dd>{orders?.filter(o => o.status === 'İptal Edildi').length || 0} iptal · {chats?.length || 0} konuşma</dd></div>
           </dl>
 
-          {/* Favorite Products */}
+          {chats?.length > 0 && (
+            <div>
+              <h3 className="ui-overline" style={{ marginBottom: 8 }}>Destek konuşmaları</h3>
+              <div className="ui-stack ui-stack--sm">
+                {chats.map(chat => (
+                  <button key={chat._id} onClick={() => onOpenChat?.(chat._id)} className="ui-option">
+                    {chat.lastMessage || 'Destek konuşması'} · {new Date(chat.lastMessageAt).toLocaleDateString('tr-TR')}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {userStats.favoriteProducts.length > 0 && (
             <div>
-              <h3 className="ui-overline" style={{ marginBottom: 8 }}>Favori Ürünler</h3>
+              <h3 className="ui-overline" style={{ marginBottom: 8 }}>En çok aldıkları</h3>
               <div className="ui-grid-2" style={{ gap: 8 }}>
                 {userStats.favoriteProducts.map((product, i) => (
-                  <div key={i} className="ui-row">
+                  <div key={product.name} className="ui-row">
                     <span className="ui-rank">{i + 1}</span>
                     <div className="ui-grow">
                       <p className="ui-list-title ui-truncate">{product.name}</p>
-                      <p className="ui-list-sub">{product.count} adet • ₺{product.totalSpent.toFixed(0)}</p>
+                      <p className="ui-list-sub">{product.count} adet · {money(product.totalSpent)}</p>
                     </div>
                   </div>
                 ))}
@@ -248,30 +325,21 @@ const UserDetailModal = ({ user, onClose, orders, chats, onOpenChat }) => {
             </div>
           )}
 
-          {/* Orders Section */}
-          <div className="order-detail-box">
-            <h3 className="ui-overline">Müşteri özeti</h3>
-            <p className="ui-text-sm">İptal: {orders?.filter(o => o.status === 'İptal Edildi').length || 0} sipariş · Destek: {chats?.length || 0} konuşma</p>
-            <p className="ui-hint" style={{ marginTop: 0 }}>Toplam harcama iptal edilen siparişleri içermez. Ayrı iade kaydı tutulmuyor.</p>
-            {chats?.map(chat => <button key={chat._id} onClick={() => onOpenChat?.(chat._id)} className="ui-option">{chat.lastMessage || 'Destek konuşması'} · {new Date(chat.lastMessageAt).toLocaleDateString('tr-TR')}</button>)}
-          </div>
           <div>
             <h3 className="ui-between" style={{ marginBottom: 8 }}>
-              <span className="ui-overline">Sipariş Geçmişi</span>
-              <span className="ui-text-xs ui-muted">{orders?.length || 0} sipariş</span>
+              <span className="ui-overline">Sipariş geçmişi</span>
+              <span className="ui-text-xs ui-muted">{orders?.length || 0} sipariş · iptaller harcamaya dahil değil</span>
             </h3>
             {orders && orders.length > 0 ? (
               <div className="orders-product-list">
                 {orders.map((order, i) => (
-                  <div key={i} className="ui-row">
+                  <div key={order._id || i} className="ui-row">
                     <span className={`ui-dot ui-dot--${orderStatusTone(order.status)}`} />
                     <div className="ui-grow">
-                      <p className="ui-list-title ui-num">#{order._id?.slice(-6) || order.orderId?.slice(-6)}</p>
-                      <p className="ui-list-sub">{new Date(order.createdAt).toLocaleDateString('tr-TR')} • {order.products?.length || 0} ürün</p>
+                      <p className="ui-list-title ui-num">#{(order._id || order.orderId || '').slice(-6).toUpperCase()}</p>
+                      <p className="ui-list-sub">{formatDateTime(order.createdAt)} · {order.products?.length || 0} ürün</p>
                     </div>
-                    <span className={`ui-badge ui-badge--${orderStatusTone(order.status)}`}>
-                      {order.status || 'Beklemede'}
-                    </span>
+                    <span className={`ui-badge ui-badge--${orderStatusTone(order.status)}`}>{order.status || 'Beklemede'}</span>
                     <span className="orders-amount">₺{(order.totalAmount || 0).toFixed(2)}</span>
                   </div>
                 ))}
@@ -297,7 +365,7 @@ const EditUserModal = ({ user, onClose, onSave }) => {
       await onSave(user._id, form);
       onClose();
     } catch (e) {
-      console.error(e);
+      toast.error(e.response?.data?.message || 'Kaydedilemedi');
     } finally {
       setSaving(false);
     }
@@ -305,9 +373,9 @@ const EditUserModal = ({ user, onClose, onSave }) => {
 
   return (
     <div className="ui-modal-backdrop" onClick={onClose}>
-      <div className="ui-modal" role="dialog" aria-modal="true" aria-label="Kullanıcı Düzenle" onClick={e => e.stopPropagation()}>
+      <div className="ui-modal" role="dialog" aria-modal="true" aria-label="Müşteriyi düzenle" onClick={e => e.stopPropagation()}>
         <div className="ui-modal-header">
-          <h3 className="ui-title">Kullanıcı Düzenle</h3>
+          <h3 className="ui-title">Müşteriyi düzenle</h3>
           <button onClick={onClose} className="ui-icon-btn" aria-label="Kapat"><X /></button>
         </div>
         <div className="ui-modal-body ui-stack">
@@ -316,7 +384,7 @@ const EditUserModal = ({ user, onClose, onSave }) => {
             <input id="user-edit-name" type="text" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} className="ui-field" />
           </div>
           <div>
-            <label className="ui-label" htmlFor="user-edit-email">Email</label>
+            <label className="ui-label" htmlFor="user-edit-email">E-posta</label>
             <input id="user-edit-email" type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} className="ui-field" />
           </div>
           <div>
@@ -364,9 +432,9 @@ const PasswordModal = ({ user, onClose }) => {
 
   return (
     <div className="ui-modal-backdrop" onClick={onClose}>
-      <div className="ui-modal" role="dialog" aria-modal="true" aria-label="Şifre Sıfırla" onClick={e => e.stopPropagation()}>
+      <div className="ui-modal" role="dialog" aria-modal="true" aria-label="Şifre sıfırla" onClick={e => e.stopPropagation()}>
         <div className="ui-modal-header">
-          <h3 className="ui-title">Şifre Sıfırla</h3>
+          <h3 className="ui-title">Şifre sıfırla</h3>
           <button onClick={onClose} className="ui-icon-btn" aria-label="Kapat"><X /></button>
         </div>
         <div className="ui-modal-body ui-stack">
@@ -388,66 +456,39 @@ const PasswordModal = ({ user, onClose }) => {
   );
 };
 
-// User Row Component
+// Liste satırı
 const UserRow = ({ user, appSince, selected, onSelect, onView, onEdit, onResetPw, onDelete }) => (
-  <div className="ui-list-row users-cols" data-selected={selected}>
-    <div className="products-product">
-      {/* Checkbox */}
-      <input type="checkbox" checked={selected} onChange={() => onSelect(user._id)} aria-label={`${user.name || 'İsimsiz'} kullanıcısını seç`} className="ui-checkbox" />
-
-      {/* Avatar */}
-      <div className="ui-avatar">
-        {user.name?.charAt(0).toUpperCase() || '?'}
-      </div>
-
-      {/* Info */}
-      <div className="ui-grow">
-        <h4 className="ui-list-title ui-truncate">{user.name || 'İsimsiz'}</h4>
-        <p className="ui-list-sub ui-truncate">{user.email}</p>
-      </div>
-    </div>
-
-    {/* Role Badge */}
-    <div>
-      <span className="ui-cell-label">Rol</span>
-      <span className={`ui-badge ${user.role === 'admin' ? 'ui-badge--brand' : ''}`}>
-        {user.role === 'admin' && <Crown />}
-        {user.role === 'admin' ? 'Admin' : 'Müşteri'}
-      </span>
-    </div>
-
-    <div>
-      <span className="ui-cell-label">Son giriş</span>
-      <div className="ui-cluster ui-text-sm ui-muted ui-num" style={{ gap: 6 }}>
-        {user.lastLoginAt && (
-          <span className="orders-meta">
-            <Clock />
-            <span>{new Date(user.lastLoginAt).toLocaleDateString('tr-TR')} {new Date(user.lastLoginAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
+  <div className="cu-row" data-selected={selected}>
+    <div className="cu-person">
+      <input type="checkbox" checked={selected} onChange={() => onSelect(user._id)} aria-label={`${user.name || 'İsimsiz'} seç`} className="ui-checkbox" />
+      <button type="button" className="cu-person-btn" onClick={() => onView(user)}>
+        <Avatar name={user.name} />
+        <span className="cu-person-text">
+          <span className="cu-person-name">
+            {user.name || 'İsimsiz'}
+            {user.role === 'admin' && <span className="ui-badge ui-badge--brand"><Crown />Admin</span>}
           </span>
-        )}
-        {!user.lastLoginAt && user.lastActive && (
-          <span className="orders-meta">
-            <Clock /><span>{new Date(user.lastActive).toLocaleDateString('tr-TR')}</span>
-          </span>
-        )}
-        {!user.lastLoginAt && !user.lastActive && <span>-</span>}
-      </div>
+          <span className="cu-person-sub">{user.phone ? `${user.phone} · ${user.email}` : user.email}</span>
+        </span>
+      </button>
     </div>
-
-    <div>
-      <span className="ui-cell-label">Cihaz / Uygulama</span>
-      <div className="app-track-cell">
-        {user.deviceType ? <span className="ui-badge" title={getDeviceName(user.deviceType)}>{getDeviceIcon(user.deviceType)} {getDeviceName(user.deviceType)}</span> : <span className="ui-muted">-</span>}
-        <AppStatus user={user} since={appSince} />
-      </div>
+    <div className="cu-cell">
+      <span className="cu-cell-label">Kayıt</span>
+      <Registered user={user} />
     </div>
-
-    {/* Actions */}
-    <div className="products-actions">
-      <button onClick={() => onView(user)} className="ui-icon-btn" title="Görüntüle" aria-label="Görüntüle"><Eye /></button>
-      <button onClick={() => onEdit(user)} className="ui-icon-btn" title="Düzenle" aria-label="Düzenle"><Edit2 /></button>
-      <button onClick={() => onResetPw(user)} className="ui-icon-btn" title="Şifre Sıfırla" aria-label="Şifre Sıfırla"><Key /></button>
-      <button onClick={() => onDelete(user)} className="ui-icon-btn ui-icon-btn--danger" title="Sil" aria-label="Sil"><Trash2 /></button>
+    <div className="cu-cell">
+      <span className="cu-cell-label">Son görülme</span>
+      <LastSeen user={user} />
+    </div>
+    <div className="cu-cell">
+      <span className="cu-cell-label">Cihaz / uygulama</span>
+      <AppStatus user={user} since={appSince} />
+    </div>
+    <div className="cu-actions">
+      <button onClick={() => onView(user)} className="ui-icon-btn ui-icon-btn--sm" title="Detay" aria-label="Detay"><Eye /></button>
+      <button onClick={() => onEdit(user)} className="ui-icon-btn ui-icon-btn--sm" title="Düzenle" aria-label="Düzenle"><Pencil /></button>
+      <button onClick={() => onResetPw(user)} className="ui-icon-btn ui-icon-btn--sm" title="Şifre sıfırla" aria-label="Şifre sıfırla"><Key /></button>
+      <button onClick={() => onDelete(user)} className="ui-icon-btn ui-icon-btn--sm ui-icon-btn--danger" title="Sil" aria-label="Sil"><Trash2 /></button>
     </div>
   </div>
 );
@@ -456,9 +497,10 @@ const UserRow = ({ user, appSince, selected, onSelect, onView, onEdit, onResetPw
 const UsersTab = ({ users, loading, error, onRefresh, onOpenChat }) => {
   const [bestCustomers, setBestCustomers] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterRole, setFilterRole] = useState("all");
-  const [sortBy, setSortBy] = useState("lastActive");
-  const [sortDir, setSortDir] = useState("desc");
+  const [filterRole, setFilterRole] = useState("customer");
+  const [registered, setRegistered] = useState("all");
+  const [sortBy, setSortBy] = useState("seen");
+  const [visible, setVisible] = useState(PAGE_SIZE);
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [viewUser, setViewUser] = useState(null);
   const [editUser, setEditUser] = useState(null);
@@ -468,7 +510,7 @@ const UsersTab = ({ users, loading, error, onRefresh, onOpenChat }) => {
   const [loadingBest, setLoadingBest] = useState(false);
   const [appPeriod, setAppPeriod] = useState("today");
   const [appFilter, setAppFilter] = useState(null);
-  // "Şu an uygulamada" bilgisi zamana bağlıdır; yeni veri gelmese de 20 saniyede bir yeniden hesaplanır
+  // "Şu an uygulamada" ve "x dk önce" zamana bağlıdır; yeni veri gelmese de 20 saniyede bir yeniden hesaplanır
   const [clock, setClock] = useState(0);
   useEffect(() => {
     const timer = setInterval(() => setClock(value => value + 1), 20000);
@@ -478,6 +520,9 @@ const UsersTab = ({ users, loading, error, onRefresh, onOpenChat }) => {
   useEffect(() => {
     fetchBestCustomers();
   }, []);
+
+  // Süzgeç değişince liste başa döner
+  useEffect(() => setVisible(PAGE_SIZE), [searchTerm, filterRole, registered, sortBy, appFilter]);
 
   const fetchBestCustomers = async () => {
     setLoadingBest(true);
@@ -502,7 +547,7 @@ const UsersTab = ({ users, loading, error, onRefresh, onOpenChat }) => {
   const handleSaveUser = async (userId, data) => {
     const res = await axios.put(`/users/${userId}`, data);
     if (res.data.success) {
-      toast.success("Kullanıcı güncellendi!");
+      toast.success("Müşteri güncellendi");
       onRefresh?.();
     }
   };
@@ -511,9 +556,9 @@ const UsersTab = ({ users, loading, error, onRefresh, onOpenChat }) => {
 
   const handleDeleteUser = async (user) => {
     const confirmed = await confirm({
-      title: 'Kullanıcıyı Sil',
+      title: 'Müşteriyi sil',
       message: `"${user.name}" adlı kullanıcıyı silmek istediğinize emin misiniz?`,
-      confirmText: 'Evet, Sil',
+      confirmText: 'Evet, sil',
       cancelText: 'İptal',
       type: 'danger'
     });
@@ -527,102 +572,165 @@ const UsersTab = ({ users, loading, error, onRefresh, onOpenChat }) => {
 
   const handleBulkDelete = async () => {
     const confirmed = await confirm({
-      title: 'Toplu Silme',
+      title: 'Toplu silme',
       message: `${selectedUsers.length} kullanıcıyı silmek istediğinize emin misiniz?`,
-      confirmText: 'Evet, Hepsini Sil',
+      confirmText: 'Evet, hepsini sil',
       cancelText: 'İptal',
       type: 'danger'
     });
     if (!confirmed) return;
+    let failed = 0;
     for (const id of selectedUsers) {
-      try { await axios.delete(`/users/${id}`); } catch {}
+      try { await axios.delete(`/users/${id}`); } catch { failed += 1; }
     }
-    toast.success("Kullanıcılar silindi");
+    if (failed) toast.error(`${failed} kullanıcı silinemedi`);
+    else toast.success("Kullanıcılar silindi");
     setSelectedUsers([]);
     onRefresh?.();
   };
 
-  const exportCSV = () => {
-    const headers = ['İsim', 'Email', 'Rol', 'Kayıt Tarihi', 'Son Aktif'];
-    const rows = filteredUsers.map(u => [u.name, u.email, u.role, u.createdAt ? new Date(u.createdAt).toLocaleDateString('tr-TR') : '', u.lastActive ? new Date(u.lastActive).toLocaleDateString('tr-TR') : '']);
-    const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'kullanicilar.csv';
-    link.click();
-    toast.success('CSV indirildi');
-  };
-
   const toggleSelect = (id) => setSelectedUsers(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
-  const selectAll = () => setSelectedUsers(filteredUsers.map(u => u._id));
   const clearSelection = () => setSelectedUsers([]);
 
   // Liste yenilendiğinde dönem başlangıcı da yeniden hesaplanır
   const appSince = useMemo(() => appPeriodStart(appPeriod), [appPeriod, users]);
+  const customers = useMemo(() => users.filter(u => u.role !== 'admin'), [users]);
+
   // Uygulama takibinde yalnızca müşteriler sayılır (yönetici hesapları izlenmez)
   const appTiles = useMemo(() => {
-    const customers = users.filter(u => u.role !== 'admin');
     const count = (id) => customers.filter(u => APP_FILTERS[id](u, appSince)).length;
     return [
       { id: 'now', label: 'Şu an uygulamada', value: count('now'), tone: 'ok' },
       { id: 'opened', label: 'Uygulamayı açtı', value: count('opened') },
-      { id: 'checkout', label: 'Sepet / sipariş ekranına girdi', value: count('checkout') },
+      { id: 'checkout', label: 'Sepet / sipariş ekranı', value: count('checkout') },
       { id: 'ordered', label: 'Sipariş verdi', value: count('ordered') },
       { id: 'noOrder', label: 'Açtı, sipariş vermedi', value: count('noOrder'), tone: 'warn' },
       { id: 'notOpened', label: 'Hiç açmadı', value: count('notOpened') },
     ];
-  }, [users, appSince, clock]);
+  }, [customers, appSince, clock]);
+
+  const stats = useMemo(() => {
+    const regCount = (range) => customers.filter(u => (registeredAt(u)?.getTime() || 0) >= rangeStart(range)).length;
+    return {
+      customers: customers.length,
+      admins: users.length - customers.length,
+      today: regCount('today'),
+      week: regCount('week'),
+      month: regCount('month'),
+      active24h: customers.filter(u => (lastSeenAt(u)?.getTime() || 0) > Date.now() - 86400000).length,
+    };
+  }, [users, customers, clock]);
 
   const filteredUsers = useMemo(() => {
-    let result = users.filter(u => {
-      const matchSearch = u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || u.email?.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchRole = filterRole === 'all' || u.role === filterRole;
-      const matchApp = !appFilter || (u.role !== 'admin' && APP_FILTERS[appFilter](u, appSince));
-      return matchSearch && matchRole && matchApp;
+    const since = rangeStart(registered);
+    const result = users.filter(u => {
+      if (filterRole !== 'all' && u.role !== filterRole) return false;
+      if (registered !== 'all' && (registeredAt(u)?.getTime() || 0) < since) return false;
+      if (appFilter && (u.role === 'admin' || !APP_FILTERS[appFilter](u, appSince))) return false;
+      return matchesSearch(u, searchTerm);
     });
-    result.sort((a, b) => {
-      let aVal = a[sortBy], bVal = b[sortBy];
-      if (sortBy === 'lastActive' || sortBy === 'createdAt') {
-        aVal = aVal ? new Date(aVal).getTime() : 0;
-        bVal = bVal ? new Date(bVal).getTime() : 0;
-      }
-      if (sortDir === 'asc') return aVal > bVal ? 1 : -1;
-      return aVal < bVal ? 1 : -1;
-    });
-    return result;
-  }, [users, searchTerm, filterRole, sortBy, sortDir, appFilter, appSince, clock]);
+    const time = (date) => date?.getTime() || 0;
+    const sorters = {
+      seen: (a, b) => time(lastSeenAt(b)) - time(lastSeenAt(a)),
+      newest: (a, b) => time(registeredAt(b)) - time(registeredAt(a)),
+      oldest: (a, b) => time(registeredAt(a)) - time(registeredAt(b)),
+      name: (a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'tr'),
+    };
+    return result.sort(sorters[sortBy] || sorters.seen);
+  }, [users, searchTerm, filterRole, registered, sortBy, appFilter, appSince, clock]);
 
-  const stats = {
-    total: users.length,
-    admins: users.filter(u => u.role === 'admin').length,
-    customers: users.filter(u => u.role === 'customer').length,
-    active24h: users.filter(u => u.lastActive && new Date(u.lastActive) > new Date(Date.now() - 86400000)).length
+  const shown = filteredUsers.slice(0, visible);
+  const allShownSelected = shown.length > 0 && shown.every(u => selectedUsers.includes(u._id));
+  const toggleAllShown = () => setSelectedUsers(allShownSelected ? [] : shown.map(u => u._id));
+
+  const exportCSV = () => {
+    const rows = [
+      ['İsim', 'E-posta', 'Telefon', 'Rol', 'Kayıt tarihi', 'Son görülme', 'Uygulama ziyareti'],
+      ...filteredUsers.map(u => [
+        u.name, u.email, u.phone || '', u.role === 'admin' ? 'Admin' : 'Müşteri',
+        formatDateTime(registeredAt(u)), formatDateTime(lastSeenAt(u)), u.appActivity?.visitCount || 0,
+      ]),
+    ];
+    const blob = new Blob([toCsv(rows)], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `musteriler-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    toast.success(`${filteredUsers.length} kişi CSV olarak indirildi`);
   };
 
   if (loading) return <div className="ui-loading"><div className="ui-loader" /></div>;
   if (error) return <div className="ui-card ui-empty"><p className="ui-badge ui-badge--danger">{error}</p></div>;
 
+  const kpis = [
+    { label: 'Müşteri', value: stats.customers, sub: `${stats.admins} yönetici hariç`, icon: Users },
+    { label: 'Bugün kayıt', value: stats.today, sub: 'Bugün üye olanlar', icon: UserPlus, tone: stats.today ? 'ok' : null, onClick: () => { setRegistered('today'); setSortBy('newest'); setFilterRole('customer'); } },
+    { label: 'Son 7 gün', value: stats.week, sub: 'Yeni kayıt', icon: CalendarDays, onClick: () => { setRegistered('week'); setSortBy('newest'); setFilterRole('customer'); } },
+    { label: 'Son 30 gün', value: stats.month, sub: 'Yeni kayıt', icon: Sparkles, onClick: () => { setRegistered('month'); setSortBy('newest'); setFilterRole('customer'); } },
+    { label: 'Son 24 saat aktif', value: stats.active24h, sub: 'Web veya uygulama', icon: Eye, tone: 'info' },
+  ];
+
   return (
-    <div className="ui-page">
-      {/* Stats */}
-      <div className="ui-stats">
-        <StatCard label="Toplam Kullanıcı" value={stats.total} />
-        <StatCard label="Adminler" value={stats.admins} />
-        <StatCard label="Müşteriler" value={stats.customers} />
-        <StatCard label="Son 24 Saat Aktif" value={stats.active24h} tone="ok" />
+    <div className="ui-page cu">
+      <div className="cu-kpis">
+        {kpis.map(({ label, value, sub, icon: Icon, tone, onClick }) => {
+          const Tag = onClick ? 'button' : 'div';
+          return (
+            <Tag key={label} {...(onClick ? { type: 'button', onClick, title: 'Listede göster' } : {})} className={`cu-kpi${onClick ? ' cu-kpi--link' : ''}`}>
+              <span className="cu-kpi-icon" data-tone={tone || undefined}><Icon /></span>
+              <span className="cu-kpi-text">
+                <span className="cu-kpi-label">{label}</span>
+                <span className="cu-kpi-value ui-num">{value}</span>
+                <span className="cu-kpi-sub">{sub}</span>
+              </span>
+            </Tag>
+          );
+        })}
       </div>
 
-      {/* Mobil uygulama takibi */}
+      <div className="cu-top">
+        <RegistrationsCard users={customers} onView={handleViewUser} />
+
+        <section className="ui-card cu-best">
+          <div className="ui-card-header">
+            <div>
+              <h3 className="ui-title">En iyi müşteriler</h3>
+              <p className="ui-subtitle">Toplam harcamaya göre</p>
+            </div>
+          </div>
+          {loadingBest ? (
+            <div className="ui-loading"><div className="ui-loader" /></div>
+          ) : bestCustomers.length === 0 ? (
+            <p className="ui-loading">Henüz veri yok</p>
+          ) : (
+            <ol className="cu-best-list">
+              {bestCustomers.slice(0, 6).map((c, i) => (
+                <li key={c.userId}>
+                  <span className="ui-rank">{i + 1}</span>
+                  <span className="ui-grow cu-latest-text">
+                    <span className="cu-latest-name">{c.name}</span>
+                    <span className="cu-when-sub">{c.orderCount} sipariş</span>
+                  </span>
+                  <span className="cu-best-amount ui-num">{money(c.totalSpent)}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+      </div>
+
       <section className="ui-card">
         <div className="ui-card-header">
           <div>
             <h3 className="ui-title">Uygulama takibi</h3>
-            <p className="ui-subtitle">Mobil uygulamayı açan müşteriler ve siparişe kadar geldikleri adım. Bir kutuya tıklayınca aşağıdaki liste süzülür.</p>
+            <p className="ui-subtitle">Mobil uygulamayı açan müşteriler ve siparişe kadar geldikleri adım. Kutuya tıklayınca liste süzülür.</p>
           </div>
-          <select value={appPeriod} onChange={e => setAppPeriod(e.target.value)} aria-label="Uygulama takibi dönemi" className="ui-field ui-field--auto">
-            {APP_PERIODS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
-          </select>
+          <div className="ui-segmented" role="group" aria-label="Uygulama takibi dönemi">
+            {APP_PERIODS.map(p => (
+              <button key={p.id} type="button" aria-pressed={appPeriod === p.id} onClick={() => setAppPeriod(p.id)}>{p.label}</button>
+            ))}
+          </div>
         </div>
         <div className="ui-card-body app-track">
           {appTiles.map(tile => (
@@ -637,55 +745,35 @@ const UsersTab = ({ users, loading, error, onRefresh, onOpenChat }) => {
         </div>
       </section>
 
-      {/* Best Customers */}
-      <section className="ui-card">
-        <div className="ui-card-header">
-          <h3 className="ui-title">En İyi Müşteriler</h3>
-        </div>
-        {loadingBest ? (
-          <div className="ui-loading"><div className="ui-loader" /></div>
-        ) : bestCustomers.length === 0 ? (
-          <p className="ui-loading">Henüz veri yok</p>
-        ) : (
-          <div className="ui-card-body users-best">
-            {bestCustomers.slice(0, 5).map((c, i) => (
-              <div key={c.userId} className="ui-row">
-                {i < 5 && <span className="ui-rank">{i + 1}</span>}
-                <div className="ui-grow">
-                  <p className="ui-list-title ui-truncate">{c.name}</p>
-                  <p className="ui-list-sub ui-truncate">{c.email}</p>
-                  <p className="ui-list-sub"><span className="ui-strong ui-num">₺{c.totalSpent?.toFixed(0)}</span> · {c.orderCount} sipariş</p>
-                </div>
-              </div>
+      <section className="ui-card cu-list-card">
+        <div className="cu-toolbar">
+          <label className="ui-search cu-search">
+            <Search />
+            <input type="search" placeholder="İsim, e-posta veya telefon ara" aria-label="Müşteri ara" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="ui-field" />
+          </label>
+          <div className="ui-segmented" role="group" aria-label="Rol">
+            {[['customer', 'Müşteriler'], ['admin', 'Yöneticiler'], ['all', 'Tümü']].map(([id, label]) => (
+              <button key={id} type="button" aria-pressed={filterRole === id} onClick={() => setFilterRole(id)}>{label}</button>
             ))}
           </div>
-        )}
-      </section>
-
-      {/* User List */}
-      <section className="ui-card" style={{ overflow: "hidden" }}>
-        {/* Toolbar */}
-        <div className="ui-card-body ui-cluster" style={{ borderBottom: "1px solid var(--ui-line)" }}>
-          <div className="ui-search ui-grow" style={{ flexBasis: 220 }}>
-            <Search />
-            <input type="text" placeholder="Ara..." aria-label="Kullanıcı ara" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="ui-field" />
-          </div>
-          <select value={filterRole} onChange={e => setFilterRole(e.target.value)} aria-label="Rol filtresi" className="ui-field ui-field--auto">
-            <option value="all">Tümü</option>
-            <option value="admin">Admin</option>
-            <option value="customer">Müşteri</option>
+          <select value={registered} onChange={e => setRegistered(e.target.value)} aria-label="Kayıt tarihi" className="ui-field ui-field--auto">
+            {REGISTRATION_RANGES.map(r => <option key={r.id} value={r.id}>{r.id === 'all' ? 'Kayıt: tüm zamanlar' : `Kayıt: ${r.label.toLocaleLowerCase('tr-TR')}`}</option>)}
           </select>
-          <button onClick={() => { setSortDir(sortDir === 'asc' ? 'desc' : 'asc'); }} className="ui-btn" style={{ minHeight: 38 }}><ArrowUpDown />{sortDir === 'asc' ? 'Artan' : 'Azalan'}</button>
-          <button onClick={exportCSV} className="ui-btn" style={{ minHeight: 38 }}><Download />CSV</button>
-          <button onClick={onRefresh} className="ui-btn" style={{ minHeight: 38 }}><RefreshCw />Yenile</button>
+          <select value={sortBy} onChange={e => setSortBy(e.target.value)} aria-label="Sıralama" className="ui-field ui-field--auto">
+            {SORTS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+          </select>
+          <span className="ui-grow" />
+          <button onClick={exportCSV} className="ui-btn ui-btn--sm"><Download />CSV</button>
+          <button onClick={onRefresh} className="ui-btn ui-btn--sm"><RefreshCw />Yenile</button>
         </div>
 
-        {appFilter && (
-          <div className="ui-card-body ui-cluster app-track-active">
-            <span className="ui-badge ui-badge--brand">{appTiles.find(t => t.id === appFilter)?.label}</span>
-            <span className="ui-text-sm ui-muted">{filteredUsers.length} müşteri{appFilter !== 'now' ? ` · ${APP_PERIODS.find(p => p.id === appPeriod)?.label}` : ''}</span>
+        {(appFilter || registered !== 'all' || searchTerm) && (
+          <div className="cu-active">
+            <span className="ui-text-sm"><strong className="ui-num">{filteredUsers.length}</strong> kişi</span>
+            {registered !== 'all' && <span className="ui-badge ui-badge--brand">Kayıt: {REGISTRATION_RANGES.find(r => r.id === registered)?.label}</span>}
+            {appFilter && <span className="ui-badge ui-badge--brand">{appTiles.find(t => t.id === appFilter)?.label}{appFilter !== 'now' ? ` · ${APP_PERIODS.find(p => p.id === appPeriod)?.label}` : ''}</span>}
             <span className="ui-grow" />
-            <button onClick={() => setAppFilter(null)} className="ui-btn ui-btn--ghost ui-btn--sm"><X />Süzgeci kaldır</button>
+            <button onClick={() => { setAppFilter(null); setRegistered('all'); setSearchTerm(''); }} className="ui-btn ui-btn--ghost ui-btn--sm"><X />Süzgeçleri kaldır</button>
           </div>
         )}
 
@@ -693,28 +781,36 @@ const UsersTab = ({ users, loading, error, onRefresh, onOpenChat }) => {
           <div className="ui-bulkbar" style={{ position: "static", border: 0, borderRadius: 0, borderBottom: "1px solid #b9d6c6" }}>
             <span className="ui-bulkbar-count">{selectedUsers.length} kullanıcı seçildi</span>
             <span className="ui-grow" />
-            <button onClick={handleBulkDelete} className="ui-btn ui-btn--sm ui-btn--danger"><Trash2 />{selectedUsers.length} Sil</button>
+            <button onClick={handleBulkDelete} className="ui-btn ui-btn--sm ui-btn--danger"><Trash2 />{selectedUsers.length} sil</button>
             <button onClick={clearSelection} className="ui-icon-btn" title="Seçimi temizle" aria-label="Seçimi temizle"><X /></button>
           </div>
         )}
 
-        <div className="ui-list-head users-cols">
-          <div className="ui-cluster"><button onClick={selectAll} className="ui-btn ui-btn--ghost ui-btn--sm" style={{ marginLeft: -8 }}>Tümünü Seç</button></div>
-          <div>Rol</div>
-          <div>Son giriş</div>
-          <div>Cihaz / Uygulama</div>
-          <div className="ui-right">İşlemler</div>
+        <div className="cu-head">
+          <label className="cu-person cu-head-check">
+            <input type="checkbox" className="ui-checkbox" checked={allShownSelected} onChange={toggleAllShown} aria-label="Görünenlerin hepsini seç" />
+            <span>Müşteri</span>
+          </label>
+          <span>Kayıt</span>
+          <span>Son görülme</span>
+          <span>Cihaz / uygulama</span>
+          <span className="ui-right">İşlemler</span>
         </div>
-        <div>
-          {filteredUsers.map(user => (
+        <div className="cu-rows">
+          {shown.map(user => (
             <UserRow key={user._id} user={user} appSince={appSince} selected={selectedUsers.includes(user._id)} onSelect={toggleSelect} onView={handleViewUser} onEdit={setEditUser} onResetPw={setPwUser} onDelete={handleDeleteUser} />
           ))}
         </div>
-        {filteredUsers.length === 0 && <div className="ui-empty"><Users /><p>Kullanıcı bulunamadı</p></div>}
+        {filteredUsers.length === 0 && <div className="ui-empty"><Users /><p>Bu süzgeçlere uyan kişi yok</p></div>}
+        {filteredUsers.length > shown.length && (
+          <div className="cu-more">
+            <span className="ui-text-sm ui-muted">{shown.length} / {filteredUsers.length} gösteriliyor</span>
+            <button type="button" className="ui-btn ui-btn--sm" onClick={() => setVisible(v => v + PAGE_SIZE)}>Daha fazla göster</button>
+          </div>
+        )}
       </section>
 
-      {/* Modals */}
-      {viewUser && <UserDetailModal user={viewUser} orders={userOrders} chats={userChats} onOpenChat={onOpenChat} onClose={() => setViewUser(null)} />}
+      {viewUser && <UserDetailModal user={viewUser} orders={userOrders} chats={userChats} onOpenChat={onOpenChat} onEdit={(u) => { setViewUser(null); setEditUser(u); }} onClose={() => setViewUser(null)} />}
       {editUser && <EditUserModal user={editUser} onClose={() => setEditUser(null)} onSave={handleSaveUser} />}
       {pwUser && <PasswordModal user={pwUser} onClose={() => setPwUser(null)} />}
     </div>

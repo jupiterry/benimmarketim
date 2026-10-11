@@ -38,15 +38,15 @@ import SiteMessagesTab from "../components/SiteMessagesTab";
 
 import { Package, Upload } from "lucide-react";
 
-const loadStoredNotifications = () => {
-  try {
-    return JSON.parse(
-      localStorage.getItem("admin-order-notifications") || "[]",
-    );
-  } catch {
-    return [];
-  }
+// Zil bildirimleri sunucuda saklanır (her cihazda aynı liste). Saat: bugünse "18:52", değilse "10 Eki 18:52".
+const notificationTime = (at) => {
+  const date = new Date(at || Date.now());
+  const clock = date.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+  return date.toDateString() === new Date().toDateString()
+    ? clock
+    : `${date.toLocaleDateString("tr-TR", { day: "numeric", month: "short" })} ${clock}`;
 };
+const withTime = (item) => ({ ...item, time: notificationTime(item.at) });
 
 // Bulk Upload Section Component
 const BulkUploadSection = ({ onUpload }) => (
@@ -90,7 +90,7 @@ const AdminPage = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [notifications, setNotifications] = useState(loadStoredNotifications);
+  const [notifications, setNotifications] = useState([]);
   const [lastSync, setLastSync] = useState(null);
   const [adminBadges, setAdminBadges] = useState({ orders: 0, chats: 0 });
   const activeTabRef = useRef(activeTab);
@@ -289,30 +289,53 @@ const AdminPage = () => {
   }, [fetchAllProducts]);
 
   // Yeni siparişleri yönetici panelinin hangi sekmesi açık olursa olsun dinle.
-  // Liste localStorage'da tutulduğu için sayfa yenilendiğinde de kaybolmaz.
+  // Bildirimler sunucuda da saklanır: panel açılınca, bağlantı yenilenince ve sekmeye dönülünce
+  // sunucudaki liste okunur; böylece başka bilgisayarda ya da aynı hesapla başka cihazda da görünür.
   useEffect(() => {
     if (user?.role !== "admin") return undefined;
 
     const socket = socketService.connect();
     window.__adminGlobalOrderNotifications = true;
+    // Eski sürümün bu tarayıcıya özel listesi artık kullanılmıyor
+    try {
+      localStorage.removeItem("admin-order-notifications");
+    } catch {
+      // tarayıcı depolaması kapalı olabilir
+    }
 
-    const joinAdminRoom = () => socketService.joinAdminRoom(user?.accessToken);
-    const nowLabel = () =>
-      new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+    let cancelled = false;
+    const loadFeed = async () => {
+      try {
+        const response = await axios.get("/admin-notifications");
+        if (!cancelled) setNotifications((response.data?.items || []).map(withTime));
+      } catch {
+        // Ağ hatasında mevcut liste korunur; bir sonraki bağlantıda yeniden denenir
+      }
+    };
+    const joinAdminRoom = () => {
+      socketService.joinAdminRoom(user?.accessToken);
+      loadFeed();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") loadFeed();
+    };
+    const nowLabel = () => notificationTime(Date.now());
     const pushNotification = (notification) => {
       setNotifications((current) => {
         // Uygulama açılışları sık gelir; sipariş ve mesaj bildirimlerini
-        // listeden itmemesi için en yeni 10 tanesi tutulur.
+        // listeden itmemesi için en yeni 10 tanesi tutulur (sunucu da aynı kuralı uygular).
         let appOpens = 0;
-        const next = [
-          notification,
+        return [
+          { at: new Date().toISOString(), ...notification },
           ...current.filter((item) => item.id !== notification.id),
         ]
           .filter((item) => item.kind !== "app-open" || ++appOpens <= 10)
           .slice(0, 30);
-        localStorage.setItem("admin-order-notifications", JSON.stringify(next));
-        return next;
       });
+    };
+    // Aynı hesap başka bir cihazda "Bildirimleri temizle" dediyse burada da temizlenir
+    const handleFeedCleared = (data) => {
+      if (data?.userId && String(data.userId) === String(user?._id)) setNotifications([]);
     };
     // Yapay zekânın ekibe aktardığı destek talepleri
     const handleSupportRequest = (data) => {
@@ -401,13 +424,8 @@ const AdminPage = () => {
       const notification = {
         id: order.id,
         message: `${order.customerName || "Müşteri"} yeni sipariş verdi · ₺${Number(order.totalAmount || 0).toFixed(2)}`,
-        time: new Date(order.createdAt || Date.now()).toLocaleTimeString(
-          "tr-TR",
-          {
-            hour: "2-digit",
-            minute: "2-digit",
-          },
-        ),
+        at: new Date(order.createdAt || Date.now()).toISOString(),
+        time: notificationTime(order.createdAt),
         order,
       };
 
@@ -494,7 +512,10 @@ const AdminPage = () => {
     socket.on("newChatMessage", handleChatMessage);
     socket.on("appOpened", handleAppOpened);
     socket.on("appSeen", handleAppSeen);
+    socket.on("adminFeedCleared", handleFeedCleared);
+    document.addEventListener("visibilitychange", onVisible);
     if (socket.connected) joinAdminRoom();
+    else loadFeed();
 
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission().catch(() => {});
@@ -507,13 +528,19 @@ const AdminPage = () => {
       socket.off("newChatMessage", handleChatMessage);
       socket.off("appOpened", handleAppOpened);
       socket.off("appSeen", handleAppSeen);
+      socket.off("adminFeedCleared", handleFeedCleared);
+      document.removeEventListener("visibilitychange", onVisible);
+      cancelled = true;
       window.__adminGlobalOrderNotifications = false;
     };
-  }, [user?.role, user?.accessToken]);
+  }, [user?.role, user?.accessToken, user?._id]);
 
+  // Temizleme hesaba işlenir: aynı hesapla açık diğer cihazlarda da liste boşalır
   const clearNotifications = useCallback(() => {
     setNotifications([]);
-    localStorage.removeItem("admin-order-notifications");
+    axios.post("/admin-notifications/clear").catch(() => {
+      toast.error("Bildirimler sunucuda temizlenemedi; sayfa yenilenince geri gelebilir.");
+    });
   }, []);
 
   const handleEdit = (product) => {

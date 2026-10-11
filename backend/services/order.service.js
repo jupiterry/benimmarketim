@@ -11,6 +11,7 @@ import WeeklyProduct from "../models/weeklyProduct.model.js";
 import Coupon from "../models/coupon.model.js";
 import Order from "../models/order.model.js";
 import { sendOrderNotification } from "./n8n.service.js";
+import { notifyAdmins } from "./adminFeed.service.js";
 import {
   commitCouponAtomically,
   evaluateCoupon,
@@ -200,7 +201,7 @@ export function dispatchOrderNotifications(io, newOrder, requestUser, phone) {
     if (!io) {
       console.error("dispatchOrderNotifications: Socket.IO nesnesi bulunamadı!");
     } else {
-      io.to("adminRoom").emit("newOrder", {
+      notifyAdmins(io, "newOrder", {
         message: "Yeni bir sipariş geldi!",
         order: {
           id: newOrder._id.toString(),
