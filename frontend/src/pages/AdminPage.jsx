@@ -16,6 +16,7 @@ import CommandPalette from "../components/admin/CommandPalette";
 // Tab Components
 import CreateProductForm from "../components/CreateProductForm";
 import ProductAssistTab from "../components/ProductAssistTab";
+import PriceWatchTab from "../components/PriceWatchTab";
 import ProductsList from "../components/ProductsList";
 import OrdersList from "../components/OrdersList";
 import FeedbackList from "../components/FeedbackList";
@@ -122,6 +123,7 @@ const AdminPage = () => {
       products: "Ürün kataloğu",
       create: "Ürün Ekle",
       "photo-create": "Fotoğraftan ürün ekle",
+      "price-watch": "Fiyat bekçisi",
       users: "Müşteriler",
       coupons: "Kuponlar",
       referrals: "Davet sistemi",
@@ -146,6 +148,7 @@ const AdminPage = () => {
       "Mağazanızın ürünlerini, fiyatlarını ve görünürlüğünü düzenleyin.",
     create: "Kataloğunuza yeni bir ürün ekleyin, müşterilerinizle buluşturun.",
     "photo-create": "Fotoğrafını çekin; ad, kategori ve şeffaf görsel seçenekleri hazırlansın, siz fiyatı girip onaylayın.",
+    "price-watch": "Ürünlerinizin internetteki piyasa fiyatıyla karşılaştırması. Gece kendiliğinden kontrol edilir, fiyatı siz değiştirirsiniz.",
     users: "Müşterilerinizi tanıyın ve hesaplarını kolayca yönetin.",
     coupons:
       "Doğru fırsatı sunun. Kuponları ve kullanım geçmişlerini takip edin.",
@@ -589,6 +592,8 @@ const AdminPage = () => {
         return <CreateProductForm />;
       case "photo-create":
         return <ProductAssistTab />;
+      case "price-watch":
+        return <PriceWatchTab />;
       case "users":
         return (
           <UsersTab

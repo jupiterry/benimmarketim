@@ -1,0 +1,529 @@
+/* Fiyat bekçisi (PriceWatchTab) — admin-system.css belirteçleriyle */
+
+.admin-layout .pw {
+  gap: 14px;
+}
+
+/* ── Durum kartı ─────────────────────────────────────────────────── */
+.admin-layout .pw-status {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px 24px;
+  padding: 14px 18px;
+}
+.admin-layout .pw-status-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.admin-layout .pw-status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+}
+.admin-layout .pw-status-icon svg {
+  width: 20px;
+  height: 20px;
+}
+.admin-layout .pw-tone-ok {
+  background: var(--ui-ok-bg);
+  color: var(--ui-ok-ink);
+}
+.admin-layout .pw-tone-info {
+  background: var(--ui-info-bg);
+  color: var(--ui-info-ink);
+}
+.admin-layout .pw-tone-warn {
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+.admin-layout .pw-tone-danger {
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+}
+.admin-layout .pw-status-title {
+  margin: 0;
+  font-size: var(--ui-fs-lg);
+  font-weight: 650;
+  color: var(--ui-text);
+}
+.admin-layout .pw-status-detail {
+  margin: 2px 0 0;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text-2);
+}
+.admin-layout .pw-status-stats {
+  display: flex;
+  gap: 28px;
+  margin: 0;
+}
+.admin-layout .pw-status-stats > div {
+  min-width: 0;
+}
+.admin-layout .pw-status-stats dt {
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  color: var(--ui-text-3);
+}
+.admin-layout .pw-status-stats dd {
+  margin: 2px 0 0;
+  font-size: 18px;
+  font-weight: 650;
+  color: var(--ui-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.admin-layout .pw-status-stats dd span {
+  font-size: var(--ui-fs-sm);
+  font-weight: 500;
+  color: var(--ui-text-3);
+}
+.admin-layout .pw-status-stats .pw-status-last {
+  font-size: var(--ui-fs-lg);
+}
+.admin-layout .pw-meter {
+  width: 100%;
+  height: 4px;
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--ui-surface-3);
+}
+.admin-layout .pw-meter i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ui-brand);
+}
+.admin-layout .pw-status-error {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .pw-status-error svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.admin-layout .pw-status-error em {
+  font-style: normal;
+  opacity: 0.8;
+}
+
+/* ── Araç çubuğu ─────────────────────────────────────────────────── */
+.admin-layout .pw-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.admin-layout .pw-filters {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.admin-layout .pw-filters > button svg {
+  width: 14px;
+  height: 14px;
+}
+.admin-layout .pw-filters > button[data-tone="danger"]:not([aria-pressed="true"]) svg {
+  color: var(--ui-danger);
+}
+.admin-layout .pw-filters > button[data-tone="warn"]:not([aria-pressed="true"]) svg {
+  color: var(--ui-warn);
+}
+.admin-layout .pw-filters > button[data-tone="info"]:not([aria-pressed="true"]) svg {
+  color: var(--ui-info);
+}
+.admin-layout .pw-filters > button[data-tone="ok"]:not([aria-pressed="true"]) svg {
+  color: var(--ui-ok);
+}
+.admin-layout .pw-chip-count {
+  min-width: 18px;
+  padding: 1px 6px;
+  border-radius: 9px;
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.admin-layout .pw-filters > button[aria-pressed="true"] .pw-chip-count {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+.admin-layout .pw-search {
+  width: 240px;
+  max-width: 100%;
+}
+.admin-layout .pw-explain {
+  margin: -4px 0 0;
+  font-size: var(--ui-fs-sm);
+  line-height: 1.5;
+  color: var(--ui-text-2);
+}
+.admin-layout .pw-error svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ── Liste ───────────────────────────────────────────────────────── */
+.admin-layout .pw-list-card {
+  overflow: hidden;
+}
+.admin-layout .pw-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  transition: opacity var(--ui-ease);
+}
+.admin-layout .pw-list--loading {
+  opacity: 0.55;
+}
+.admin-layout .pw-row {
+  display: grid;
+  grid-template-columns: 44px minmax(160px, 1.1fr) minmax(220px, 1.6fr) 230px;
+  align-items: start;
+  gap: 14px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .pw-row:first-child {
+  border-top: 0;
+}
+.admin-layout .pw-row--ignored {
+  background: var(--ui-surface-2);
+}
+.admin-layout .pw-row--ignored .pw-name,
+.admin-layout .pw-row--ignored .pw-market {
+  opacity: 0.7;
+}
+.admin-layout .pw-row--skeleton {
+  align-items: center;
+}
+.admin-layout .pw-thumb {
+  background: var(--ui-surface-3);
+  color: var(--ui-text-3);
+}
+.admin-layout .pw-thumb svg {
+  width: 18px;
+  height: 18px;
+}
+.admin-layout .pw-thumb img {
+  object-fit: contain;
+  background: #fff;
+}
+.admin-layout .pw-product {
+  min-width: 0;
+}
+.admin-layout .pw-name {
+  margin: 0;
+  font-weight: 650;
+  line-height: 1.35;
+  color: var(--ui-text);
+  overflow-wrap: anywhere;
+}
+.admin-layout .pw-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 5px 0 0;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text-2);
+}
+.admin-layout .pw-meta strong {
+  color: var(--ui-text);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .pw-meta .ui-badge {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-layout .pw-market {
+  min-width: 0;
+}
+.admin-layout .pw-median {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin: 0;
+}
+.admin-layout .pw-label {
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  color: var(--ui-text-3);
+}
+.admin-layout .pw-median strong {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ui-text);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .pw-range {
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .pw-diff {
+  align-self: center;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+  white-space: nowrap;
+}
+.admin-layout .pw-diff--above {
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+}
+.admin-layout .pw-diff--below {
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+.admin-layout .pw-diff--ok {
+  background: var(--ui-ok-bg);
+  color: var(--ui-ok-ink);
+}
+.admin-layout .pw-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-layout .pw-sources a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--ui-line);
+  border-radius: 6px;
+  background: var(--ui-surface);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  text-decoration: none;
+  transition:
+    border-color var(--ui-ease),
+    background-color var(--ui-ease);
+}
+.admin-layout .pw-sources a:hover {
+  border-color: var(--ui-line-strong);
+  background: var(--ui-surface-2);
+  color: var(--ui-text);
+}
+.admin-layout .pw-source-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-layout .pw-source-price {
+  font-weight: 650;
+  color: var(--ui-text);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .pw-sources svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  color: var(--ui-text-3);
+}
+.admin-layout .pw-checked {
+  margin: 6px 0 0;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+}
+.admin-layout .pw-missing {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text-2);
+}
+.admin-layout .pw-missing svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--ui-text-3);
+}
+.admin-layout .pw-missing em {
+  display: block;
+  margin-top: 2px;
+  font-style: normal;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+  overflow-wrap: anywhere;
+}
+
+.admin-layout .pw-query {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-2);
+}
+.admin-layout .pw-query-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  color: var(--ui-text-2);
+}
+.admin-layout .pw-query-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.admin-layout .pw-query-row .ui-field {
+  flex: 1 1 180px;
+  width: auto;
+  min-height: 32px;
+}
+
+.admin-layout .pw-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+.admin-layout .pw-price {
+  display: flex;
+  gap: 6px;
+}
+.admin-layout .pw-price-input {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.admin-layout .pw-price-input > span {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  transform: translateY(-50%);
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text-3);
+  pointer-events: none;
+}
+.admin-layout .pw-price-input .ui-field {
+  min-height: 32px;
+  padding-left: 24px;
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .pw-suggest {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ui-brand-ink);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.admin-layout .pw-suggest:hover {
+  color: var(--ui-brand-strong);
+}
+.admin-layout .pw-tools {
+  display: flex;
+  gap: 4px;
+}
+.admin-layout .pw-tools .ui-icon-btn svg {
+  width: 15px;
+  height: 15px;
+}
+.admin-layout .pw-page {
+  padding: 0 10px;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text-2);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .pw-spin {
+  animation: pw-spin 0.9s linear infinite;
+}
+@keyframes pw-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 1100px) {
+  .admin-layout .pw-row {
+    grid-template-columns: 44px minmax(0, 1fr) minmax(0, 1.3fr);
+  }
+  .admin-layout .pw-actions {
+    grid-column: 2 / -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .admin-layout .pw-price {
+    width: 220px;
+  }
+  .admin-layout .pw-suggest {
+    align-self: center;
+  }
+  .admin-layout .pw-tools {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 700px) {
+  .admin-layout .pw-status {
+    grid-template-columns: 1fr;
+    padding: 12px 14px;
+  }
+  .admin-layout .pw-status-stats {
+    gap: 18px;
+    flex-wrap: wrap;
+  }
+  .admin-layout .pw-search {
+    width: 100%;
+  }
+  .admin-layout .pw-row {
+    grid-template-columns: 44px minmax(0, 1fr);
+    padding: 12px 14px;
+    gap: 10px 12px;
+  }
+  .admin-layout .pw-market,
+  .admin-layout .pw-actions {
+    grid-column: 1 / -1;
+  }
+  .admin-layout .pw-price {
+    flex: 1 1 100%;
+    width: auto;
+  }
+  .admin-layout .pw-suggest {
+    align-self: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-layout .pw-spin {
+    animation: none;
+  }
+}

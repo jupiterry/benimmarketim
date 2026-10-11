@@ -421,10 +421,13 @@ const searchSearxngWeb = async (q, baseUrl) => {
   return Array.isArray(body?.results) ? body.results : [];
 };
 
-/** Ürün adıyla internetteki fiyatları arar (ücretsiz SearXNG). */
-export const searchProductPrices = async (query, { searxngUrl = process.env.SEARXNG_URL } = {}) => {
+/**
+ * Ürün adıyla internetteki fiyatları arar (ücretsiz SearXNG).
+ * suffixes: her biri ayrı bir arama ("<ad> fiyat", "<ad> trendyol"); fiyat bekçisi tek arama yapar.
+ */
+export const searchProductPrices = async (query, { searxngUrl = process.env.SEARXNG_URL, suffixes = ["fiyat", "trendyol"] } = {}) => {
   if (!searxngUrl) throw new Error("IMAGE_SEARCH_NOT_CONFIGURED");
-  const settled = await Promise.allSettled([searchSearxngWeb(`${query} fiyat`, searxngUrl), searchSearxngWeb(`${query} trendyol`, searxngUrl)]);
+  const settled = await Promise.allSettled(suffixes.map((suffix) => searchSearxngWeb(`${query} ${suffix}`, searxngUrl)));
   const lists = settled.filter((item) => item.status === "fulfilled").map((item) => item.value);
   if (!lists.length) throw settled[0].reason;
   return rankPriceResults(lists.flat(), query);
