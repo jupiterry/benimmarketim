@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import Product from "../models/product.model.js";
+import { camgozSettings } from "../services/camgoz.service.js";
 import {
   STATE_COLLECTION,
   WATCH_COLLECTION,
@@ -8,6 +9,8 @@ import {
   coverage,
   istanbulClock,
   listRows,
+  CAMGOZ_STATE_ID,
+  priceLookup,
   priceWatchSettings,
 } from "../services/priceWatch.service.js";
 
@@ -27,7 +30,21 @@ const loadRows = async (settings) => {
   return products.map((product) => buildRow(product, byId.get(String(product._id)), { threshold: settings.threshold, now }));
 };
 
-const workerStatus = (state, settings) => {
+const camgozStatus = (state) => {
+  const settings = camgozSettings();
+  const { day } = istanbulClock();
+  const month = day.slice(0, 7);
+  return {
+    enabled: settings.enabled,
+    monthlyCredits: settings.monthlyCredits,
+    used: state?.month === month ? state.used || 0 : 0,
+    usedToday: state?.day === day ? state.usedToday || 0 : 0,
+    lastError: state?.lastError || null,
+    pausedUntil: state?.pausedUntil && new Date(state.pausedUntil) > new Date() ? state.pausedUntil : null,
+  };
+};
+
+const workerStatus = (state, settings, camgozState) => {
   const today = istanbulClock().day;
   const alive = Boolean(state?.heartbeatAt && Date.now() - new Date(state.heartbeatAt).getTime() < WORKER_ALIVE_MS);
   return {
@@ -47,6 +64,7 @@ const workerStatus = (state, settings) => {
       threshold: Math.round(settings.threshold * 100),
       delay: settings.delay,
     },
+    camgoz: camgozStatus(camgozState),
   };
 };
 
@@ -54,16 +72,18 @@ const workerStatus = (state, settings) => {
 export const getPriceWatch = async (req, res) => {
   try {
     const settings = priceWatchSettings();
-    const [rows, state] = await Promise.all([
+    const states = mongoose.connection.db.collection(STATE_COLLECTION);
+    const [rows, state, camgozState] = await Promise.all([
       loadRows(settings),
-      mongoose.connection.db.collection(STATE_COLLECTION).findOne({ _id: "main" }),
+      states.findOne({ _id: "main" }),
+      states.findOne({ _id: CAMGOZ_STATE_ID }),
     ]);
     const list = listRows(rows, {
       filter: String(req.query.filter || "above"),
       q: String(req.query.q || "").slice(0, 80),
       page: req.query.page,
     });
-    res.json({ success: true, ...list, coverage: coverage(rows), worker: workerStatus(state, settings) });
+    res.json({ success: true, ...list, coverage: coverage(rows), worker: workerStatus(state, settings, camgozState) });
   } catch (error) {
     console.error("Fiyat bekçisi listesi alınamadı:", error.message);
     res.status(500).json({ success: false, message: "Fiyat bekçisi listesi alınamadı." });
@@ -80,12 +100,12 @@ const findProduct = async (req, res) => {
   return product;
 };
 
-/** POST /api/price-watch/:id/check → ürünü hemen kontrol eder (tek arama) */
+/** POST /api/price-watch/:id/check → ürünü hemen kontrol eder (Camgöz, gerekirse market sayfaları) */
 export const checkNow = async (req, res) => {
   try {
     const settings = priceWatchSettings();
-    if (!settings.searxngConfigured) {
-      return res.status(503).json({ success: false, message: "Ücretsiz arama (SearXNG) ayarlı değil. .env dosyasına SEARXNG_URL ekleyin." });
+    if (!settings.searxngConfigured && !camgozSettings().enabled) {
+      return res.status(503).json({ success: false, message: "Fiyat kaynağı ayarlı değil. .env dosyasına JOJAPI_API_KEY (Camgöz) ya da SEARXNG_URL ekleyin." });
     }
     const product = await findProduct(req, res);
     if (!product) return undefined;
@@ -93,7 +113,8 @@ export const checkNow = async (req, res) => {
     if (existing?.checkedAt && Date.now() - new Date(existing.checkedAt).getTime() < MANUAL_CHECK_GAP_MS) {
       return res.status(429).json({ success: false, message: "Bu ürün az önce kontrol edildi, birkaç saniye sonra tekrar deneyin." });
     }
-    const record = await checkProduct({ db: mongoose.connection.db, product });
+    const db = mongoose.connection.db;
+    const record = await checkProduct({ db, product, lookup: priceLookup({ db, manual: true }) });
     const row = buildRow(product, record, { threshold: settings.threshold });
     if (record.status === "error") {
       return res.status(502).json({ success: false, message: `Arama yapılamadı: ${record.error}`, row });
@@ -105,7 +126,7 @@ export const checkNow = async (req, res) => {
   }
 };
 
-/** PATCH /api/price-watch/:id  { ignored?: boolean, customQuery?: string } */
+/** PATCH /api/price-watch/:id  { ignored?: boolean, customQuery?: string, barcode?: string } */
 export const updateWatch = async (req, res) => {
   try {
     const product = await findProduct(req, res);
@@ -119,8 +140,28 @@ export const updateWatch = async (req, res) => {
       }
       set.customQuery = customQuery;
     }
-    if (!Object.keys(set).length) return res.status(400).json({ success: false, message: "Değiştirilecek alan yok." });
-    await watches().updateOne({ _id: product._id }, { $set: set, $setOnInsert: { createdAt: new Date() } }, { upsert: true });
+    const unset = {};
+    const existing = await watches().findOne({ _id: product._id }, { projection: { customQuery: 1, barcodeSource: 1 } });
+    // Arama sözcüğü değiştiyse eski adla otomatik bulunan barkod geçersiz sayılır
+    if ("customQuery" in set && set.customQuery !== (existing?.customQuery || "") && existing?.barcodeSource !== "manual") {
+      Object.assign(unset, { barcode: "", barcodeSource: "", camgozMissAt: "" });
+    }
+    if (typeof req.body?.barcode === "string") {
+      const barcode = req.body.barcode.replace(/\s+/g, "");
+      if (barcode && !/^\d{8,14}$/.test(barcode)) {
+        return res.status(400).json({ success: false, message: "Barkod 8–14 rakam olmalı." });
+      }
+      delete unset.barcode;
+      delete unset.barcodeSource;
+      if (barcode) Object.assign(set, { barcode, barcodeSource: "manual" });
+      else Object.assign(unset, { barcode: "", barcodeSource: "" });
+      unset.camgozMissAt = "";
+    }
+    if (!Object.keys(set).length && !Object.keys(unset).length) return res.status(400).json({ success: false, message: "Değiştirilecek alan yok." });
+    const update = { $setOnInsert: { createdAt: new Date() } };
+    if (Object.keys(set).length) update.$set = set;
+    if (Object.keys(unset).length) update.$unset = unset;
+    await watches().updateOne({ _id: product._id }, update, { upsert: true });
     const record = await watches().findOne({ _id: product._id });
     return res.json({ success: true, row: buildRow(product, record, { threshold: priceWatchSettings().threshold }) });
   } catch (error) {

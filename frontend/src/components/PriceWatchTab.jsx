@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  HelpCircle,
   Eye,
   EyeOff,
   Loader2,
@@ -26,6 +27,7 @@ import "../styles/price-watch.css";
 const FILTERS = [
   { id: "above", label: "Pahalı", tone: "danger", icon: TrendingUp },
   { id: "below", label: "Ucuz", tone: "warn", icon: TrendingDown },
+  { id: "unsure", label: "Emin değil", tone: "info", icon: HelpCircle },
   { id: "missing", label: "Bulunamadı", tone: "info", icon: SearchX },
   { id: "ok", label: "Uyumlu", tone: "ok", icon: CheckCircle2 },
   { id: "unchecked", label: "Bakılmadı", tone: "", icon: Moon },
@@ -35,6 +37,7 @@ const FILTERS = [
 const EMPTY_TEXT = {
   above: "Piyasadan belirgin pahalı ürün yok.",
   below: "Piyasadan belirgin ucuz ürün yok.",
+  unsure: "Kontrol edilmesi gereken şüpheli sonuç yok.",
   missing: "Fiyatı bulunamayan ürün yok.",
   ok: "Henüz piyasayla uyumlu ürün yok.",
   unchecked: "Tüm ürünlere en az bir kez bakıldı.",
@@ -55,6 +58,8 @@ const timeAgo = (date, now = Date.now()) => {
   if (hours < 24) return `${hours} sa önce`;
   return `${Math.round(hours / 24)} gün önce`;
 };
+
+const shortDate = (date) => new Date(date).toLocaleDateString("tr-TR", { day: "numeric", month: "short" });
 
 const clock = (date) => new Date(date).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
 
@@ -83,7 +88,7 @@ const phaseText = (worker) => {
     case "offline":
       return { tone: "danger", title: "Bekçi çalışmıyor", detail: "Sunucuda ayrı süreç olarak başlatılmalı (backend/workers/PRICE_WATCH.md)." };
     default:
-      return { tone: "info", title: `Her gece ${span} arasında çalışır`, detail: "Her ürün için tek arama yapar, aramalar arasında yarım dakika bekler." };
+      return { tone: "info", title: `Her gece ${span} arasında çalışır`, detail: worker.camgoz?.enabled ? "Önce Camgöz'den zincir market fiyatlarını alır, bulamazsa Şok, Trendyol ve Hepsiburada sayfalarını okur." : "Ürünün Şok, Trendyol ve Hepsiburada sayfalarını açıp güncel fiyatı okur; ürünler arasında yarım dakika bekler." };
   }
 };
 
@@ -123,7 +128,28 @@ const StatusCard = ({ worker, coverage }) => {
           <dt>Son kontrol</dt>
           <dd className="pw-status-last">{worker.lastRunAt ? timeAgo(worker.lastRunAt) : "henüz yok"}</dd>
         </div>
+        {worker.camgoz?.enabled && (
+          <div>
+            <dt>Camgöz kredisi (bu ay)</dt>
+            <dd>
+              {worker.camgoz.used}
+              <span>/{worker.camgoz.monthlyCredits}</span>
+            </dd>
+            <div className="pw-meter" aria-hidden="true">
+              <i style={{ width: `${Math.min(100, Math.round((worker.camgoz.used / Math.max(1, worker.camgoz.monthlyCredits)) * 100))}%` }} />
+            </div>
+          </div>
+        )}
       </dl>
+      {worker.camgoz?.lastError?.message && (worker.camgoz.pausedUntil || Date.now() - new Date(worker.camgoz.lastError.at).getTime() < 86400000) && (
+        <p className="pw-status-error">
+          <AlertTriangle aria-hidden="true" />
+          <span>
+            {worker.camgoz.lastError.message}
+            {worker.camgoz.pausedUntil && ` · Camgöz saat ${clock(worker.camgoz.pausedUntil)} sonrasına kadar beklemede, bu arada market sayfaları kullanılıyor`}
+          </span>
+        </p>
+      )}
       {worker.lastError?.message && (
         <p className="pw-status-error">
           <AlertTriangle aria-hidden="true" />
@@ -144,7 +170,8 @@ const Sources = ({ offers }) => (
         <a href={offer.pageUrl} target="_blank" rel="noopener noreferrer" title={offer.title}>
           <span className="pw-source-name">{offer.source || "Kaynak"}</span>
           <span className="pw-source-price">{formatPrice(offer.price)}</span>
-          <ExternalLink aria-hidden="true" />
+          {offer.readAt && <span className="pw-source-date">{shortDate(offer.readAt)}</span>}
+          {offer.pageUrl && <ExternalLink aria-hidden="true" />}
         </a>
       </li>
     ))}
@@ -153,9 +180,14 @@ const Sources = ({ offers }) => (
 
 const QueryEditor = ({ row, busy, onSave, onCancel }) => {
   const [value, setValue] = useState(row.customQuery || row.name);
+  const [barcode, setBarcode] = useState(row.barcode || "");
+  const cleanBarcode = barcode.replace(/\s+/g, "");
+  const barcodeValid = !cleanBarcode || /^\d{8,14}$/.test(cleanBarcode);
   const submit = (event) => {
     event.preventDefault();
-    onSave(value.trim() === row.name ? "" : value);
+    const changes = { customQuery: value.trim() === row.name ? "" : value };
+    if (cleanBarcode !== (row.barcode || "")) changes.barcode = cleanBarcode;
+    onSave(changes);
   };
   return (
     <form className="pw-query" onSubmit={submit}>
@@ -172,14 +204,33 @@ const QueryEditor = ({ row, busy, onSave, onCancel }) => {
           onKeyDown={(event) => event.key === "Escape" && onCancel()}
           autoFocus
         />
-        <button type="submit" className="ui-btn ui-btn--primary ui-btn--sm" disabled={busy || value.trim().length < 3}>
+      </div>
+      <label className="pw-query-label" htmlFor={`pw-barcode-${row.id}`}>
+        Barkod <span className="pw-optional">(isteğe bağlı; yazılırsa ürün kesin eşleşir)</span>
+      </label>
+      <div className="pw-query-row">
+        <input
+          id={`pw-barcode-${row.id}`}
+          className="ui-field pw-barcode-field"
+          inputMode="numeric"
+          placeholder="ör. 8690526019222"
+          value={barcode}
+          maxLength={16}
+          aria-invalid={!barcodeValid}
+          onChange={(event) => setBarcode(event.target.value)}
+          onKeyDown={(event) => event.key === "Escape" && onCancel()}
+        />
+        <button type="submit" className="ui-btn ui-btn--primary ui-btn--sm" disabled={busy || value.trim().length < 3 || !barcodeValid}>
           Kaydet ve ara
         </button>
         <button type="button" className="ui-btn ui-btn--ghost ui-btn--sm" onClick={onCancel}>
           Vazgeç
         </button>
       </div>
-      <p className="ui-hint">Örn. marka + ürün + gramaj: “pınar süt 1 lt”. Boş bırakılırsa ürün adı kullanılır.</p>
+      <p className="ui-hint">
+        Arama: marka + ürün + gramaj, ör. “pınar süt 1 lt”. Barkod 8–14 rakam; ürünün arkasındaki çizgilerin altında yazar.
+        {row.barcode && row.barcodeSource === "auto" && " Şu anki barkod otomatik bulundu; yanlışsa düzeltin."}
+      </p>
     </form>
   );
 };
@@ -193,7 +244,7 @@ const PriceRow = ({ row, busy, onApply, onCheck, onIgnore, onQuery }) => {
   const changed = Number.isFinite(value) && value >= 0 && value !== row.price;
   const suggestion = row.median ? Math.round(row.median * 100) / 100 : null;
   const apply = () => changed && onApply(row, value);
-  const levelClass = row.filter === "above" ? "pw-diff--above" : row.filter === "below" ? "pw-diff--below" : "pw-diff--ok";
+  const levelClass = { above: "pw-diff--above", below: "pw-diff--below", unsure: "pw-diff--unsure" }[row.filter] || "pw-diff--ok";
 
   return (
     <li className={`pw-row${row.ignored ? " pw-row--ignored" : ""}`}>
@@ -210,6 +261,11 @@ const PriceRow = ({ row, busy, onApply, onCheck, onIgnore, onQuery }) => {
           {row.isDiscounted && <span className="ui-badge ui-badge--brand">İndirimde {formatPrice(row.discountedPrice)}</span>}
           {row.isOutOfStock && <span className="ui-badge">Stokta yok</span>}
           {row.customQuery && <span className="ui-badge ui-badge--info">Arama: {row.customQuery}</span>}
+          {row.barcode && (
+            <span className="ui-badge" title={row.barcodeSource === "manual" ? "Barkodu siz yazdınız" : "Barkod Camgöz'de otomatik bulundu"}>
+              {row.barcodeSource === "manual" ? "Barkod" : "Oto. barkod"} {row.barcode}
+            </span>
+          )}
         </p>
       </div>
 
@@ -227,19 +283,33 @@ const PriceRow = ({ row, busy, onApply, onCheck, onIgnore, onQuery }) => {
               {row.diff !== null && row.filter !== "ignored" && <span className={`pw-diff ${levelClass}`}>{diffLabel(row.diff)}</span>}
             </p>
             <Sources offers={row.offers} />
+            {row.note && (
+              <p className="pw-note">
+                <HelpCircle aria-hidden="true" />
+                <span>{row.note}</span>
+              </p>
+            )}
             <p className="pw-checked">
-              {row.offerCount} kaynak{row.offerCount === 1 && " · tek kaynak, dikkatli olun"} · {timeAgo(row.checkedAt)}
+              {row.provider === "camgoz" ? `Camgöz · ${row.offerCount} zincir market` : `${row.offerCount} market sayfasından okundu`} · kontrol {timeAgo(row.checkedAt)}
               {row.stale && " · eski bilgi"}
-              {row.status === "not-found" && " · son aramada bulunamadı"}
-              {row.status === "error" && " · son arama başarısız"}
+              {row.status === "error" && " · son kontrol başarısız, önceki sonuç gösteriliyor"}
             </p>
           </>
         ) : row.checkedAt ? (
           <p className="pw-missing">
             <SearchX aria-hidden="true" />
             <span>
-              {row.status === "error" ? `Arama yapılamadı: ${row.error || "bilinmeyen hata"}` : "İnternette fiyatı bulunamadı."}
+              {row.status === "error" ? `Arama yapılamadı: ${row.error || "bilinmeyen hata"}` : row.note || "Market sayfalarında bulunamadı."}
               <em> {timeAgo(row.checkedAt)} · aranan: “{row.query}”</em>
+              {row.rejected?.length > 0 && (
+                <span className="pw-rejected">
+                  {row.rejected.map((item, index) => (
+                    <a key={`${item.pageUrl}-${index}`} href={item.pageUrl} target="_blank" rel="noopener noreferrer" title={item.title}>
+                      {item.source}: {item.reason}
+                    </a>
+                  ))}
+                </span>
+              )}
             </span>
           </p>
         ) : (
@@ -253,8 +323,8 @@ const PriceRow = ({ row, busy, onApply, onCheck, onIgnore, onQuery }) => {
             row={row}
             busy={busy}
             onCancel={() => setEditingQuery(false)}
-            onSave={async (query) => {
-              if (await onQuery(row, query)) setEditingQuery(false);
+            onSave={async (changes) => {
+              if (await onQuery(row, changes)) setEditingQuery(false);
             }}
           />
         )}
@@ -391,10 +461,10 @@ const PriceWatchTab = () => {
       }
     });
 
-  const handleQuery = (row, customQuery) =>
+  const handleQuery = (row, changes) =>
     withBusy(row.id, async () => {
       try {
-        await axios.patch(`/price-watch/${row.id}`, { customQuery });
+        await axios.patch(`/price-watch/${row.id}`, changes);
       } catch (err) {
         toast.error(errorMessage(err, "Arama sözcüğü kaydedilemedi."));
         return false;
@@ -452,12 +522,13 @@ const PriceWatchTab = () => {
         </label>
       </div>
 
-      {(filter === "above" || filter === "below") && (
+      {(filter === "above" || filter === "below" || filter === "unsure") && (
         <p className="pw-explain">
-          {filter === "above"
-            ? `Fiyatı internetteki ortanca fiyattan %${threshold}'den fazla yüksek ürünler. En büyük fark üstte.`
-            : `Fiyatı internetteki ortanca fiyattan %${threshold}'den fazla düşük ürünler; kâr kaçırıyor olabilirsiniz.`}{" "}
-          İnternet fiyatları market, kargo ve paket farkı içerebilir; kaynaklara bakıp siz karar verin. Hiçbir fiyat kendiliğinden değişmez.
+          {filter === "above" && `Fiyatı market fiyatından %${threshold}'den fazla yüksek ürünler. En büyük fark üstte.`}
+          {filter === "below" && `Fiyatı market fiyatından %${threshold}'den fazla düşük ürünler; kâr kaçırıyor olabilirsiniz.`}
+          {filter === "unsure" &&
+            "Ürün adında gramaj olmadığı ya da fark çok büyük olduğu için emin olunamayan sonuçlar. Kalemle arama sözcüğüne gramaj ekleyin (ör. “eti sütlü kare çikolata 65 g”), ürün hemen yeniden aranır."}{" "}
+          Fiyatlar önce Camgöz&apos;den (A101, Migros, Şok, Hakmar… son 90 günde güncellenmiş zincir market fiyatları), bulunamazsa Şok, Trendyol ve Hepsiburada ürün sayfalarından o gün okunur. Hiçbir fiyat kendiliğinden değişmez.
         </p>
       )}
 

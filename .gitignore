@@ -17,6 +17,7 @@ dist-ssr
 .env.*
 !.env.example
 uploads/
+backups/
 *.zip
 *.rar
 frontend/.vite-image-cache/

@@ -18,17 +18,17 @@ import {
 const IDLE_MS = 5 * 60000; // pencere dışında / günlük sınır dolunca kontrol aralığı
 const PAUSE_MS = 60 * 60000; // arka arkaya hata gelirse bir saat ara
 const MAX_ERRORS = 5; // SearXNG yanıt vermiyorsa
-const MAX_NOT_FOUND = 10; // arama motoru engellendiyse genelde hiçbir şey bulamaz
+const MAX_NOT_FOUND = 25; // arama motoru engellendiyse genelde hiçbir şey bulamaz (yöresel ürünler de bulunamaz, o yüzden yüksek)
 const TOP_REFRESH_MS = 6 * 3600000;
 const QUEUE_SIZE = 25;
 
 const PRODUCT_FIELDS = { name: 1, price: 1, isHidden: 1, isDiscounted: 1, discountedPrice: 1 };
 
 export class PriceWatchWorker {
-  constructor(db, { settings = priceWatchSettings(), search, now = () => new Date(), wait = sleep, log = console } = {}) {
+  constructor(db, { settings = priceWatchSettings(), lookup, now = () => new Date(), wait = sleep, log = console } = {}) {
     this.db = db;
     this.settings = settings;
-    this.search = search;
+    this.lookup = lookup;
     this.now = now;
     this.wait = wait;
     this.log = log;
@@ -63,7 +63,7 @@ export class PriceWatchWorker {
     }
     const [products, watches] = await Promise.all([
       this.db.collection("products").find({ isHidden: { $ne: true } }, { projection: PRODUCT_FIELDS }).toArray(),
-      this.db.collection(WATCH_COLLECTION).find({}, { projection: { checkedAt: 1, status: 1, ignored: 1 } }).toArray(),
+      this.db.collection(WATCH_COLLECTION).find({}, { projection: { checkedAt: 1, status: 1, ignored: 1, v: 1 } }).toArray(),
     ]);
     this.queue = selectDue({ products, watches, topSellerIds: this.topSellerIds, now, limit: QUEUE_SIZE });
   }
@@ -100,7 +100,7 @@ export class PriceWatchWorker {
       return IDLE_MS;
     }
 
-    const result = await checkProduct({ db: this.db, product, now, ...(this.search ? { search: this.search } : {}) });
+    const result = await checkProduct({ db: this.db, product, now, ...(this.lookup ? { lookup: this.lookup } : {}) });
     const errors = result.status === "error" ? (state.errors || 0) + 1 : 0;
     const notFound = result.status === "not-found" ? (state.notFound || 0) + 1 : 0;
     const update = {
@@ -150,8 +150,12 @@ export const runTrial = async (db, { count = 3, settings = priceWatchSettings(),
   for (const product of worker.queue.slice(0, count)) {
     const result = await checkProduct({ db, product });
     results.push(result);
-    const market = result.status === "ok" ? `piyasa ₺${result.median} (${result.offerCount} kaynak)` : result.status === "error" ? `hata: ${result.error}` : "bulunamadı";
+    const via = result.provider === "camgoz" ? `Camgöz, barkod ${result.barcode}` : "market sayfaları";
+    const market = result.status === "ok"
+      ? `piyasa ₺${result.median} (${via}) — ${result.offers.map((offer) => `${offer.source} ₺${offer.price}`).join(", ")}${result.confidence === "low" ? ` (emin değil: ${result.note})` : ""}`
+      : result.status === "error" ? `hata: ${result.error}` : `bulunamadı (${result.note})`;
     log.log(`• ${product.name} — bizim ₺${product.price}, ${market}`);
+    for (const item of result.rejected || []) log.log(`    elendi: ${item.source} ${item.title ? `"${item.title}" ` : ""}— ${item.reason}`);
     if (results.length < count) await sleep(randomDelayMs({ min: 5, max: 8 }));
   }
   return results;

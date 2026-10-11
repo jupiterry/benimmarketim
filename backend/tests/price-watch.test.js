@@ -101,17 +101,21 @@ test("sıra: hiç bakılmamış → vakti gelen çok satan → vakti gelen diğe
     { _id: "g", name: "G" },
     { _id: "h", name: "H" },
   ];
+  const v = 2;
   const watches = [
-    { _id: "a", checkedAt: new Date(now - 30 * HOUR) }, // çok satan, 1 günden eski → vakti geldi
-    { _id: "b", checkedAt: new Date(now - 10 * HOUR) }, // çok satan, yeni → bekler
-    { _id: "c", checkedAt: new Date(now - 200 * HOUR) }, // normal, 1 haftadan eski
-    { _id: "d", checkedAt: new Date(now - 100 * HOUR) }, // normal, yeni → bekler
+    { _id: "a", v, checkedAt: new Date(now - 30 * HOUR) }, // çok satan, 1 günden eski → vakti geldi
+    { _id: "b", v, checkedAt: new Date(now - 10 * HOUR) }, // çok satan, yeni → bekler
+    { _id: "c", v, checkedAt: new Date(now - 200 * HOUR) }, // normal, 1 haftadan eski
+    { _id: "d", v, checkedAt: new Date(now - 100 * HOUR) }, // normal, yeni → bekler
     { _id: "f", ignored: true }, // yoksayıldı
-    { _id: "g", checkedAt: new Date(now - 30 * HOUR), status: "error" }, // hata: ertesi gün tekrar
+    { _id: "g", v, checkedAt: new Date(now - 30 * HOUR), status: "error" }, // hata: ertesi gün tekrar
   ];
   const order = selectDue({ products, watches, topSellerIds: ["h", "a", "b"], now, limit: 10 }).map((p) => p._id);
   assert.deepEqual(order, ["h", "a", "c", "g"]);
   assert.deepEqual(selectDue({ products, watches, now, limit: 2 }).map((p) => p._id), ["h", "c"]);
+  // Eski sürüm (arama özetinden) kayıt hiç bakılmamış sayılır
+  watches[3] = { _id: "d", checkedAt: new Date(now - HOUR) };
+  assert.deepEqual(selectDue({ products, watches, now, limit: 2 }).map((p) => p._id), ["d", "h"]);
 });
 
 test("ürün kontrolü: bulunan, bulunamayan ve hata", async () => {
@@ -119,7 +123,7 @@ test("ürün kontrolü: bulunan, bulunamayan ve hata", async () => {
   const product = { _id: "p1", name: "Pınar Süt 1 L", price: 45 };
   const offers = [{ price: 38, source: "A", pageUrl: "https://a", title: "t" }, { price: 40, source: "B", pageUrl: "https://b", title: "t" }];
   let asked = "";
-  const found = await checkProduct({ db, product, now: new Date(NOW), search: async (q) => { asked = q; return { offers, min: 38, max: 40, median: 40 }; } });
+  const found = await checkProduct({ db, product, now: new Date(NOW), lookup: async (q) => { asked = q; return { offers, min: 38, max: 40, median: 40, confidence: "high" }; } });
   assert.equal(asked, "Pınar Süt 1 L");
   assert.equal(found.status, "ok");
   assert.equal(found.median, 40);
@@ -127,7 +131,7 @@ test("ürün kontrolü: bulunan, bulunamayan ve hata", async () => {
   assert.equal(db.data.price_watch[0].ignored, false);
 
   // Arama hatası: eski piyasa bilgisi korunur
-  const failed = await checkProduct({ db, product, now: new Date(NOW + 1000), search: async () => { throw new Error("SEARXNG_502"); } });
+  const failed = await checkProduct({ db, product, now: new Date(NOW + 1000), lookup: async () => { throw new Error("SEARXNG_502"); } });
   assert.equal(failed.status, "error");
   assert.equal(failed.error, "arama motoru yanıt vermedi (HTTP 502)");
   assert.equal(failed.median, 40);
@@ -135,30 +139,38 @@ test("ürün kontrolü: bulunan, bulunamayan ve hata", async () => {
 
   // Özel arama sözcüğü kullanılır; sonuç yoksa "bulunamadı"
   db.data.price_watch[0].customQuery = "pinar sut 1lt";
-  const missing = await checkProduct({ db, product, search: async (q) => { asked = q; return { offers: [] }; } });
+  const missing = await checkProduct({ db, product, lookup: async (q) => { asked = q; return { offers: [] }; } });
   assert.equal(asked, "pinar sut 1lt");
   assert.equal(missing.status, "not-found");
   assert.equal(missing.median, null);
 });
 
-test("panel satırları: sınıf, sayım, arama ve sayfalama", () => {
+test("panel satırları: sınıf, emin değil, sayım, arama ve sayfalama", () => {
   const now = NOW;
   const checkedAt = new Date(now - HOUR);
+  const sure = { v: 2, confidence: "high", checkedAt, status: "ok", offerCount: 2 };
   const rows = [
-    buildRow({ _id: "1", name: "Çikolatalı Gofret", price: 30 }, { median: 20, offerCount: 3, checkedAt, status: "ok" }, { now }),
-    buildRow({ _id: "2", name: "Kola 1 L", price: 52 }, { median: 40, offerCount: 2, checkedAt, status: "ok" }, { now }),
-    buildRow({ _id: "3", name: "Su", price: 5 }, { median: 10, offerCount: 2, checkedAt, status: "ok" }, { now }),
-    buildRow({ _id: "4", name: "Ayran", price: 32 }, { median: 30, offerCount: 2, checkedAt, status: "ok" }, { now }),
-    buildRow({ _id: "5", name: "Tuz", price: 12 }, { status: "not-found", checkedAt }, { now }),
+    buildRow({ _id: "1", name: "Çikolatalı Gofret", price: 30 }, { ...sure, median: 20 }, { now }),
+    buildRow({ _id: "2", name: "Kola 1 L", price: 52 }, { ...sure, median: 40 }, { now }),
+    buildRow({ _id: "3", name: "Su", price: 5 }, { ...sure, median: 10 }, { now }),
+    buildRow({ _id: "4", name: "Ayran", price: 32 }, { ...sure, median: 30 }, { now }),
+    buildRow({ _id: "5", name: "Tuz", price: 12 }, { v: 2, status: "not-found", checkedAt, note: "Bulunan sayfalar bu ürünle eşleşmedi." }, { now }),
     buildRow({ _id: "6", name: "Şeker", price: 50 }, null, { now }),
-    buildRow({ _id: "7", name: "Çay", price: 99 }, { ignored: true, median: 10, checkedAt, status: "ok" }, { now }),
-    buildRow({ _id: "8", name: "Un", price: 40 }, { status: "error", error: "SEARXNG_502", checkedAt }, { now }),
+    buildRow({ _id: "7", name: "Çay", price: 99 }, { ...sure, ignored: true, median: 10 }, { now }),
+    buildRow({ _id: "8", name: "Un", price: 40 }, { v: 2, status: "error", error: "SEARXNG_502", checkedAt }, { now }),
+    buildRow({ _id: "9", name: "Eti Çikolata", price: 75 }, { ...sure, confidence: "low", note: "ürün adında gramaj yok", median: 30 }, { now }),
+    buildRow({ _id: "10", name: "Cheetos 40 g", price: 35 }, { ...sure, median: 11 }, { now }),
+    buildRow({ _id: "11", name: "Eski kayıt", price: 35 }, { checkedAt, status: "ok", median: 11, customQuery: "eski 1 kg" }, { now }),
   ];
-  assert.deepEqual(rows.map((row) => row.filter), ["above", "above", "below", "ok", "missing", "unchecked", "ignored", "missing"]);
+  assert.deepEqual(rows.map((row) => row.filter), ["above", "above", "below", "ok", "missing", "unchecked", "ignored", "missing", "unsure", "unsure", "unchecked"]);
   assert.equal(rows[7].error, "SEARXNG_502");
+  assert.equal(rows[8].note, "ürün adında gramaj yok");
+  assert.match(rows[9].note, /Fark çok büyük/);
+  assert.equal(rows[10].median, null, "eski sürüm piyasa bilgisi gösterilmez");
+  assert.equal(rows[10].customQuery, "eski 1 kg", "yönetici ayarı korunur");
 
   const above = listRows(rows, { filter: "above" });
-  assert.deepEqual(above.counts, { above: 2, below: 1, missing: 2, ok: 1, unchecked: 1, ignored: 1 });
+  assert.deepEqual(above.counts, { above: 2, below: 1, unsure: 2, missing: 2, ok: 1, unchecked: 2, ignored: 1 });
   assert.deepEqual(above.items.map((row) => row.id), ["1", "2"], "en pahalı önce");
   assert.deepEqual(listRows(rows, { filter: "above", q: "cikolata" }).items.map((row) => row.id), ["1"], "Türkçe harf farkı yok sayılır");
   assert.equal(listRows(rows, { filter: "bilinmeyen" }).filter, "above");
@@ -169,7 +181,7 @@ test("panel satırları: sınıf, sayım, arama ve sayfalama", () => {
   assert.equal(page3.page, 3);
   assert.equal(page3.items.length, 5);
 
-  assert.deepEqual(coverage(rows, now), { tracked: 7, fresh: 6, percent: 86 });
+  assert.deepEqual(coverage(rows, now), { tracked: 10, fresh: 8, percent: 80 });
 });
 
 const workerDb = () =>
@@ -185,13 +197,13 @@ test("işçi: pencere dışında ve günlük sınırda arama yapmaz", async () =
   let searches = 0;
   const search = async () => { searches += 1; return { offers: [] }; };
   const settings = { ...priceWatchSettings({ SEARXNG_URL: "x" }), dailyLimit: 1 };
-  const noon = new PriceWatchWorker(db, { settings, search, now: () => new Date("2026-10-11T09:00:00Z") });
+  const noon = new PriceWatchWorker(db, { settings, lookup: search, now: () => new Date("2026-10-11T09:00:00Z") });
   await noon.initialize();
   await noon.step();
   assert.equal(searches, 0);
   assert.equal(db.data.price_watch_state[0].phase, "waiting");
 
-  const night = new PriceWatchWorker(db, { settings, search, now: () => new Date(NOW) });
+  const night = new PriceWatchWorker(db, { settings, lookup: search, now: () => new Date(NOW) });
   const delay = await night.step();
   assert.ok(delay >= 20000 && delay <= 30000);
   await night.step();
@@ -204,7 +216,7 @@ test("işçi: arka arkaya hatalarda bir saat ara verir, yeni günde sayaç sıf�
   const db = fakeDb({ products: Array.from({ length: 8 }, (_, i) => ({ _id: `p${i}`, name: `Ürün ${i}`, price: 10 })) });
   let clock = NOW;
   const settings = priceWatchSettings({ SEARXNG_URL: "x" });
-  const worker = new PriceWatchWorker(db, { settings, search: async () => { throw new Error("SEARXNG_503"); }, now: () => new Date(clock), log: {} });
+  const worker = new PriceWatchWorker(db, { settings, lookup: async () => { throw new Error("SEARXNG_503"); }, now: () => new Date(clock), log: {} });
   await worker.initialize();
   for (let i = 0; i < 5; i += 1) await worker.step();
   const state = db.data.price_watch_state[0];

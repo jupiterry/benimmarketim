@@ -412,7 +412,7 @@ export const rankPriceResults = (results, query) => {
   };
 };
 
-const searchSearxngWeb = async (q, baseUrl) => {
+export const searchSearxngWeb = async (q, baseUrl) => {
   const url = new URL("/search", baseUrl);
   url.search = new URLSearchParams({ q, categories: "general", format: "json", language: "tr", safesearch: "1" }).toString();
   const response = await fetchWithTimeout(url, { headers: { Accept: "application/json" } }, 20000);

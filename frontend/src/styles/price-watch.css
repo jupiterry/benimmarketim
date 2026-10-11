@@ -304,6 +304,44 @@
   background: var(--ui-ok-bg);
   color: var(--ui-ok-ink);
 }
+.admin-layout .pw-diff--unsure {
+  background: var(--ui-info-bg);
+  color: var(--ui-info-ink);
+}
+.admin-layout .pw-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 6px 8px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-info-bg);
+  color: var(--ui-info-ink);
+  font-size: var(--ui-fs-xs);
+  line-height: 1.45;
+}
+.admin-layout .pw-note svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.admin-layout .pw-rejected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 4px;
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .pw-rejected a {
+  color: var(--ui-text-3);
+  text-decoration: underline;
+  text-decoration-color: var(--ui-line-strong);
+  text-underline-offset: 2px;
+}
+.admin-layout .pw-rejected a:hover {
+  color: var(--ui-text);
+}
 .admin-layout .pw-sources {
   display: flex;
   flex-wrap: wrap;
@@ -343,6 +381,24 @@
   font-weight: 650;
   color: var(--ui-text);
   font-variant-numeric: tabular-nums;
+}
+.admin-layout .pw-source-date {
+  color: var(--ui-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .pw-optional {
+  font-weight: 500;
+  color: var(--ui-text-3);
+}
+.admin-layout .pw-query-row + .pw-query-label {
+  margin-top: 8px;
+}
+.admin-layout .pw-query-row .pw-barcode-field {
+  flex: 0 1 200px;
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .pw-barcode-field[aria-invalid="true"] {
+  border-color: var(--ui-danger);
 }
 .admin-layout .pw-sources svg {
   width: 12px;
