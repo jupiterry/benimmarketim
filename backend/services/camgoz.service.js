@@ -12,14 +12,17 @@ export const BARCODE_SEARCH_CREDITS = 3;
 // Varsayılan olarak yalnızca zincir marketler (küçük online dükkânların fiyatları çok dağınık)
 export const DEFAULT_CHAINS = ["A101", "Migros", "Şok", "Carrefour", "Hakmar", "BİM", "File", "Macro Center", "Macrocenter", "Tarım Kredi", "Bizim Toptan", "Mopaş"];
 
+// .env'de tırnak, boşluk ya da Windows satır sonu kalmışsa temizlenir
+export const cleanApiKey = (value) => String(value ?? "").trim().replace(/^["']|["']$/g, "").trim();
+
 const toInt = (value, fallback, min, max) => {
   const number = Math.round(Number(value));
   return Number.isFinite(number) && number >= min && number <= max ? number : fallback;
 };
 
 export const camgozSettings = (env = process.env) => ({
-  apiKey: env.JOJAPI_API_KEY || "",
-  enabled: Boolean(env.JOJAPI_API_KEY) && env.CAMGOZ_ENABLED !== "false",
+  apiKey: cleanApiKey(env.JOJAPI_API_KEY),
+  enabled: Boolean(cleanApiKey(env.JOJAPI_API_KEY)) && env.CAMGOZ_ENABLED !== "false",
   monthlyCredits: toInt(env.CAMGOZ_MONTHLY_CREDITS, 500, 0, 10000000),
   maxAgeDays: toInt(env.CAMGOZ_MAX_AGE_DAYS, 90, 1, 3650),
   chains: (env.CAMGOZ_MARKETS ? env.CAMGOZ_MARKETS.split(",") : DEFAULT_CHAINS).map((name) => name.trim()).filter(Boolean),
@@ -105,6 +108,19 @@ export const camgozOffers = (product, { query, chains = DEFAULT_CHAINS, maxAgeDa
   return { offers: [...byChain.values()], rejected };
 };
 
+export const gatewayMessage = (text, key = "") => {
+  let message;
+  try {
+    const body = JSON.parse(text);
+    message = [body?.message, body?.error?.message || body?.error, body?.detail, body?.title, body?.code].find((item) => typeof item === "string" && item.trim()) || "";
+  } catch {
+    message = String(text || "").replace(/<[^>]+>/g, " ");
+  }
+  message = message.replace(/\s+/g, " ").trim();
+  if (key && key.length > 4) message = message.split(key).join("•••");
+  return message.slice(0, 200);
+};
+
 /** Tek API çağrısı. Kullanılan kredi X-Jojapi-Credits-Used başlığından okunur. */
 export const camgozSearch = async (query, { apiKey, fetchImpl = fetch, timeoutMs = 20000 }) => {
   const url = new URL(CAMGOZ_URL);
@@ -112,11 +128,15 @@ export const camgozSearch = async (query, { apiKey, fetchImpl = fetch, timeoutMs
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetchImpl(url, { signal: controller.signal, headers: { "X-JoJAPI-Key": apiKey, Accept: "application/json" } });
+    const key = cleanApiKey(apiKey);
+    const response = await fetchImpl(url, { signal: controller.signal, headers: { "X-JoJAPI-Key": key, Accept: "application/json" } });
     const credits = Number(response.headers?.get?.("x-jojapi-credits-used")) || 0;
     if (!response.ok) {
       const error = new Error(`CAMGOZ_${response.status}`);
       error.credits = credits;
+      // Ağ geçidinin açıklaması (abonelik yok, anahtar kapalı vb.) teşhis için saklanır; anahtar metinden çıkarılır
+      const text = typeof response.text === "function" ? await response.text().catch(() => "") : "";
+      error.detail = gatewayMessage(text, key);
       throw error;
     }
     const body = await response.json().catch(() => []);
@@ -127,9 +147,14 @@ export const camgozSearch = async (query, { apiKey, fetchImpl = fetch, timeoutMs
 };
 
 export const describeCamgozError = (error) => {
+  const base = describeCamgozCode(error);
+  return error?.detail ? `${base} — sunucu yanıtı: "${error.detail}"` : base;
+};
+
+const describeCamgozCode = (error) => {
   const code = String(error?.message || "");
   if (error?.name === "AbortError") return "Camgöz zamanında yanıt vermedi";
-  if (code === "CAMGOZ_401" || code === "CAMGOZ_403") return "Camgöz API anahtarı geçersiz ya da bu API'ye erişimi yok (JOJAPI_API_KEY)";
+  if (code === "CAMGOZ_401" || code === "CAMGOZ_403") return "Camgöz isteği yetkilendirilmedi: anahtar yanlış/kapalı ya da JoJ panelinde Product Barcode API'ye abone olunmamış (JOJAPI_API_KEY)";
   if (code === "CAMGOZ_402") return "Camgöz kredisi bitti";
   if (code === "CAMGOZ_429") return "Camgöz istek sınırı aşıldı";
   return code.startsWith("CAMGOZ_") ? `Camgöz yanıt vermedi (HTTP ${code.slice(7)})` : code.slice(0, 120) || "Camgöz hatası";

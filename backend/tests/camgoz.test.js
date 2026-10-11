@@ -124,6 +124,17 @@ test("API çağrısı: adres, anahtar başlığı ve kredi başlığı", async (
 
   const failing = async () => ({ ok: false, status: 402, headers: new Map(), json: async () => ({}) });
   await assert.rejects(camgozSearch("x", { apiKey: "abc", fetchImpl: failing }), /CAMGOZ_402/);
+
+  // 401: ağ geçidi açıklaması saklanır, anahtar metinden çıkarılır; .env'deki tırnak/boşluk temizlenir
+  const unauthorized = async (url, options) => {
+    seen = options.headers;
+    return { ok: false, status: 401, headers: new Map(), text: async () => JSON.stringify({ message: "Key abc123 is not subscribed to this API" }) };
+  };
+  const error = await camgozSearch("x", { apiKey: ' "abc123"\r ', fetchImpl: unauthorized }).catch((err) => err);
+  assert.equal(seen["X-JoJAPI-Key"], "abc123");
+  assert.equal(error.detail, "Key ••• is not subscribed to this API");
+  assert.match(describeCamgozError(error), /abone olunmamış.*sunucu yanıtı: "Key ••• is not subscribed to this API"/);
+  assert.equal(camgozSettings({ JOJAPI_API_KEY: "  'k1'  " }).apiKey, "k1");
 });
 
 test("kredi bütçesi: aylık sınır ve ay boyunca eşit dağıtım", () => {
@@ -193,7 +204,7 @@ test("kaynak sırası: önce Camgöz, bulamazsa market sayfaları; barkod ve kre
   const failed = await checkProduct({ db, product: third, now: NOW, lookup: priceLookup({ db, manual: true, settings: SETTINGS, camgoz: async () => { throw new Error("CAMGOZ_401"); }, pages }) });
   assert.equal(failed.provider, "pages");
   const state = db.data.price_watch_state.find((doc) => doc._id === "camgoz");
-  assert.match(state.lastError.message, /anahtarı geçersiz/);
+  assert.match(state.lastError.message, /yetkilendirilmedi/);
   assert.ok(new Date(state.pausedUntil) > NOW);
 
   // Camgöz kapalıysa (anahtar yok) doğrudan sayfalar
