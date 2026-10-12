@@ -304,3 +304,62 @@ export const writePref = (key, value) => {
     /* depolama kapalıysa yok say */
   }
 };
+
+// ── Kampanya / görev panelleri ─────────────────────────────────────
+
+// datetime-local alanı için yerel saat biçimi
+export const toLocalInput = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+};
+
+// "3 gün 4 saat", "5 saat 20 dk", "12 dk"
+export const formatDuration = (ms) => {
+  const total = Math.max(0, Math.round(ms / 60000));
+  const days = Math.floor(total / 1440);
+  const hours = Math.floor((total % 1440) / 60);
+  const minutes = total % 60;
+  if (days > 0) return hours ? `${days} gün ${hours} saat` : `${days} gün`;
+  if (hours > 0) return minutes ? `${hours} saat ${minutes} dk` : `${hours} saat`;
+  return `${Math.max(1, minutes)} dk`;
+};
+
+export const formatShortDate = (value) =>
+  value ? new Date(value).toLocaleDateString("tr-TR", { day: "numeric", month: "short" }) : "-";
+
+export const formatShortDateTime = (value) =>
+  value
+    ? new Date(value).toLocaleString("tr-TR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+    : "-";
+
+// Başlangıç–bitiş aralığında geçen sürenin yüzdesi (0–100)
+export const periodProgress = (startsAt, endsAt, now = Date.now()) => {
+  const s = time(startsAt);
+  const e = time(endsAt);
+  if (!s || !e || e <= s) return 0;
+  return Math.min(100, Math.max(0, ((now - s) / (e - s)) * 100));
+};
+
+// Tarih listesinden günlük sayım (son `days` gün, bugün dahil)
+export const dailyCounts = (dates, days = 30, now = Date.now()) => {
+  const end = new Date(now);
+  end.setHours(0, 0, 0, 0);
+  const start = end.getTime() - (days - 1) * DAY_MS;
+  const buckets = Array.from({ length: days }, (_, i) => ({ date: new Date(start + i * DAY_MS), count: 0 }));
+  for (const d of dates) {
+    const idx = Math.floor((time(d) - start) / DAY_MS);
+    if (idx >= 0 && idx < days) buckets[idx].count += 1;
+  }
+  return buckets;
+};
+
+// Kampanya/görev zaman durumu
+export const scheduleStatus = ({ isActive, startsAt, endsAt, rewardIssued }, now = Date.now()) => {
+  if (rewardIssued) return { key: "rewarded", label: "Ödül dağıtıldı", tone: "info" };
+  if (!isActive) return { key: "inactive", label: "Pasif", tone: "" };
+  if (time(endsAt) <= now) return { key: "ended", label: "Süresi doldu", tone: "warn" };
+  if (time(startsAt) > now) return { key: "scheduled", label: "Başlamadı", tone: "info" };
+  return { key: "live", label: "Yayında", tone: "ok" };
+};
