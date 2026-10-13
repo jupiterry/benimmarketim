@@ -4,19 +4,25 @@ import {
   ArrowDown,
   ArrowRight,
   ArrowUpRight,
+  Bookmark,
   Check,
   ChevronDown,
   Download,
+  Flag,
+  Gift,
   MapPin,
   ShieldCheck,
   ShoppingBag,
   Smartphone,
+  Sparkles,
+  Ticket,
+  Truck,
   UserRound,
+  Users,
 } from "lucide-react";
 import { useUserStore } from "../stores/useUserStore";
 import "../styles/landing.css";
 import MarketCategories from "../components/MarketCategories";
-import AppScreenshots from "../components/AppScreenshots";
 import { homeTitle, homeDescription, homeKeywords, siteUrl } from "../data/seo";
 
 const businessAddress =
@@ -77,6 +83,105 @@ const steps = [
     title: "Alışverişe başla.",
     description:
       "İhtiyaçlarını keşfet, sepetini oluştur ve siparişini uygulamadan tamamla.",
+  },
+];
+
+// Uygulamadaki gerçek özellikler; görseller ekran görüntüsü değil, CSS ile çizilmiş küçük arayüzlerdir.
+const FeatureArt = ({ type }) => {
+  if (type === "coupons") {
+    return (
+      <div className="landing-art-tickets" aria-hidden="true">
+        <div className="landing-art-ticket">
+          <b>%10</b>
+          <span><strong>Hoş geldin</strong><small>İlk siparişine özel</small></span>
+        </div>
+        <div className="landing-art-ticket landing-art-ticket--alt">
+          <b>₺50</b>
+          <span><strong>Hafta sonu</strong><small>₺300 üzeri sepette</small></span>
+        </div>
+      </div>
+    );
+  }
+  if (type === "missions") {
+    return (
+      <div className="landing-art-dots" aria-hidden="true">
+        <i data-done="true"><Check size={14} /></i>
+        <i data-done="true"><Check size={14} /></i>
+        <i>3</i>
+        <span><Gift size={15} /> ₺50</span>
+      </div>
+    );
+  }
+  if (type === "community") {
+    return (
+      <div className="landing-art-goal" aria-hidden="true">
+        <div className="landing-art-goal-top"><strong>23</strong> / 30 kişi</div>
+        <div className="landing-art-goal-bar"><i /></div>
+        <div className="landing-art-avatars"><i>A</i><i>M</i><i>Z</i><i>E</i><span>+19</span></div>
+      </div>
+    );
+  }
+  if (type === "assistant") {
+    return (
+      <div className="landing-art-chat" aria-hidden="true">
+        <p className="landing-art-bubble landing-art-bubble--me">Kahvaltılık bir şeyler</p>
+        <p className="landing-art-bubble"><Sparkles size={13} /> Peynir, zeytin ve yumurta ekledim.</p>
+      </div>
+    );
+  }
+  if (type === "saved") {
+    return (
+      <ul className="landing-art-list" aria-hidden="true">
+        <li><Bookmark size={14} /> Haftalık alışveriş <small>12 ürün</small></li>
+        <li><Bookmark size={14} /> Kahvaltı sepeti <small>6 ürün</small></li>
+      </ul>
+    );
+  }
+  return (
+    <ol className="landing-art-track" aria-hidden="true">
+      <li data-done="true"><i><Check size={12} /></i>Hazırlanıyor</li>
+      <li data-done="true"><i><Check size={12} /></i>Yolda</li>
+      <li><i /></li>
+    </ol>
+  );
+};
+
+const features = [
+  {
+    id: "coupons",
+    icon: Ticket,
+    title: "Kuponların hep cebinde.",
+    description: "Sana özel indirimler kupon cüzdanında birikir; sepette tek dokunuşla uygularsın.",
+  },
+  {
+    id: "missions",
+    icon: Flag,
+    title: "Görevi tamamla, kupon kazan.",
+    description: "Belirlenen sayıda sipariş ver, kuponun cüzdanına kendiliğinden düşsün.",
+  },
+  {
+    id: "assistant",
+    icon: Sparkles,
+    title: "Sepet asistanı.",
+    description: "Ne istediğini yaz, sepetini birlikte dolduralım.",
+  },
+  {
+    id: "saved",
+    icon: Bookmark,
+    title: "Kayıtlı sepetler.",
+    description: "Sık aldıklarını kaydet, tek dokunuşla yeniden sepete ekle.",
+  },
+  {
+    id: "tracking",
+    icon: Truck,
+    title: "Siparişin nerede, bil.",
+    description: "Hazırlanıyor, yolda, teslim edildi; her adımda haberin olur.",
+  },
+  {
+    id: "community",
+    icon: Users,
+    title: "Birlikte iste, birlikte kazan.",
+    description: "Kampanyaya talep bırak; hedef dolunca katılan herkese kişisel kupon tanımlanır.",
   },
 ];
 
@@ -244,13 +349,48 @@ const HomePage = () => {
             <Smartphone size={16} aria-hidden="true" /> Alışveriş uygulamada.
             Hesabın her yerde.
           </span>
-          <a href="#nasil-calisir">
+          <a href="#uygulama-ozellikleri">
             Tanışalım <ArrowDown size={17} aria-hidden="true" />
           </a>
         </div>
       </section>
 
-      <AppScreenshots />
+      <section
+        className="landing-features"
+        id="uygulama-ozellikleri"
+        aria-labelledby="landing-features-title"
+      >
+        <div className="landing-shell">
+          <div className="landing-section-heading">
+            <div>
+              <span className="landing-eyebrow">UYGULAMADA SENİ NELER BEKLİYOR?</span>
+              <h2 id="landing-features-title">
+                Market alışverişi,
+                <br />
+                <span>olması gerektiği gibi.</span>
+              </h2>
+            </div>
+            <p>
+              Kuponlar, görevler ve akıllı sepet araçları Benim Marketim
+              uygulamasında. Hepsi ücretsiz, hepsi tek hesapla.
+            </p>
+          </div>
+          <ul className="landing-bento">
+            {features.map(({ id, icon: Icon, title, description }) => (
+              <li key={id} className={`landing-bento-card landing-bento-card--${id}`}>
+                <div className="landing-bento-copy">
+                  <i>
+                    <Icon size={20} strokeWidth={1.9} aria-hidden="true" />
+                  </i>
+                  <h3>{title}</h3>
+                  <p>{description}</p>
+                </div>
+                <FeatureArt type={id} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
 
       <section
         className="landing-how"
