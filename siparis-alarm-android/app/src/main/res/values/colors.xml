@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Benim Marketim mobil uygulamasındaki MarketPalette ile aynı tonlar -->
+<resources>
+    <color name="canvas">#FFF5F7F3</color>
+    <color name="surface">#FFFFFFFF</color>
+    <color name="surface_muted">#FFF0F3EF</color>
+    <color name="line">#FFE5EAE6</color>
+    <color name="line_strong">#FFD5DDD7</color>
+    <color name="ink">#FF17231B</color>
+    <color name="ink_soft">#FF34443A</color>
+    <color name="muted">#FF5F6E66</color>
+    <color name="subtle">#FF8A968F</color>
+    <color name="green">#FF168A52</color>
+    <color name="green_dark">#FF075B39</color>
+    <color name="green_deep">#FF063F2B</color>
+    <color name="green_soft">#FFE7F5EC</color>
+    <color name="green_line">#FFCDE9D8</color>
+    <color name="lime">#FFB8E36F</color>
+    <color name="lime_soft">#FFF1F9E2</color>
+    <color name="orange">#FFFFA14A</color>
+    <color name="orange_ink">#FF9B5B13</color>
+    <color name="orange_soft">#FFFFF3DF</color>
+    <color name="red">#FFD93B3B</color>
+    <color name="red_soft">#FFFDECEC</color>
+    <color name="red_line">#FFF2C4C4</color>
+    <color name="white_70">#B3FFFFFF</color>
+    <color name="white_20">#33FFFFFF</color>
+    <color name="ripple_dark">#22000000</color>
+    <color name="ripple_light">#33FFFFFF</color>
+</resources>

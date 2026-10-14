@@ -1076,6 +1076,14 @@
   border-bottom: 1px solid var(--ui-line);
   font-size: var(--ui-fs-xs);
 }
+/* Sipariş alarmı telefonları (OrderAlarmDevicesCard) */
+.dash-telegram-body li.dash-alarm-device {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: var(--ui-fs-sm);
+}
 
 /* ══ Siparişler: liste + sağ detay paneli ═════════════════════════════ */
 .ord {

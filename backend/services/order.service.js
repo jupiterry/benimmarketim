@@ -12,6 +12,7 @@ import Coupon from "../models/coupon.model.js";
 import Order from "../models/order.model.js";
 import { sendOrderNotification } from "./n8n.service.js";
 import { notifyAdmins } from "./adminFeed.service.js";
+import { signalOrderAlarm } from "./orderAlarm.service.js";
 import {
   commitCouponAtomically,
   evaluateCoupon,
@@ -196,6 +197,13 @@ export async function commitCouponUsage(appliedCoupon, userId, orderId) {
  * @param {string} phone - Sipariş telefon numarası
  */
 export function dispatchOrderNotifications(io, newOrder, requestUser, phone) {
+  // ─── Sipariş alarmı telefonları (bu süreçte bekleyenler hemen yeniden bakar) ───
+  try {
+    signalOrderAlarm();
+  } catch (alarmError) {
+    console.error("Sipariş alarmı sinyali gönderilemedi:", alarmError.message);
+  }
+
   // ─── Socket.IO: Admin bildirim (anlık) ───
   try {
     if (!io) {

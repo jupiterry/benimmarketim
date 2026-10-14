@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import axios from "../lib/axios";
 import TelegramNotificationsCard from "./TelegramNotificationsCard";
+import OrderAlarmDevicesCard from "./OrderAlarmDevicesCard";
 import { NEW_ACTIVITY_YEAR_START, REVENUE_PERIODS, summarizeRevenue } from "../lib/revenuePeriods";
 const money = (value) =>
   Number(value || 0).toLocaleString("tr-TR", {
@@ -767,6 +768,7 @@ const DashboardWidgets = ({ onNavigate }) => {
         </section>
 
         <TelegramNotificationsCard />
+        <OrderAlarmDevicesCard />
       </div>
     </div>
   );

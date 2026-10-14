@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:colorPrimary">@color/green</item>
+        <item name="android:colorPrimaryDark">@color/green_deep</item>
+        <item name="android:colorAccent">@color/green</item>
+        <item name="android:colorControlActivated">@color/green</item>
+        <item name="android:windowBackground">@color/canvas</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@color/canvas</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:textColorPrimary">@color/ink</item>
+        <item name="android:textColorSecondary">@color/muted</item>
+        <item name="android:textColorHint">@color/subtle</item>
+    </style>
+
+    <style name="AlarmTheme" parent="AppTheme">
+        <item name="android:windowBackground">@color/green_deep</item>
+        <item name="android:navigationBarColor">@color/green_deep</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>

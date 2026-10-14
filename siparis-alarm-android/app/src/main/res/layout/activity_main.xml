@@ -1,0 +1,331 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/canvas"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:id="@+id/header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_header"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="20dp"
+        android:paddingTop="16dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="18dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Benim Marketim"
+                android:textColor="@color/lime"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Sipariş Alarmı"
+                android:textColor="@android:color/white"
+                android:textSize="26sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <ImageView
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_bell_large" />
+    </LinearLayout>
+
+    <ScrollView
+        android:id="@+id/scroll"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- ─── Giriş / eşleme ─── -->
+            <LinearLayout
+                android:id="@+id/loginSection"
+                style="@style/Card">
+
+                <TextView
+                    style="@style/CardTitle"
+                    android:text="Telefonu eşle" />
+
+                <TextView
+                    style="@style/Body"
+                    android:text="Yönetici hesabınızla bir kez giriş yapın. Şifreniz telefonda saklanmaz; telefon yalnızca yeni siparişleri görebilen bir anahtar alır. Telefonu panelden istediğiniz an kaldırabilirsiniz." />
+
+                <TextView
+                    style="@style/Label"
+                    android:text="E-posta" />
+
+                <EditText
+                    android:id="@+id/email"
+                    style="@style/Input"
+                    android:autofillHints="emailAddress"
+                    android:hint="yonetici@ornek.com"
+                    android:inputType="textEmailAddress" />
+
+                <TextView
+                    style="@style/Label"
+                    android:text="Şifre" />
+
+                <EditText
+                    android:id="@+id/password"
+                    style="@style/Input"
+                    android:autofillHints="password"
+                    android:hint="••••••"
+                    android:inputType="textPassword" />
+
+                <TextView
+                    style="@style/Label"
+                    android:text="Bu telefonun adı" />
+
+                <EditText
+                    android:id="@+id/deviceName"
+                    style="@style/Input"
+                    android:hint="Örn. Kasa telefonu"
+                    android:inputType="textCapSentences"
+                    android:maxLength="40" />
+
+                <TextView
+                    android:id="@+id/serverToggle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="40dp"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center_vertical"
+                    android:text="Sunucu adresini değiştir"
+                    android:textColor="@color/green_dark"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <EditText
+                    android:id="@+id/server"
+                    style="@style/Input"
+                    android:inputType="textUri"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/loginError"
+                    style="@style/Body"
+                    android:layout_marginTop="12dp"
+                    android:background="@drawable/bg_pill_red_soft"
+                    android:padding="12dp"
+                    android:textColor="@color/red"
+                    android:visibility="gone" />
+
+                <Button
+                    android:id="@+id/loginButton"
+                    style="@style/ButtonPrimary"
+                    android:layout_marginTop="16dp"
+                    android:text="Giriş yap ve alarmı aç" />
+            </LinearLayout>
+
+            <!-- ─── Panel ─── -->
+            <LinearLayout
+                android:id="@+id/dashboardSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <!-- Durum -->
+                <LinearLayout
+                    android:id="@+id/statusCard"
+                    style="@style/Card">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <View
+                            android:id="@+id/statusDot"
+                            android:layout_width="12dp"
+                            android:layout_height="12dp"
+                            android:layout_marginEnd="10dp"
+                            android:background="@drawable/bg_dot" />
+
+                        <TextView
+                            android:id="@+id/statusTitle"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:textColor="@color/ink"
+                            android:textSize="18sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/statusDetail"
+                        style="@style/Body"
+                        android:layout_marginTop="6dp" />
+
+                    <TextView
+                        android:id="@+id/deviceLine"
+                        style="@style/Body"
+                        android:layout_marginTop="6dp"
+                        android:textColor="@color/muted"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <!-- Onay bekleyen siparişler -->
+                <LinearLayout
+                    android:id="@+id/pendingCard"
+                    style="@style/Card"
+                    android:background="@drawable/bg_pill_orange_soft"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/pendingText"
+                        style="@style/CardTitle"
+                        android:textColor="@color/orange_ink" />
+
+                    <Button
+                        android:id="@+id/openAlarm"
+                        style="@style/ButtonPrimary"
+                        android:text="Alarm ekranını aç" />
+                </LinearLayout>
+
+                <!-- İzinler -->
+                <LinearLayout style="@style/Card">
+
+                    <TextView
+                        style="@style/CardTitle"
+                        android:text="Kesintisiz çalışma ayarları" />
+
+                    <TextView
+                        android:id="@+id/permissionSummary"
+                        style="@style/Body" />
+
+                    <LinearLayout
+                        android:id="@+id/permissions"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+                </LinearLayout>
+
+                <!-- Alarm ayarları -->
+                <LinearLayout style="@style/Card">
+
+                    <TextView
+                        style="@style/CardTitle"
+                        android:text="Alarm" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                style="@style/Body"
+                                android:text="Alarm sesi"
+                                android:textColor="@color/ink"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/soundName"
+                                style="@style/Body"
+                                android:textColor="@color/muted"
+                                android:textSize="13sp" />
+                        </LinearLayout>
+
+                        <Button
+                            android:id="@+id/changeSound"
+                            style="@style/ButtonSmall"
+                            android:background="@drawable/bg_button_call"
+                            android:text="Değiştir"
+                            android:textColor="@color/green_dark" />
+                    </LinearLayout>
+
+                    <Switch
+                        android:id="@+id/maxVolume"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:minHeight="48dp"
+                        android:text="Sesi en yükseğe çıkar (sessiz modda da çalar)"
+                        android:textColor="@color/ink_soft"
+                        android:textSize="15sp" />
+
+                    <Switch
+                        android:id="@+id/vibrate"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minHeight="48dp"
+                        android:text="Titreşim"
+                        android:textColor="@color/ink_soft"
+                        android:textSize="15sp" />
+
+                    <Button
+                        android:id="@+id/testAlarm"
+                        style="@style/ButtonSecondary"
+                        android:layout_marginTop="8dp"
+                        android:text="Test alarmı çal" />
+
+                    <TextView
+                        style="@style/Body"
+                        android:layout_marginTop="8dp"
+                        android:text="Test alarmı sunucuya gitmez. Telefonu kilitleyip 10 saniye içinde deneyebilirsiniz: alarm 10 sn sonra çalar."
+                        android:textColor="@color/muted"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <!-- Son onaylar -->
+                <LinearLayout style="@style/Card">
+
+                    <TextView
+                        style="@style/CardTitle"
+                        android:text="Bu telefondaki son onaylar" />
+
+                    <LinearLayout
+                        android:id="@+id/history"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+                </LinearLayout>
+
+                <Button
+                    android:id="@+id/logout"
+                    style="@style/ButtonSecondary"
+                    android:background="@drawable/bg_button_danger"
+                    android:text="Çıkış yap (bu telefonda alarmı kapat)"
+                    android:textColor="@color/red" />
+
+                <TextView
+                    android:id="@+id/version"
+                    style="@style/Body"
+                    android:layout_marginTop="12dp"
+                    android:gravity="center"
+                    android:textColor="@color/subtle"
+                    android:textSize="12sp" />
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

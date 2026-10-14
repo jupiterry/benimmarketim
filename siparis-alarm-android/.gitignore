@@ -1,0 +1,11 @@
+# İmza anahtarı ve şifresi: ASLA depoya eklemeyin (depo herkese açık). Ayrıca yedekleyin.
+keystore/*.jks
+keystore/keystore.properties
+# Derleme çıktıları
+build/
+app/build/
+.gradle/
+local.properties
+*.iml
+.idea/
+release/*.apk

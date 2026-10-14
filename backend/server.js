@@ -39,6 +39,7 @@ import savedCartRoutes from "./routes/savedCart.route.js";
 import productAssistRoutes from "./routes/productAssist.route.js";
 import priceWatchRoutes from "./routes/priceWatch.route.js";
 import adminFeedRoutes from "./routes/adminFeed.route.js";
+import orderAlarmRoutes from "./routes/orderAlarm.route.js";
 import Product from "./models/product.model.js";
 import User from "./models/user.model.js";
 import Chat from "./models/chat.model.js";
@@ -313,6 +314,7 @@ app.use("/api/saved-carts", savedCartRoutes);
 app.use("/api/product-assist", productAssistRoutes);
 app.use("/api/price-watch", priceWatchRoutes);
 app.use("/api/admin-notifications", adminFeedRoutes);
+app.use("/api/order-alarm", orderAlarmRoutes);
 
 // ============ SEO ENDPOINTS ============
 
