@@ -19,6 +19,7 @@ import analyticsRoutes from "./routes/analytics.route.js";
 import feedbackRoutes from "./routes/feedback.route.js";
 import settingsRoutes from "./routes/settings.route.js";
 import flashSaleRoutes from "./routes/flashSale.route.js";
+import { startFlashSaleJob } from "./services/flashSale.service.js";
 import photocopyRoutes from "./routes/photocopy.route.js";
 import bannerRoutes from "./routes/banner.route.js";
 import categoryRoutes from "./routes/category.route.js";
@@ -435,4 +436,7 @@ httpServer.listen(PORT, () => {
   
   // Start cart reminder cron job
   startCartReminderJob();
+
+  // Flash sale'leri zamanında başlat ve bitir (dakikada bir)
+  startFlashSaleJob();
 });

@@ -29,6 +29,24 @@ const flashSaleSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // İndirim şu an ürüne uygulanmış mı? (zamanlanmış görev başlatır/bitirir)
+    applied: {
+      type: Boolean,
+      default: false,
+    },
+    appliedPrice: {
+      type: Number,
+      default: null,
+    },
+    // Kampanya bitince geri yüklenecek, ürünün önceki indirim durumu
+    previousIsDiscounted: {
+      type: Boolean,
+      default: false,
+    },
+    previousDiscountedPrice: {
+      type: Number,
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -37,6 +55,7 @@ const flashSaleSchema = new mongoose.Schema(
 
 // İndeksleme
 flashSaleSchema.index({ product: 1, startDate: 1, endDate: 1 });
+flashSaleSchema.index({ isActive: 1, applied: 1, startDate: 1, endDate: 1 });
 
 const FlashSale = mongoose.model("FlashSale", flashSaleSchema);
 
