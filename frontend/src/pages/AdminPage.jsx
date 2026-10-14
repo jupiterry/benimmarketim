@@ -613,6 +613,7 @@ const AdminPage = () => {
             editingProduct={editingProduct}
             setEditingProduct={setEditingProduct}
             onSave={handleSave}
+            onCreate={() => handleTabChange("create")}
           />
         );
       case "create":

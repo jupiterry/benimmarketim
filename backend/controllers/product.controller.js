@@ -470,6 +470,11 @@ export const updateProductPrice = async (req, res) => {
     }
 
     product.price = priceNumber; // Yeni fiyatı kaydet
+    // Yeni fiyatın altında kalmayan indirim geçersizdir; müşteriye daha pahalı "indirim" gösterilmesin
+    if (product.isDiscounted && Number(product.discountedPrice) >= priceNumber) {
+      product.isDiscounted = false;
+      product.discountedPrice = null;
+    }
     const updatedProduct = await product.save();
 
     // Cache'i invalidate et
@@ -817,10 +822,17 @@ export const bulkUpdateVisibility = async (req, res) => {
 
 export const bulkUpdatePrice = async (req, res) => {
   try {
-    const { productIds, priceValue, priceType } = req.body;
-    
+    const { productIds, priceType } = req.body;
+    const priceValue = Number(req.body.priceValue);
+
     if (!productIds || productIds.length === 0) {
       return res.status(400).json({ message: "Ürün ID'leri gerekli" });
+    }
+    if (!Number.isFinite(priceValue) || !["set", "increase", "decrease", "percentage"].includes(priceType)) {
+      return res.status(400).json({ message: "Geçerli bir fiyat değeri ve işlem türü girin" });
+    }
+    if (priceType === "set" && priceValue < 0) {
+      return res.status(400).json({ message: "Fiyat negatif olamaz" });
     }
 
     const products = await Product.find({ _id: { $in: productIds } });
@@ -839,6 +851,12 @@ export const bulkUpdatePrice = async (req, res) => {
         case 'percentage':
           product.price = product.price * (1 + priceValue / 100);
           break;
+      }
+      product.price = Math.max(0, Math.round(Number(product.price) * 100) / 100);
+      // Yeni fiyat indirimli fiyatın altına inerse geçersiz kalan indirimi kaldır
+      if (product.isDiscounted && Number(product.discountedPrice) >= product.price) {
+        product.isDiscounted = false;
+        product.discountedPrice = null;
       }
       await product.save();
     }

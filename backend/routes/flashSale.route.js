@@ -5,6 +5,7 @@ import {
   createFlashSale,
   updateFlashSale,
   deleteFlashSale,
+  endFlashSale,
 } from "../controllers/flashSale.controller.js";
 import { protectRoute, adminRoute } from "../middleware/auth.middleware.js";
 
@@ -17,6 +18,7 @@ router.get("/active", getActiveFlashSales);
 router.get("/", protectRoute, adminRoute, getAllFlashSales);
 router.post("/", protectRoute, adminRoute, createFlashSale);
 router.put("/:id", protectRoute, adminRoute, updateFlashSale);
+router.post("/:id/end", protectRoute, adminRoute, endFlashSale);
 router.delete("/:id", protectRoute, adminRoute, deleteFlashSale);
 
 export default router;
