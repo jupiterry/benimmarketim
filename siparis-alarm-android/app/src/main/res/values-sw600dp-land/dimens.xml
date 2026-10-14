@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Tablet yatay: sol sütunda ortalanmış büyük zil -->
-<resources>
-    <dimen name="alarm_pulse">170dp</dimen>
-    <dimen name="alarm_bell">76dp</dimen>
-</resources>

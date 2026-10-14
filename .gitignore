@@ -32,3 +32,6 @@ frontend/.vite-image-cache/
 *.njsproj
 *.sln
 *.sw?
+
+# Local Android order alarm project
+/siparis-alarm-android/
