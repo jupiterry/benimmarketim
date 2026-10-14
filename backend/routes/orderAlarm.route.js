@@ -5,11 +5,13 @@ import { loginRateLimiter } from "../middleware/loginRateLimit.js";
 import {
   ackOrderHandler,
   alarmStatusHandler,
+  changeOrderStatusHandler,
   getPendingHandler,
   logoutDeviceHandler,
   pairDeviceHandler,
   requireAlarmDevice,
   revokeDeviceHandler,
+  todayOrdersHandler,
 } from "../controllers/orderAlarm.controller.js";
 
 // Sipariş alarmı Android uygulaması (siparis-alarm-android/). Telefon uçları cihaz anahtarıyla,
@@ -19,6 +21,8 @@ const router = express.Router();
 router.post("/pair", loginRateLimiter, pairDeviceHandler);
 router.get("/pending", requireAlarmDevice, getPendingHandler);
 router.post("/orders/:orderId/ack", requireAlarmDevice, ackOrderHandler);
+router.get("/orders/today", requireAlarmDevice, todayOrdersHandler);
+router.put("/orders/:orderId/status", requireAlarmDevice, changeOrderStatusHandler);
 router.post("/logout", requireAlarmDevice, logoutDeviceHandler);
 
 router.get("/status", protectRoute, adminRoute, alarmStatusHandler);

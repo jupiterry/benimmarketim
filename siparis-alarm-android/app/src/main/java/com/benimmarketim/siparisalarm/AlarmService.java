@@ -208,6 +208,7 @@ public class AlarmService extends Service {
             Log.w(TAG, "Wi-Fi kilidi alınamadı", e);
         }
         registerNetworkCallback();
+        if (Prefs.speak(this)) Announcer.get(this).warmUp();
 
         // Uygulama kapanıp açıldıysa onaylanmamış siparişler için alarm hemen sürer.
         serverOrders = filterOutTest(Prefs.activeOrders(this));
@@ -561,7 +562,11 @@ public class AlarmService extends Service {
         }
         alertedIds.retainAll(activeIds);
 
-        AlarmSound.get(this).start();
+        AlarmSound sound = AlarmSound.get(this);
+        sound.setAnnouncement(active.size() == 1
+                ? active.get(0).spokenSummary()
+                : active.size() + " sipariş onay bekliyor. İlk sipariş: " + active.get(0).spokenSummary().replace("Yeni sipariş. ", ""));
+        sound.start();
         long now = System.currentTimeMillis();
         boolean changed = !key.toString().equals(alarmPostedKey);
         if (nm != null && (changed || forceRepost || now - alarmPostedAt > ALARM_REPOST_MS)) {

@@ -14,6 +14,36 @@ final class Ui {
     private Ui() {
     }
 
+    /** Kalın başlık + altında küçük, soluk açıklama (anahtar ve satır metinleri için). */
+    static CharSequence twoLine(Context context, String title, String subtitle) {
+        android.text.SpannableStringBuilder text = new android.text.SpannableStringBuilder(title);
+        if (subtitle != null && !subtitle.isEmpty()) {
+            int start = text.length();
+            text.append('\n').append(subtitle);
+            text.setSpan(new android.text.style.RelativeSizeSpan(0.85f), start, text.length(), 0);
+            text.setSpan(new android.text.style.ForegroundColorSpan(context.getColor(R.color.muted)), start, text.length(), 0);
+        }
+        return text;
+    }
+
+    /** Satır başı ikonu: yuvarlak köşeli renkli kutu içinde. */
+    static android.widget.ImageView rowIcon(Context context, int icon, int backgroundColor, int tintColor) {
+        android.widget.ImageView view = new android.widget.ImageView(context);
+        view.setImageResource(icon);
+        view.setImageTintList(android.content.res.ColorStateList.valueOf(tintColor));
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setCornerRadius(dp(context, 12));
+        bg.setColor(backgroundColor);
+        view.setBackground(bg);
+        int pad = dp(context, 9);
+        view.setPadding(pad, pad, pad, pad);
+        view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        android.widget.LinearLayout.LayoutParams params = new android.widget.LinearLayout.LayoutParams(dp(context, 40), dp(context, 40));
+        params.setMarginEnd(dp(context, 12));
+        view.setLayoutParams(params);
+        return view;
+    }
+
     static int dp(Context context, float value) {
         return Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value, context.getResources().getDisplayMetrics()));
     }

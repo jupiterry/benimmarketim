@@ -23,6 +23,8 @@
     <color name="red">#FFD93B3B</color>
     <color name="red_soft">#FFFDECEC</color>
     <color name="red_line">#FFF2C4C4</color>
+    <color name="blue">#FF3D63DD</color>
+    <color name="blue_soft">#FFEAF0FF</color>
     <color name="white_70">#B3FFFFFF</color>
     <color name="white_20">#33FFFFFF</color>
     <color name="ripple_dark">#22000000</color>

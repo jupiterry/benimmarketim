@@ -18,8 +18,8 @@ android {
         minSdk 26
         targetSdk 35
         // Sürüm yükseltirken BuildInfo.VERSION_NAME de değiştirilmeli.
-        versionCode 2
-        versionName "1.0.1"
+        versionCode 4
+        versionName "1.2.0"
     }
 
     signingConfigs {

@@ -54,7 +54,12 @@ public class MainActivity extends Activity implements AlarmService.Listener {
     private TextView loginError;
     private Button loginButton;
 
-    private View statusDot;
+    private PulseView statusDot;
+    private View statusCard;
+    private TextView deviceChip;
+    private TextView permissionCount;
+    private android.widget.ProgressBar permissionProgress;
+    private boolean passwordVisible;
     private TextView statusTitle;
     private TextView statusDetail;
     private TextView deviceLine;
@@ -65,6 +70,9 @@ public class MainActivity extends Activity implements AlarmService.Listener {
     private TextView soundName;
     private Switch maxVolume;
     private Switch vibrate;
+    private Switch speak;
+    private Switch flash;
+    private TextView speakNote;
     private LinearLayout history;
 
     private final Runnable ticker = new Runnable() {
@@ -109,6 +117,12 @@ public class MainActivity extends Activity implements AlarmService.Listener {
         loginError = findViewById(R.id.loginError);
         loginButton = findViewById(R.id.loginButton);
         statusDot = findViewById(R.id.statusDot);
+        statusCard = findViewById(R.id.statusCard);
+        deviceChip = findViewById(R.id.deviceChip);
+        permissionCount = findViewById(R.id.permissionCount);
+        permissionProgress = findViewById(R.id.permissionProgress);
+        ((PulseView) findViewById(R.id.loginPulse)).setColor(getColor(R.color.green));
+        findViewById(R.id.passwordToggle).setOnClickListener(v -> togglePassword());
         statusTitle = findViewById(R.id.statusTitle);
         statusDetail = findViewById(R.id.statusDetail);
         deviceLine = findViewById(R.id.deviceLine);
@@ -119,6 +133,9 @@ public class MainActivity extends Activity implements AlarmService.Listener {
         soundName = findViewById(R.id.soundName);
         maxVolume = findViewById(R.id.maxVolume);
         vibrate = findViewById(R.id.vibrate);
+        speak = findViewById(R.id.speak);
+        flash = findViewById(R.id.flash);
+        speakNote = findViewById(R.id.speakNote);
         history = findViewById(R.id.history);
 
         server.setText(Prefs.getServer(this));
@@ -131,6 +148,18 @@ public class MainActivity extends Activity implements AlarmService.Listener {
         findViewById(R.id.logout).setOnClickListener(v -> confirmLogout());
         maxVolume.setOnCheckedChangeListener((b, checked) -> Prefs.setMaxVolume(this, checked));
         vibrate.setOnCheckedChangeListener((b, checked) -> Prefs.setVibrate(this, checked));
+        speak.setOnCheckedChangeListener((b, checked) -> {
+            Prefs.setSpeak(this, checked);
+            if (checked) Announcer.get(this).warmUp();
+            handler.postDelayed(this::renderSpeakNote, 1500);
+        });
+        flash.setOnCheckedChangeListener((b, checked) -> Prefs.setFlash(this, checked));
+        maxVolumeLabel();
+        if (!new Torch(this).available()) {
+            flash.setEnabled(false);
+            flash.setText(Ui.twoLine(this, "Flaş ışığı", "Bu telefonda flaş yok"));
+        }
+        findViewById(R.id.todayOrders).setOnClickListener(v -> startActivity(new Intent(this, OrdersActivity.class)));
         ((TextView) findViewById(R.id.version)).setText("Sürüm " + BuildInfo.VERSION_NAME + " · Benim Marketim");
     }
 
@@ -164,13 +193,32 @@ public class MainActivity extends Activity implements AlarmService.Listener {
         boolean paired = Prefs.isPaired(this);
         loginSection.setVisibility(paired ? View.GONE : View.VISIBLE);
         dashboardSection.setVisibility(paired ? View.VISIBLE : View.GONE);
+        deviceChip.setVisibility(paired ? View.VISIBLE : View.GONE);
         if (!paired) return;
+        deviceChip.setText(Prefs.getDeviceName(this));
         renderStatus();
         renderPermissions();
         soundName.setText(AlarmSound.soundName(this));
         maxVolume.setChecked(Prefs.maxVolume(this));
         vibrate.setChecked(Prefs.vibrate(this));
+        speak.setChecked(Prefs.speak(this));
+        flash.setChecked(Prefs.flash(this));
+        if (Prefs.speak(this)) Announcer.get(this).warmUp();
+        renderSpeakNote();
         renderHistory();
+    }
+
+    private void renderSpeakNote() {
+        Announcer.State state = Announcer.get(this).state();
+        if (Prefs.speak(this) && state == Announcer.State.NO_TURKISH) {
+            speakNote.setVisibility(View.VISIBLE);
+            speakNote.setText("Telefonda Türkçe okuma sesi yüklü değil. Ayarlar > Erişilebilirlik > Metin okuma çıkışı'ndan Türkçe ses paketini indirin.");
+        } else if (Prefs.speak(this) && state == Announcer.State.FAILED) {
+            speakNote.setVisibility(View.VISIBLE);
+            speakNote.setText("Telefonun metin okuma motoru açılamadı. Alarm sesli okuma olmadan çalar.");
+        } else {
+            speakNote.setVisibility(View.GONE);
+        }
     }
 
     // ─── Eşleme ──────────────────────────────────────────────────
@@ -255,26 +303,32 @@ public class MainActivity extends Activity implements AlarmService.Listener {
         boolean running = AlarmService.isRunning();
         boolean connected = AlarmService.isConnected();
         long last = Prefs.lastSuccess(this);
-        int color;
+        int[] gradient;
+        int dotColor;
         if (running && connected) {
-            color = getColor(R.color.green);
-            statusTitle.setText("Alarm açık · siparişler dinleniyor");
-            statusDetail.setText("Son kontrol: " + Format.timeSeconds(last) + ". Yeni siparişte telefon çalar; uygulamayı kapatsanız da çalışmaya devam eder.");
+            gradient = new int[]{getColor(R.color.green), getColor(R.color.green_dark)};
+            dotColor = getColor(R.color.lime);
+            statusTitle.setText("Alarm açık");
+            statusDetail.setText("Siparişler dinleniyor · son kontrol " + Format.timeSeconds(last)
+                    + "\nUygulamayı kapatsanız da yeni siparişte telefon çalar.");
         } else if (running) {
-            color = getColor(R.color.orange);
+            gradient = new int[]{0xFFE58A2E, 0xFFB86414};
+            dotColor = android.graphics.Color.WHITE;
             statusTitle.setText("Bağlantı bekleniyor");
             String error = AlarmService.lastError();
             statusDetail.setText((TextUtils.isEmpty(error) ? "Sunucuya bağlanılıyor…" : error)
                     + (last > 0 ? "\nSon başarılı kontrol: " + Format.dateTime(last) : ""));
         } else {
-            color = getColor(R.color.red);
+            gradient = new int[]{getColor(R.color.red), 0xFFA52626};
+            dotColor = android.graphics.Color.WHITE;
             statusTitle.setText("Alarm kapalı");
             statusDetail.setText("Servis çalışmıyor. Aşağıdaki ayarları tamamlayın; uygulama açıldığında yeniden başlar.");
         }
-        GradientDrawable dot = new GradientDrawable();
-        dot.setShape(GradientDrawable.OVAL);
-        dot.setColor(color);
-        statusDot.setBackground(dot);
+        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, gradient);
+        bg.setCornerRadius(Ui.dp(this, 24));
+        statusCard.setBackground(bg);
+        statusDot.setColor(dotColor);
+        statusDot.setAnimating(running && connected);
 
         String admin = Prefs.getAdminName(this);
         deviceLine.setText("Bu telefon: " + Prefs.getDeviceName(this)
@@ -297,13 +351,29 @@ public class MainActivity extends Activity implements AlarmService.Listener {
             history.addView(bodyText("Henüz onay yok. Gelen siparişlere verdiğiniz yanıtlar burada görünür.", R.color.muted));
             return;
         }
-        for (JSONObject item : items) {
-            String action = "accepted".equals(item.optString("action")) ? "Kabul edildi" : "Görüldü";
-            String line = item.optString("number") + " · " + item.optString("customer") + " · "
-                    + Format.money(item.optDouble("total", 0)) + "\n" + action + " · " + Format.dateTime(item.optLong("at"));
-            TextView text = bodyText(line, R.color.ink_soft);
-            text.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 6));
-            history.addView(text);
+        for (int i = 0; i < items.size(); i++) {
+            JSONObject item = items.get(i);
+            boolean accepted = "accepted".equals(item.optString("action"));
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(0, Ui.dp(this, i == 0 ? 0 : 10), 0, 0);
+            row.addView(Ui.rowIcon(this, accepted ? R.drawable.ic_check_circle : R.drawable.ic_visibility,
+                    getColor(accepted ? R.color.green_soft : R.color.surface_muted),
+                    getColor(accepted ? R.color.green : R.color.muted)));
+            TextView text = new TextView(this);
+            text.setTextSize(15);
+            text.setTextColor(getColor(R.color.ink));
+            text.setText(Ui.twoLine(this, item.optString("number") + " · " + item.optString("customer"),
+                    (accepted ? "Kabul edildi" : "Görüldü") + " · " + Format.dateTime(item.optLong("at"))));
+            row.addView(text, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+            TextView total = new TextView(this);
+            total.setText(Format.money(item.optDouble("total", 0)));
+            total.setTextSize(15);
+            total.setTypeface(Typeface.DEFAULT_BOLD);
+            total.setTextColor(getColor(R.color.green_dark));
+            row.addView(total);
+            history.addView(row);
         }
     }
 
@@ -427,10 +497,17 @@ public class MainActivity extends Activity implements AlarmService.Listener {
     private void renderPermissions() {
         permissions.removeAllViews();
         int missing = 0;
+        int required = 0;
         for (Check check : checks()) {
+            if (check.required) required++;
             if (check.required && !check.ok) missing++;
             permissions.addView(checkRow(check));
         }
+        permissionCount.setText((required - missing) + "/" + required + " tamam");
+        permissionCount.setBackgroundResource(missing == 0 ? R.drawable.bg_pill_green_soft : R.drawable.bg_pill_red_soft);
+        permissionCount.setTextColor(getColor(missing == 0 ? R.color.green_dark : R.color.red));
+        permissionProgress.setMax(Math.max(1, required));
+        permissionProgress.setProgress(required - missing);
         if (missing == 0) {
             permissionSummary.setText("Gerekli ayarlar tamam. Telefonu şarjda ve internete bağlı tutmanız yeterli.");
             permissionSummary.setTextColor(getColor(R.color.green_dark));
@@ -444,29 +521,30 @@ public class MainActivity extends Activity implements AlarmService.Listener {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(0, Ui.dp(this, 12), 0, 0);
+        row.setPadding(0, Ui.dp(this, 14), 0, 0);
 
-        TextView mark = new TextView(this);
-        mark.setText(check.ok ? "✓" : check.required ? "!" : "•");
-        mark.setTextSize(18);
-        mark.setTypeface(Typeface.DEFAULT_BOLD);
-        mark.setGravity(Gravity.CENTER);
-        mark.setTextColor(getColor(check.ok ? R.color.green : check.required ? R.color.red : R.color.orange_ink));
-        row.addView(mark, new LinearLayout.LayoutParams(Ui.dp(this, 28), LinearLayout.LayoutParams.WRAP_CONTENT));
+        int icon;
+        int bg;
+        int tint;
+        if (check.ok && check.required) {
+            icon = R.drawable.ic_check_circle;
+            bg = R.color.green_soft;
+            tint = R.color.green;
+        } else if (check.required) {
+            icon = R.drawable.ic_error;
+            bg = R.color.red_soft;
+            tint = R.color.red;
+        } else {
+            icon = R.drawable.ic_info;
+            bg = R.color.orange_soft;
+            tint = R.color.orange_ink;
+        }
+        row.addView(Ui.rowIcon(this, icon, getColor(bg), getColor(tint)));
 
-        LinearLayout texts = new LinearLayout(this);
-        texts.setOrientation(LinearLayout.VERTICAL);
-        TextView title = new TextView(this);
-        title.setText(check.title);
-        title.setTextSize(15);
-        title.setTypeface(Typeface.DEFAULT_BOLD);
-        title.setTextColor(getColor(R.color.ink));
-        texts.addView(title);
-        TextView detail = new TextView(this);
-        detail.setText(check.detail);
-        detail.setTextSize(13);
-        detail.setTextColor(getColor(R.color.muted));
-        texts.addView(detail);
+        TextView texts = new TextView(this);
+        texts.setTextSize(15);
+        texts.setTextColor(getColor(R.color.ink));
+        texts.setText(Ui.twoLine(this, check.title, check.detail));
         row.addView(texts, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
         boolean actionable = !check.ok || !check.required;
@@ -489,6 +567,26 @@ public class MainActivity extends Activity implements AlarmService.Listener {
             row.addView(button, params);
         }
         return row;
+    }
+
+    private void togglePassword() {
+        passwordVisible = !passwordVisible;
+        int selection = password.getSelectionEnd();
+        password.setInputType(android.text.InputType.TYPE_CLASS_TEXT | (passwordVisible
+                ? android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+                : android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD));
+        password.setTypeface(Typeface.DEFAULT);
+        password.setSelection(Math.max(0, Math.min(selection, password.length())));
+        ((android.widget.ImageView) findViewById(R.id.passwordToggle)).setImageTintList(
+                android.content.res.ColorStateList.valueOf(getColor(passwordVisible ? R.color.green : R.color.subtle)));
+    }
+
+    /** Anahtarların altına küçük açıklama satırı */
+    private void maxVolumeLabel() {
+        maxVolume.setText(Ui.twoLine(this, "Sesi en yükseğe çıkar", "Sessiz modda da çalar; kısılırsa yeniden açılır"));
+        vibrate.setText(Ui.twoLine(this, "Titreşim", "Alarm boyunca tekrarlanır"));
+        speak.setText(Ui.twoLine(this, "Siparişi sesli oku", "Adres, ürün sayısı ve tutar okunur"));
+        flash.setText(Ui.twoLine(this, "Flaş ışığı yanıp sönsün", "Gürültülü ortamlar için"));
     }
 
     private void open(Intent intent) {

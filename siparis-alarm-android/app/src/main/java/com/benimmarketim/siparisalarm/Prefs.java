@@ -24,6 +24,8 @@ public final class Prefs {
     private static final String KEY_MAX_VOLUME = "max_volume";
     private static final String KEY_VIBRATE = "vibrate";
     private static final String KEY_SOUND_URI = "sound_uri";
+    private static final String KEY_SPEAK = "speak";
+    private static final String KEY_FLASH = "flash";
     private static final String KEY_ACTIVE = "active_orders";
     private static final String KEY_LOCAL_ACKS = "local_acks";
     private static final String KEY_ACK_QUEUE = "ack_queue";
@@ -104,6 +106,24 @@ public final class Prefs {
 
     public static void setVibrate(Context context, boolean value) {
         sp(context).edit().putBoolean(KEY_VIBRATE, value).apply();
+    }
+
+    /** Alarm çalarken sipariş özeti aralıklarla Türkçe sesli okunur. */
+    public static boolean speak(Context context) {
+        return sp(context).getBoolean(KEY_SPEAK, true);
+    }
+
+    public static void setSpeak(Context context, boolean value) {
+        sp(context).edit().putBoolean(KEY_SPEAK, value).apply();
+    }
+
+    /** Alarm çalarken kamera flaşı yanıp söner (gürültülü ortam için). */
+    public static boolean flash(Context context) {
+        return sp(context).getBoolean(KEY_FLASH, false);
+    }
+
+    public static void setFlash(Context context, boolean value) {
+        sp(context).edit().putBoolean(KEY_FLASH, value).apply();
     }
 
     /** null: telefonun varsayılan zil sesi; "app": uygulamanın kendi zil sesi; diğerleri: seçilen ses. */

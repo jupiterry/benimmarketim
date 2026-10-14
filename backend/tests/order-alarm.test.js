@@ -6,10 +6,13 @@ import {
   DEVICES_COLLECTION,
   SETTLE_MS,
   acknowledgeOrder,
+  canPhoneChangeStatus,
   createDevice,
   findDeviceByToken,
   hashToken,
+  istanbulDayStart,
   listPendingOrders,
+  listTodayOrders,
   orderNumber,
   parseKnown,
   parseWait,
@@ -17,6 +20,7 @@ import {
   pendingKey,
   revokeDevice,
   signalOrderAlarm,
+  summarizeOrders,
   toAlarmOrder,
   tokenFromRequest,
   waitForPendingChange,
@@ -228,4 +232,39 @@ test("uzun bekletme: liste farklıysa hemen, sinyal gelince hızlıca, yoksa sü
   closed = true;
   await abandoned;
   assert.ok(Date.now() - started < 1000, "bağlantı kapanınca bekleme biter");
+});
+
+test("telefondan durum: yalnızca ileri adımlar, iptal ve geri alma panelde", () => {
+  assert.equal(canPhoneChangeStatus("Hazırlanıyor", "Yolda"), true);
+  assert.equal(canPhoneChangeStatus("Hazırlanıyor", "Teslim Edildi"), true);
+  assert.equal(canPhoneChangeStatus("Yolda", "Teslim Edildi"), true);
+  assert.equal(canPhoneChangeStatus("Yolda", "Hazırlanıyor"), false);
+  assert.equal(canPhoneChangeStatus("Hazırlanıyor", "İptal Edildi"), false);
+  assert.equal(canPhoneChangeStatus("Teslim Edildi", "Yolda"), false);
+  assert.equal(canPhoneChangeStatus("İptal Edildi", "Teslim Edildi"), false);
+});
+
+test("bugün: İstanbul gün başlangıcı, özet ve onay bilgisi", async () => {
+  assert.equal(istanbulDayStart(new Date("2026-10-14T12:00:00Z")).toISOString(), "2026-10-13T21:00:00.000Z");
+  assert.equal(istanbulDayStart(new Date("2026-10-14T22:30:00Z")).toISOString(), "2026-10-14T21:00:00.000Z", "gece 01.30 yeni gün");
+  assert.equal(istanbulDayStart(new Date("2026-10-14T20:59:00Z")).toISOString(), "2026-10-13T21:00:00.000Z");
+
+  const summary = summarizeOrders([{ status: "Hazırlanıyor", totalAmount: 100 }, { status: "Teslim Edildi", totalAmount: 50.5 }, { status: "İptal Edildi", totalAmount: 999 }]);
+  assert.deepEqual(summary, { count: 2, cancelled: 1, revenue: 150.5, byStatus: { "Hazırlanıyor": 1, "Yolda": 0, "Teslim Edildi": 1, "İptal Edildi": 1 } });
+
+  const db = memoryDb();
+  db.data.orders = [
+    order(1, { createdAt: new Date("2026-10-13T20:00:00Z") }), // dün (İstanbul 23.00)
+    order(2, { createdAt: new Date("2026-10-14T06:00:00Z"), status: "Teslim Edildi" }),
+    order(3, { createdAt: new Date("2026-10-14T11:00:00Z") }),
+  ];
+  db.data.users = [{ _id: new mongoose.Types.ObjectId(oid(1003)), name: "Ece Su" }];
+  db.data[ACKS_COLLECTION] = [{ _id: oid(3), action: "accepted", deviceName: "Kasa", at: NOW }];
+  const today = await listTodayOrders(db, { now: NOW });
+  assert.deepEqual(today.orders.map((item) => item.id), [oid(3), oid(2)], "yalnızca bugün, en yeni önce");
+  assert.deepEqual(today.orders[0].ack, { action: "accepted", deviceName: "Kasa", at: NOW });
+  assert.equal(today.orders[0].customerName, "Ece Su");
+  assert.equal(today.orders[1].ack, null);
+  assert.equal(today.orders[1].status, "Teslim Edildi");
+  assert.deepEqual([today.summary.count, today.summary.revenue], [2, 160]);
 });

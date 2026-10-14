@@ -55,6 +55,36 @@ public final class ApiClient {
         }
     }
 
+    /** "Bugün" ekranı: özet ve siparişler (en yeni önce) */
+    public static final class TodayResult {
+        public final int count;
+        public final int cancelled;
+        public final double revenue;
+        public final int preparing;
+        public final int onTheWay;
+        public final int delivered;
+        public final List<AlarmOrder> orders;
+
+        TodayResult(JSONObject json) {
+            JSONObject summary = json.optJSONObject("summary");
+            JSONObject byStatus = summary != null ? summary.optJSONObject("byStatus") : null;
+            count = summary != null ? summary.optInt("count", 0) : 0;
+            cancelled = summary != null ? summary.optInt("cancelled", 0) : 0;
+            revenue = summary != null ? summary.optDouble("revenue", 0) : 0;
+            preparing = byStatus != null ? byStatus.optInt("Hazırlanıyor", 0) : 0;
+            onTheWay = byStatus != null ? byStatus.optInt("Yolda", 0) : 0;
+            delivered = byStatus != null ? byStatus.optInt("Teslim Edildi", 0) : 0;
+            orders = new ArrayList<>();
+            JSONArray array = json.optJSONArray("orders");
+            if (array != null) {
+                for (int i = 0; i < array.length(); i++) {
+                    JSONObject item = array.optJSONObject(i);
+                    if (item != null && !item.optString("id", "").isEmpty()) orders.add(AlarmOrder.fromJson(item));
+                }
+            }
+        }
+    }
+
     /** Aktif bağlantı (ağ değişince kesip hemen yeniden bağlanmak için) */
     private static volatile HttpURLConnection current;
 
@@ -101,7 +131,7 @@ public final class ApiClient {
             ids.append(id);
         }
         String url = endpoint(server, "/pending") + "?wait=" + waitSeconds + "&known=" + URLEncoder.encode(ids.toString(), "UTF-8");
-        JSONObject json = request("GET", url, token, null, waitSeconds + 20);
+        JSONObject json = request("GET", url, token, null, waitSeconds + 20, true);
         List<AlarmOrder> orders = new ArrayList<>();
         JSONArray array = json.optJSONArray("orders");
         if (array != null) {
@@ -124,6 +154,21 @@ public final class ApiClient {
         request("POST", endpoint(server, "/orders/" + URLEncoder.encode(orderId, "UTF-8") + "/ack"), token, body, 20);
     }
 
+    public static TodayResult today(String server, String token) throws IOException {
+        return new TodayResult(request("GET", endpoint(server, "/orders/today"), token, null, 20, false));
+    }
+
+    /** status: "Yolda" ya da "Teslim Edildi" (telefondan yalnızca ileri adım) */
+    public static void changeStatus(String server, String token, String orderId, String status) throws IOException {
+        JSONObject body = new JSONObject();
+        try {
+            body.put("status", status);
+        } catch (JSONException e) {
+            throw new IOException(e);
+        }
+        request("PUT", endpoint(server, "/orders/" + URLEncoder.encode(orderId, "UTF-8") + "/status"), token, body, 20, false);
+    }
+
     public static void logout(String server, String token) throws IOException {
         request("POST", endpoint(server, "/logout"), token, new JSONObject(), 15);
     }
@@ -143,8 +188,13 @@ public final class ApiClient {
     }
 
     private static JSONObject request(String method, String url, String token, JSONObject body, int readTimeoutSeconds) throws IOException {
+        return request(method, url, token, body, readTimeoutSeconds, false);
+    }
+
+    /** track=true yalnızca dinleme isteği içindir: ağ değişince kesilebilsin. Diğer istekler etkilenmez. */
+    private static JSONObject request(String method, String url, String token, JSONObject body, int readTimeoutSeconds, boolean track) throws IOException {
         HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
-        current = connection;
+        if (track) current = connection;
         try {
             connection.setRequestMethod(method);
             connection.setConnectTimeout(15000);
@@ -173,7 +223,9 @@ public final class ApiClient {
             }
             if (status >= 400) {
                 String message = json != null ? json.optString("message", "") : "";
-                if (status == 404 && (json == null || message.isEmpty() || message.startsWith("Cannot "))) {
+                if (status == 404 && !url.contains("/pair") && (json == null || message.isEmpty() || message.startsWith("Cannot "))) {
+                    message = "Sunucu bu özelliği henüz desteklemiyor. Backend'in son sürümünü yayınlayın.";
+                } else if (status == 404 && (json == null || message.isEmpty() || message.startsWith("Cannot "))) {
                     // Express'in kendi 404 sayfası: /api/order-alarm uçları sunucuda yok.
                     message = "Sunucuda sipariş alarmı bulunamadı (404). Backend güncellemesi henüz canlıya alınmamış.";
                 } else if (message.isEmpty()) {

@@ -23,6 +23,13 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
+    <!-- Android 11+: telefonun metin okuma motoruna erişim (siparişi sesli okuma) -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
     <application
         android:name=".AlarmApp"
         android:allowBackup="false"
@@ -45,6 +52,11 @@
         </activity>
 
         <activity
+            android:name=".OrdersActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity" />
+
+        <activity
             android:name=".AlarmActivity"
             android:exported="false"
             android:excludeFromRecents="true"
@@ -52,7 +64,6 @@
             android:taskAffinity="com.benimmarketim.siparisalarm.alarm"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
-            android:screenOrientation="portrait"
             android:theme="@style/AlarmTheme" />
 
         <service

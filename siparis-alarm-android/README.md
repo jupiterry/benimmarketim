@@ -7,6 +7,11 @@ Google Play'e konmaz; APK dosyası doğrudan telefona kurulur.
 - Kartta sipariş numarası, müşteri adı ve telefonu (Ara düğmesi), ürünler, teslimat adresi, ödeme yöntemi, not ve toplam tutar görünür.
 - **Siparişi Gördüm** ya da **Kabul Et**'e basılana kadar alarm susmaz. Ses kısılırsa uygulama birkaç saniye içinde sesi yeniden en yükseğe çıkarır.
 - Birden fazla telefon eşlenebilir. Bir telefonda verilen onay diğer telefonları da susturur.
+- Birden fazla sipariş birikirse alarm ekranında **Tümünü kabul et** düğmesi çıkar.
+- **Sesli okuma (1.1.0):** Alarm çalarken her 20 saniyede bir zil kısa süre durur ve sipariş Türkçe okunur: "Yeni sipariş. Kız KYK Yurdu. 3 ürün. Toplam 245 lira 50 kuruş." Telefonun kendi okuma motoru kullanılır, internet gerekmez. Ayarlardan kapatılabilir.
+- **Yeni görünüm (1.2.0):** Gelen arama gibi dalga animasyonlu alarm ekranı, siparişin kaç dakikadır beklediğini gösteren sayaç, ikonlu bilgi kartı. Tablette yatay iki sütunlu düzen; telefonda dikey. Ana ekranda renkli durum kartı (yeşil: açık, turuncu: bağlantı bekleniyor, kırmızı: kapalı), hızlı işlem kutuları, ayar ilerleme çubuğu. Geniş ekranlarda içerik ortada sınırlı genişlikte durur.
+- **Flaş ışığı (1.1.0, isteğe bağlı):** Gürültülü ortam için alarm çalarken arka flaş yanıp söner. Varsayılan kapalı.
+- **Bugünün siparişleri (1.1.0):** Günlük sipariş sayısı, ciro (iptaller hariç), bekleyenler. Duruma göre süzme. Hangi telefonda kim onayladı görünür. Siparişe dokununca ürünler, not, Ara düğmesi ve **Yola çıktı** / **Teslim edildi** düğmeleri açılır. Müşteriye paneldeki gibi bildirim gider. Telefondan yalnızca ileri adım atılır; iptal ve geri alma panelde kalır.
 - Sipariş panelde Yolda ya da İptal yapılırsa alarm kendiliğinden durur.
 - Onaylar sipariş durumunu değiştirmez; yalnızca alarmı susturur. Panelde "Sipariş alarmı telefonları" kartında görünür.
 
@@ -34,6 +39,8 @@ Sunucuya yükleyip yeniden başlatmadan uygulama giriş yapamaz ("Sunucuda sipar
 | `POST /api/order-alarm/pair` `{email, password, deviceName}` | Yönetici hesabı | Telefona cihaz anahtarı verir. Şifre telefonda saklanmaz. |
 | `GET /api/order-alarm/pending?known=…&wait=25` | Cihaz anahtarı | Onay bekleyen siparişler. Liste değişmediyse 25 sn'ye kadar bekletir. |
 | `POST /api/order-alarm/orders/:id/ack` `{action: "seen" \| "accepted"}` | Cihaz anahtarı | Alarmı tüm telefonlarda susturur. İlk onay geçerlidir. |
+| `GET /api/order-alarm/orders/today` | Cihaz anahtarı | Bugünün (İstanbul saati) siparişleri, özet ve onay bilgisi |
+| `PUT /api/order-alarm/orders/:id/status` `{status: "Yolda" \| "Teslim Edildi"}` | Cihaz anahtarı | Hazırlanıyor → Yolda/Teslim Edildi, Yolda → Teslim Edildi. Müşteri bildirimi, görev ödülü ve canlı panel güncellemesi paneldekiyle aynı. İşlem kaydına "Sipariş durumu (alarm telefonu)" olarak yazılır. |
 | `POST /api/order-alarm/logout` | Cihaz anahtarı | Telefon kendi eşlemesini kaldırır. |
 | `GET /api/order-alarm/status` | Yönetici oturumu | Eşli telefonlar ve son onaylar |
 | `DELETE /api/order-alarm/devices/:id` | Yönetici oturumu | Kaybolan telefonun erişimini kapatır |
@@ -89,7 +96,8 @@ Bu iki dosyayı güvenli bir yere (ör. şifreli bulut klasörü) yedekleyin.
 
 ## Doğrulama durumu (14 Ekim 2026)
 
-- Backend: `node --test backend/tests/order-alarm.test.js` → 7/7 geçti. Testler bellek içi veritabanı ve mongoose taklidiyle çalıştı. Gerçek MongoDB ile denenmedi.
-- Uygulamanın sunucu istemcisi (`ApiClient`, `AlarmOrder`), gerçek `orderAlarm.service` fonksiyonlarını kullanan bir deneme sunucusuna karşı JVM'de uçtan uca denendi: eşleme, yanlış şifre, sipariş gelişi, uzun bekletme, onay, kalıcı hata, bağlantı kesme ve çıkış sonrası 401 doğru çalıştı.
+- Backend: `node --test backend/tests/order-alarm.test.js` → 9/9 geçti. Testler bellek içi veritabanı ve mongoose taklidiyle çalıştı. Gerçek MongoDB ile denenmedi.
+- Uygulamanın sunucu istemcisi (`ApiClient`, `AlarmOrder`), gerçek `orderAlarm.service` fonksiyonlarını kullanan bir deneme sunucusuna karşı JVM'de uçtan uca denendi: eşleme, yanlış şifre, sipariş gelişi, uzun bekletme, onay, kalıcı hata, bağlantı kesme ve çıkış sonrası 401 doğru çalıştı. 1.1.0'da ayrıca bugünün listesi, onay bilgisi, Yolda/Teslim edildi, geri almanın reddi, sesli okuma metni ve eski sunucuda "henüz desteklemiyor" mesajı denendi.
+- 1.1.0'daki yeni uçlar (`/orders/today`, `/orders/:id/status`) backend yeniden yayınlanmadan çalışmaz; uygulama bu durumda "Sunucu bu özelliği henüz desteklemiyor" der, alarm ise etkilenmez.
 - APK derlendi ve imzalandı (v2 + v3 imza doğrulandı).
 - **Gerçek telefonda denenmedi.** Kurulumdan sonra yukarıdaki 6. adımdaki test alarmını ve gerçek bir deneme siparişini mutlaka deneyin.

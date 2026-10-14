@@ -42,12 +42,15 @@ public class AlarmActivity extends Activity implements AlarmService.Listener {
     private Button call;
     private TextView address;
     private TextView payment;
-    private TextView noteLabel;
+    private View noteLabel;
+    private TextView waiting;
+    private long shownCreatedAt;
     private TextView note;
     private TextView productsTitle;
     private LinearLayout products;
     private LinearLayout totals;
     private Button accept;
+    private Button acceptAll;
     private Button seen;
     private ObjectAnimator pulse;
     private String shownId;
@@ -57,6 +60,18 @@ public class AlarmActivity extends Activity implements AlarmService.Listener {
         public void run() {
             render();
             handler.postDelayed(this, 30_000);
+        }
+    };
+
+    /** Siparişin ne kadar süredir beklediği (saniyede bir) */
+    private final Runnable clock = new Runnable() {
+        @Override
+        public void run() {
+            if (shownCreatedAt > 0) {
+                long seconds = Math.max(0, (System.currentTimeMillis() - shownCreatedAt) / 1000);
+                waiting.setText(String.format(Format.TR, "Bekliyor  %02d:%02d", seconds / 60, seconds % 60));
+            }
+            handler.postDelayed(this, 1000);
         }
     };
 
@@ -77,8 +92,15 @@ public class AlarmActivity extends Activity implements AlarmService.Listener {
                     | WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
                     | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
         }
+        // Telefonlarda dikey; tablette yatay düzen de var (layout-sw600dp-land).
+        if (getResources().getConfiguration().smallestScreenWidthDp < 600) {
+            setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        }
         setContentView(R.layout.activity_alarm);
-        Ui.edgeToEdge(this, findViewById(R.id.root), findViewById(R.id.header), false);
+        boolean landscape = getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+        View root = findViewById(R.id.root);
+        Ui.edgeToEdge(this, root, landscape ? root : findViewById(R.id.header), false);
+        waiting = findViewById(R.id.waiting);
 
         counter = findViewById(R.id.counter);
         number = findViewById(R.id.number);
@@ -95,6 +117,8 @@ public class AlarmActivity extends Activity implements AlarmService.Listener {
         products = findViewById(R.id.products);
         totals = findViewById(R.id.totals);
         accept = findViewById(R.id.accept);
+        acceptAll = findViewById(R.id.acceptAll);
+        acceptAll.setOnClickListener(v -> acknowledgeAll());
         seen = findViewById(R.id.seen);
 
         accept.setOnClickListener(v -> acknowledge("accepted"));
@@ -103,10 +127,10 @@ public class AlarmActivity extends Activity implements AlarmService.Listener {
 
         ImageView bell = findViewById(R.id.bell);
         pulse = ObjectAnimator.ofPropertyValuesHolder(bell,
-                PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.25f),
-                PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.25f),
-                PropertyValuesHolder.ofFloat(View.ROTATION, -12f, 12f));
-        pulse.setDuration(450);
+                PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.08f),
+                PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.08f),
+                PropertyValuesHolder.ofFloat(View.ROTATION, -10f, 10f));
+        pulse.setDuration(380);
         pulse.setRepeatCount(ValueAnimator.INFINITE);
         pulse.setRepeatMode(ValueAnimator.REVERSE);
     }
@@ -118,6 +142,7 @@ public class AlarmActivity extends Activity implements AlarmService.Listener {
         render();
         pulse.start();
         handler.postDelayed(ticker, 30_000);
+        handler.post(clock);
     }
 
     @Override
@@ -125,6 +150,7 @@ public class AlarmActivity extends Activity implements AlarmService.Listener {
         AlarmService.removeListener(this);
         pulse.cancel();
         handler.removeCallbacks(ticker);
+        handler.removeCallbacks(clock);
         super.onPause();
     }
 
@@ -148,22 +174,22 @@ public class AlarmActivity extends Activity implements AlarmService.Listener {
         if (!order.id.equals(shownId)) {
             boolean firstRender = shownId == null;
             shownId = order.id;
-            accept.setEnabled(false);
-            seen.setEnabled(false);
-            handler.postDelayed(() -> {
-                accept.setEnabled(true);
-                seen.setEnabled(true);
-            }, firstRender ? 300 : BUTTON_GUARD_MS);
+            setButtonsEnabled(false);
+            handler.postDelayed(() -> setButtonsEnabled(true), firstRender ? 300 : BUTTON_GUARD_MS);
         }
 
         if (orders.size() > 1) {
             counter.setVisibility(View.VISIBLE);
             counter.setText("+" + (orders.size() - 1) + " sipariş daha");
+            acceptAll.setVisibility(View.VISIBLE);
+            acceptAll.setText("Tümünü kabul et (" + orders.size() + " sipariş)");
         } else {
             counter.setVisibility(View.GONE);
+            acceptAll.setVisibility(View.GONE);
         }
+        shownCreatedAt = order.createdAt;
         number.setText(order.isTest() ? "Deneme alarmı" : "Sipariş " + order.number);
-        time.setText(Format.time(order.createdAt) + " · " + Format.ago(order.createdAt) + " · " + order.itemCount + " ürün");
+        time.setText("Saat " + Format.time(order.createdAt) + "  ·  " + order.itemCount + " ürün");
         total.setText(Format.money(order.totalAmount));
         customer.setText(order.customerName);
         if (TextUtils.isEmpty(order.phone)) {
@@ -178,10 +204,9 @@ public class AlarmActivity extends Activity implements AlarmService.Listener {
         payment.setText(order.paymentMethod);
         boolean hasNote = !TextUtils.isEmpty(order.note);
         noteLabel.setVisibility(hasNote ? View.VISIBLE : View.GONE);
-        note.setVisibility(hasNote ? View.VISIBLE : View.GONE);
         note.setText(order.note);
 
-        productsTitle.setText("Ürünler (" + order.products.size() + " çeşit, " + order.itemCount + " adet)");
+        productsTitle.setText("Ürünler · " + order.products.size() + " çeşit, " + order.itemCount + " adet");
         products.removeAllViews();
         for (AlarmOrder.Item item : order.products) {
             products.addView(productRow(item));
@@ -203,12 +228,17 @@ public class AlarmActivity extends Activity implements AlarmService.Listener {
         row.setPadding(0, pad, 0, pad);
 
         TextView qty = new TextView(this);
-        qty.setText(Format.quantity(item.quantity));
-        qty.setTextSize(17);
+        qty.setText(item.quantity + "×");
+        qty.setTextSize(16);
         qty.setTypeface(Typeface.DEFAULT_BOLD);
         qty.setTextColor(getColor(R.color.green_dark));
-        qty.setMinWidth(Ui.dp(this, 48));
-        row.addView(qty);
+        qty.setGravity(Gravity.CENTER);
+        qty.setBackgroundResource(R.drawable.bg_qty);
+        qty.setMinWidth(Ui.dp(this, 44));
+        qty.setPadding(Ui.dp(this, 6), Ui.dp(this, 4), Ui.dp(this, 6), Ui.dp(this, 4));
+        LinearLayout.LayoutParams qtyParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        qtyParams.setMarginEnd(Ui.dp(this, 12));
+        row.addView(qty, qtyParams);
 
         TextView name = new TextView(this);
         name.setText(item.name);
@@ -250,10 +280,23 @@ public class AlarmActivity extends Activity implements AlarmService.Listener {
             finish();
             return;
         }
-        accept.setEnabled(false);
-        seen.setEnabled(false);
+        setButtonsEnabled(false);
         AlarmService.acknowledge(this, order.id, action);
         render();
+    }
+
+    private void acknowledgeAll() {
+        setButtonsEnabled(false);
+        for (AlarmOrder order : Prefs.activeOrders(this)) {
+            AlarmService.acknowledge(this, order.id, "accepted");
+        }
+        render();
+    }
+
+    private void setButtonsEnabled(boolean enabled) {
+        accept.setEnabled(enabled);
+        seen.setEnabled(enabled);
+        acceptAll.setEnabled(enabled);
     }
 
     private void callCustomer() {

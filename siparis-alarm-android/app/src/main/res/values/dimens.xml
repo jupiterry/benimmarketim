@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dikey (telefon): zil solda, küçük -->
+    <dimen name="alarm_pulse">96dp</dimen>
+    <dimen name="alarm_bell">50dp</dimen>
+</resources>

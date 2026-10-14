@@ -40,6 +40,33 @@ final class AlarmSound {
     private AudioFocusRequest focus;
     private int savedVolume = -1;
     private boolean active;
+    private Torch torch;
+    private String announcement;
+
+    private static final long ANNOUNCE_FIRST_MS = 3500;
+    private static final long ANNOUNCE_EVERY_MS = 20000;
+
+    /** Zil sesini kısa süre durdurup siparişi okur, sonra zile devam eder. */
+    private final Runnable announceLoop = new Runnable() {
+        @Override
+        public void run() {
+            synchronized (AlarmSound.this) {
+                if (!active || !Prefs.speak(context) || announcement == null) return;
+                Announcer announcer = Announcer.get(context);
+                Announcer.State state = announcer.state();
+                if (state == Announcer.State.NO_TURKISH || state == Announcer.State.FAILED) return;
+                if (state != Announcer.State.READY) {
+                    announcer.warmUp();
+                    handler.postDelayed(this, 2000);
+                    return;
+                }
+                pausePlayer();
+                if (!announcer.speak(announcement, () -> handler.post(AlarmSound.this::resumeAfterSpeech))) {
+                    resumeAfterSpeech();
+                }
+            }
+        }
+    };
 
     private final Runnable volumeEnforcer = new Runnable() {
         @Override
@@ -97,13 +124,49 @@ final class AlarmSound {
         if (player == null) Log.e(TAG, "Alarm sesi çalınamadı; yalnızca titreşim");
 
         if (Prefs.vibrate(context)) startVibration();
+        if (Prefs.flash(context)) {
+            if (torch == null) torch = new Torch(context);
+            torch.start();
+        }
+        if (Prefs.speak(context)) {
+            Announcer.get(context).warmUp();
+            handler.removeCallbacks(announceLoop);
+            handler.postDelayed(announceLoop, ANNOUNCE_FIRST_MS);
+        }
         handler.removeCallbacks(volumeEnforcer);
         handler.postDelayed(volumeEnforcer, VOLUME_ENFORCE_MS);
+    }
+
+    /** Sesli okunacak metin (servis bekleyen siparişler değiştikçe günceller). */
+    synchronized void setAnnouncement(String text) {
+        announcement = text;
+    }
+
+    private void pausePlayer() {
+        try {
+            if (player != null && player.isPlaying()) player.pause();
+        } catch (Exception ignored) {
+            // çalar hazır değil
+        }
+    }
+
+    private synchronized void resumeAfterSpeech() {
+        if (!active) return;
+        try {
+            if (player != null && !player.isPlaying()) player.start();
+        } catch (Exception ignored) {
+            // çalar kapanmış
+        }
+        handler.removeCallbacks(announceLoop);
+        handler.postDelayed(announceLoop, ANNOUNCE_EVERY_MS);
     }
 
     synchronized void stop() {
         active = false;
         handler.removeCallbacks(volumeEnforcer);
+        handler.removeCallbacks(announceLoop);
+        Announcer.get(context).stop();
+        if (torch != null) torch.stop();
         if (player != null) {
             try {
                 player.stop();

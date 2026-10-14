@@ -44,6 +44,12 @@ public final class AlarmOrder {
     public final String couponCode;
     public final double couponDiscount;
     public final double totalAmount;
+    /** Hazırlanıyor / Yolda / Teslim Edildi / İptal Edildi */
+    public final String status;
+    /** "Bugün" listesinde: hangi telefonda, ne zaman onaylandı (onay yoksa null) */
+    public final String ackAction;
+    public final String ackDevice;
+    public final long ackAt;
 
     private AlarmOrder(JSONObject json) {
         this.json = json;
@@ -76,6 +82,23 @@ public final class AlarmOrder {
         String coupon = json.isNull("couponCode") ? "" : json.optString("couponCode", "");
         this.couponCode = coupon.isEmpty() ? null : coupon;
         this.couponDiscount = json.optDouble("couponDiscount", 0);
+        this.status = clean(json.optString("status", ""), "Hazırlanıyor");
+        JSONObject ack = json.optJSONObject("ack");
+        this.ackAction = ack != null ? clean(ack.optString("action", ""), null) : null;
+        this.ackDevice = ack != null ? clean(ack.optString("deviceName", ""), "") : "";
+        this.ackAt = ack != null ? parseIso(ack.optString("at", "")) : 0;
+    }
+
+    /** Sesli okuma metni: "Yeni sipariş. Kız KYK Yurdu. 3 ürün. Toplam 245 lira 50 kuruş." */
+    public String spokenSummary() {
+        return "Yeni sipariş. " + address + ". " + itemCount + " ürün. Toplam " + spokenMoney(totalAmount) + ".";
+    }
+
+    static String spokenMoney(double amount) {
+        long kurus = Math.round(amount * 100);
+        long lira = kurus / 100;
+        long rest = kurus % 100;
+        return lira + " lira" + (rest > 0 ? " " + rest + " kuruş" : "");
     }
 
     public static AlarmOrder fromJson(JSONObject json) {

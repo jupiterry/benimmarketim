@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Uzun ekranlarda zil animasyonu biraz daha büyük -->
+<resources>
+    <dimen name="alarm_pulse">112dp</dimen>
+    <dimen name="alarm_bell">58dp</dimen>
+</resources>

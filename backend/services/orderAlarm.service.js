@@ -233,6 +233,55 @@ export const alarmStatus = async (db) => {
   };
 };
 
+// ─── Bugünün siparişleri ve telefondan durum değişikliği ─────────
+
+export const ORDER_STATUSES = ["Hazırlanıyor", "Yolda", "Teslim Edildi", "İptal Edildi"];
+// Telefondan yalnızca ileri adımlar atılabilir; iptal ve geri alma panelde kalır.
+const PHONE_TRANSITIONS = { "Hazırlanıyor": ["Yolda", "Teslim Edildi"], "Yolda": ["Teslim Edildi"] };
+export const canPhoneChangeStatus = (from, to) => (PHONE_TRANSITIONS[from] || []).includes(to);
+
+/** İstanbul saatine göre bugünün başlangıcı (Türkiye UTC+3, yaz saati uygulanmaz). */
+export const istanbulDayStart = (now = new Date()) => {
+  const local = new Date(now.getTime() + 3 * 3600 * 1000);
+  return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()) - 3 * 3600 * 1000);
+};
+
+/** Günlük özet: iptaller sipariş sayısına ve ciroya katılmaz (Telegram özetiyle aynı kural). */
+export const summarizeOrders = (orders) => {
+  const byStatus = Object.fromEntries(ORDER_STATUSES.map((status) => [status, 0]));
+  let revenue = 0;
+  for (const order of orders) {
+    if (order.status in byStatus) byStatus[order.status] += 1;
+    if (order.status !== "İptal Edildi") revenue += Number(order.totalAmount) || 0;
+  }
+  return { count: orders.length - byStatus["İptal Edildi"], cancelled: byStatus["İptal Edildi"], revenue: money(revenue), byStatus };
+};
+
+/** Telefondaki "Bugün" ekranı: bugünün siparişleri (en yeni önce), onay bilgisiyle. */
+export const listTodayOrders = async (db, { now = new Date(), limit = 200 } = {}) => {
+  const since = istanbulDayStart(now);
+  const orders = await db.collection("orders").find({ createdAt: { $gte: since } }).sort({ createdAt: -1 }).limit(limit).toArray();
+  const ids = orders.map((order) => String(order._id));
+  const acks = ids.length ? await db.collection(ACKS_COLLECTION).find({ _id: { $in: ids } }).toArray() : [];
+  const ackMap = new Map(acks.map((ack) => [String(ack._id), ack]));
+  const userIds = orders.map((order) => order.user).filter(Boolean);
+  const users = userIds.length
+    ? await db.collection("users").find({ _id: { $in: userIds } }, { projection: { name: 1 } }).toArray()
+    : [];
+  const names = new Map(users.map((user) => [String(user._id), user.name]));
+  return {
+    since: since.toISOString(),
+    summary: summarizeOrders(orders),
+    orders: orders.map((order) => {
+      const ack = ackMap.get(String(order._id));
+      return {
+        ...toAlarmOrder(order, names.get(String(order.user))),
+        ack: ack ? { action: ack.action, deviceName: ack.deviceName, at: ack.at } : null,
+      };
+    }),
+  };
+};
+
 // ─── Uzun bekletme (long-poll) ───────────────────────────────────
 
 const waiters = new Set();
