@@ -3,7 +3,7 @@
 
 /* ══ Temel ═════════════════════════════════════════════════════════════ */
 .admin-layout {
-  --app-side: 220px;
+  --app-side: 240px;
   --app-top: 52px;
   min-height: 100vh;
   background: var(--ui-bg);
@@ -143,13 +143,109 @@
   overflow-y: auto;
   scrollbar-width: thin;
 }
-.app-nav-group > p {
-  margin: 0;
-  padding: 14px 8px 4px;
+/* Menü araması */
+.app-nav-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin: 10px 10px 2px;
+}
+.app-nav-search > svg {
+  position: absolute;
+  left: 9px;
+  color: var(--ui-text-3);
+  pointer-events: none;
+}
+.app-nav-search input {
+  width: 100%;
+  height: 32px;
+  padding: 0 52px 0 28px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-2);
+  color: var(--ui-text);
+  font: inherit;
+  font-size: var(--ui-fs-sm);
+  outline: none;
+  transition:
+    border-color var(--ui-ease),
+    background-color var(--ui-ease);
+}
+.app-nav-search input::placeholder {
+  color: var(--ui-text-3);
+}
+.app-nav-search input:hover {
+  border-color: var(--ui-line-strong);
+}
+.app-nav-search input:focus {
+  border-color: var(--ui-brand);
+  background: var(--ui-surface);
+}
+.app-nav-search input::-webkit-search-cancel-button {
+  cursor: pointer;
+}
+.app-nav-search kbd {
+  position: absolute;
+  right: 7px;
+  padding: 1px 5px;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: 4px;
+  background: var(--ui-surface);
+  color: var(--ui-text-3);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+  pointer-events: none;
+}
+/* Grup başlığı: tıklayınca açılır/kapanır */
+.app-nav-group + .app-nav-group {
+  margin-top: 4px;
+}
+.app-nav-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px 8px 4px;
+  border-radius: var(--ui-radius);
   color: var(--ui-text-3);
   font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+  transition: color var(--ui-ease);
+}
+.admin-layout .app-nav-group-head:disabled {
+  cursor: default;
+  opacity: 1;
+}
+.app-nav-group-head:not(:disabled):hover {
+  color: var(--ui-text);
+}
+.app-nav-group-head > svg {
+  flex-shrink: 0;
+  opacity: 0;
+  transition:
+    transform var(--ui-ease),
+    opacity var(--ui-ease);
+}
+.app-nav-group-head:not(:disabled):hover > svg,
+.app-nav-group-head:focus-visible > svg,
+.app-nav-group[data-open="false"] .app-nav-group-head > svg {
+  opacity: 1;
+}
+.app-nav-group[data-open="false"] .app-nav-group-head > svg {
+  transform: rotate(-90deg);
+}
+.app-nav-empty {
+  margin: 16px 8px;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-sm);
 }
 .app-nav-item {
   position: relative;
@@ -2317,6 +2413,14 @@
   }
   .app-side-sheet .app-nav-item {
     height: 38px;
+  }
+  .app-side-sheet .app-nav-search kbd {
+    display: none;
+  }
+  .app-side-sheet .app-nav-search input {
+    height: 38px;
+    padding-right: 10px;
+    font-size: 16px;
   }
   /* Alt gezinme çubuğu */
   .app-tabbar {

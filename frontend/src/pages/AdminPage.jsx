@@ -722,7 +722,7 @@ const AdminPage = () => {
           className="admin-content app-content"
           data-tab={activeTab}
         >
-          {!["dashboard", "orders", "analytics", "weekly-products", "coupons", "banners", "referrals", "feedback", "photocopy", "settings", "support-queue", "push", "site-messages"].includes(activeTab) && (
+          {!["dashboard", "orders", "products", "analytics", "weekly-products", "coupons", "banners", "referrals", "feedback", "photocopy", "settings", "support-queue", "push", "site-messages"].includes(activeTab) && (
             <header className="app-pagehead">
               <div>
                 <h1>{tabLabels[activeTab]}</h1>

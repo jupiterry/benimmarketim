@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   LayoutDashboard,
   Package,
@@ -10,8 +10,12 @@ import {
   ArrowUpRight,
   Leaf,
   Store,
+  Search,
+  ChevronDown,
 } from "lucide-react";
 import { adminMenuGroups } from "./adminNavigation";
+
+const CLOSED_GROUPS_KEY = "admin-nav-closed-groups";
 
 export default function AdminSidebar({
   activeTab,
@@ -61,6 +65,44 @@ export default function AdminSidebar({
     onTabChange(id);
     if (mobileOpen) onMobileClose();
   };
+
+  // Menü araması: başlık, tam ad ve anahtar kelimelerde Türkçe duyarlı eşleşme
+  const [filter, setFilter] = useState("");
+  const query = filter.trim().toLocaleLowerCase("tr-TR");
+  const groups = useMemo(() => {
+    if (!query) return adminMenuGroups;
+    return adminMenuGroups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) =>
+          `${item.short} ${item.label} ${item.keywords || ""} ${group.title}`
+            .toLocaleLowerCase("tr-TR")
+            .includes(query),
+        ),
+      }))
+      .filter((group) => group.items.length > 0);
+  }, [query]);
+
+  // Kapatılan gruplar tarayıcıda hatırlanır; açık sayfanın grubu her zaman açıktır
+  const [closedGroups, setClosedGroups] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(CLOSED_GROUPS_KEY) || "[]");
+      return Array.isArray(saved) ? saved : [];
+    } catch {
+      return [];
+    }
+  });
+  const toggleGroup = (id) => {
+    setClosedGroups((prev) => {
+      const next = prev.includes(id) ? prev.filter((g) => g !== id) : [...prev, id];
+      try {
+        localStorage.setItem(CLOSED_GROUPS_KEY, JSON.stringify(next));
+      } catch {
+        /* depolama kapalı olabilir */
+      }
+      return next;
+    });
+  };
   const content = (compact, mobile = false) => (
     <>
       <div className="app-brand">
@@ -88,30 +130,72 @@ export default function AdminSidebar({
           </button>
         )}
       </div>
+      {!compact && (
+        <div className="app-nav-search">
+          <Search size={14} aria-hidden="true" />
+          <input
+            type="search"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && groups[0]?.items[0]) {
+                select(groups[0].items[0].id);
+                setFilter("");
+              }
+              if (e.key === "Escape" && filter) {
+                e.stopPropagation();
+                setFilter("");
+              }
+            }}
+            placeholder="Menüde ara"
+            aria-label="Menüde ara"
+          />
+          {!filter && <kbd title="Komut paleti">Ctrl K</kbd>}
+        </div>
+      )}
       <nav className="app-nav" aria-label="Yönetim bölümleri">
-        {adminMenuGroups.map((group) => (
-          <div className="app-nav-group" key={group.title}>
-            {!compact && <p>{group.short || group.title}</p>}
-            {group.items.map(({ id, label, short, icon: Icon, badge }) => (
-              <button
-                key={id}
-                className="app-nav-item"
-                aria-current={activeTab === id ? "page" : undefined}
-                aria-label={label}
-                title={compact ? label : undefined}
-                onClick={() => select(id)}
-              >
-                <Icon size={16} strokeWidth={1.8} />
-                {!compact && <span>{short || label}</span>}
-                {badge && (badge === "orders" ? orderCount : chatCount) > 0 && (
-                  <b className="app-nav-count">
-                    {Math.min(99, badge === "orders" ? orderCount : chatCount)}
-                  </b>
-                )}
-              </button>
-            ))}
-          </div>
-        ))}
+        {groups.map((group) => {
+          const searching = Boolean(query);
+          const hasActive = group.items.some((item) => item.id === activeTab);
+          const open = compact || searching || hasActive || !closedGroups.includes(group.id);
+          return (
+            <div className="app-nav-group" key={group.id} data-open={open}>
+              {!compact && (
+                <button
+                  type="button"
+                  className="app-nav-group-head"
+                  onClick={() => toggleGroup(group.id)}
+                  aria-expanded={open}
+                  disabled={searching || hasActive}
+                  title={hasActive ? "Açık sayfa bu grupta" : undefined}
+                >
+                  <span>{group.title}</span>
+                  <ChevronDown size={13} aria-hidden="true" />
+                </button>
+              )}
+              {open && group.items.map(({ id, label, short, icon: Icon, badge }) => {
+                const count = badge ? (badge === "orders" ? orderCount : chatCount) : 0;
+                return (
+                  <button
+                    key={id}
+                    className="app-nav-item"
+                    aria-current={activeTab === id ? "page" : undefined}
+                    aria-label={label}
+                    title={compact || (short && short !== label) ? label : undefined}
+                    onClick={() => select(id)}
+                  >
+                    <Icon size={16} strokeWidth={1.8} />
+                    {!compact && <span>{short || label}</span>}
+                    {count > 0 && <b className="app-nav-count">{Math.min(99, count)}</b>}
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })}
+        {!compact && query && groups.length === 0 && (
+          <p className="app-nav-empty">“{filter}” için menüde sonuç yok</p>
+        )}
       </nav>
       <div className="app-side-foot">
         <a
