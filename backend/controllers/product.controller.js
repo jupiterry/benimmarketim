@@ -2,11 +2,27 @@ import { redis } from "../lib/redis.js";
 import cloudinary from "../lib/cloudinary.js";
 import Product from "../models/product.model.js";
 import { applyWeeklyPricesToProducts, getWeeklyPriceVersion } from "../services/weeklyPrice.service.js";
+import { diffFields, money, recordAdminAction, yesNo } from "../services/adminAudit.service.js";
 import { RECO_WEIGHTS } from "../services/recommendation.config.js";
 import { CARD_SELECT, discountPercent, getStats, hourBucket, hourFitScore, normalizeDeliveryPoint, popularityScore } from "../services/recommendation.service.js";
 import { Parser } from 'json2csv';
 import { detectBrand } from '../services/brandDetection.js';
 import mongoose from "mongoose";
+
+// İşlem kaydı yardımcıları
+const auditProduct = (req, product, action, changes = [], meta) =>
+  recordAdminAction(req, { action, category: "product", target: String(product?._id || ""), targetName: product?.name || "", changes, meta });
+const auditBulk = (req, action, products, changes = [], meta = {}) => {
+  const names = products.map((p) => p.name).filter(Boolean);
+  recordAdminAction(req, {
+    action,
+    category: "product",
+    target: `${products.length} ürün`,
+    targetName: `${names.slice(0, 5).join(", ")}${names.length > 5 ? ` ve ${names.length - 5} ürün daha` : ""}`,
+    changes,
+    meta: { ...meta, productIds: products.map((p) => String(p._id)).slice(0, 200) },
+  });
+};
 
 export const getAllProducts = async (req, res) => {
   try {
@@ -141,6 +157,11 @@ export const createProduct = async (req, res) => {
       isHidden: isHidden === true,
     });
 
+    auditProduct(req, product, "Ürün eklendi", [
+      { label: "Fiyat", from: "—", to: money(product.price) },
+      { label: "Kategori", from: "—", to: product.category },
+      ...(product.isHidden ? [{ label: "Görünürlük", from: "—", to: "Gizli" }] : []),
+    ]);
     res.status(201).json({
       message: "Ürün başarıyla oluşturuldu!",
       product,
@@ -170,6 +191,7 @@ export const deleteProduct = async (req, res) => {
     }
 
     await Product.findByIdAndDelete(req.params.id);
+    auditProduct(req, product, "Ürün silindi", [{ label: "Fiyat", from: money(product.price), to: "—" }]);
 
     res.json({ message: "Product deleted successfully" });
   } catch (error) {
@@ -208,6 +230,8 @@ export const toggleFeaturedProduct = async (req, res) => {
       product.isFeatured = !product.isFeatured;
       const updatedProduct = await product.save();
       await updateFeaturedProductsCache();
+      auditProduct(req, product, product.isFeatured ? "Öne çıkarıldı" : "Öne çıkanlardan kaldırıldı",
+        [{ label: "Öne çıkan", from: yesNo(!product.isFeatured), to: yesNo(product.isFeatured) }]);
       res.json(updatedProduct);
     } else {
       res.status(404).json({ message: "Product not found" });
@@ -228,6 +252,8 @@ export const toggleHiddenProduct = async (req, res) => {
     // Durumu tersine çevir
     product.isHidden = !product.isHidden;
     const updatedProduct = await product.save();
+    auditProduct(req, product, product.isHidden ? "Ürün gizlendi" : "Ürün yayına alındı",
+      [{ label: "Görünürlük", from: product.isHidden ? "Görünür" : "Gizli", to: product.isHidden ? "Gizli" : "Görünür" }]);
 
     // Cache'i invalidate et - güncellenmiş ürünü döndür
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -395,6 +421,7 @@ export const updateProductPrice = async (req, res) => {
       return res.status(404).json({ message: "Ürün bulunamadı" });
     }
 
+    const before = { price: product.price, isDiscounted: product.isDiscounted, discountedPrice: product.discountedPrice };
     product.price = priceNumber; // Yeni fiyatı kaydet
     // Yeni fiyatın altında kalmayan indirim geçersizdir; müşteriye daha pahalı "indirim" gösterilmesin
     if (product.isDiscounted && Number(product.discountedPrice) >= priceNumber) {
@@ -402,6 +429,10 @@ export const updateProductPrice = async (req, res) => {
       product.discountedPrice = null;
     }
     const updatedProduct = await product.save();
+    auditProduct(req, product, "Fiyat değiştirildi", [
+      { label: "Fiyat", from: money(before.price), to: money(product.price) },
+      ...(before.isDiscounted && !product.isDiscounted ? [{ label: "İndirim", from: money(before.discountedPrice), to: "Kaldırıldı (yeni fiyatın üstündeydi)" }] : []),
+    ]);
 
     // Cache'i invalidate et
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -519,6 +550,7 @@ export const updateProduct = async (req, res) => {
       return res.status(404).json({ message: "Ürün bulunamadı" });
     }
 
+    const before = product.toObject();
     product.name = name;
     product.category = category;
     product.subcategory = subcategory || "";
@@ -527,6 +559,14 @@ export const updateProduct = async (req, res) => {
     if (price !== undefined) product.price = Number(price);
 
     const updatedProduct = await product.save();
+    auditProduct(req, { _id: product._id, name: before.name !== product.name ? `${before.name} → ${product.name}` : product.name }, "Ürün düzenlendi", diffFields(before, product.toObject(), [
+      { key: "name", label: "Ad" },
+      { key: "category", label: "Kategori" },
+      { key: "subcategory", label: "Alt kategori" },
+      { key: "price", label: "Fiyat", format: money },
+      { key: "discountedPrice", label: "İndirimli fiyat", format: money },
+      { key: "isHidden", label: "Görünürlük", format: (v) => (v ? "Gizli" : "Görünür") },
+    ]));
 
     // Cache'i güncelle (featured_products varsa)
     if (product.isFeatured) {
@@ -549,6 +589,8 @@ export const toggleOutOfStock = async (req, res) => {
     // Tükendi durumunu tersine çevir
     product.isOutOfStock = !product.isOutOfStock;
     const updatedProduct = await product.save();
+    auditProduct(req, product, product.isOutOfStock ? "Tükendi olarak işaretlendi" : "Stoka alındı",
+      [{ label: "Stok", from: product.isOutOfStock ? "Stokta" : "Tükendi", to: product.isOutOfStock ? "Tükendi" : "Stokta" }]);
 
     // Cache'i invalidate et - güncellenmiş ürünü döndür
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -649,8 +691,10 @@ export const updateProductImage = async (req, res) => {
     });
 
     // Ürünü güncelle
+    const hadImage = Boolean(product.image);
     product.image = cloudinaryResponse.secure_url;
     await product.save();
+    auditProduct(req, product, hadImage ? "Görsel değiştirildi" : "Görsel eklendi", [], { image: cloudinaryResponse.secure_url });
 
     res.status(200).json({
       message: "Ürün görseli güncellendi",
@@ -675,9 +719,14 @@ export const updateProductDiscount = async (req, res) => {
       return res.status(400).json({ message: "İndirimli fiyat normal fiyattan yüksek olamaz" });
     }
 
+    const previous = product.isDiscounted ? product.discountedPrice : null;
     product.isDiscounted = true;
     product.discountedPrice = discountedPrice;
     await product.save();
+    const pct = Number(product.price) > 0 ? Math.round((1 - Number(discountedPrice) / Number(product.price)) * 100) : 0;
+    auditProduct(req, product, "İndirim uygulandı", [
+      { label: "İndirimli fiyat", from: previous === null ? "İndirim yok" : money(previous), to: `${money(discountedPrice)} (%${pct})` },
+    ]);
 
     res.json({ message: "İndirim başarıyla uygulandı", product });
   } catch (error) {
@@ -694,9 +743,11 @@ export const removeProductDiscount = async (req, res) => {
       return res.status(404).json({ message: "Ürün bulunamadı" });
     }
 
+    const previous = product.isDiscounted ? product.discountedPrice : null;
     product.isDiscounted = false;
     product.discountedPrice = null;
     await product.save();
+    auditProduct(req, product, "İndirim kaldırıldı", [{ label: "İndirimli fiyat", from: money(previous), to: "İndirim yok" }]);
 
     res.json({ message: "İndirim başarıyla kaldırıldı", product });
   } catch (error) {
@@ -714,7 +765,9 @@ export const bulkDeleteProducts = async (req, res) => {
       return res.status(400).json({ message: "Ürün ID'leri gerekli" });
     }
 
+    const deleted = await Product.find({ _id: { $in: productIds } }).select("name").lean();
     await Product.deleteMany({ _id: { $in: productIds } });
+    auditBulk(req, "Toplu ürün silme", deleted);
     
     res.json({ message: `${productIds.length} ürün silindi`, deletedCount: productIds.length });
   } catch (error) {
@@ -735,6 +788,9 @@ export const bulkUpdateVisibility = async (req, res) => {
       { _id: { $in: productIds } },
       { $set: { isHidden } }
     );
+    auditBulk(req, isHidden ? "Toplu gizleme" : "Toplu yayına alma",
+      await Product.find({ _id: { $in: productIds } }).select("name").lean(),
+      [{ label: "Görünürlük", from: "—", to: isHidden ? "Gizli" : "Görünür" }]);
     
     res.json({ 
       message: `${productIds.length} ürün ${isHidden ? 'gizlendi' : 'görünür yapıldı'}`, 
@@ -762,8 +818,10 @@ export const bulkUpdatePrice = async (req, res) => {
     }
 
     const products = await Product.find({ _id: { $in: productIds } });
-    
+    const priceChanges = [];
+
     for (const product of products) {
+      const oldPrice = product.price;
       switch (priceType) {
         case 'set':
           product.price = priceValue;
@@ -785,7 +843,10 @@ export const bulkUpdatePrice = async (req, res) => {
         product.discountedPrice = null;
       }
       await product.save();
+      if (priceChanges.length < 15) priceChanges.push({ label: product.name, from: money(oldPrice), to: money(product.price) });
     }
+    const ruleLabel = { set: `Sabit ${money(priceValue)}`, increase: `+${money(priceValue)}`, decrease: `−${money(priceValue)}`, percentage: `%${priceValue}` }[priceType];
+    auditBulk(req, `Toplu fiyat güncelleme (${ruleLabel})`, products, priceChanges, { priceType, priceValue });
     
     res.json({ message: `${productIds.length} ürünün fiyatı güncellendi` });
   } catch (error) {
@@ -810,6 +871,7 @@ export const bulkAddFlashSale = async (req, res) => {
       product.isDiscounted = true;
       await product.save();
     }
+    auditBulk(req, `Toplu kalıcı indirim (%${discountPercentage})`, products, [], { discountPercentage });
     
     res.json({ 
       message: `${productIds.length} ürüne %${discountPercentage} flash sale uygulandı` 
@@ -900,6 +962,11 @@ export const bulkReplaceText = async (req, res) => {
       }
     }
 
+    if (updatedCount) {
+      auditBulk(req, `Toplu ad değiştirme ("${findText}" → "${replaceText}")`,
+        updatedProducts.map((p) => ({ _id: p.id, name: p.newName })),
+        updatedProducts.slice(0, 15).map((p) => ({ label: "Ad", from: p.oldName, to: p.newName })));
+    }
     res.json({
       success: true,
       message: `${updatedCount} ürün güncellendi, toplam ${totalReplacements} değişiklik yapıldı`,

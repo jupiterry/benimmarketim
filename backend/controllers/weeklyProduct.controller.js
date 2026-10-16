@@ -1,6 +1,10 @@
 import WeeklyProduct from "../models/weeklyProduct.model.js";
 import Product from "../models/product.model.js";
 import { invalidateWeeklyPriceCache } from "../services/weeklyPrice.service.js";
+import { money, recordAdminAction } from "../services/adminAudit.service.js";
+
+const auditWeekly = (req, product, action, changes = []) =>
+  recordAdminAction(req, { action, category: "campaign", target: String(product?._id || product || ""), targetName: product?.name || "Haftalık fırsat", changes });
 
 /**
  * Tüm aktif haftalık ürünleri getir (Public API)
@@ -102,6 +106,9 @@ export const addWeeklyProduct = async (req, res) => {
       isActive: true,
     });
     invalidateWeeklyPriceCache();
+    auditWeekly(req, product, "Haftalık fırsata eklendi", [
+      { label: "Haftalık fiyat", from: money(product.price), to: `${money(weeklyPrice)}${calculatedDiscount ? ` (%${calculatedDiscount})` : ""}` },
+    ]);
 
     const populatedProduct = await WeeklyProduct.findById(weeklyProduct._id).populate({
       path: "product",
@@ -153,6 +160,7 @@ export const updateWeeklyProduct = async (req, res) => {
       );
     }
 
+    const before = { weeklyPrice: weeklyProduct.weeklyPrice, isActive: weeklyProduct.isActive };
     weeklyProduct.weeklyPrice = weeklyPrice ?? weeklyProduct.weeklyPrice;
     weeklyProduct.discountPercentage = calculatedDiscount ?? weeklyProduct.discountPercentage;
     weeklyProduct.endDate = endDate !== undefined ? endDate : weeklyProduct.endDate;
@@ -161,6 +169,10 @@ export const updateWeeklyProduct = async (req, res) => {
 
     await weeklyProduct.save();
     invalidateWeeklyPriceCache();
+    auditWeekly(req, weeklyProduct.product, "Haftalık fırsat düzenlendi", [
+      before.weeklyPrice !== weeklyProduct.weeklyPrice && { label: "Haftalık fiyat", from: money(before.weeklyPrice), to: money(weeklyProduct.weeklyPrice) },
+      before.isActive !== weeklyProduct.isActive && { label: "Durum", from: before.isActive ? "Yayında" : "Pasif", to: weeklyProduct.isActive ? "Yayında" : "Pasif" },
+    ].filter(Boolean));
 
     const updatedProduct = await WeeklyProduct.findById(id).populate({
       path: "product",
@@ -195,7 +207,7 @@ export const removeWeeklyProduct = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const weeklyProduct = await WeeklyProduct.findByIdAndDelete(id);
+    const weeklyProduct = await WeeklyProduct.findByIdAndDelete(id).populate("product", "name");
     invalidateWeeklyPriceCache();
     if (!weeklyProduct) {
       return res.status(404).json({
@@ -203,6 +215,7 @@ export const removeWeeklyProduct = async (req, res) => {
         message: "Haftalık ürün bulunamadı",
       });
     }
+    auditWeekly(req, weeklyProduct.product, "Haftalık fırsattan çıkarıldı", [{ label: "Haftalık fiyat", from: money(weeklyProduct.weeklyPrice), to: "—" }]);
 
     // Socket.IO bildirimi gönder
     const io = req.app.get('io');
@@ -242,6 +255,9 @@ export const toggleWeeklyProductStatus = async (req, res) => {
     weeklyProduct.isActive = !weeklyProduct.isActive;
     await weeklyProduct.save();
     invalidateWeeklyPriceCache();
+    const toggledProduct = await Product.findById(weeklyProduct.product).select("name").lean();
+    auditWeekly(req, toggledProduct || weeklyProduct.product, weeklyProduct.isActive ? "Haftalık fırsat yayına alındı" : "Haftalık fırsat durduruldu",
+      [{ label: "Durum", from: weeklyProduct.isActive ? "Pasif" : "Yayında", to: weeklyProduct.isActive ? "Yayında" : "Pasif" }]);
 
     const updatedProduct = await WeeklyProduct.findById(id).populate({
       path: "product",

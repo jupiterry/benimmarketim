@@ -6,6 +6,34 @@ import {
   CATEGORIES, categoryName, discountPct, flashStatus, money, normalizeCategory, parsePrice, roundMoney
 } from "./productUtils";
 import { FlashSaleForm, FlashSaleRow } from "./FlashSale";
+import axios from "../../lib/axios";
+import { AuditEntry } from "../AdminAuditTab";
+
+/** Ürünün işlem kayıtları (açılınca yüklenir; ürün değişince yenilenir) */
+const ProductHistory = ({ productId, version }) => {
+  const [open, setOpen] = useState(false);
+  const [entries, setEntries] = useState(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (!open) return undefined;
+    let alive = true;
+    axios.get("/orders-analytics/audit", { params: { target: productId, limit: 30 } })
+      .then(({ data }) => { if (alive) { setEntries(data.entries || []); setError(""); } })
+      .catch(() => { if (alive) setError("Geçmiş yüklenemedi"); });
+    return () => { alive = false; };
+  }, [open, productId, version]);
+  return (
+    <details className="prd-past aud-history" onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary>Değişiklik geçmişi</summary>
+      {error && <p className="prd-form-error">{error}</p>}
+      {open && !entries && !error && <p className="ui-muted ui-text-sm">Yükleniyor…</p>}
+      {entries && entries.length === 0 && <p className="ui-muted ui-text-sm">Bu ürün için kayıt yok. Bundan sonraki fiyat, stok, indirim ve kampanya değişiklikleri burada görünür.</p>}
+      {entries && entries.length > 0 && (
+        <ul className="aud-list">{entries.map((entry) => <AuditEntry key={entry._id} entry={entry} compact />)}</ul>
+      )}
+    </details>
+  );
+};
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
@@ -248,6 +276,11 @@ const ProductDrawer = ({
                 </ul>
               </details>
             )}
+          </section>
+
+          <section className="prd-sec">
+            <h3>Geçmiş</h3>
+            <ProductHistory productId={product._id} version={product.updatedAt} />
           </section>
 
           <section className="prd-sec prd-danger">

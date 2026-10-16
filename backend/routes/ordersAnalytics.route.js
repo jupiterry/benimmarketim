@@ -68,9 +68,34 @@ router.get("/", protectRoute, adminRoute, async (req, res) => {
 });
 
 // Admin sipariş durumu güncelleme
+// İşlem kayıtları: ?category=product&q=süt&target=<ürünId>&actor=<id>&before=<ISO>&limit=50
+export const buildAuditQuery = (query = {}) => {
+  const filter = {};
+  const categories = ["product", "campaign", "order", "customer", "settings", "system", "other"];
+  if (categories.includes(query.category)) filter.category = query.category;
+  if (typeof query.target === "string" && query.target.trim()) filter.target = query.target.trim().slice(0, 200);
+  if (typeof query.actor === "string" && /^[0-9a-f]{24}$/i.test(query.actor)) filter.actor = query.actor;
+  const before = query.before ? new Date(query.before) : null;
+  if (before && !Number.isNaN(before.getTime())) filter.createdAt = { $lt: before };
+  const q = typeof query.q === "string" ? query.q.trim().slice(0, 80) : "";
+  if (q) {
+    const pattern = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    filter.$or = [{ action: pattern }, { targetName: pattern }, { target: pattern }, { "changes.from": pattern }, { "changes.to": pattern }];
+  }
+  const limit = Math.min(200, Math.max(1, Number.parseInt(query.limit, 10) || 50));
+  return { filter, limit };
+};
+
 router.get("/audit", protectRoute, adminRoute, async (req, res) => {
-  const entries = await AdminAudit.find().sort({ createdAt: -1 }).limit(100).populate("actor", "name email").lean();
-  res.json({ entries });
+  try {
+    const { filter, limit } = buildAuditQuery(req.query);
+    const rows = await AdminAudit.find(filter).sort({ createdAt: -1 }).limit(limit + 1).populate("actor", "name email").lean();
+    const hasMore = rows.length > limit;
+    res.json({ entries: rows.slice(0, limit), hasMore });
+  } catch (error) {
+    console.error("İşlem kayıtları alınamadı:", error.message);
+    res.status(500).json({ message: "İşlem kayıtları alınamadı" });
+  }
 });
 router.put("/update-status", protectRoute, adminRoute, auditAdminAction("Sipariş durumu", req => String(req.body.orderId)), updateOrderStatus);
 router.put("/bulk-status", protectRoute, adminRoute, auditAdminAction("Toplu sipariş durumu", req => `${req.body.orderIds?.length || 0} sipariş`), async (req, res) => {

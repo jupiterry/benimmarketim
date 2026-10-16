@@ -2,6 +2,7 @@ import Order from "../models/order.model.js";
 import User from "../models/user.model.js";
 import { notifyOrderStatusChange } from "../services/orderStatusNotifier.js";
 import { evaluateMissionsForUser } from "../services/mission.service.js";
+import { recordAdminAction } from "../services/adminAudit.service.js";
 
 export const ACTIVE_ORDER_STATUSES = ["Hazırlanıyor", "Yolda"];
 const ORDER_LIST_FIELDS =
@@ -159,6 +160,11 @@ export const updateOrderStatus = async (req, res) => {
     order.status = status;
     order.statusHistory.push({ status, changedAt: new Date(), changedBy: req.user._id });
     await order.save();
+    if (previousStatus !== status) {
+      recordAdminAction(req, { action: "Sipariş durumu değiştirildi", category: "order", target: String(order._id),
+        targetName: `Sipariş #${String(order._id).slice(-6).toUpperCase()} · ${order.deliveryPointName || order.deliveryPoint || ""}`.trim(),
+        changes: [{ label: "Durum", from: previousStatus, to: status }] });
+    }
 
     // Müşterinin telefonuna anlık bildirim (yanıtı bekletmez, hata siparişi etkilemez)
     notifyOrderStatusChange(order, previousStatus);
