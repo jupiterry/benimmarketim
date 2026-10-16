@@ -276,14 +276,16 @@ const DashboardWidgets = ({ onNavigate }) => {
 
   const fetchLiveData = async () => {
     try {
-      const res = await axios.get("/orders-analytics");
+      // 10 sn'de bir yalnızca aktif siparişler + en yeni 10 sipariş istenir (tüm geçmiş değil);
+      // gelenler panonun ilk yüklemesindeki tüm siparişlerle birleştirilir.
+      const res = await axios.get("/orders-analytics", { params: { active: 1, limit: 10 } });
       const orders = res.data.orderAnalyticsData?.usersOrders || [];
-      const allOrders = orders.flatMap((user) => user.orders || []);
-      const liveCount = allOrders.filter(
+      const liveOrders = orders.flatMap((user) => user.orders || []);
+      const liveCount = liveOrders.filter(
         (o) => o.status === "Hazırlanıyor" && isCurrentActivityOrder(o),
       ).length;
 
-      const recentOrders = allOrders
+      const recentOrders = [...liveOrders]
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
         .slice(0, 5)
         .map((order) => ({
@@ -294,12 +296,16 @@ const DashboardWidgets = ({ onNavigate }) => {
             )?.user?.name || "Müşteri",
         }));
 
-      setStats((prev) => ({
-        ...prev,
-        liveOrderCount: liveCount,
-        recentOrders,
-        allOrders,
-      }));
+      setStats((prev) => {
+        const byId = new Map((prev.allOrders || []).map((order) => [String(order.orderId), order]));
+        for (const order of liveOrders) byId.set(String(order.orderId), order);
+        return {
+          ...prev,
+          liveOrderCount: liveCount,
+          recentOrders,
+          allOrders: [...byId.values()],
+        };
+      });
     } catch (error) {
       console.error("Canlı veri güncellenirken hata:", error);
     }

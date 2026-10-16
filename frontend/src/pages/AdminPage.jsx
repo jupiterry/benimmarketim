@@ -230,7 +230,8 @@ const AdminPage = () => {
   const fetchAdminBadges = async () => {
     try {
       const [ordersResponse, chatResponse] = await Promise.all([
-        axios.get("/orders-analytics"),
+        // Rozet yalnızca aktif siparişlere bakar; tüm sipariş geçmişini indirmeye gerek yok
+        axios.get("/orders-analytics", { params: { active: 1 } }),
         axios.get("/chat/unread-count"),
       ]);
       const usersOrders =
