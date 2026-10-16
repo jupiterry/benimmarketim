@@ -1,0 +1,225 @@
+/* Hazır bildirim kütüphanesi ve yapay zekâ ile geliştirme düğmeleri (PushBroadcastTab) */
+.admin-layout .plib {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+.admin-layout .plib-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.admin-layout .plib-head h2 {
+  margin: 0;
+  font-size: var(--ui-fs-lg);
+  font-weight: 650;
+  color: var(--ui-text);
+}
+.admin-layout .plib-head p {
+  margin: 2px 0 0;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text-2);
+}
+.admin-layout .plib-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+}
+.admin-layout .plib-badge svg {
+  width: 18px;
+  height: 18px;
+}
+.admin-layout .plib-toolbar {
+  display: flex;
+  gap: 8px;
+}
+.admin-layout .plib-search {
+  flex: 1 1 auto;
+}
+.admin-layout .plib-themes {
+  display: flex;
+  gap: 6px;
+  padding-bottom: 4px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.admin-layout .plib-themes > button {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: 999px;
+  background: var(--ui-surface);
+  color: var(--ui-text-2);
+  font: inherit;
+  font-size: var(--ui-fs-sm);
+  font-weight: 550;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.admin-layout .plib-themes > button:hover {
+  border-color: var(--ui-text-3);
+  color: var(--ui-text);
+}
+.admin-layout .plib-themes > button[aria-pressed="true"] {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand);
+  color: #fff;
+}
+.admin-layout .plib-themes svg {
+  width: 13px;
+  height: 13px;
+}
+.admin-layout .plib-themes > .plib-clear {
+  border-color: transparent;
+  background: none;
+}
+.admin-layout .plib-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.admin-layout .plib-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--ui-ease), box-shadow var(--ui-ease), transform var(--ui-ease);
+}
+.admin-layout .plib-card:hover {
+  border-color: var(--ui-brand);
+  box-shadow: 0 4px 14px rgba(16, 24, 40, 0.08);
+  transform: translateY(-1px);
+}
+.admin-layout .plib-card:focus-visible {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: 2px;
+}
+.admin-layout .plib-card-theme {
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  color: var(--ui-brand-ink);
+}
+.admin-layout .plib-card strong {
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+  line-height: 1.35;
+}
+.admin-layout .plib-card-body {
+  font-size: var(--ui-fs-sm);
+  line-height: 1.45;
+  color: var(--ui-text-2);
+}
+.admin-layout .plib-card-meta {
+  margin-top: auto;
+  padding-top: 4px;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+}
+.admin-layout .plib-foot {
+  margin: 0;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+}
+.admin-layout .plib-skeleton {
+  display: grid;
+  gap: 8px;
+}
+.admin-layout .plib-skeleton .ui-skeleton {
+  height: 90px;
+  border-radius: var(--ui-radius-lg);
+}
+
+/* Mesaj alanının altındaki "yapay zekâ ile geliştir" düğmeleri */
+.admin-layout .push-rewrite {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.admin-layout .push-rewrite-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  color: var(--ui-text-3);
+}
+.admin-layout .push-rewrite-label svg {
+  width: 13px;
+  height: 13px;
+}
+.admin-layout .push-rewrite > button {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px dashed var(--ui-line-strong);
+  border-radius: 999px;
+  background: var(--ui-surface);
+  color: var(--ui-text-2);
+  font: inherit;
+  font-size: var(--ui-fs-xs);
+  font-weight: 550;
+  cursor: pointer;
+}
+.admin-layout .push-rewrite > button:hover:not(:disabled) {
+  border-style: solid;
+  border-color: var(--ui-brand);
+  color: var(--ui-brand-ink);
+}
+.admin-layout .push-ai-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+}
+.admin-layout .push-ai-facts span {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-line);
+  color: var(--ui-text-2);
+}
+.admin-layout .push-ai-store {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-2);
+  cursor: pointer;
+}
+
+@media (max-width: 1100px) {
+  .admin-layout .plib-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .admin-layout .plib-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Yapay zekâ önerileri 4 ton: tek satıra sığdığı kadar yan yana */
+.admin-layout .push-ai-options {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}

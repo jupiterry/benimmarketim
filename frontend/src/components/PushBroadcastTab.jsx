@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle2, ChevronDown, Clock, FlaskConical, Gift, Ho
 import toast from "react-hot-toast";
 import axios from "../lib/axios";
 import { useConfirm } from "./ConfirmModal";
+import PushLibrary from "./push/PushLibrary";
 
 const TITLE_LIMIT = 60;
 const BODY_LIMIT = 180;
@@ -25,14 +26,14 @@ const IDEAS = [
 ];
 // Başlık veya mesaja imlecin olduğu yere eklenen emojiler
 const EMOJIS = ["🛒", "🔥", "🎁", "🎉", "⏰", "☕", "🥐", "🍕", "🍫", "🥤", "🌙", "📚", "⭐", "💚"];
-// Tek dokunuşla forma dolan hazır metinler; gönderilmeden önce düzenlenebilir.
-const TEMPLATES = [
-  { id: "deals", label: "Haftanın fırsatları", title: "Haftanın fırsatları başladı 🛒", body: "Seçili ürünlerde bu haftaya özel fiyatlar seni bekliyor. Kaçırmadan göz at!", target: "home" },
-  { id: "cart", label: "Sepet hatırlatma", title: "Sepetin seni bekliyor", body: "Seçtiğin ürünler hâlâ sepetinde. Siparişini birkaç dokunuşla tamamlayabilirsin.", target: "cart" },
-  { id: "community", label: "Topluluk indirimi", title: "Topluluk indirimi açıldı 🎉", body: "Katıl, hedef dolunca indirim kuponun cüzdanına gelsin. Katılım sepet ekranında.", target: "cart" },
-  { id: "mission", label: "Sipariş görevi", title: "Yeni görev: kupon kazan 🔥", body: "Görevi tamamla, indirim kuponunu kap. Ayrıntılar ana sayfada.", target: "home" },
-  { id: "referral", label: "Arkadaşını davet et", title: "Arkadaşını davet et, kazan", body: "Davet kodunu paylaş; arkadaşın ilk siparişini verince ikiniz de kazanın.", target: "referral" },
-  { id: "rate", label: "Puan iste", title: "Bizi değerlendirir misin? ⭐", body: "Uygulamamızı beğendiysen mağazada puan vermen bize çok yardımcı olur.", target: "rate" },
+// Mesajın altındaki "yapay zekâ ile geliştir" düğmeleri (sunucudaki REWRITE_INSTRUCTIONS ile aynı anahtarlar)
+const REWRITES = [
+  { id: "shorter", label: "✂️ Kısalt" },
+  { id: "funnier", label: "😄 Daha esprili" },
+  { id: "warmer", label: "💚 Daha samimi" },
+  { id: "curious", label: "❓ Merak uyandır" },
+  { id: "emoji", label: "✨ Emoji düzenle" },
+  { id: "calmer", label: "🧘 Sadeleştir" },
 ];
 const TEST_AUDIENCE = "self";
 const FAILURE_LABELS = {
@@ -72,6 +73,11 @@ export default function PushBroadcastTab() {
   const [aiError, setAiError] = useState("");
   // Yapay zekânın farklı tonlardaki önerileri; birine dokununca forma dolar
   const [aiOptions, setAiOptions] = useState([]);
+  // Yapay zekânın kullandığı gerçek mağaza bilgileri (haftalık fırsatlar, flash sale, çok satanlar)
+  const [aiFacts, setAiFacts] = useState([]);
+  const [useStoreData, setUseStoreData] = useState(true);
+  const [rewriting, setRewriting] = useState("");
+  const aiSectionRef = useRef(null);
   // Emoji eklemek için son odaklanan alan ve imleç konumu
   const titleRef = useRef(null);
   const bodyRef = useRef(null);
@@ -135,9 +141,44 @@ export default function PushBroadcastTab() {
     });
   };
 
-  const applyTemplate = (template) => {
-    setForm((current) => ({ ...current, title: template.title, body: template.body, target: template.target }));
+  // Kütüphaneden seçilen bildirim: metin, açılacak ekran ve önerilen kitle forma dolar
+  const pickFromLibrary = (pair) => {
+    const suggested = overview.audiences.find((item) => item.id === pair.theme.audience && item.reachable > 0);
+    setForm((current) => ({ ...current, title: pair.title, body: pair.body, target: pair.theme.target || current.target, audience: suggested ? suggested.id : current.audience }));
     setFailure("");
+    toast.success(suggested && suggested.id !== form.audience ? `Forma dolduruldu · kitle: ${suggested.label}` : "Forma dolduruldu; göndermeden önce düzenleyebilirsin");
+    requestAnimationFrame(() => titleRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
+  };
+
+  const applyDraftResponse = (data) => {
+    const options = (Array.isArray(data.options) && data.options.length ? data.options : [{ title: data.title, body: data.body }])
+      .filter((option) => typeof option?.title === "string" && typeof option?.body === "string");
+    if (!options.length) throw new Error("empty-draft");
+    setAiOptions(options);
+    setAiFacts(Array.isArray(data.facts) ? data.facts : []);
+    setForm((current) => ({ ...current, title: options[0].title, body: options[0].body }));
+    setFailure("");
+    return options;
+  };
+
+  // Formdaki metni seçilen yönde yeniden yazdırır (kısalt, esprili yap…)
+  const rewriteDraft = async (instruction) => {
+    if (rewriting || generating || !title || !body) return;
+    try {
+      setRewriting(instruction);
+      setAiError("");
+      const { data } = await axios.post("/notifications/broadcasts/draft", {
+        mode: "rewrite", instruction, current: { title, body }, target: form.target, audience: form.audience, useStoreData,
+      });
+      const options = applyDraftResponse(data);
+      toast.success(`${options.length} yeni sürüm hazır; beğendiğini seç.`);
+      requestAnimationFrame(() => aiSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    } catch (error) {
+      setAiError(error.response?.data?.message || "Metin geliştirilemedi. Tekrar deneyin.");
+      toast.error("Metin geliştirilemedi");
+    } finally {
+      setRewriting("");
+    }
   };
 
   const generateDraft = async (event) => {
@@ -146,13 +187,10 @@ export default function PushBroadcastTab() {
     try {
       setGenerating(true);
       setAiError("");
-      const { data } = await axios.post("/notifications/broadcasts/draft", { prompt: aiPrompt.trim(), target: form.target });
-      const options = (Array.isArray(data.options) && data.options.length ? data.options : [{ title: data.title, body: data.body }])
-        .filter((option) => typeof option?.title === "string" && typeof option?.body === "string");
-      if (!options.length) throw new Error("empty-draft");
-      setAiOptions(options);
-      setForm((current) => ({ ...current, title: options[0].title, body: options[0].body }));
-      setFailure("");
+      const { data } = await axios.post("/notifications/broadcasts/draft", {
+        prompt: aiPrompt.trim(), target: form.target, audience: form.audience, useStoreData,
+      });
+      const options = applyDraftResponse(data);
       toast.success(options.length > 1 ? `${options.length} öneri hazır; birini seçip gözden geçirin.` : "Bildirim taslağı hazır; göndermeden önce gözden geçirin.");
     } catch (error) {
       setAiError(error.response?.data?.message || "Yapay zekâ metin oluşturamadı. Tekrar deneyin.");
@@ -262,12 +300,12 @@ export default function PushBroadcastTab() {
       <div className="push-layout">
         <form id="push-form" className="push-compose" onSubmit={send}>
           {/* 1. Yapay zekâ ile yaz */}
-          <section className="push-ai" aria-labelledby="push-ai-title">
+          <section className="push-ai" aria-labelledby="push-ai-title" ref={aiSectionRef}>
             <div className="push-ai-head">
               <span className="push-ai-badge"><Sparkles /></span>
               <div>
                 <h2 id="push-ai-title">Yapay zekâ ile yaz</h2>
-                <p>Ne duyurmak istediğinizi anlatın; emojili, farklı tonlarda 3 öneri hazırlasın.</p>
+                <p>Ne duyurmak istediğinizi anlatın; seçili kitleye ve ekrana göre 4 farklı tonda öneri hazırlasın.</p>
               </div>
             </div>
             <div className="push-ideas" aria-label="Fikir başlangıçları">
@@ -286,7 +324,19 @@ export default function PushBroadcastTab() {
                 <Sparkles className={generating ? "ui-spin" : ""} />{generating ? "Yazıyor…" : aiOptions.length ? "Yeniden yaz" : "Öneri al"}
               </button>
             </div>
-            <span className="push-ai-note">İndirim, tarih, saat gibi bilgileri siz yazın; yapay zekâ bunları uydurmaz.</span>
+            <div className="ui-between">
+              <span className="push-ai-note">Yapay zekâ indirim, fiyat ya da tarih uydurmaz; yalnızca sizin yazdıklarınızı ve mağazanın gerçek bilgilerini kullanır.</span>
+              <label className="push-ai-store">
+                <input type="checkbox" checked={useStoreData} onChange={(e) => setUseStoreData(e.target.checked)} />
+                Mağaza verilerini kullan
+              </label>
+            </div>
+            {aiFacts.length > 0 && (
+              <div className="push-ai-facts" aria-label="Kullanılan mağaza bilgileri">
+                <span className="ui-muted">Kullanabildiği bilgiler:</span>
+                {aiFacts.map((fact) => <span key={fact}>{fact}</span>)}
+              </div>
+            )}
             {aiError && <p className="push-ai-error" role="alert">{aiError}</p>}
             {aiOptions.length > 0 && (
               <div className="push-ai-options" role="radiogroup" aria-label="Yapay zekâ önerileri">
@@ -306,6 +356,9 @@ export default function PushBroadcastTab() {
             )}
           </section>
 
+          {/* Hazır bildirim kütüphanesi */}
+          <PushLibrary onPick={pickFromLibrary} sentTitles={overview.history.map((item) => item.title).filter(Boolean)} />
+
           {/* 2. Metin */}
           <section className="ui-panel" aria-labelledby="push-text-title">
             <div className="ui-panel-head push-step-head">
@@ -313,14 +366,6 @@ export default function PushBroadcastTab() {
               <h2 id="push-text-title">Bildirim metni</h2>
             </div>
             <div className="ui-panel-body ui-stack">
-              <div className="push-templates" aria-label="Hazır metinler">
-                <span className="push-templates-label">Hazır:</span>
-                {TEMPLATES.map((template) => (
-                  <button type="button" key={template.id} className="push-template" onClick={() => applyTemplate(template)}>
-                    {template.label}
-                  </button>
-                ))}
-              </div>
               <div>
                 <div className="ui-between">
                   <label className="ui-label" htmlFor="push-title">Başlık</label>
@@ -344,6 +389,16 @@ export default function PushBroadcastTab() {
                   <button type="button" key={emoji} className="push-emoji" title="İmlecin olduğu yere ekle"
                     onMouseDown={(event) => event.preventDefault()} onClick={() => insertEmoji(emoji)}>
                     {emoji}
+                  </button>
+                ))}
+              </div>
+              <div className="push-rewrite" aria-label="Yapay zekâ ile geliştir">
+                <span className="push-rewrite-label"><Sparkles />Yapay zekâ ile geliştir:</span>
+                {REWRITES.map((item) => (
+                  <button type="button" key={item.id} onClick={() => rewriteDraft(item.id)}
+                    disabled={!title || !body || Boolean(rewriting) || generating}
+                    title={!title || !body ? "Önce başlık ve mesaj yazın" : undefined}>
+                    {rewriting === item.id ? "Yazıyor…" : item.label}
                   </button>
                 ))}
               </div>

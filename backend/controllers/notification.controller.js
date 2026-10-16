@@ -1,9 +1,15 @@
+import mongoose from "mongoose";
 import User from "../models/user.model.js";
 import Order from "../models/order.model.js";
 import PushBroadcast from "../models/pushBroadcast.model.js";
 import Settings from "../models/settings.model.js";
 import { createAiProvider } from "../services/ai/providers.js";
-import { buildDraftMessages, parseDraftOptions } from "../services/pushDraft.service.js";
+import { REWRITE_INSTRUCTIONS, buildDraftMessages, parseDraftOptions } from "../services/pushDraft.service.js";
+import { PUSH_LIBRARY, PUSH_LIBRARY_SIZE, pickLibraryExamples } from "../services/pushLibrary.js";
+import WeeklyProduct from "../models/weeklyProduct.model.js";
+import FlashSale from "../models/flashSale.model.js";
+import Product from "../models/product.model.js";
+import { getStatsSnapshot } from "../services/recommendation.service.js";
 import { PUSH_CATEGORIES, inspectPushUser, isPushConfigured, normalizePreferences, sendPushToUsers } from "../services/push.service.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -41,10 +47,63 @@ export const describeAiDraftFailure = (error, providerName = "", model = "") => 
 
 // Taslak üretimi yalnızca metin önerir; hiçbir bildirim göndermez.
 // Farklı tonlarda en fazla 3 seçenek döner; ilki forma doldurulur, diğerleri panelde seçilebilir.
+// Yapay zekânın kullanabileceği gerçek, güncel mağaza bilgileri (uydurmasın diye yalnızca bunlar)
+const formatTl = (value) => `${Number(value).toLocaleString("tr-TR", { maximumFractionDigits: 2 })} TL`;
+export const gatherStoreFacts = async (now = new Date()) => {
+  const facts = [];
+  // Veritabanı bağlı değilse beklemeden boş dön (taslak yine üretilir)
+  if (mongoose.connection.readyState !== 1) return facts;
+  try {
+    const [weekly, flash] = await Promise.all([
+      WeeklyProduct.find({ isActive: true }).populate("product", "name price isHidden isOutOfStock").sort({ order: 1 }).limit(6).lean(),
+      FlashSale.find({ isActive: true, startDate: { $lte: now }, endDate: { $gt: now } }).populate("product", "name price").limit(4).lean(),
+    ]);
+    for (const item of weekly) {
+      if (!item.product || item.product.isHidden || item.product.isOutOfStock) continue;
+      facts.push(`Haftalık fırsat: ${item.product.name} ${formatTl(item.weeklyPrice)}${item.discountPercentage ? ` (%${item.discountPercentage} indirimli)` : ""}`);
+    }
+    for (const sale of flash) {
+      if (!sale.product) continue;
+      const hours = Math.max(1, Math.round((new Date(sale.endDate) - now) / 3600000));
+      facts.push(`Flash sale: ${sale.product.name} %${sale.discountPercentage} indirimli, yaklaşık ${hours} saat sonra bitiyor`);
+    }
+    // Bu haftanın çok satanları (öneri istatistiğinden; yoksa atlanır)
+    const stats = getStatsSnapshot();
+    const top = Object.entries(stats?.products || {}).sort((a, b) => b[1].units7 - a[1].units7).slice(0, 5).map(([id]) => id);
+    if (top.length) {
+      const products = await Product.find({ _id: { $in: top }, isHidden: false, isOutOfStock: false }).select("name").lean();
+      const names = top.map((id) => products.find((p) => String(p._id) === id)?.name).filter(Boolean);
+      if (names.length) facts.push(`Bu hafta en çok satanlar: ${names.join(", ")}`);
+    }
+  } catch (error) {
+    console.error("Bildirim için mağaza bilgisi alınamadı:", error.message);
+  }
+  return facts.slice(0, 12);
+};
+
+// Hazır bildirim kütüphanesi (panel tek seferde alır)
+export const getBroadcastLibrary = async (_req, res) => {
+  res.setHeader("Cache-Control", "private, max-age=3600");
+  res.json({ success: true, size: PUSH_LIBRARY_SIZE, themes: PUSH_LIBRARY });
+};
+
 export const generateBroadcastDraft = async (req, res) => {
   const prompt = typeof req.body?.prompt === "string" ? req.body.prompt.trim() : "";
   const target = typeof req.body?.target === "string" ? req.body.target : "home";
-  if (prompt.length < 3 || prompt.length > 600) return res.status(400).json({ success: false, message: "Kampanya açıklaması 3–600 karakter arasında olmalı." });
+  const audience = typeof req.body?.audience === "string" && BROADCAST_AUDIENCES[req.body.audience] ? req.body.audience : "";
+  const mode = req.body?.mode === "rewrite" ? "rewrite" : "new";
+  const current = mode === "rewrite" ? {
+    title: typeof req.body?.current?.title === "string" ? req.body.current.title.trim().slice(0, 120) : "",
+    body: typeof req.body?.current?.body === "string" ? req.body.current.body.trim().slice(0, 300) : "",
+  } : null;
+  const instruction = mode === "rewrite"
+    ? REWRITE_INSTRUCTIONS[req.body?.instruction] || (typeof req.body?.instruction === "string" ? req.body.instruction.trim().slice(0, 200) : "")
+    : "";
+  if (mode === "rewrite") {
+    if (!current.title || !current.body) return res.status(400).json({ success: false, message: "Geliştirmek için önce başlık ve mesaj yazın." });
+  } else if (prompt.length < 3 || prompt.length > 600) {
+    return res.status(400).json({ success: false, message: "Kampanya açıklaması 3–600 karakter arasında olmalı." });
+  }
   let providerName = "";
   let model = "";
   try {
@@ -59,7 +118,12 @@ export const generateBroadcastDraft = async (req, res) => {
     } catch {
       // Geçmiş okunamazsa taslak yine de üretilir
     }
-    const messages = buildDraftMessages({ prompt, target, recentTitles: recent.map((item) => item.title).filter(Boolean) });
+    const facts = req.body?.useStoreData === false ? [] : await gatherStoreFacts();
+    const examples = pickLibraryExamples(mode === "rewrite" ? `${current.title} ${current.body}` : prompt, { count: 3 });
+    const messages = buildDraftMessages({
+      prompt, target, audience, facts, examples, mode, current, instruction,
+      recentTitles: recent.map((item) => item.title).filter(Boolean),
+    });
     const provider = createAiProvider({ provider: providerName, model });
     // Yaratıcı metin için asistandan daha yüksek sıcaklık; sınıra uymazsa bir kez daha denenir
     let options = [];
@@ -68,7 +132,7 @@ export const generateBroadcastDraft = async (req, res) => {
       options = parseDraftOptions(response.content);
     }
     if (!options.length) return res.status(502).json({ success: false, message: "Üretilen metin karakter sınırına uymadı. Yeniden deneyin." });
-    return res.json({ success: true, title: options[0].title, body: options[0].body, options });
+    return res.json({ success: true, title: options[0].title, body: options[0].body, options, facts });
   } catch (error) {
     // Gerçek sebep sunucu kaydına yazılır (önceden sessizce yutuluyordu)
     console.error(`Bildirim taslağı üretilemedi [${providerName} / ${model}]:`, error?.name === "AbortError" ? "zaman aşımı" : error?.message);
