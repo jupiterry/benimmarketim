@@ -3,70 +3,135 @@ import User from "../models/user.model.js";
 import { notifyOrderStatusChange } from "../services/orderStatusNotifier.js";
 import { evaluateMissionsForUser } from "../services/mission.service.js";
 
-// Tüm siparişleri getirirken "status" bilgisini de ekleyelim
-export const getOrderAnalyticsData = async () => {
-  try {
-    const totalOrders = await Order.countDocuments();
-    const orders = await Order.find()
-      .populate("user", "name email")
-      .populate("products.product", "name price image")
-      .sort({ createdAt: -1 });
+export const ACTIVE_ORDER_STATUSES = ["Hazırlanıyor", "Yolda"];
+const ORDER_LIST_FIELDS =
+  "user products totalAmount subtotalAmount couponCode couponDiscount discountPercentage status deliveryTracking statusHistory note phone city deliveryPoint deliveryPointName createdAt updatedAt device";
 
-    const groupedOrders = orders.reduce((acc, order) => {
-      if (!order.user || !order.products) {
-        console.log("Eksik veriler: ", order);
-        return acc;
-      }
+const listQuery = (filter) =>
+  Order.find(filter)
+    .select(ORDER_LIST_FIELDS)
+    .populate("user", "name email")
+    .populate("products.product", "name price image")
+    .sort({ createdAt: -1 });
 
-      const userId = order.user._id.toString();
-      if (!acc[userId]) {
-        acc[userId] = {
-          user: {
-            id: order.user._id,
-            name: order.user.name || "Bilinmeyen Kullanıcı",
-            email: order.user.email,
-            phone: order.phone,
-            address: `${order.city}`,
-          },
-          orders: [],
-        };
-      }
-
-      acc[userId].orders.push({
-        orderId: order._id,
-        products: order.products.map((p) => ({
-          name: p.name || p.product?.name || "Bilinmeyen Ürün",
-          quantity: p.quantity,
-          price: p.price ?? p.product?.price ?? 0,
-          image: p.image || p.product?.image || null,
-          isManual: p.isManual || false,
-        })),
-        totalAmount: order.totalAmount,
-        subtotalAmount: order.subtotalAmount || order.totalAmount,
-        couponCode: order.couponCode || null,
-        couponDiscount: order.couponDiscount || 0,
-        discountPercentage: order.discountPercentage || 0,
-        status: order.status,
-        deliveryTracking: order.deliveryTracking || "",
-        statusHistory: order.statusHistory || [],
-        note: order.note,
-        // Siparişte girilen telefon; müşteri her siparişte farklı numara verebilir
-        phone: order.phone,
-        city: order.city,
-        deliveryPoint: order.deliveryPoint,
-        deliveryPointName: order.deliveryPointName,
-        createdAt: order.createdAt,
-        updatedAt: order.updatedAt,
-        // Cihaz bilgisi
-        device: order.device || null,
-      });
-
+/** Siparişleri müşteriye göre gruplar (yanıt biçimi eskisiyle aynı) */
+export const groupOrdersByUser = (orders) => {
+  const groupedOrders = orders.reduce((acc, order) => {
+    if (!order.user || !order.products) {
+      console.log("Eksik veriler: ", order._id);
       return acc;
-    }, {});
+    }
+
+    const userId = order.user._id.toString();
+    if (!acc[userId]) {
+      acc[userId] = {
+        user: {
+          id: order.user._id,
+          name: order.user.name || "Bilinmeyen Kullanıcı",
+          email: order.user.email,
+          phone: order.phone,
+          address: `${order.city}`,
+        },
+        orders: [],
+      };
+    }
+
+    acc[userId].orders.push({
+      orderId: order._id,
+      products: order.products.map((p) => ({
+        name: p.name || p.product?.name || "Bilinmeyen Ürün",
+        quantity: p.quantity,
+        price: p.price ?? p.product?.price ?? 0,
+        image: p.image || p.product?.image || null,
+        isManual: p.isManual || false,
+      })),
+      totalAmount: order.totalAmount,
+      subtotalAmount: order.subtotalAmount || order.totalAmount,
+      couponCode: order.couponCode || null,
+      couponDiscount: order.couponDiscount || 0,
+      discountPercentage: order.discountPercentage || 0,
+      status: order.status,
+      deliveryTracking: order.deliveryTracking || "",
+      statusHistory: order.statusHistory || [],
+      note: order.note,
+      // Siparişte girilen telefon; müşteri her siparişte farklı numara verebilir
+      phone: order.phone,
+      city: order.city,
+      deliveryPoint: order.deliveryPoint,
+      deliveryPointName: order.deliveryPointName,
+      createdAt: order.createdAt,
+      updatedAt: order.updatedAt,
+      // Cihaz bilgisi
+      device: order.device || null,
+    });
+
+    return acc;
+  }, {});
+  return Object.values(groupedOrders);
+};
+
+/**
+ * Sipariş listesi. Seçenek verilmezse eskisi gibi TÜM siparişler döner (panoda tüm zamanlar
+ * cirosu için). Sipariş ekranı yalnızca ihtiyacı olanı ister:
+ *  - since:        bu tarihten sonra oluşturulanlar (örn. son 30 gün)
+ *  - before+limit: bu tarihten eski en yeni `limit` sipariş ("daha eski siparişleri yükle")
+ *  - active:       tarihten bağımsız tüm Hazırlanıyor / Yolda siparişleri
+ *  - updatedSince: yalnızca bu andan sonra değişen siparişler (yenileme; diğerleri yok sayılır)
+ */
+export const getOrderAnalyticsData = async (options = {}) => {
+  try {
+    const { since, before, limit, active, updatedSince } = options;
+    const scoped = Boolean(since || before || limit || active || updatedSince);
+    const serverTime = new Date();
+    const totalOrders = await Order.countDocuments();
+
+    if (!scoped) {
+      const orders = await listQuery({}).lean();
+      return { totalOrders, usersOrders: groupOrdersByUser(orders) };
+    }
+
+    let orders;
+    let hasMore = false;
+    let oldestCreatedAt = null;
+    if (updatedSince) {
+      orders = await listQuery({ updatedAt: { $gt: updatedSince } }).lean();
+    } else {
+      const created = {};
+      if (since) created.$gte = since;
+      if (before) created.$lt = before;
+      const recentFilter = Object.keys(created).length ? { createdAt: created } : {};
+      let recentQuery = listQuery(recentFilter);
+      if (limit) recentQuery = recentQuery.limit(limit + 1);
+      const [recent, activeOrders] = await Promise.all([
+        since || before || limit ? recentQuery.lean() : Promise.resolve([]),
+        active ? listQuery({ status: { $in: ACTIVE_ORDER_STATUSES } }).lean() : Promise.resolve([]),
+      ]);
+      if (limit && recent.length > limit) {
+        recent.length = limit;
+        hasMore = true;
+      }
+      const oldest = recent.length ? recent[recent.length - 1].createdAt : since || before;
+      if (!limit && oldest) hasMore = Boolean(await Order.exists({ createdAt: { $lt: oldest } }));
+      const seen = new Set();
+      orders = [...recent, ...activeOrders].filter((order) => {
+        const id = order._id.toString();
+        if (seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      });
+      orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      oldestCreatedAt = oldest || null;
+    }
 
     return {
       totalOrders,
-      usersOrders: Object.values(groupedOrders),
+      usersOrders: groupOrdersByUser(orders),
+      meta: {
+        serverTime: serverTime.toISOString(),
+        hasMore,
+        oldestCreatedAt: oldestCreatedAt ? new Date(oldestCreatedAt).toISOString() : null,
+        count: orders.length,
+      },
     };
   } catch (error) {
     console.error("Siparişler alınırken hata oluştu:", error.message);

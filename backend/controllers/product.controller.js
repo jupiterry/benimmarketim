@@ -1,7 +1,7 @@
 import { redis } from "../lib/redis.js";
 import cloudinary from "../lib/cloudinary.js";
 import Product from "../models/product.model.js";
-import { applyWeeklyPricesToProducts } from "../services/weeklyPrice.service.js";
+import { applyWeeklyPricesToProducts, getWeeklyPriceVersion } from "../services/weeklyPrice.service.js";
 import { RECO_WEIGHTS } from "../services/recommendation.config.js";
 import { CARD_SELECT, discountPercent, getStats, hourBucket, hourFitScore, normalizeDeliveryPoint, popularityScore } from "../services/recommendation.service.js";
 import { Parser } from 'json2csv';
@@ -255,10 +255,12 @@ async function updateFeaturedProductsCache() {
 // controllers/product.controller.js
 // {category: 1, order: 1} indeksiyle aynı collation; büyük/küçük harf duyarsız eşitlik
 const CATEGORY_COLLATION = { locale: "en", strength: 2 };
+// Hazır ürün listesi yanıtları (anahtar: sorgu + ürün sayısı + son güncelleme + haftalık fiyat sürümü)
+const PRODUCT_LIST_CACHE_MS = 60 * 1000;
+const productListCache = new Map();
 
 export const getProducts = async (req, res) => {
   try {
-    console.log("Get products request received with query:", req.query);
     
     const { category, page = 1, limit = 9999999, search = "", fields } = req.query;
     const cardOnly = fields === "card";
@@ -299,31 +301,20 @@ export const getProducts = async (req, res) => {
     }
 
     // Toplam ürün sayısını al
-    const total = await Product.countDocuments(query).collation(CATEGORY_COLLATION);
+    const [total, latestProduct] = await Promise.all([
+      Product.countDocuments(query).collation(CATEGORY_COLLATION),
+      // Get the latest update time for Last-Modified header
+      Product.findOne(query)
+        .collation(CATEGORY_COLLATION)
+        .sort({ updatedAt: -1 })
+        .select('updatedAt')
+        .lean(),
+    ]);
 
-    // Sayfalama ile ürünleri getir. fields=card: açıklama ve kartta kullanılmayan alanlar gelmez.
-    // fields verilmezse (yönetici paneli) tüm alanlar eskisi gibi döner.
-    let productQuery = Product.find(query)
-      .collation(CATEGORY_COLLATION)
-      .sort({ order: 1 })
-      .skip((page - 1) * limit)
-      .limit(Number(limit));
-    if (cardOnly) productQuery = productQuery.select(CARD_SELECT).lean();
-    const products = await productQuery;
-
-    console.log(`Products fetched: ${products.length}, Page: ${page}, Total: ${total}`);
-
-    // Get the latest update time for Last-Modified header
-    const latestProduct = await Product.findOne(query)
-      .collation(CATEGORY_COLLATION)
-      .sort({ updatedAt: -1 })
-      .select('updatedAt')
-      .lean();
-
-    const lastModified = latestProduct?.updatedAt 
+    const lastModified = latestProduct?.updatedAt
       ? new Date(latestProduct.updatedAt).toUTCString()
       : new Date().toUTCString();
-    
+
     const etag = latestProduct?.updatedAt
       ? `"${new Date(latestProduct.updatedAt).getTime()}"`
       : `"${Date.now()}"`;
@@ -332,11 +323,30 @@ export const getProducts = async (req, res) => {
     res.setHeader('Last-Modified', lastModified);
     res.setHeader('ETag', etag);
     res.setHeader('Cache-Control', 'private, max-age=300'); // 5 minutes cache
-    
+
+    // Ürünler (sayı + son güncelleme) ve haftalık fiyatlar değişmediyse hazır yanıtı tekrar
+    // kullan. Tüm katalog (~1500 ürün) her istekte yeniden okunup serileştirilmez.
+    const cacheKey = JSON.stringify([category || "", search || "", page, limit, cardOnly, total,
+      latestProduct?.updatedAt ? new Date(latestProduct.updatedAt).getTime() : 0, getWeeklyPriceVersion()]);
+    const cached = productListCache.get(cacheKey);
+    if (cached && Date.now() - cached.at < PRODUCT_LIST_CACHE_MS) {
+      return res.status(200).type('application/json').send(cached.body);
+    }
+
+    // Sayfalama ile ürünleri getir. fields=card: açıklama ve kartta kullanılmayan alanlar gelmez.
+    // fields verilmezse (yönetici paneli) tüm alanlar eskisi gibi döner.
+    let productQuery = Product.find(query)
+      .collation(CATEGORY_COLLATION)
+      .sort({ order: 1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit));
+    if (cardOnly) productQuery = productQuery.select(CARD_SELECT);
+    const products = await productQuery.lean();
+
     // Haftalık fiyatları uygula
     const productsWithWeeklyPrices = await applyWeeklyPricesToProducts(products);
-    
-    res.status(200).json({ 
+
+    const body = JSON.stringify({
       products: productsWithWeeklyPrices,
       pagination: {
         total,
@@ -345,6 +355,9 @@ export const getProducts = async (req, res) => {
         hasMore: page * limit < total
       }
     });
+    if (productListCache.size >= 50) productListCache.clear();
+    productListCache.set(cacheKey, { at: Date.now(), body });
+    res.status(200).type('application/json').send(body);
   } catch (error) {
     console.error("Error in getProducts controller:", error.message);
     res.status(500).json({ message: "Server error", error: error.message });

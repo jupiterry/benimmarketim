@@ -22,9 +22,35 @@ import {
 const router = express.Router();
 
 // Admin paneli için sipariş analitikleri
+// Sorgu parametreleri (hepsi isteğe bağlı; hiçbiri yoksa eskisi gibi tüm siparişler döner)
+const parseDate = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+export const parseOrderListQuery = (query = {}) => {
+  const days = Number.parseInt(query.days, 10);
+  const limit = Number.parseInt(query.limit, 10);
+  const since = parseDate(query.since) || (Number.isFinite(days) && days > 0
+    ? new Date(Date.now() - Math.min(days, 3650) * 24 * 60 * 60 * 1000)
+    : null);
+  return {
+    since,
+    before: parseDate(query.before),
+    limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 1000) : null,
+    active: query.active === "1" || query.active === "true",
+    updatedSince: parseDate(query.updatedSince),
+  };
+};
+
 router.get("/", protectRoute, adminRoute, async (req, res) => {
   try {
-    const orderAnalyticsData = await getOrderAnalyticsData();
+    const options = parseOrderListQuery(req.query);
+    const scoped = Object.values(options).some(Boolean);
+    const orderAnalyticsData = await getOrderAnalyticsData(options);
+
+    // Sipariş ekranı ve rozetler 7 günlük özeti kullanmıyor; yalnızca eski (filtresiz) çağrıda hesaplanır
+    if (scoped) return res.json({ orderAnalyticsData });
 
     const endDate = new Date();
     const startDate = new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);

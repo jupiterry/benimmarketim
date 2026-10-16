@@ -7,8 +7,13 @@ import WeeklyProduct from "../models/weeklyProduct.model.js";
 const TTL_MS = 60 * 1000;
 let cache = { map: null, at: 0, pending: null };
 
+let version = 0;
+// Haftalık fiyatlar değiştiğinde artar; hazır ürün listesi yanıtları bununla geçersiz olur
+export const getWeeklyPriceVersion = () => version;
+
 export const invalidateWeeklyPriceCache = () => {
   cache = { map: null, at: 0, pending: null };
+  version++;
 };
 
 const loadWeeklyPriceMap = async () => {

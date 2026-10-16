@@ -118,6 +118,9 @@ const orderSchema = new mongoose.Schema(
 // Son siparişler ve öneri istatistiği (son 30 gün) / kullanıcının sipariş geçmişi
 orderSchema.index({ createdAt: -1 });
 orderSchema.index({ user: 1, createdAt: -1 });
+// Sipariş ekranı: aktif siparişler ve "son değişenler" yenilemesi
+orderSchema.index({ status: 1, createdAt: -1 });
+orderSchema.index({ updatedAt: -1 });
 
 const Order = mongoose.model("Order", orderSchema);
 

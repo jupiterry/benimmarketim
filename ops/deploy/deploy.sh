@@ -41,11 +41,15 @@ printf '%s\n' "$old" > "$run/previous-commit"
 armed=0
 backend=0
 rootdeps=0
+last_health='not run'
 health() {
+  # 5 sn tüm kataloğu döndüren /api/products için yetmiyordu (GitHub'daki dış kontrol 20 sn
+  # bekliyor); API + veritabanını tek ürünle doğrula, her denemeye 20 sn tanı.
   local deadline=$((SECONDS + 60)) web api
   while (( SECONDS < deadline )); do
-    web=$(curl -s --max-time 5 -o /dev/null -w '%{http_code}' https://devrekbenimmarketim.com/ || true)
-    api=$(curl -s --max-time 5 -o /dev/null -w '%{http_code}' https://devrekbenimmarketim.com/api/products || true)
+    web=$(curl -s --max-time 20 -o /dev/null -w '%{http_code}' https://devrekbenimmarketim.com/ || true)
+    api=$(curl -s --max-time 20 -o /dev/null -w '%{http_code}' 'https://devrekbenimmarketim.com/api/products?limit=1&fields=card' || true)
+    last_health="site=$web api=$api"
     [[ $web == 200 && $api == 200 ]] && return 0
     sleep 2
   done
@@ -77,6 +81,8 @@ recover() {
   else
     echo 'Preflight/build failed; live files were not changed.' >&4
   fi
+  # Yalnızca HTTP kodları (gizli bilgi yok): neyin düştüğü CI kaydında da görünsün
+  echo "Last health check: $last_health" >&4
   echo "Root-only diagnostics: $run/deploy.log" >&4
   exit "${rc:-1}"
 }
