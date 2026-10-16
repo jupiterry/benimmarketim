@@ -103,6 +103,7 @@ echo new > frontend/dist/assets/new.js
             return value
 
         app_path = str(app).replace('\\', '/')
+        assert 'https://devrekbenimmarketim.com/api/version-check' in SOURCE
         script = SOURCE.replace('APP=/var/www/benimmarketim', f'APP="{app_path}"')
         script = script.replace('STATE=/var/lib/benimmarketim-deploy', f'STATE="{shell_path(state)}"')
         script = script.replace('export PATH=/opt/benimmarketim-node22/bin:/usr/local/bin:/usr/bin:/bin',

@@ -45,7 +45,7 @@ health() {
   local deadline=$((SECONDS + 60)) web api
   while (( SECONDS < deadline )); do
     web=$(curl -s --max-time 5 -o /dev/null -w '%{http_code}' https://devrekbenimmarketim.com/ || true)
-    api=$(curl -s --max-time 5 -o /dev/null -w '%{http_code}' https://devrekbenimmarketim.com/api/products || true)
+    api=$(curl -s --max-time 5 -o /dev/null -w '%{http_code}' https://devrekbenimmarketim.com/api/version-check || true)
     [[ $web == 200 && $api == 200 ]] && return 0
     sleep 2
   done
