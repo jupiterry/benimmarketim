@@ -3,6 +3,7 @@ import { X, Zap, Square, Trash2, Package, RefreshCw } from "lucide-react";
 import {
   DURATIONS, flashStatus, formatDateTime, localInputToIso, money, remaining, roundMoney, toLocalInput
 } from "./productUtils";
+import { cloudinaryImage } from "../../lib/image";
 
 const QUICK_PCTS = [10, 15, 20, 25, 30, 40];
 
@@ -137,7 +138,7 @@ export const FlashSaleRow = ({ sale, now, onEnd, onDelete, onOpenProduct, showPr
       {showProduct && (
         <button type="button" className="ui-thumb prd-flash-thumb" onClick={() => product && onOpenProduct?.(product._id)}
           aria-label={product ? `${product.name} ürününü aç` : "Ürün silinmiş"}>
-          {product?.image ? <img src={product.thumbnail || product.image} alt="" loading="lazy" /> : <Package />}
+          {product?.image ? <img src={cloudinaryImage(product.thumbnail || product.image, 120)} alt="" loading="lazy" /> : <Package />}
         </button>
       )}
       <div className="prd-flash-main">

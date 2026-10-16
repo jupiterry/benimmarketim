@@ -4,7 +4,8 @@ import multer from "multer";
 import csv from "csv-parser";
 import fs from "fs";
 import Product from "../models/product.model.js";
-import { adminRoute, protectRoute } from "../middleware/auth.middleware.js";
+import { adminRoute, optionalAuth, protectRoute } from "../middleware/auth.middleware.js";
+import { getHomeFeed, getPersonalizedProducts, getPopularProducts, getShelfPerformance } from "../controllers/recommendation.controller.js";
 import {
   createProduct,
   deleteProduct,
@@ -12,7 +13,6 @@ import {
   getFeaturedProducts,
   getProducts,
   getRecommendedProducts,
-  getPersonalizedProducts,
   toggleFeaturedProduct,
   updateProductPrice,
   updateProduct,
@@ -226,6 +226,10 @@ router.get("/", getProducts); // Admin için tüm ürünleri getir
 router.get("/featured", getFeaturedProducts);
 router.get("/recommendations", getRecommendedProducts);
 router.get("/personalized", protectRoute, getPersonalizedProducts);
+// Ana sayfa rafları: token varsa kişisel, yoksa misafir (geçersiz token 401 değil, misafir)
+router.get("/home-feed", optionalAuth, getHomeFeed);
+router.get("/popular", getPopularProducts);
+router.get("/shelf-performance", protectRoute, adminRoute, getShelfPerformance);
 // Static search routes must precede the dynamic /:id route.
 router.get("/search", searchProducts);
 router.get("/:id/similar", getSimilarProducts); // Similar products endpoint

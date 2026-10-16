@@ -1,6 +1,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
+import compression from "compression";
 import path from "path";
 import cors from "cors";
 import fs from "fs";
@@ -20,6 +21,7 @@ import feedbackRoutes from "./routes/feedback.route.js";
 import settingsRoutes from "./routes/settings.route.js";
 import flashSaleRoutes from "./routes/flashSale.route.js";
 import { startFlashSaleJob } from "./services/flashSale.service.js";
+import { startRecommendationJob } from "./services/recommendation.service.js";
 import photocopyRoutes from "./routes/photocopy.route.js";
 import bannerRoutes from "./routes/banner.route.js";
 import categoryRoutes from "./routes/category.route.js";
@@ -102,6 +104,11 @@ app.use((req, res, next) => {
   next();
 });
 
+// gzip sıkıştırma: ürün listesi JSON'u 5–10 kat küçülür. Socket.IO kendi aktarımını yönetir.
+app.use(compression({
+  threshold: 1024,
+  filter: (req, res) => !req.path.startsWith("/socket.io") && compression.filter(req, res),
+}));
 app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
 
@@ -439,4 +446,5 @@ httpServer.listen(PORT, () => {
 
   // Flash sale'leri zamanında başlat ve bitir (dakikada bir)
   startFlashSaleJob();
+  startRecommendationJob();
 });

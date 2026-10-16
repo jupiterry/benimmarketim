@@ -58,6 +58,10 @@ const productSchema = new mongoose.Schema(
 
 // Text indeksini oluştur
 productSchema.index({ name: "text", description: "text" });
+// Kategori sayfası: eşitlik + vitrin sırası (getProducts aynı collation ile sorgular)
+productSchema.index({ category: 1, order: 1 }, { collation: { locale: "en", strength: 2 } });
+// Öne çıkanlar / fırsatlar sorguları
+productSchema.index({ isHidden: 1, isDiscounted: 1 });
 
 const Product = mongoose.model("Product", productSchema);
 

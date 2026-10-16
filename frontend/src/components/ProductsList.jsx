@@ -7,6 +7,7 @@ import {
 import toast from "react-hot-toast";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import axios from "../lib/axios";
+import { cloudinaryImage } from "../lib/image";
 import { useProductStore } from "../stores/useProductStore";
 import { useConfirm } from "./ConfirmModal";
 import ProductDrawer from "./products/ProductDrawer";
@@ -121,7 +122,7 @@ const ProductRow = memo(({
       </div>
       <div className="prd-cell prd-cell--product" role="cell">
         <button type="button" className="prd-thumb" onClick={() => onOpen(product._id)} aria-label={`${product.name} detayını aç`}>
-          {hasImage(product) ? <img src={product.thumbnail || product.image} alt="" loading="lazy" /> : <ImageOff />}
+          {hasImage(product) ? <img src={cloudinaryImage(product.thumbnail || product.image, 120)} alt="" loading="lazy" /> : <ImageOff />}
         </button>
         <div className="prd-name-wrap">
           <button type="button" className="prd-name" onClick={() => onOpen(product._id)}>{product.name}</button>
@@ -776,7 +777,7 @@ const ProductsList = ({ onCreate }) => {
                         <li ref={drag.innerRef} {...drag.draggableProps} className="prd-reorder-item" data-dragging={snapshot.isDragging || undefined}>
                           <span className="prd-grip" {...drag.dragHandleProps} aria-label="Sürükle"><GripVertical /></span>
                           <span className="prd-reorder-index">{index + 1}</span>
-                          <span className="prd-thumb prd-thumb--sm">{hasImage(p) ? <img src={p.thumbnail || p.image} alt="" loading="lazy" /> : <ImageOff />}</span>
+                          <span className="prd-thumb prd-thumb--sm">{hasImage(p) ? <img src={cloudinaryImage(p.thumbnail || p.image, 120)} alt="" loading="lazy" /> : <ImageOff />}</span>
                           <span className="prd-reorder-name">
                             <strong className="ui-truncate">{p.name}</strong>
                             <small>{categoryName(p.category)} · {money(p.isDiscounted ? p.discountedPrice : p.price)}</small>

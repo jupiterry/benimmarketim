@@ -40,6 +40,24 @@ export const protectRoute = async (req, res, next) => {
   }
 };
 
+// İsteğe bağlı oturum: geçerli token varsa req.user doldurulur; token yok, geçersiz ya da
+// süresi dolmuşsa istek misafir olarak devam eder (asla 401 dönmez).
+export const optionalAuth = async (req, res, next) => {
+  try {
+    const accessToken = req.cookies?.accessToken || req.headers.authorization?.split(" ")[1];
+    if (!accessToken) return next();
+    const decoded = jwt.verify(accessToken, process.env.ACCESS_TOKEN_SECRET);
+    const user = await User.findById(decoded.userId).select("-password");
+    if (user) {
+      req.user = user;
+      noteAppRequest(req);
+    }
+  } catch {
+    req.user = undefined;
+  }
+  return next();
+};
+
 export const adminRoute = (req, res, next) => {
   if (req.user && req.user.role === "admin") {
     next();

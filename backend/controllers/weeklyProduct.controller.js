@@ -1,5 +1,6 @@
 import WeeklyProduct from "../models/weeklyProduct.model.js";
 import Product from "../models/product.model.js";
+import { invalidateWeeklyPriceCache } from "../services/weeklyPrice.service.js";
 
 /**
  * Tüm aktif haftalık ürünleri getir (Public API)
@@ -100,6 +101,7 @@ export const addWeeklyProduct = async (req, res) => {
       order: order || 0,
       isActive: true,
     });
+    invalidateWeeklyPriceCache();
 
     const populatedProduct = await WeeklyProduct.findById(weeklyProduct._id).populate({
       path: "product",
@@ -158,6 +160,7 @@ export const updateWeeklyProduct = async (req, res) => {
     weeklyProduct.isActive = isActive ?? weeklyProduct.isActive;
 
     await weeklyProduct.save();
+    invalidateWeeklyPriceCache();
 
     const updatedProduct = await WeeklyProduct.findById(id).populate({
       path: "product",
@@ -193,6 +196,7 @@ export const removeWeeklyProduct = async (req, res) => {
     const { id } = req.params;
 
     const weeklyProduct = await WeeklyProduct.findByIdAndDelete(id);
+    invalidateWeeklyPriceCache();
     if (!weeklyProduct) {
       return res.status(404).json({
         success: false,
@@ -237,6 +241,7 @@ export const toggleWeeklyProductStatus = async (req, res) => {
 
     weeklyProduct.isActive = !weeklyProduct.isActive;
     await weeklyProduct.save();
+    invalidateWeeklyPriceCache();
 
     const updatedProduct = await WeeklyProduct.findById(id).populate({
       path: "product",
