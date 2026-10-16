@@ -30,6 +30,16 @@ import {
  * @returns {{ orderProducts, totalAmount }}
  * @throws {Error} Ürün bulunamazsa veya miktar geçersizse
  */
+// Sipariş satırının geldiği raf/ekran (ölçüm). Bilinmeyen değerler yok sayılır.
+export const ORDER_SOURCES = [
+  "home_deals", "home_foryou", "home_popular", "flash", "category", "search",
+  "detail_similar", "cart_suggestion", "weekly", "favorites", "reorder", "saved_cart",
+];
+export const normalizeOrderSource = (value) => {
+  const source = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return ORDER_SOURCES.includes(source) ? source : null;
+};
+
 export async function buildOrderProducts(cartProducts) {
   // Haftalık indirimli ürünleri tek sorguda al
   const weeklyProducts = await WeeklyProduct.find({ isActive: true }).lean();
@@ -87,6 +97,7 @@ export async function buildOrderProducts(cartProducts) {
       isWeeklyDiscount: weeklyPrice !== undefined,
       isProductDiscount: weeklyPrice === undefined && productDiscountPrice !== undefined,
       category: product.category,
+      ...(normalizeOrderSource(cartItem.source) ? { source: normalizeOrderSource(cartItem.source) } : {}),
     };
   });
 

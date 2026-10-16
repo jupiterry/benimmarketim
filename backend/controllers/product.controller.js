@@ -1,58 +1,12 @@
 import { redis } from "../lib/redis.js";
 import cloudinary from "../lib/cloudinary.js";
 import Product from "../models/product.model.js";
-import Order from "../models/order.model.js";
-import WeeklyProduct from "../models/weeklyProduct.model.js";
+import { applyWeeklyPricesToProducts } from "../services/weeklyPrice.service.js";
+import { RECO_WEIGHTS } from "../services/recommendation.config.js";
+import { CARD_SELECT, discountPercent, getStats, hourBucket, hourFitScore, normalizeDeliveryPoint, popularityScore } from "../services/recommendation.service.js";
 import { Parser } from 'json2csv';
 import { detectBrand } from '../services/brandDetection.js';
 import mongoose from "mongoose";
-
-// Helper: Ürünlere haftalık fiyat bilgisi ekle
-async function applyWeeklyPricesToProducts(products) {
-  try {
-    // Aktif haftalık ürünleri getir
-    const weeklyProducts = await WeeklyProduct.find({ isActive: true })
-      .populate('product')
-      .lean();
-    
-    // Haftalık ürün ID'lerini ve fiyatlarını map'e al
-    const weeklyPriceMap = new Map();
-    for (const wp of weeklyProducts) {
-      if (wp.product && wp.product._id) {
-        weeklyPriceMap.set(wp.product._id.toString(), {
-          weeklyPrice: wp.weeklyPrice,
-          discountPercentage: wp.discountPercentage,
-          originalPrice: wp.originalPrice || wp.product.price
-        });
-      }
-    }
-    
-    // Ürünlere haftalık fiyat bilgisi ekle
-    const productsWithWeeklyPrice = products.map(product => {
-      const productId = product._id ? product._id.toString() : product.id?.toString();
-      const weeklyInfo = weeklyPriceMap.get(productId);
-      
-      if (weeklyInfo) {
-        // Haftalık fiyat varsa uygula
-        return {
-          ...product.toObject ? product.toObject() : product,
-          isWeeklyProduct: true,
-          weeklyPrice: weeklyInfo.weeklyPrice,
-          weeklyDiscountPercentage: weeklyInfo.discountPercentage,
-          originalPrice: weeklyInfo.originalPrice,
-          // actualPrice alanını güncelle (sepet ve diğer hesaplamalar için)
-          actualPrice: weeklyInfo.weeklyPrice
-        };
-      }
-      return product.toObject ? product.toObject() : product;
-    });
-    
-    return productsWithWeeklyPrice;
-  } catch (error) {
-    console.error("Haftalık fiyat uygulama hatası:", error);
-    return products.map(p => p.toObject ? p.toObject() : p);
-  }
-}
 
 export const getAllProducts = async (req, res) => {
   try {
@@ -98,18 +52,25 @@ export const getFeaturedProducts = async (req, res) => {
       }
     }
 
-    // Önce indirimli ürünleri getir
-    const discountedProducts = await Product.find({
+    // Önce indirimli ürünler: "en ucuz önce" yerine indirim derinliği + popülerlik + saat uyumu.
+    // Flash sale ürünleri bu listede kalır (mobil kendisi ayıklar).
+    const rankCtx = { stats: getStats(), hourBucket: hourBucket(new Date()), deliveryPoint: normalizeDeliveryPoint(req.query.deliveryPoint) };
+    const dealRank = (product) =>
+      discountPercent(product) * RECO_WEIGHTS.dealDiscountPerPercent + popularityScore(product, rankCtx) + hourFitScore(product, rankCtx);
+    const discountedProducts = (await Product.find({
       isDiscounted: true,
       isHidden: false,
-    }).sort({ discountedPrice: 1 }); // İndirimli fiyata göre sırala
+    }).lean())
+      .map((product) => ({ product, score: dealRank(product) }))
+      .sort((a, b) => b.score - a.score || Number(a.product.discountedPrice) - Number(b.product.discountedPrice))
+      .map(({ product }) => product);
 
     // Sonra öne çıkan ve indirimde olmayan ürünleri getir
     const featuredProducts = await Product.find({
       isFeatured: true,
       isHidden: false,
       isDiscounted: false, // İndirimde olmayan öne çıkan ürünler
-    }).sort({ order: 1 });
+    }).sort({ order: 1 }).lean();
 
     // Tüm ürünleri birleştir (önce indirimli sonra öne çıkan)
     const allFeaturedProducts = [...discountedProducts, ...featuredProducts];
@@ -240,66 +201,6 @@ export const getRecommendedProducts = async (req, res) => {
   }
 };
 
-// Sipariş geçmişine göre kişisel ürün önerileri.
-// Kullanıcı hiç sipariş vermediyse öne çıkan/indirimli ürünlerle güvenli fallback döner.
-export const getPersonalizedProducts = async (req, res) => {
-  try {
-    const limit = Math.min(Math.max(Number(req.query.limit) || 12, 4), 24);
-    const orders = await Order.find({
-      user: req.user._id,
-      status: { $ne: "İptal Edildi" },
-    })
-      .sort({ createdAt: -1 })
-      .limit(40)
-      .select("products")
-      .lean();
-
-    const purchaseWeight = new Map();
-    for (const order of orders) {
-      for (const item of order.products || []) {
-        const id = item.product?.toString();
-        if (id) purchaseWeight.set(id, (purchaseWeight.get(id) || 0) + Number(item.quantity || 1));
-      }
-    }
-
-    const purchasedIds = [...purchaseWeight.keys()];
-    const boughtProducts = purchasedIds.length
-      ? await Product.find({ _id: { $in: purchasedIds } }).select("category").lean()
-      : [];
-    const categoryWeight = new Map();
-    for (const product of boughtProducts) {
-      categoryWeight.set(product.category, (categoryWeight.get(product.category) || 0) + 1);
-    }
-
-    const candidates = await Product.find({ isHidden: false, isOutOfStock: false })
-      .limit(300)
-      .lean();
-    const ranked = candidates
-      .map((product) => {
-        const id = product._id.toString();
-        const repurchase = purchaseWeight.get(id) || 0;
-        const categoryAffinity = categoryWeight.get(product.category) || 0;
-        const score = repurchase * 16 + categoryAffinity * 5 +
-          (product.isDiscounted ? 4 : 0) + (product.isFeatured ? 2 : 0);
-        return { product, score };
-      })
-      .sort((a, b) => b.score - a.score || Number(b.product.isDiscounted) - Number(a.product.isDiscounted))
-      .slice(0, limit)
-      .map(({ product }) => product);
-
-    const products = await applyWeeklyPricesToProducts(ranked);
-    res.json({
-      success: true,
-      strategy: orders.length ? "purchase_history" : "popular_fallback",
-      products,
-    });
-  } catch (error) {
-    console.error("Personalized recommendations error:", error.message);
-    res.status(500).json({ message: "Öneriler getirilemedi" });
-  }
-};
-
-
 export const toggleFeaturedProduct = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
@@ -352,15 +253,21 @@ async function updateFeaturedProductsCache() {
   }
 }
 // controllers/product.controller.js
+// {category: 1, order: 1} indeksiyle aynı collation; büyük/küçük harf duyarsız eşitlik
+const CATEGORY_COLLATION = { locale: "en", strength: 2 };
+
 export const getProducts = async (req, res) => {
   try {
     console.log("Get products request received with query:", req.query);
     
-    const { category, page = 1, limit = 9999999, search = "" } = req.query;
+    const { category, page = 1, limit = 9999999, search = "", fields } = req.query;
+    const cardOnly = fields === "card";
     let query = {};
 
     if (category) {
-      query.category = { $regex: new RegExp(`^${category}$`, "i") };
+      // Eskiden `^kategori$` (büyük/küçük harf duyarsız) regex'i kullanılıyordu; aynı sonucu
+      // büyük/küçük harf duyarsız collation ile doğrudan eşitlik + {category, order} indeksiyle verir.
+      query.category = String(category);
     }
 
     if (search) {
@@ -374,6 +281,7 @@ export const getProducts = async (req, res) => {
       
       // Get the latest product update time
       const latestProduct = await Product.findOne(query)
+        .collation(CATEGORY_COLLATION)
         .sort({ updatedAt: -1 })
         .select('updatedAt')
         .lean();
@@ -391,18 +299,23 @@ export const getProducts = async (req, res) => {
     }
 
     // Toplam ürün sayısını al
-    const total = await Product.countDocuments(query);
+    const total = await Product.countDocuments(query).collation(CATEGORY_COLLATION);
 
-    // Sayfalama ile ürünleri getir
-    const products = await Product.find(query)
+    // Sayfalama ile ürünleri getir. fields=card: açıklama ve kartta kullanılmayan alanlar gelmez.
+    // fields verilmezse (yönetici paneli) tüm alanlar eskisi gibi döner.
+    let productQuery = Product.find(query)
+      .collation(CATEGORY_COLLATION)
       .sort({ order: 1 })
       .skip((page - 1) * limit)
       .limit(Number(limit));
+    if (cardOnly) productQuery = productQuery.select(CARD_SELECT).lean();
+    const products = await productQuery;
 
     console.log(`Products fetched: ${products.length}, Page: ${page}, Total: ${total}`);
 
     // Get the latest update time for Last-Modified header
     const latestProduct = await Product.findOne(query)
+      .collation(CATEGORY_COLLATION)
       .sort({ updatedAt: -1 })
       .select('updatedAt')
       .lean();

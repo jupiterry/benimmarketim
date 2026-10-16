@@ -29,6 +29,12 @@ const orderSchema = new mongoose.Schema(
           type: Boolean,
           default: false,
         },
+        // Ürünün sepete eklendiği yer (ölçüm için, isteğe bağlı): home_deals, home_foryou, flash...
+        source: {
+          type: String,
+          default: undefined,
+          maxlength: 40,
+        },
       },
     ],
     totalAmount: {
@@ -108,6 +114,10 @@ const orderSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Son siparişler ve öneri istatistiği (son 30 gün) / kullanıcının sipariş geçmişi
+orderSchema.index({ createdAt: -1 });
+orderSchema.index({ user: 1, createdAt: -1 });
 
 const Order = mongoose.model("Order", orderSchema);
 

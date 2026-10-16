@@ -7,6 +7,7 @@ import { isWithinOrderHours } from "../lib/orderHours";
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { motion } from "framer-motion";
+import { cloudinaryImage } from "../lib/image";
 
 const ProductCard = ({ product, isAdmin }) => {
   const { user } = useUserStore();
@@ -51,17 +52,6 @@ const ProductCard = ({ product, isAdmin }) => {
     }
   };
 
-  // Süresi biten Flash Sale'leri temizle
-  const cleanupExpiredFlashSale = async (flashSaleId) => {
-    try {
-      await axios.delete(`/flash-sales/${flashSaleId}`);
-      // Flash sale listesini güncelle
-      setFlashSales(prev => prev.filter(sale => sale._id !== flashSaleId));
-    } catch (error) {
-      console.error("Flash sale silinemedi:", error);
-    }
-  };
-
   // Flash Sale kalan süre hesaplama
   const getFlashSaleTimeRemaining = (productId) => {
     const flashSale = flashSales.find(sale => sale.product?._id === productId);
@@ -71,12 +61,9 @@ const ProductCard = ({ product, isAdmin }) => {
     const start = new Date(flashSale.startDate);
     const end = new Date(flashSale.endDate);
 
-    // Sona ermiş - flash sale'i temizle
-    if (now > end) {
-      // Flash sale'i backend'den sil
-      cleanupExpiredFlashSale(flashSale._id);
-      return null; // Artık gösterme
-    }
+    // Sona ermiş: gösterme. Kampanyayı sunucudaki zamanlanmış iş kapatır
+    // (DELETE /flash-sales/:id yöneticiye özeldir; müşteride 401 alıyordu).
+    if (now > end) return null;
 
     // Henüz başlamamış
     if (now < start) {
@@ -181,7 +168,7 @@ const ProductCard = ({ product, isAdmin }) => {
         <div className="relative aspect-square overflow-hidden rounded-t-lg bg-white/5">
           {!imageError ? (
             <img
-              src={product?.image}
+              src={cloudinaryImage(product?.image)}
               alt={product?.name || 'Ürün'}
               onError={handleImageError}
               className="w-full h-full object-contain"
