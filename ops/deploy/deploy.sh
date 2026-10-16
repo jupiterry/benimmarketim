@@ -43,12 +43,12 @@ backend=0
 rootdeps=0
 last_health='not run'
 health() {
-  # 5 sn tüm kataloğu döndüren /api/products için yetmiyordu (GitHub'daki dış kontrol 20 sn
-  # bekliyor); API + veritabanını tek ürünle doğrula, her denemeye 20 sn tanı.
+  # Tüm kataloğu döndüren /api/products 5 sn'ye sığmıyordu; hızlı /api/version-check
+  # kullanılır ve her denemeye 20 sn (GitHub'daki dış kontrolle aynı) tanınır.
   local deadline=$((SECONDS + 60)) web api
   while (( SECONDS < deadline )); do
     web=$(curl -s --max-time 20 -o /dev/null -w '%{http_code}' https://devrekbenimmarketim.com/ || true)
-    api=$(curl -s --max-time 20 -o /dev/null -w '%{http_code}' 'https://devrekbenimmarketim.com/api/products?limit=1&fields=card' || true)
+    api=$(curl -s --max-time 20 -o /dev/null -w '%{http_code}' https://devrekbenimmarketim.com/api/version-check || true)
     last_health="site=$web api=$api"
     [[ $web == 200 && $api == 200 ]] && return 0
     sleep 2

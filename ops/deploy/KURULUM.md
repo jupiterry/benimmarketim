@@ -13,7 +13,7 @@ Resmi checksum'u doğrulanan Node v22.23.3 `/opt/benimmarketim-node22` içine ku
 
 ## 16 Ekim 2026: sağlık kontrolü güncellemesi
 
-14 Ekim'den beri yayınlar "Deploy and recovery failed" ile bitiyordu. Sunucudaki sağlık kontrolü tüm kataloğu döndüren `/api/products` için yalnızca 5 sn bekliyordu (GitHub'daki dış kontrol 20 sn bekler). Betik artık `/api/products?limit=1&fields=card` adresini 20 sn zaman aşımıyla kontrol ediyor ve başarısızlıkta son HTTP kodlarını (`Last health check: site=… api=…`) CI kaydına yazıyor.
+14 Ekim'den beri yayınlar "Deploy and recovery failed" ile bitiyordu. Sunucudaki sağlık kontrolü tüm kataloğu döndüren `/api/products` için yalnızca 5 sn bekliyordu (GitHub'daki dış kontrol 20 sn bekler). Betik artık hızlı `/api/version-check` adresini 20 sn zaman aşımıyla kontrol ediyor ve başarısızlıkta son HTTP kodlarını (`Last health check: site=… api=…`) CI kaydına yazıyor.
 
 Sunucudaki betik checkout dışında root'a ait bir kopya olduğu için bu değişiklik **kendiliğinden devreye girmez**. Yönetici bir kez şunu çalıştırmalıdır:
 
