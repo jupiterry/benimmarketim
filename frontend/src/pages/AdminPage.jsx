@@ -164,7 +164,7 @@ const AdminPage = () => {
     banners: "Mağazanızın vitrinini kampanyalarınıza uygun şekilde düzenleyin.",
     "bulk-upload": "Ürün kataloğunuzu CSV dosyasıyla toplu olarak güncelleyin.",
     settings: "Mağazanızın çalışma düzenini ve tercihlerini belirleyin.",
-    audit: "Yöneticilerin yaptığı hassas işlemleri inceleyin.",
+    audit: "Ürün ekleme, fiyat, indirim, stok, görünürlük, kampanya, sipariş ve ayar değişikliklerinin tamamı; kim, ne zaman, neyi neye çevirdi.",
   };
 
   // Keyboard shortcuts

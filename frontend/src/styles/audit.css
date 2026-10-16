@@ -1,0 +1,173 @@
+/* İşlem kayıtları (AdminAuditTab) ve ürün geçmişi — admin-system.css belirteçleriyle */
+.admin-layout .aud {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+}
+.admin-layout .aud-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.admin-layout .aud-search {
+  flex: 1 1 auto;
+}
+.admin-layout .aud-chips {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.admin-layout .aud-chips svg {
+  width: 13px;
+  height: 13px;
+}
+.admin-layout .aud-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0 !important;
+  background: none !important;
+  color: var(--ui-text-2);
+}
+.admin-layout .aud-day + .aud-day {
+  margin-top: 6px;
+}
+.admin-layout .aud-day-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ui-text-3);
+}
+.admin-layout .aud-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  overflow: hidden;
+}
+.admin-layout .aud-row {
+  display: flex;
+  gap: 12px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--ui-line);
+  background: var(--ui-surface);
+}
+.admin-layout .aud-row:first-child {
+  border-top: 0;
+}
+.admin-layout .aud-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+}
+.admin-layout .aud-icon svg {
+  width: 14px;
+  height: 14px;
+}
+.admin-layout .aud-row[data-category="product"] .aud-icon {
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+}
+.admin-layout .aud-row[data-category="campaign"] .aud-icon {
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+.admin-layout .aud-row[data-category="order"] .aud-icon {
+  background: var(--ui-info-bg);
+  color: var(--ui-info-ink);
+}
+.admin-layout .aud-row[data-category="customer"] .aud-icon {
+  background: var(--ui-ok-bg);
+  color: var(--ui-ok-ink);
+}
+.admin-layout .aud-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.admin-layout .aud-title {
+  margin: 0;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text);
+  overflow-wrap: anywhere;
+}
+.admin-layout .aud-target {
+  color: var(--ui-text-2);
+}
+.admin-layout .aud-changes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-layout .aud-changes li {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ui-surface-2);
+  border: 1px solid var(--ui-line);
+  font-size: var(--ui-fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .aud-changes svg {
+  width: 11px;
+  height: 11px;
+  color: var(--ui-text-3);
+}
+.admin-layout .aud-change-label {
+  color: var(--ui-text-3);
+}
+.admin-layout .aud-from {
+  color: var(--ui-text-3);
+  text-decoration: line-through;
+}
+.admin-layout .aud-to {
+  font-weight: 650;
+  color: var(--ui-text);
+}
+.admin-layout .aud-meta {
+  margin: 0;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+}
+.admin-layout .aud-more {
+  display: flex;
+  justify-content: center;
+}
+.admin-layout .aud-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.admin-layout .aud-skeleton .ui-skeleton {
+  height: 52px;
+  border-radius: var(--ui-radius-lg);
+}
+/* Ürün çekmecesindeki geçmiş */
+.admin-layout .aud-history .aud-list {
+  border-radius: var(--ui-radius);
+}
+.admin-layout .aud-history .aud-row {
+  padding: 8px 10px;
+}

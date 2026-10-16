@@ -2,6 +2,11 @@ import mongoose from "mongoose";
 import FlashSale from "../models/flashSale.model.js";
 import Product from "../models/product.model.js";
 import { rangesOverlap, releaseSale, saleStatus, syncFlashSales, syncSale } from "../services/flashSale.service.js";
+import { recordAdminAction } from "../services/adminAudit.service.js";
+
+const trDate = (d) => new Date(d).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const auditSale = (req, sale, productName, action, changes = []) =>
+  recordAdminAction(req, { action, category: "campaign", target: String(sale.product?._id || sale.product || sale._id), targetName: productName || sale.name || "Flash sale", changes, meta: { flashSaleId: String(sale._id) } });
 
 const withStatus = (sale, now = new Date()) => {
   const obj = typeof sale.toObject === "function" ? sale.toObject() : sale;
@@ -115,6 +120,10 @@ export const createFlashSale = async (req, res) => {
     });
     await flashSale.save();
     await syncSale(flashSale, now);
+    auditSale(req, flashSale, product.name, "Flash sale oluşturuldu", [
+      { label: "İndirim", from: "—", to: `%${flashSale.discountPercentage}` },
+      { label: "Tarih", from: "—", to: `${trDate(flashSale.startDate)} – ${trDate(flashSale.endDate)}` },
+    ]);
 
     await flashSale.populate("product");
     res.status(201).json({ message: "Flash sale başarıyla oluşturuldu", flashSale: withStatus(flashSale, now) });
@@ -146,6 +155,7 @@ export const updateFlashSale = async (req, res) => {
       return res.status(400).json({ message: "Bu ürünün aynı tarihlerde başka bir flash sale'i var.", existingSale: overlap });
     }
 
+    const before = { pct: flashSale.discountPercentage, start: flashSale.startDate, end: flashSale.endDate, isActive: flashSale.isActive };
     // Değişiklikten önce mevcut etkisini geri al, sonra yeni duruma göre yeniden uygula
     if (flashSale.applied) await releaseSale(flashSale);
 
@@ -157,6 +167,13 @@ export const updateFlashSale = async (req, res) => {
     if (req.body.isActive !== undefined) flashSale.isActive = Boolean(req.body.isActive);
     await flashSale.save();
     await syncSale(flashSale);
+    const productDoc = await Product.findById(flashSale.product).select("name").lean();
+    auditSale(req, flashSale, productDoc?.name, "Flash sale düzenlendi", [
+      before.pct !== flashSale.discountPercentage && { label: "İndirim", from: `%${before.pct}`, to: `%${flashSale.discountPercentage}` },
+      (String(before.start) !== String(flashSale.startDate) || String(before.end) !== String(flashSale.endDate)) &&
+        { label: "Tarih", from: `${trDate(before.start)} – ${trDate(before.end)}`, to: `${trDate(flashSale.startDate)} – ${trDate(flashSale.endDate)}` },
+      before.isActive !== flashSale.isActive && { label: "Durum", from: before.isActive ? "Açık" : "Kapalı", to: flashSale.isActive ? "Açık" : "Kapalı" },
+    ].filter(Boolean));
 
     await flashSale.populate("product");
     res.json({ message: "Flash sale güncellendi", flashSale: withStatus(flashSale) });
@@ -180,6 +197,7 @@ export const endFlashSale = async (req, res) => {
     if (flashSale.startDate > now) flashSale.startDate = now;
     await flashSale.save();
     await flashSale.populate("product");
+    auditSale(req, flashSale, flashSale.product?.name, "Flash sale erkenden bitirildi", [{ label: "İndirim", from: `%${flashSale.discountPercentage}`, to: "Bitti" }]);
     res.json({ message: "Flash sale bitirildi", flashSale: withStatus(flashSale, now) });
   } catch (error) {
     console.error("Flash sale bitirilirken hata:", error);
@@ -197,6 +215,8 @@ export const deleteFlashSale = async (req, res) => {
     // Yalnızca ürüne uygulanmış kampanyanın indirimi geri alınır; ürünün kendi indirimine dokunulmaz
     if (flashSale.applied) await releaseSale(flashSale);
     await flashSale.deleteOne();
+    const productDoc = await Product.findById(flashSale.product).select("name").lean();
+    auditSale(req, flashSale, productDoc?.name, "Flash sale kaydı silindi", [{ label: "İndirim", from: `%${flashSale.discountPercentage}`, to: "—" }]);
     res.json({ message: "Flash sale silindi" });
   } catch (error) {
     console.error("Flash sale silinirken hata:", error);

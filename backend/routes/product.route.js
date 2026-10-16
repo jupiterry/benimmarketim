@@ -5,6 +5,7 @@ import csv from "csv-parser";
 import fs from "fs";
 import Product from "../models/product.model.js";
 import { adminRoute, optionalAuth, protectRoute } from "../middleware/auth.middleware.js";
+import { money, recordAdminAction } from "../services/adminAudit.service.js";
 import { getHomeFeed, getPersonalizedProducts, getPopularProducts, getShelfPerformance } from "../controllers/recommendation.controller.js";
 import {
   createProduct,
@@ -123,7 +124,15 @@ router.post(
       .on("end", async () => {
         try {
           console.log("CSV Verileri:", results); // Tüm CSV verilerini logla
-          await Product.insertMany(results);
+          const inserted = await Product.insertMany(results);
+          const names = inserted.map((p) => p.name).filter(Boolean);
+          recordAdminAction(req, {
+            action: "CSV ile toplu ürün yükleme",
+            category: "product",
+            target: `${inserted.length} ürün`,
+            targetName: `${names.slice(0, 5).join(", ")}${names.length > 5 ? ` ve ${names.length - 5} ürün daha` : ""}`,
+            meta: { file: req.file.originalname, count: inserted.length },
+          });
           res.status(200).json({ message: "Ürünler başarıyla yüklendi!" });
         } catch (error) {
           console.error("Ürünler yüklenirken hata:", error);
@@ -152,6 +161,7 @@ router.post("/reorder", protectRoute, adminRoute, async (req, res) => {
 
     // Tüm order değerlerini toplu şekilde güncelle
     await Product.bulkWrite(bulkOps);
+    recordAdminAction(req, { action: "Vitrin sırası değiştirildi", category: "product", target: `${productIds.length} ürün`, targetName: "Ürün sıralaması" });
 
     console.log("Sıralama güncellendi, productIds:", productIds);
     res.json({ message: "Sıralama başarıyla güncellendi" });
@@ -206,8 +216,11 @@ router.put("/update-discount/:id", protectRoute, adminRoute, async (req, res) =>
       return res.status(400).json({ message: "İndirim fiyatı normal fiyattan yüksek olamaz" });
     }
 
+    const previous = product.discountedPrice;
     product.discountedPrice = discountedPrice;
     await product.save();
+    recordAdminAction(req, { action: "İndirimli fiyat değiştirildi", category: "product", target: String(product._id), targetName: product.name,
+      changes: [{ label: "İndirimli fiyat", from: money(previous), to: money(discountedPrice) }] });
 
     res.json({ message: "İndirim fiyatı güncellendi", product });
   } catch (error) {
