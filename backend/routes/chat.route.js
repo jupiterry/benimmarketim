@@ -10,6 +10,7 @@ import {
   closeChat,
   getUnreadCount,
   deleteChat,
+  getChatContext,
 } from "../controllers/chat.controller.js";
 import { aiRateLimit } from "../middleware/aiRateLimit.js";
 
@@ -26,6 +27,9 @@ router.get("/list", protectRoute, adminRoute, getChats);
 
 // Admin: Okunmamış mesaj sayısı
 router.get("/unread-count", protectRoute, adminRoute, getUnreadCount);
+
+// Admin: Müşteri kartı (sipariş özeti, destek talebi)
+router.get("/:chatId/context", protectRoute, adminRoute, getChatContext);
 
 // Sohbet mesajlarını getir (hem admin hem kullanıcı)
 router.get("/:chatId", protectRoute, getChatMessages);
