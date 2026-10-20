@@ -199,7 +199,7 @@ body:has(.admin-layout[data-theme="dark"]) {
   color: var(--ui-text);
 }
 .admin-layout .ui-btn--danger {
-  border-color: #ecc9c3;
+  border-color: color-mix(in srgb, var(--ui-danger) 35%, var(--ui-line));
   color: var(--ui-danger-ink);
 }
 .admin-layout .ui-btn--danger:hover {
@@ -217,7 +217,7 @@ body:has(.admin-layout[data-theme="dark"]) {
 /* Açık/kapalı durumu olan düğmeler (aria-pressed) */
 .admin-layout .ui-btn[aria-pressed="true"] {
   background: var(--ui-brand-soft);
-  border-color: #b9d6c6;
+  border-color: color-mix(in srgb, var(--ui-brand) 30%, var(--ui-line));
   color: var(--ui-brand-ink);
 }
 .admin-layout .ui-icon-btn {
@@ -590,7 +590,7 @@ body:has(.admin-layout[data-theme="dark"]) {
 }
 .admin-layout .ui-row[data-selected="true"] {
   background: var(--ui-brand-soft);
-  border-color: #b9d6c6;
+  border-color: color-mix(in srgb, var(--ui-brand) 30%, var(--ui-line));
 }
 .admin-layout .ui-thumb {
   display: flex;
@@ -627,7 +627,7 @@ body:has(.admin-layout[data-theme="dark"]) {
   align-items: flex-start;
   gap: 10px;
   padding: 12px 14px;
-  border: 1px solid #ecd9ae;
+  border: 1px solid color-mix(in srgb, var(--ui-warn) 35%, var(--ui-line));
   border-left: 3px solid var(--ui-warn);
   border-radius: var(--ui-radius);
   background: var(--ui-warn-bg);
@@ -651,7 +651,7 @@ body:has(.admin-layout[data-theme="dark"]) {
   margin-top: 2px;
   font-size: var(--ui-fs-md);
   line-height: 1.55;
-  color: #47360f;
+  color: var(--ui-warn-ink);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -900,7 +900,7 @@ body:has(.admin-layout[data-theme="dark"]) {
   height: 14px;
 }
 .admin-layout .ui-btn--warn {
-  border-color: #e6cf9b;
+  border-color: color-mix(in srgb, var(--ui-warn) 40%, var(--ui-line));
   color: var(--ui-warn-ink);
 }
 .admin-layout .ui-btn--warn:hover {
@@ -940,17 +940,17 @@ body:has(.admin-layout[data-theme="dark"]) {
 }
 .admin-layout .ui-option[aria-pressed="true"] {
   background: var(--ui-brand-soft);
-  border-color: #b9d6c6;
+  border-color: color-mix(in srgb, var(--ui-brand) 30%, var(--ui-line));
   color: var(--ui-brand-ink);
 }
 .admin-layout .ui-option[data-tone="danger"] {
   background: var(--ui-danger-bg);
-  border-color: #ecc9c3;
+  border-color: color-mix(in srgb, var(--ui-danger) 35%, var(--ui-line));
   color: var(--ui-danger-ink);
 }
 .admin-layout .ui-option[data-tone="warn"] {
   background: var(--ui-warn-bg);
-  border-color: #e6cf9b;
+  border-color: color-mix(in srgb, var(--ui-warn) 40%, var(--ui-line));
   color: var(--ui-warn-ink);
 }
 /* Dosya bırakma alanı */
@@ -1128,7 +1128,7 @@ body:has(.admin-layout[data-theme="dark"]) {
   align-items: center;
   gap: 10px 14px;
   padding: 10px 14px;
-  border: 1px solid #b9d6c6;
+  border: 1px solid color-mix(in srgb, var(--ui-brand) 30%, var(--ui-line));
   border-radius: var(--ui-radius-lg);
   background: var(--ui-brand-soft);
   box-shadow: var(--ui-shadow);
