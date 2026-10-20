@@ -2,7 +2,7 @@
 import express from "express";
 import { getAllUsers, updateUser, addPhoneFieldToAllUsers, deleteUser, resetUserPassword } from "../controllers/userController.js";
 import { protectRoute, adminRoute } from "../middleware/auth.middleware.js"; // Yeni middleware'leri import et
-import { getUserInfo, getBestCustomers, deleteAccount } from "../controllers/user.controller.js";
+import { getUserInfo, getBestCustomers, deleteAccount, getCustomerProfile, updateUserRole } from "../controllers/user.controller.js";
 import { updateLastActive } from "../middleware/updateLastActive.js";
 import { auditAdminAction } from "../middleware/adminAudit.js";
 
@@ -14,6 +14,8 @@ router.get("/best-customers", protectRoute, adminRoute, getBestCustomers); // En
 router.put("/:userId", protectRoute, adminRoute, auditAdminAction("Müşteri değişikliği", req => req.params.userId), updateUser); // Kullanıcıyı güncelle
 router.delete("/:userId", protectRoute, adminRoute, deleteUser);
 router.post("/:userId/reset-password", protectRoute, adminRoute, resetUserPassword); // Şifre sıfırlama
+router.get("/:id/profile", protectRoute, adminRoute, getCustomerProfile); // Müşteri profili (sipariş özeti, kupon, davet, cihaz, bildirim)
+router.patch("/:userId/role", protectRoute, adminRoute, updateUserRole); // Rol değiştir (işlem kaydı yazar)
 
 // Kullanıcı bilgilerini getir
 router.get("/:id", protectRoute, updateLastActive, getUserInfo);
