@@ -13,6 +13,7 @@ dist-ssr
 *.local
 
 .env
+.telegram.env
 .env.*
 !.env.example
 uploads/
