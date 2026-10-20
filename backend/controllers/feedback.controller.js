@@ -1,5 +1,11 @@
+import mongoose from "mongoose";
 import Feedback from "../models/feedback.model.js";
 import User from "../models/user.model.js";
+import Order from "../models/order.model.js";
+import { recordAdminAction } from "../services/adminAudit.service.js";
+
+const MAX_REPLY = 1000;
+const FEEDBACK_STATUSES = ["Yeni", "İnceleniyor", "Çözüldü", "Kapatıldı"];
 
 // Geri bildirim oluştur
 export const createFeedback = async (req, res) => {
@@ -131,3 +137,84 @@ export const deleteFeedback = async (req, res) => {
     res.status(400).json({ message: "Geri bildirim silinemedi", error: error.message });
   }
 }; 
+// ── Yönetici paneli ekleri (mevcut uç noktaların davranışı değişmedi) ──
+
+/** Yanıt metnini doğrular: boş metin yanıtı kaldırır, uzunluk sınırı vardır. */
+export const validateAdminReply = (body = {}) => {
+  const text = String(body?.text ?? "").trim();
+  if (text.length > MAX_REPLY) return { error: `Yanıt en fazla ${MAX_REPLY} karakter olabilir` };
+  return { text };
+};
+
+// PATCH /api/feedback/:id/reply — yönetici yanıtı yaz/güncelle (boş metin yanıtı kaldırır)
+export const replyToFeedback = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: "Geçersiz geri bildirim" });
+    const { text, error } = validateAdminReply(req.body);
+    if (error) return res.status(400).json({ message: error });
+
+    const current = await Feedback.findById(id).select("status adminReply title").lean();
+    if (!current) return res.status(404).json({ message: "Geri bildirim bulunamadı" });
+
+    const update = text
+      ? { adminReply: { text, at: new Date(), by: req.user._id } }
+      : { adminReply: { text: "", at: null, by: null } };
+    // İlk yanıt "Yeni" kaydı kendiliğinden "İnceleniyor"a taşır; çözülmüş/kapalı kayıt olduğu gibi kalır
+    if (text && current.status === "Yeni") update.status = "İnceleniyor";
+
+    const feedback = await Feedback.findByIdAndUpdate(id, update, { new: true })
+      .populate("user", "name email")
+      .populate("adminReply.by", "name");
+    if (!feedback) return res.status(404).json({ message: "Geri bildirim bulunamadı" });
+
+    const changes = [{ label: "Yanıt", from: current.adminReply?.text || "", to: text }];
+    if (update.status) changes.push({ label: "Durum", from: current.status, to: update.status });
+    recordAdminAction(req, {
+      action: text ? "Geri bildirim yanıtlandı" : "Geri bildirim yanıtı kaldırıldı",
+      category: "customer",
+      target: id,
+      targetName: feedback.user?.name || current.title || "Geri bildirim",
+      changes,
+    });
+    res.json(feedback);
+  } catch (error) {
+    console.error("Geri bildirim yanıtlanırken hata:", error);
+    res.status(500).json({ message: "Yanıt kaydedilemedi", error: error.message });
+  }
+};
+
+/** Panelde gösterilecek kısa sipariş özeti (ürün satırları en fazla 20) */
+export const summarizeOrder = (order) => {
+  if (!order) return null;
+  const products = Array.isArray(order.products) ? order.products : [];
+  return {
+    orderId: String(order._id),
+    status: order.status || "",
+    totalAmount: Number(order.totalAmount) || 0,
+    createdAt: order.createdAt || null,
+    deliveryPoint: order.deliveryPoint || "",
+    deliveryPointName: order.deliveryPointName || "",
+    itemCount: products.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0),
+    products: products.slice(0, 20).map((item) => ({ name: item.name || "", quantity: Number(item.quantity) || 0, price: Number(item.price) || 0 })),
+  };
+};
+
+// GET /api/feedback/:id/order — anket kaydına bağlı siparişin özeti
+export const getFeedbackOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: "Geçersiz geri bildirim" });
+    const feedback = await Feedback.findById(id).select("order").lean();
+    if (!feedback) return res.status(404).json({ message: "Geri bildirim bulunamadı" });
+    if (!feedback.order) return res.status(404).json({ message: "Bu geri bildirime bağlı sipariş yok" });
+    const order = await Order.findById(feedback.order).select("products totalAmount status createdAt deliveryPoint deliveryPointName").lean();
+    if (!order) return res.status(404).json({ message: "Bağlı sipariş bulunamadı" });
+    res.json(summarizeOrder(order));
+  } catch (error) {
+    console.error("Geri bildirim siparişi getirilirken hata:", error);
+    res.status(500).json({ message: "Sipariş özeti getirilemedi", error: error.message });
+  }
+};
+
+export { FEEDBACK_STATUSES };

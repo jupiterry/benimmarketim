@@ -1,562 +1,705 @@
-import { useState, useEffect } from "react";
-import { 
-  Star, 
-  ChevronDown, 
-  ChevronUp, 
-  MessageSquare, 
-  Mail,
-  Calendar,
-  Search,
-  X,
-  Eye,
-  CheckCircle,
-  Clock,
-  Trash2,
-  RefreshCw
+// Geri bildirimler ekranı: sipariş sonrası anketler ve müşteri mesajları.
+// Akış: KPI → puan dağılımı → araç çubuğu (arama, durum çipleri, kategori, sıralama) → liste → sağ çekmece
+// (tam metin, alt puanlar, bağlı sipariş özeti, durum, yönetici yanıtı, silme).
+// Uç noktalar: GET /feedback, PATCH /feedback/:id/status, PATCH /feedback/:id/reply, GET /feedback/:id/order, DELETE /feedback/:id
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Star, MessageSquare, Search, X, CheckCircle2, Trash2, RefreshCw, Download, Clock, Eye,
+  ShoppingBag, ExternalLink, CornerDownRight, Inbox, CalendarDays, Tag, Reply, RotateCcw, SlidersHorizontal,
 } from "lucide-react";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
+import socketService from "../lib/socket";
+import {
+  PageHeader, EmptyState, SkeletonCards, SkeletonRows, KpiCard, KpiGrid, Drawer, Segmented, Skeleton,
+  undoable, useListShortcuts, ShortcutHelp, usePref, useDebounced, useNow, formatDateTime, timeAgo,
+  fold, initials, money, setHandoff, HANDOFF,
+} from "./admin/ui";
+import { useConfirm } from "./ConfirmModal";
+import "../styles/feedback.css";
 
-const AI_SUGGESTIONS = {
-  usability: {
-    low: [
-      "Navigasyon menüsünü daha belirgin hale getirin",
-      "Mobil uyumluluk iyileştirmeleri yapın",
-      "Arama fonksiyonunu geliştirin",
-      "Sayfa yükleme hızını artırın"
-    ],
-    medium: [
-      "Ürün filtreleme seçeneklerini genişletin",
-      "Sepet işlemlerini basitleştirin"
-    ]
-  },
-  expectations: {
-    low: [
-      "Ürün açıklamalarını daha detaylı hale getirin",
-      "Fiyat-performans dengesini gözden geçirin",
-      "Ürün fotoğraflarının kalitesini artırın"
-    ],
-    medium: [
-      "Kampanya ve indirimleri daha görünür yapın",
-      "Stok bilgilerini gerçek zamanlı güncelleyin"
-    ]
-  },
-  repeat: {
-    low: [
-      "Müşteri sadakat programı başlatın",
-      "Sipariş takip sistemini geliştirin",
-      "İade sürecini kolaylaştırın"
-    ],
-    medium: [
-      "Özel indirim kuponları sunun",
-      "Düzenli müşterilere özel avantajlar sağlayın"
-    ]
-  }
+const STATUSES = ["Yeni", "İnceleniyor", "Çözüldü", "Kapatıldı"];
+const STATUS_UI = {
+  Yeni: { tone: "info", icon: Clock },
+  "İnceleniyor": { tone: "warn", icon: Eye },
+  "Çözüldü": { tone: "ok", icon: CheckCircle2 },
+  "Kapatıldı": { tone: "", icon: X },
 };
-
+const RATING_LABELS = { usability: "Kullanım kolaylığı", expectations: "Beklenti karşılama", repeat: "Tekrar tercih", overall: "Genel" };
 // Mobil uygulamadaki sipariş sonrası anketin hazır seçenekleri (backend FEEDBACK_TAGS ile aynı)
-const FEEDBACK_TAG_LABELS = {
+const TAG_LABELS = {
   hizli: "Hızlı geldi", taze: "Ürünler tazeydi", kurye: "Kurye nazikti", fiyat: "Fiyatlar uygundu", kolay: "Uygulama kolaydı",
   gec: "Geç geldi", eksik: "Eksik ürün vardı", yanlis: "Yanlış ürün geldi", bozuk: "Ürün bozuk/ezikti", pahali: "Fiyatlar yüksekti", uygulama: "Uygulamada sorun yaşadım",
 };
+const NEGATIVE_TAGS = new Set(["gec", "eksik", "yanlis", "bozuk", "pahali", "uygulama"]);
+const DEFAULT_TITLE = "Genel Değerlendirme";
+const DEFAULT_MESSAGE = "Puan bazlı değerlendirme";
+const MAX_REPLY = 1000;
+const PAGE = 50;
+const DAY = 24 * 60 * 60 * 1000;
+const SORTS = [
+  { value: "newest", label: "Önce yeni" },
+  { value: "oldest", label: "Önce eski" },
+  { value: "low", label: "Düşük puan önce" },
+  { value: "high", label: "Yüksek puan önce" },
+];
 
-const FeedbackList = () => {
-  const [feedbacks, setFeedbacks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [expandedFeedback, setExpandedFeedback] = useState(null);
-  const [filterStatus, setFilterStatus] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [stats, setStats] = useState({
-    averageRatings: {},
-    totalFeedbacks: 0,
-    categoryDistribution: {},
-    sentimentAnalysis: {
-      positive: 0,
-      negative: 0,
-      neutral: 0
-    },
-    recentTrends: []
+// ── Yardımcılar ───────────────────────────────────────────────────────────
+const ratingOf = (f) => {
+  if (Number(f?.rating) > 0) return Number(f.rating);
+  const values = Object.values(f?.ratings || {}).filter((v) => v > 0);
+  return values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+};
+const hasReply = (f) => Boolean(f?.adminReply?.text);
+const isPending = (f) => !hasReply(f) && (f?.status === "Yeni" || f?.status === "İnceleniyor");
+const customerName = (f) => f?.user?.name || "Müşteri";
+const messageOf = (f) => (f?.message && f.message !== DEFAULT_MESSAGE ? f.message : "");
+const titleOf = (f) => (f?.title && f.title !== DEFAULT_TITLE ? f.title : "");
+const tagLabel = (tag) => TAG_LABELS[tag] || tag;
+const fmtScore = (n) => Number(n || 0).toLocaleString("tr-TR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const csvCell = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+
+const Stars = ({ value, size }) => (
+  <span className={`ui-stars ${size === "lg" ? "fbk-stars--lg" : ""}`} aria-label={`${fmtScore(value)} / 5`} title={`${fmtScore(value)} / 5`}>
+    {[1, 2, 3, 4, 5].map((n) => <Star key={n} className="ui-star" data-on={n <= Math.round(value) ? "true" : undefined} aria-hidden="true" />)}
+  </span>
+);
+
+const StatusBadge = ({ status }) => {
+  const ui = STATUS_UI[status] || STATUS_UI.Yeni;
+  const Icon = ui.icon;
+  return <span className={`ui-badge ${ui.tone ? `ui-badge--${ui.tone}` : ""}`}><Icon aria-hidden="true" />{status}</span>;
+};
+
+// ── Liste satırı ──────────────────────────────────────────────────────────
+const FeedbackRow = ({ f, now, active, selected, onOpen, onReply, onResolve, onDelete, rowRef }) => {
+  const rating = ratingOf(f);
+  const text = messageOf(f);
+  const title = titleOf(f);
+  return (
+    <div
+      ref={rowRef}
+      className="ui-list-row fbk-row"
+      role="button"
+      tabIndex={0}
+      data-active={active || undefined}
+      data-selected={selected || undefined}
+      data-tone={rating > 0 && rating <= 2 ? "danger" : undefined}
+      data-pending={isPending(f) || undefined}
+      aria-label={`${customerName(f)}, ${fmtScore(rating)} puan, ${f.status}`}
+      onClick={() => onOpen(f)}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(f); } }}
+    >
+      <span className="ui-avatar fbk-avatar" aria-hidden="true">{initials(customerName(f))}</span>
+      <div className="fbk-main">
+        <div className="fbk-main-top">
+          <strong className="ui-list-title ui-truncate">{customerName(f)}</strong>
+          {f.milestone && <span className="ui-badge ui-badge--brand">{f.milestone}. sipariş</span>}
+          {f.category && f.category !== "Genel" && <span className={`ui-badge ${f.category === "Şikayet" || f.category === "Hata Bildirimi" ? "ui-badge--danger" : ""}`}>{f.category}</span>}
+        </div>
+        <p className="fbk-text">
+          {title && <strong>{title}{text ? " — " : ""}</strong>}
+          {text || (!title && !f.tags?.length ? <span className="ui-muted">Yalnızca puan verildi</span> : null)}
+        </p>
+        {f.tags?.length > 0 && (
+          <div className="fbk-tags">
+            {f.tags.map((tag) => <span key={tag} className="fbk-tag" data-neg={NEGATIVE_TAGS.has(tag) || undefined}>{tagLabel(tag)}</span>)}
+          </div>
+        )}
+      </div>
+      <div className="fbk-rating">
+        <Stars value={rating} />
+        <span className="ui-num fbk-score">{fmtScore(rating)}</span>
+      </div>
+      <div className="fbk-date">
+        <time dateTime={f.createdAt} title={formatDateTime(f.createdAt)}>{timeAgo(f.createdAt, now)}</time>
+        {f.order && <span className="fbk-order-flag" title="Bağlı sipariş var"><ShoppingBag aria-hidden="true" />Sipariş</span>}
+      </div>
+      <div className="fbk-status">
+        <StatusBadge status={f.status} />
+        {hasReply(f) && <span className="fbk-replied"><CornerDownRight aria-hidden="true" />Yanıtlandı</span>}
+      </div>
+      <div className="fbk-actions" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+        <button type="button" className="ui-icon-btn" onClick={() => onReply(f)} aria-label="Yanıtla" title="Yanıtla (r)"><Reply /></button>
+        {f.status !== "Çözüldü" && (
+          <button type="button" className="ui-icon-btn" onClick={() => onResolve(f)} aria-label="Çözüldü işaretle" title="Çözüldü işaretle (c)"><CheckCircle2 /></button>
+        )}
+        <button type="button" className="ui-icon-btn ui-icon-btn--danger" onClick={() => onDelete(f)} aria-label="Sil" title="Sil"><Trash2 /></button>
+      </div>
+    </div>
+  );
+};
+
+// ── Çekmece ───────────────────────────────────────────────────────────────
+const FeedbackDrawer = ({ f, order, onClose, onStatus, onReply, onDelete, onOpenOrder, focusReply, busy }) => {
+  const confirm = useConfirm();
+  const saved = f.adminReply?.text || "";
+  const [draft, setDraft] = useState(saved);
+  const textareaRef = useRef(null);
+  useEffect(() => { setDraft(f.adminReply?.text || ""); }, [f._id, f.adminReply?.text]);
+  useEffect(() => {
+    if (focusReply) textareaRef.current?.focus();
+  }, [focusReply, f._id]);
+
+  const dirty = draft.trim() !== saved.trim();
+  const rating = ratingOf(f);
+  const subRatings = Object.entries(f.ratings || {}).filter(([key, v]) => v > 0 && !(key === "overall" && Number(f.rating) === v));
+  const text = messageOf(f);
+  const title = titleOf(f);
+  const replyBy = f.adminReply?.by?.name;
+
+  const save = () => { if (dirty && draft.trim()) onReply(f, draft.trim()); };
+  const onDirtyClose = () => confirm({
+    title: "Yazılan yanıt kaydedilmedi",
+    message: "Çekmeceyi kapatırsanız yazdığınız yanıt kaybolur.",
+    confirmText: "Kapat",
+    cancelText: "Yazmaya devam et",
+    type: "warning",
   });
 
-  useEffect(() => {
-    fetchFeedbacks();
-  }, []);
+  return (
+    <Drawer
+      title={customerName(f)}
+      subtitle={[f.user?.email, formatDateTime(f.createdAt)].filter(Boolean).join(" · ")}
+      icon={MessageSquare}
+      width={560}
+      onClose={onClose}
+      dirty={dirty}
+      onDirtyClose={onDirtyClose}
+      className="fbk-drawer"
+      footer={(
+        <div className="ui-between fbk-drawer-foot">
+          <button type="button" className="ui-btn ui-btn--ghost fbk-btn-danger" onClick={() => onDelete(f)}><Trash2 />Sil</button>
+          <div className="ui-cluster">
+            {f.status === "Çözüldü" ? (
+              <button type="button" className="ui-btn" disabled={busy} onClick={() => onStatus(f, "Yeni")}><RotateCcw />Yeniden aç</button>
+            ) : (
+              <button type="button" className="ui-btn ui-btn--primary" disabled={busy} onClick={() => onStatus(f, "Çözüldü")}><CheckCircle2 />Çözüldü işaretle</button>
+            )}
+          </div>
+        </div>
+      )}
+    >
+      <div className="ui-stack fbk-drawer-body">
+        {/* Puan ve rozetler */}
+        <section className="fbk-hero" data-tone={rating <= 2 ? "danger" : rating >= 4 ? "ok" : "warn"}>
+          <div className="fbk-hero-score">
+            <span className="fbk-hero-num ui-num">{fmtScore(rating)}</span>
+            <Stars value={rating} size="lg" />
+          </div>
+          <div className="ui-cluster fbk-hero-badges">
+            <StatusBadge status={f.status} />
+            {f.milestone && <span className="ui-badge ui-badge--brand">{f.milestone}. sipariş anketi</span>}
+            {f.category && <span className="ui-badge">{f.category}</span>}
+            {f.visibility === "private" && <span className="ui-badge" title="Yalnızca yönetici görür">Gizli</span>}
+          </div>
+          {subRatings.length > 0 && (
+            <dl className="fbk-subratings">
+              {subRatings.map(([key, v]) => (
+                <div key={key}><dt>{RATING_LABELS[key] || key}</dt><dd><Stars value={v} /><span className="ui-num">{v}</span></dd></div>
+              ))}
+            </dl>
+          )}
+        </section>
 
-  const fetchFeedbacks = async () => {
-    setLoading(true);
+        {/* Mesaj */}
+        <section className="fbk-section">
+          <h3 className="ui-overline">Mesaj</h3>
+          {title && <p className="ui-strong">{title}</p>}
+          {text ? <p className="fbk-message">{text}</p> : <p className="ui-muted">Müşteri açıklama yazmadı; yalnızca puan{f.tags?.length ? " ve hazır seçenekler" : ""} gönderdi.</p>}
+          {f.tags?.length > 0 && (
+            <div className="fbk-tags">
+              {f.tags.map((tag) => <span key={tag} className="fbk-tag" data-neg={NEGATIVE_TAGS.has(tag) || undefined}><Tag aria-hidden="true" />{tagLabel(tag)}</span>)}
+            </div>
+          )}
+        </section>
+
+        {/* Bağlı sipariş */}
+        {f.order && (
+          <section className="fbk-section">
+            <div className="ui-between">
+              <h3 className="ui-overline">Bağlı sipariş</h3>
+              <button type="button" className="ui-btn ui-btn--sm ui-btn--ghost" onClick={() => onOpenOrder(f)}><ExternalLink />Siparişi aç</button>
+            </div>
+            {!order || order.loading ? (
+              <div className="ui-stack ui-stack--sm"><Skeleton height={18} width="60%" /><Skeleton height={12} width="40%" /><Skeleton height={12} width="50%" /></div>
+            ) : order.error ? (
+              <p className="ui-muted">{order.error}</p>
+            ) : (
+              <div className="fbk-order">
+                <div className="fbk-order-head">
+                  <span className="ui-mono">#{order.data.orderId.slice(-6).toUpperCase()}</span>
+                  <span className="ui-badge">{order.data.status}</span>
+                  <span className="ui-num ui-strong">{money(order.data.totalAmount)}</span>
+                  <span className="ui-muted">{order.data.itemCount} ürün · {formatDateTime(order.data.createdAt)}</span>
+                </div>
+                <ul className="fbk-order-lines">
+                  {order.data.products.slice(0, 5).map((p, i) => (
+                    <li key={i}><span className="ui-truncate">{p.name}</span><span className="ui-num ui-muted">×{p.quantity}</span><span className="ui-num">{money(p.price * p.quantity)}</span></li>
+                  ))}
+                  {order.data.products.length > 5 && <li className="ui-muted">+{order.data.products.length - 5} ürün daha</li>}
+                </ul>
+                {order.data.deliveryPointName && <p className="ui-muted ui-text-xs">Teslim noktası: {order.data.deliveryPointName}</p>}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Durum */}
+        <section className="fbk-section">
+          <h3 className="ui-overline">Durum</h3>
+          <Segmented
+            ariaLabel="Durum"
+            value={f.status}
+            onChange={(status) => { if (status !== f.status) onStatus(f, status); }}
+            options={STATUSES.map((s) => ({ value: s, label: s, tone: STATUS_UI[s].tone || undefined }))}
+          />
+        </section>
+
+        {/* Yanıt */}
+        <section className="fbk-section">
+          <h3 className="ui-overline">Yönetici yanıtı</h3>
+          {saved && (
+            <div className="fbk-reply">
+              <CornerDownRight aria-hidden="true" />
+              <div>
+                <p className="fbk-message">{saved}</p>
+                <span className="ui-muted ui-text-xs">{replyBy || "Yönetici"} · {formatDateTime(f.adminReply?.at)}</span>
+              </div>
+            </div>
+          )}
+          <label className="ui-label" htmlFor="fbk-reply-input">{saved ? "Yanıtı düzenle" : "Yanıt yaz"}</label>
+          <textarea
+            id="fbk-reply-input"
+            ref={textareaRef}
+            className="ui-field fbk-textarea"
+            value={draft}
+            maxLength={MAX_REPLY}
+            rows={4}
+            placeholder="Müşteriye kısa ve net bir yanıt yazın…"
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); save(); } }}
+          />
+          <div className="ui-between fbk-reply-foot">
+            <span className="ui-hint"><kbd className="ui-kbd">Ctrl</kbd> + <kbd className="ui-kbd">↵</kbd> kaydeder · <span className="ui-num">{draft.length}/{MAX_REPLY}</span></span>
+            <div className="ui-cluster">
+              {saved && <button type="button" className="ui-btn ui-btn--sm ui-btn--ghost" disabled={busy} onClick={() => onReply(f, "")}>Yanıtı kaldır</button>}
+              <button type="button" className="ui-btn ui-btn--sm ui-btn--primary" disabled={busy || !dirty || !draft.trim()} onClick={save}><Reply />{saved ? "Yanıtı güncelle" : "Yanıtı kaydet"}</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </Drawer>
+  );
+};
+
+// ── Ekran ─────────────────────────────────────────────────────────────────
+const FeedbackList = () => {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [fresh, setFresh] = useState(0);
+  const [search, setSearch] = useState("");
+  const query = useDebounced(search, 200);
+  const [statusFilter, setStatusFilter] = useState("all"); // all | pending | replied | <durum>
+  const [ratingFilter, setRatingFilter] = useState(0);
+  const [tagFilter, setTagFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [sort, setSort] = usePref("fbk-sort", "newest");
+  const [visible, setVisible] = useState(PAGE);
+  const [cursor, setCursor] = useState(-1);
+  const [selectedId, setSelectedId] = useState(null);
+  const [focusReply, setFocusReply] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [orders, setOrders] = useState({}); // feedbackId → { loading, data, error }
+  const now = useNow(60000);
+  const searchRef = useRef(null);
+  const rowRefs = useRef(new Map());
+
+  const load = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
+    setError("");
     try {
-      const response = await axios.get("/feedback");
-      setFeedbacks(response.data);
-      calculateStats(response.data);
-    } catch (error) {
-      console.error("Geri bildirimler yüklenirken hata:", error);
-      toast.error("Geri bildirimler yüklenirken bir hata oluştu");
+      const { data } = await axios.get("/feedback");
+      setItems(Array.isArray(data) ? data : []);
+      setFresh(0);
+    } catch (err) {
+      console.error("Geri bildirimler yüklenemedi:", err);
+      setError(err?.response?.data?.message || "Geri bildirimler yüklenemedi.");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+  useEffect(() => { load(); }, [load]);
 
-  const calculateStats = (feedbackData) => {
-    const totalFeedbacks = feedbackData.length;
-    const ratingsSums = {};
-    const ratingsCount = {};
-    const categoryCount = {};
-    const last30Days = new Date();
-    last30Days.setDate(last30Days.getDate() - 30);
+  // Düşük puanlı yeni anket geldiğinde (sunucu adminRoom'a yayınlar) sessiz bildirim
+  useEffect(() => {
+    let socket;
+    try { socket = socketService.getSocket(); } catch { return undefined; }
+    if (!socket) return undefined;
+    const onLow = () => setFresh((n) => n + 1);
+    socket.on("lowFeedbackCreated", onLow);
+    return () => socket.off("lowFeedbackCreated", onLow);
+  }, []);
 
-    let positiveCount = 0;
-    let negativeCount = 0;
-    let neutralCount = 0;
-    const dailyRatings = {};
+  // ── Özet sayılar ──
+  const stats = useMemo(() => {
+    const total = items.length;
+    const since7 = now - 7 * DAY;
+    const since14 = now - 14 * DAY;
+    let sum = 0, rated = 0, last7 = 0, prev7 = 0, pending = 0, sum7 = 0, rated7 = 0;
+    const dist = [0, 0, 0, 0, 0, 0];
+    const categories = {};
+    const tags = {};
+    const sub = {};
+    for (const f of items) {
+      const r = ratingOf(f);
+      if (r > 0) { sum += r; rated += 1; dist[Math.min(5, Math.max(1, Math.round(r)))] += 1; }
+      const t = new Date(f.createdAt).getTime();
+      if (t >= since7) { last7 += 1; if (r > 0) { sum7 += r; rated7 += 1; } } else if (t >= since14) prev7 += 1;
+      if (isPending(f)) pending += 1;
+      categories[f.category || "Genel"] = (categories[f.category || "Genel"] || 0) + 1;
+      for (const tag of f.tags || []) tags[tag] = (tags[tag] || 0) + 1;
+      for (const [key, v] of Object.entries(f.ratings || {})) if (v > 0) { sub[key] = sub[key] || { sum: 0, n: 0 }; sub[key].sum += v; sub[key].n += 1; }
+    }
+    const replied = items.filter(hasReply).length;
+    return {
+      total, pending, replied, last7, prev7, dist, categories,
+      avg: rated ? sum / rated : 0, avg7: rated7 ? sum7 / rated7 : 0, rated,
+      delta: prev7 ? ((last7 - prev7) / prev7) * 100 : last7 ? 100 : 0,
+      tags: Object.entries(tags).sort((a, b) => b[1] - a[1]).slice(0, 8),
+      sub: Object.entries(sub).map(([key, v]) => [key, v.sum / v.n]).filter(([key]) => key !== "overall"),
+      byStatus: STATUSES.reduce((acc, s) => { acc[s] = items.filter((f) => f.status === s).length; return acc; }, {}),
+    };
+  }, [items, now]);
 
-    feedbackData.forEach(feedback => {
-      categoryCount[feedback.category] = (categoryCount[feedback.category] || 0) + 1;
-
-      Object.entries(feedback.ratings).forEach(([key, value]) => {
-        if (value > 0) {
-          ratingsSums[key] = (ratingsSums[key] || 0) + value;
-          ratingsCount[key] = (ratingsCount[key] || 0) + 1;
-        }
-      });
-
-      const avgRating = Object.values(feedback.ratings).reduce((sum, val) => sum + val, 0) / 
-                       Object.values(feedback.ratings).filter(val => val > 0).length;
-      
-      if (avgRating >= 4) positiveCount++;
-      else if (avgRating <= 2) negativeCount++;
-      else neutralCount++;
-
-      const feedbackDate = new Date(feedback.createdAt);
-      if (feedbackDate >= last30Days) {
-        const dateKey = feedbackDate.toISOString().split('T')[0];
-        if (!dailyRatings[dateKey]) {
-          dailyRatings[dateKey] = { count: 0, totalRating: 0 };
-        }
-        dailyRatings[dateKey].count++;
-        dailyRatings[dateKey].totalRating += avgRating;
+  // ── Filtre + sıralama ──
+  const filtered = useMemo(() => {
+    const q = fold(query.trim());
+    const list = items.filter((f) => {
+      if (statusFilter === "pending" && !isPending(f)) return false;
+      if (statusFilter === "replied" && !hasReply(f)) return false;
+      if (STATUSES.includes(statusFilter) && f.status !== statusFilter) return false;
+      if (ratingFilter && Math.round(ratingOf(f)) !== ratingFilter) return false;
+      if (tagFilter && !(f.tags || []).includes(tagFilter)) return false;
+      if (categoryFilter && (f.category || "Genel") !== categoryFilter) return false;
+      if (q) {
+        const hay = fold([customerName(f), f.user?.email, f.title, f.message, f.adminReply?.text, ...(f.tags || []).map(tagLabel)].filter(Boolean).join(" "));
+        if (!hay.includes(q)) return false;
       }
+      return true;
     });
-
-    const averageRatings = {};
-    Object.keys(ratingsSums).forEach(key => {
-      averageRatings[key] = ratingsSums[key] / ratingsCount[key];
+    const time = (f) => new Date(f.createdAt).getTime();
+    list.sort((a, b) => {
+      if (sort === "oldest") return time(a) - time(b);
+      if (sort === "low") return ratingOf(a) - ratingOf(b) || time(b) - time(a);
+      if (sort === "high") return ratingOf(b) - ratingOf(a) || time(b) - time(a);
+      return time(b) - time(a);
     });
+    return list;
+  }, [items, query, statusFilter, ratingFilter, tagFilter, categoryFilter, sort]);
+  const shown = filtered.slice(0, visible);
+  const hasFilter = Boolean(query || statusFilter !== "all" || ratingFilter || tagFilter || categoryFilter);
+  const clearFilters = () => { setSearch(""); setStatusFilter("all"); setRatingFilter(0); setTagFilter(""); setCategoryFilter(""); };
+  useEffect(() => { setVisible(PAGE); setCursor(-1); }, [query, statusFilter, ratingFilter, tagFilter, categoryFilter, sort]);
 
-    const recentTrends = Object.entries(dailyRatings)
-      .map(([date, data]) => ({
-        date,
-        averageRating: data.totalRating / data.count,
-        count: data.count
-      }))
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
+  const selected = selectedId ? items.find((f) => f._id === selectedId) : null;
+  useEffect(() => { if (selectedId && !selected) setSelectedId(null); }, [selectedId, selected]);
 
-    setStats({
-      averageRatings,
-      totalFeedbacks,
-      categoryDistribution: categoryCount,
-      sentimentAnalysis: { positive: positiveCount, negative: negativeCount, neutral: neutralCount },
-      recentTrends
-    });
-  };
+  // ── İşlemler ──
+  const patchItem = (id, patch) => setItems((list) => list.map((f) => (f._id === id ? { ...f, ...patch } : f)));
 
-  const getAISuggestions = (questionId, rating) => {
-    if (rating >= 4) return [];
-    const suggestions = AI_SUGGESTIONS[questionId];
-    return rating <= 2 ? suggestions?.low || [] : suggestions?.medium || [];
-  };
-
-  const renderStars = (rating) => {
-    return [...Array(5)].map((_, index) => (
-      <Star
-        key={index}
-        className="ui-star"
-        data-on={index < rating ? "true" : undefined}
-      />
-    ));
-  };
-
-  const getStatusInfo = (status) => {
-    switch (status) {
-      case "Yeni":
-        return { color: "ui-badge--info", icon: <Clock /> };
-      case "İnceleniyor":
-        return { color: "ui-badge--warn", icon: <Eye /> };
-      case "Çözüldü":
-        return { color: "ui-badge--ok", icon: <CheckCircle /> };
-      case "Kapatıldı":
-        return { color: "", icon: <X /> };
-      default:
-        return { color: "", icon: <Clock /> };
+  const open = useCallback((f, { reply = false } = {}) => {
+    setSelectedId(f._id);
+    setFocusReply(reply);
+    setCursor(filtered.findIndex((x) => x._id === f._id));
+    if (f.order && !orders[f._id]) {
+      setOrders((map) => ({ ...map, [f._id]: { loading: true } }));
+      axios.get(`/feedback/${f._id}/order`)
+        .then(({ data }) => setOrders((map) => ({ ...map, [f._id]: { data } })))
+        .catch((err) => setOrders((map) => ({ ...map, [f._id]: { error: err?.response?.data?.message || "Sipariş özeti alınamadı." } })));
     }
-  };
+  }, [filtered, orders]);
 
-  const handleStatusUpdate = async (feedbackId, newStatus) => {
+  const changeStatus = async (f, status) => {
+    const before = f.status;
+    patchItem(f._id, { status });
+    setBusy(true);
     try {
-      await axios.patch(`/feedback/${feedbackId}/status`, { status: newStatus });
-      const updatedFeedbacks = feedbacks.map(f => 
-        f._id === feedbackId ? { ...f, status: newStatus } : f
-      );
-      setFeedbacks(updatedFeedbacks);
-      toast.success("Durum güncellendi");
-    } catch (error) {
-      console.error("Durum güncellenirken hata:", error);
-      toast.error("Durum güncellenirken hata oluştu");
+      const { data } = await axios.patch(`/feedback/${f._id}/status`, { status });
+      if (data?._id) patchItem(f._id, { status: data.status });
+      toast.success(status === "Çözüldü" ? "Çözüldü olarak işaretlendi" : `Durum: ${status}`);
+    } catch (err) {
+      patchItem(f._id, { status: before });
+      toast.error(err?.response?.data?.message || "Durum güncellenemedi");
+    } finally {
+      setBusy(false);
     }
   };
 
-  const handleDelete = async (feedbackId) => {
-    if (!window.confirm("Bu geri bildirimi silmek istediğinizden emin misiniz?")) return;
-    
+  const saveReply = async (f, text) => {
+    setBusy(true);
     try {
-      await axios.delete(`/feedback/${feedbackId}`);
-      setFeedbacks(feedbacks.filter(f => f._id !== feedbackId));
-      toast.success("Geri bildirim silindi");
-    } catch (error) {
-      console.error("Silme hatası:", error);
-      toast.error("Geri bildirim silinirken hata oluştu");
+      const { data } = await axios.patch(`/feedback/${f._id}/reply`, { text });
+      patchItem(f._id, { adminReply: data?.adminReply || { text }, status: data?.status || f.status });
+      toast.success(text ? "Yanıt kaydedildi" : "Yanıt kaldırıldı");
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Yanıt kaydedilemedi");
+    } finally {
+      setBusy(false);
     }
   };
 
-  // Filtrelenmiş geri bildirimler
-  const filteredFeedbacks = feedbacks.filter(feedback => {
-    const matchesStatus = !filterStatus || feedback.status === filterStatus;
-    const matchesSearch = !searchTerm || 
-      feedback.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      feedback.user?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      feedback.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      feedback.message?.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesStatus && matchesSearch;
+  const remove = (f) => {
+    const index = items.findIndex((x) => x._id === f._id);
+    setItems((list) => list.filter((x) => x._id !== f._id));
+    if (selectedId === f._id) setSelectedId(null);
+    undoable({
+      message: `${customerName(f)} geri bildirimi silindi`,
+      icon: <Trash2 />,
+      commit: async () => {
+        try {
+          await axios.delete(`/feedback/${f._id}`);
+        } catch (err) {
+          toast.error(err?.response?.data?.message || "Silinemedi, kayıt geri yüklendi");
+          setItems((list) => (list.some((x) => x._id === f._id) ? list : [...list.slice(0, index), f, ...list.slice(index)]));
+        }
+      },
+      undo: () => setItems((list) => (list.some((x) => x._id === f._id) ? list : [...list.slice(0, index), f, ...list.slice(index)])),
+    });
+  };
+
+  const openOrder = (f) => {
+    const orderId = orders[f._id]?.data?.orderId || String(f.order);
+    setHandoff(HANDOFF.order, orderId.slice(-6));
+    window.dispatchEvent(new CustomEvent("admin-navigate", { detail: "orders" }));
+  };
+
+  const exportCsv = () => {
+    if (!filtered.length) return;
+    const head = ["Tarih", "Müşteri", "E-posta", "Puan", "Kategori", "Anket", "Başlık", "Mesaj", "Etiketler", "Durum", "Yanıt", "Yanıt tarihi", "Sipariş"];
+    const rows = filtered.map((f) => [
+      formatDateTime(f.createdAt), customerName(f), f.user?.email || "", fmtScore(ratingOf(f)), f.category || "", f.milestone ? `${f.milestone}. sipariş` : "",
+      titleOf(f), messageOf(f), (f.tags || []).map(tagLabel).join(", "), f.status, f.adminReply?.text || "", f.adminReply?.at ? formatDateTime(f.adminReply.at) : "", f.order ? String(f.order) : "",
+    ]);
+    const csv = `\uFEFF${[head, ...rows].map((r) => r.map(csvCell).join(";")).join("\r\n")}`;
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `geri-bildirimler-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`${filtered.length} kayıt CSV olarak indirildi`);
+  };
+
+  // ── Klavye ──
+  const moveCursor = (dir) => {
+    if (!shown.length) return;
+    setCursor((c) => {
+      const next = Math.min(shown.length - 1, Math.max(0, (c < 0 ? (dir > 0 ? -1 : shown.length) : c) + dir));
+      rowRefs.current.get(shown[next]?._id)?.scrollIntoView({ block: "nearest" });
+      return next;
+    });
+  };
+  const { helpOpen, setHelpOpen } = useListShortcuts({
+    search: () => searchRef.current?.focus(),
+    move: moveCursor,
+    open: () => { if (cursor >= 0 && shown[cursor]) open(shown[cursor]); },
+    escape: () => { if (cursor >= 0) setCursor(-1); else if (hasFilter) clearFilters(); },
+    searchEscape: (e) => { if (e.target === searchRef.current) { setSearch(""); e.target.blur(); } },
+    extra: {
+      r: () => { if (cursor >= 0 && shown[cursor]) open(shown[cursor], { reply: true }); },
+      c: () => { if (cursor >= 0 && shown[cursor] && shown[cursor].status !== "Çözüldü") changeStatus(shown[cursor], "Çözüldü"); },
+      e: exportCsv,
+    },
   });
 
-  if (loading) {
-    return (
-      <div className="ui-loading">
-        <div className="ui-loader"></div>
-        <p>Geri bildirimler yükleniyor...</p>
-      </div>
-    );
-  }
+  const statusChips = [
+    { value: "all", label: "Tümü", count: stats.total },
+    { value: "pending", label: "Yanıt bekleyen", count: stats.pending, tone: "warn" },
+    { value: "replied", label: "Yanıtlanan", count: stats.replied },
+    { value: "Çözüldü", label: "Çözüldü", count: stats.byStatus["Çözüldü"] },
+    { value: "Kapatıldı", label: "Kapatıldı", count: stats.byStatus["Kapatıldı"] },
+  ];
+  const maxDist = Math.max(1, ...stats.dist.slice(1));
 
   return (
-    <div className="ui-page">
-      {/* Başlık */}
-      <header className="app-pagehead">
-        <div>
-          <h1>Geri Bildirimler</h1>
-          <p>Müşterilerinizin sesini dinleyin, deneyimlerini iyileştirin.</p>
+    <div className="ui-page fbk">
+      <PageHeader
+        title="Geri bildirimler"
+        description="Sipariş anketleri ve müşteri mesajları. Okuyun, yanıtlayın, çözüldü işaretleyin."
+        meta={stats.pending > 0 ? `${stats.pending} yanıt bekliyor` : undefined}
+        actions={(
+          <>
+            <button type="button" className="ui-btn" onClick={exportCsv} disabled={!filtered.length} title="Görünen listeyi CSV indir (e)"><Download />CSV</button>
+            <button type="button" className="ui-btn" onClick={() => load({ silent: items.length > 0 })} disabled={loading}><RefreshCw className={loading ? "ui-spin" : undefined} />Yenile</button>
+          </>
+        )}
+      />
+
+      {error && (
+        <div className="ui-banner ui-banner--danger" role="alert">
+          <span>{error}</span>
+          <button type="button" className="ui-btn ui-btn--sm" onClick={() => load()}>Tekrar dene</button>
         </div>
-      </header>
+      )}
+      {fresh > 0 && !loading && (
+        <div className="ui-banner ui-banner--info">
+          <span>{fresh} yeni düşük puanlı anket geldi.</span>
+          <button type="button" className="ui-btn ui-btn--sm" onClick={() => load({ silent: true })}><RefreshCw />Listeyi yenile</button>
+        </div>
+      )}
 
-      {/* İstatistikler */}
-      <div className="ui-grid-3" style={{ gap: 16 }}>
-        {/* Genel İstatistikler */}
-        <section className="ui-card">
-          <div className="ui-card-header">
-            <h3 className="ui-title">Genel İstatistikler</h3>
-          </div>
-          <div className="ui-card-body ui-stack ui-stack--sm">
-            <div className="ui-between">
-              <span className="ui-muted">Toplam Geri Bildirim</span>
-              <span className="ui-stat-value">{stats.totalFeedbacks}</span>
-            </div>
-            {Object.entries(stats.averageRatings).slice(0, 3).map(([key, value]) => (
-              <div key={key} className="ui-between ui-text-sm">
-                <span className="ui-muted">
-                  {key === "usability" ? "Kullanıcı Dostu" :
-                   key === "expectations" ? "Beklenti Karşılama" :
-                   key === "repeat" ? "Tekrar Tercih" : "Genel"}
-                </span>
-                <div className="ui-stars">
-                  {renderStars(Math.round(value))}
-                  <span className="ui-muted ui-num">({value.toFixed(1)})</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+      {loading && items.length === 0 ? (
+        <>
+          <SkeletonCards count={4} />
+          <div className="ui-panel"><SkeletonRows rows={8} /></div>
+        </>
+      ) : items.length === 0 && !error ? (
+        <div className="ui-panel">
+          <EmptyState
+            icon={Inbox}
+            title="Henüz geri bildirim yok"
+            description="Müşteriler 1., 5. ve 15. teslim edilen siparişlerinden sonra anketi yanıtladığında ya da uygulamadan mesaj gönderdiğinde burada görünür."
+            action={<button type="button" className="ui-btn" onClick={() => load()}><RefreshCw />Yenile</button>}
+          />
+        </div>
+      ) : (
+        <>
+          <KpiGrid columns={4}>
+            <KpiCard icon={MessageSquare} label="Toplam" value={stats.total.toLocaleString("tr-TR")} note={`${stats.replied} yanıtlandı`} />
+            <KpiCard icon={Star} label="Ortalama puan" value={stats.rated ? fmtScore(stats.avg) : "—"} tone={stats.avg >= 4 ? "ok" : stats.avg > 0 && stats.avg < 3 ? "danger" : undefined}
+              note={stats.rated ? `5 üzerinden · son 7 gün ${stats.avg7 ? fmtScore(stats.avg7) : "—"}` : "Henüz puan yok"} />
+            <KpiCard icon={CalendarDays} label="Son 7 gün" value={stats.last7.toLocaleString("tr-TR")} delta={stats.prev7 || stats.last7 ? Math.round(stats.delta) : undefined} note="önceki 7 güne göre" />
+            <KpiCard icon={Clock} label="Yanıt bekleyen" value={stats.pending.toLocaleString("tr-TR")} tone={stats.pending ? "warn" : "ok"}
+              note={stats.pending ? "Tıklayın: yalnızca bekleyenler" : "Hepsi yanıtlandı"} active={statusFilter === "pending"} onClick={() => setStatusFilter((s) => (s === "pending" ? "all" : "pending"))} />
+          </KpiGrid>
 
-        {/* Kategori Analizi */}
-        <section className="ui-card">
-          <div className="ui-card-header">
-            <h3 className="ui-title">Kategori Analizi</h3>
-          </div>
-          <div className="ui-card-body ui-stack ui-stack--sm">
-            {Object.entries(stats.categoryDistribution).map(([category, count]) => {
-              const percentage = stats.totalFeedbacks > 0 ? (count / stats.totalFeedbacks) * 100 : 0;
-              return (
-                <div key={category}>
-                  <div className="ui-between ui-text-sm" style={{ marginBottom: 4 }}>
-                    <span>{category}</span>
-                    <span className="ui-strong ui-num">{count} ({percentage.toFixed(0)}%)</span>
-                  </div>
-                  <div className="ui-progress">
-                    <div style={{ width: `${percentage}%` }} />
-                  </div>
-                </div>
-              );
-            })}
-            {Object.keys(stats.categoryDistribution).length === 0 && (
-              <p className="ui-loading">Henüz kategori verisi yok</p>
-            )}
-          </div>
-        </section>
-
-        {/* Müşteri Duyguları */}
-        <section className="ui-card">
-          <div className="ui-card-header">
-            <h3 className="ui-title">Müşteri Duyguları</h3>
-          </div>
-          <div className="ui-card-body">
-            <div className="ui-grid-3" style={{ gap: 8, gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
-              <div className="ui-stat" style={{ boxShadow: "none", padding: "10px 12px" }}>
-                <span className="ui-stat-label"><span className="ui-dot ui-dot--ok" />Olumlu</span>
-                <span className="ui-stat-value" style={{ fontSize: 20 }}>
-                  {stats.totalFeedbacks > 0 ? ((stats.sentimentAnalysis.positive / stats.totalFeedbacks) * 100).toFixed(0) : 0}%
-                </span>
-              </div>
-              <div className="ui-stat" style={{ boxShadow: "none", padding: "10px 12px" }}>
-                <span className="ui-stat-label"><span className="ui-dot ui-dot--warn" />Nötr</span>
-                <span className="ui-stat-value" style={{ fontSize: 20 }}>
-                  {stats.totalFeedbacks > 0 ? ((stats.sentimentAnalysis.neutral / stats.totalFeedbacks) * 100).toFixed(0) : 0}%
-                </span>
-              </div>
-              <div className="ui-stat" style={{ boxShadow: "none", padding: "10px 12px" }}>
-                <span className="ui-stat-label"><span className="ui-dot ui-dot--danger" />Olumsuz</span>
-                <span className="ui-stat-value" style={{ fontSize: 20 }}>
-                  {stats.totalFeedbacks > 0 ? ((stats.sentimentAnalysis.negative / stats.totalFeedbacks) * 100).toFixed(0) : 0}%
-                </span>
-              </div>
-            </div>
-
-            {/* Trend Chart */}
-            <div style={{ marginTop: 14 }}>
-              <div className="ui-overline" style={{ marginBottom: 6 }}>Son 10 Gün Trendi (ortalama puan)</div>
-              <div className="ui-bars" style={{ height: 72 }}>
-                {Array.isArray(stats.recentTrends) && stats.recentTrends.slice(-10).map((trend) => {
-                  const height = (trend.averageRating / 5) * 100;
-                  const color = trend.averageRating >= 4 ? 'ok' :
-                               trend.averageRating <= 2 ? 'danger' : 'warn';
-                  
+          <div className="fbk-insights">
+            <section className="ui-panel fbk-dist" aria-label="Puan dağılımı">
+              <div className="ui-panel-head"><h2 className="ui-title">Puan dağılımı</h2><span className="ui-muted ui-text-xs">Çubuğa tıklayın: filtre</span></div>
+              <div className="ui-panel-body fbk-dist-body">
+                {[5, 4, 3, 2, 1].map((n) => {
+                  const count = stats.dist[n];
+                  const pct = stats.rated ? Math.round((count / stats.rated) * 100) : 0;
                   return (
-                    <div key={trend.date} className="ui-bar-col" tabIndex={0}>
-                      <div className="ui-bar-track">
-                        <div className="ui-bar" data-tone={color} style={{ height: `${height}%` }} />
-                        <div className="ui-bar-tip">
-                          <strong>{trend.averageRating.toFixed(1)} / 5</strong>
-                          <span>{new Date(trend.date).toLocaleDateString('tr-TR')}</span>
-                        </div>
-                      </div>
-                    </div>
+                    <button key={n} type="button" className="fbk-dist-row" aria-pressed={ratingFilter === n} onClick={() => setRatingFilter((r) => (r === n ? 0 : n))}
+                      title={`${n} yıldız: ${count} kayıt (%${pct})`}>
+                      <span className="fbk-dist-label"><span className="ui-num">{n}</span><Star className="ui-star" data-on="true" aria-hidden="true" /></span>
+                      <span className="fbk-dist-track"><span className="fbk-dist-bar" style={{ width: `${(count / maxDist) * 100}%` }} /></span>
+                      <span className="fbk-dist-count ui-num">{count}</span>
+                      <span className="fbk-dist-pct ui-num ui-muted">%{pct}</span>
+                    </button>
                   );
                 })}
-                {(!stats.recentTrends || stats.recentTrends.length === 0) && (
-                  <div className="ui-loading" style={{ flex: 1, padding: 0 }}>
-                    Henüz trend verisi yok
+              </div>
+            </section>
+            <section className="ui-panel fbk-side" aria-label="Alt puanlar ve etiketler">
+              <div className="ui-panel-head"><h2 className="ui-title">Anket özeti</h2><span className="ui-muted ui-text-xs">Etikete tıklayın: filtre</span></div>
+              <div className="ui-panel-body ui-stack ui-stack--sm">
+                {stats.sub.length > 0 && (
+                  <dl className="fbk-subavg">
+                    {stats.sub.map(([key, v]) => (
+                      <div key={key}><dt>{RATING_LABELS[key] || key}</dt><dd><Stars value={v} /><span className="ui-num">{fmtScore(v)}</span></dd></div>
+                    ))}
+                  </dl>
+                )}
+                {stats.tags.length > 0 ? (
+                  <div className="fbk-tags fbk-tags--big">
+                    {stats.tags.map(([tag, count]) => (
+                      <button key={tag} type="button" className="fbk-tag" data-neg={NEGATIVE_TAGS.has(tag) || undefined} aria-pressed={tagFilter === tag} onClick={() => setTagFilter((t) => (t === tag ? "" : tag))}>
+                        {tagLabel(tag)}<span className="ui-count">{count}</span>
+                      </button>
+                    ))}
                   </div>
+                ) : (
+                  <p className="ui-muted ui-text-sm">Anketlerde seçilen hazır etiketler burada toplanır.</p>
                 )}
               </div>
+            </section>
+          </div>
+
+          <div className="fbk-toolbar">
+            <div className="ui-search fbk-search">
+              <Search />
+              <input ref={searchRef} type="search" className="ui-field" value={search} data-esc-clear="true" placeholder="Müşteri, e-posta, mesaj, etiket ara…  ( / )"
+                aria-label="Geri bildirimlerde ara" onChange={(e) => setSearch(e.target.value)} />
+            </div>
+            <div className="ui-chips fbk-chips" role="group" aria-label="Durum filtresi">
+              {statusChips.map((chip) => (
+                <button key={chip.value} type="button" aria-pressed={statusFilter === chip.value} onClick={() => setStatusFilter(chip.value)}>
+                  {chip.tone && <span className={`ui-dot ui-dot--${chip.tone}`} />}{chip.label}<span className="ui-count">{chip.count}</span>
+                </button>
+              ))}
+            </div>
+            <div className="fbk-toolbar-right">
+              <select className="ui-field ui-field--auto" value={categoryFilter} aria-label="Kategori" onChange={(e) => setCategoryFilter(e.target.value)}>
+                <option value="">Tüm kategoriler</option>
+                {Object.entries(stats.categories).map(([c, n]) => <option key={c} value={c}>{c} ({n})</option>)}
+              </select>
+              <select className="ui-field ui-field--auto" value={sort} aria-label="Sıralama" onChange={(e) => setSort(e.target.value)}>
+                {SORTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
             </div>
           </div>
-        </section>
-      </div>
+          {(ratingFilter || tagFilter) && (
+            <div className="ui-cluster fbk-active">
+              <SlidersHorizontal aria-hidden="true" />
+              {ratingFilter > 0 && <button type="button" className="ui-badge ui-badge--brand fbk-active-chip" onClick={() => setRatingFilter(0)}>{ratingFilter} yıldız <X /></button>}
+              {tagFilter && <button type="button" className="ui-badge ui-badge--brand fbk-active-chip" onClick={() => setTagFilter("")}>{tagLabel(tagFilter)} <X /></button>}
+              <button type="button" className="ui-btn ui-btn--sm ui-btn--ghost" onClick={clearFilters}>Filtreleri temizle</button>
+            </div>
+          )}
 
-      {/* Filtreler */}
-      <div className="ui-card ui-card-body ui-cluster" style={{ alignItems: "flex-end" }}>
-        <div className="ui-grow" style={{ flexBasis: 260 }}>
-          <label className="ui-label" htmlFor="feedback-search">Arama</label>
-          <div className="ui-search">
-            <Search />
-            <input
-              id="feedback-search"
-              type="text"
-              placeholder="Kullanıcı, başlık veya mesaj ara..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="ui-field"
-            />
-          </div>
-        </div>
+          <section className="ui-panel fbk-list" aria-label="Geri bildirim listesi">
+            <div className="ui-list-row ui-list-head fbk-row fbk-head" aria-hidden="true">
+              <span />
+              <span>Müşteri ve mesaj</span>
+              <span>Puan</span>
+              <span>Tarih</span>
+              <span>Durum</span>
+              <span />
+            </div>
+            {shown.length === 0 ? (
+              <EmptyState compact icon={Search} title="Filtrelere uyan geri bildirim yok" description="Arama ya da filtreleri değiştirin."
+                action={<button type="button" className="ui-btn ui-btn--sm" onClick={clearFilters}>Filtreleri temizle</button>} />
+            ) : shown.map((f, i) => (
+              <FeedbackRow
+                key={f._id}
+                f={f}
+                now={now}
+                active={cursor === i}
+                selected={selectedId === f._id}
+                rowRef={(el) => { if (el) rowRefs.current.set(f._id, el); else rowRefs.current.delete(f._id); }}
+                onOpen={open}
+                onReply={(x) => open(x, { reply: true })}
+                onResolve={(x) => changeStatus(x, "Çözüldü")}
+                onDelete={remove}
+              />
+            ))}
+            <div className="fbk-foot">
+              <span className="ui-muted ui-text-xs ui-num">{shown.length} / {filtered.length} kayıt{hasFilter && items.length !== filtered.length ? ` (toplam ${items.length})` : ""}</span>
+              {filtered.length > visible && <button type="button" className="ui-btn ui-btn--sm" onClick={() => setVisible((v) => v + PAGE)}>Daha fazla göster</button>}
+              <span className="fbk-kbd ui-muted ui-text-xs"><kbd className="ui-kbd">/</kbd> ara · <kbd className="ui-kbd">j</kbd><kbd className="ui-kbd">k</kbd> gez · <kbd className="ui-kbd">↵</kbd> aç · <kbd className="ui-kbd">r</kbd> yanıtla · <kbd className="ui-kbd">?</kbd> yardım</span>
+            </div>
+          </section>
+        </>
+      )}
 
-        <div>
-          <label className="ui-label" htmlFor="feedback-status">Durum</label>
-          <select
-            id="feedback-status"
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="ui-field ui-field--auto"
-          >
-            <option value="">Tümü</option>
-            <option value="Yeni">Yeni</option>
-            <option value="İnceleniyor">İnceleniyor</option>
-            <option value="Çözüldü">Çözüldü</option>
-            <option value="Kapatıldı">Kapatıldı</option>
-          </select>
-        </div>
-        
-        <button
-          onClick={() => { setFilterStatus(""); setSearchTerm(""); }}
-          className="ui-btn ui-btn--ghost"
-          style={{ minHeight: 38 }}
-        >
-          <X />
-          Temizle
-        </button>
-        <button
-          onClick={fetchFeedbacks}
-          className="ui-btn"
-          style={{ minHeight: 38 }}
-        >
-          <RefreshCw />
-          Yenile
-        </button>
-      </div>
-
-      {/* Geri Bildirim Listesi */}
-      <div className="ui-stack ui-stack--sm">
-        <h3 className="ui-between">
-          <span className="ui-overline">Geri Bildirim Listesi</span>
-          <span className="ui-text-xs ui-muted ui-num">{filteredFeedbacks.length} sonuç</span>
-        </h3>
-
-        {filteredFeedbacks.length === 0 ? (
-          <div className="ui-card ui-empty">
-            <MessageSquare />
-            <h4 className="ui-title">Geri Bildirim Bulunamadı</h4>
-            <p>Henüz geri bildirim yok veya filtrelere uygun sonuç bulunamadı</p>
-          </div>
-        ) : (
-          filteredFeedbacks.map((feedback) => {
-            const statusInfo = getStatusInfo(feedback.status);
-            const isExpanded = expandedFeedback === feedback._id;
-            const avgRating = Object.values(feedback.ratings).reduce((a, b) => a + b, 0) / Object.values(feedback.ratings).filter(r => r > 0).length;
-
-            return (
-              <article key={feedback._id} className="ui-card ui-card-body">
-                <div className="ui-between" style={{ alignItems: "flex-start" }}>
-                  {/* Avatar ve Kullanıcı Bilgisi */}
-                  <div className="products-product ui-grow" style={{ alignItems: "flex-start", flexBasis: 340 }}>
-                    <div className="ui-avatar">
-                      {feedback.user?.name?.charAt(0).toUpperCase() || "K"}
-                    </div>
-                    
-                    <div className="ui-grow">
-                      <div className="ui-cluster" style={{ gap: "2px 10px" }}>
-                        <h4 className="ui-list-title">
-                          {feedback.user?.name || "Kullanıcı"}
-                        </h4>
-                        <span className="orders-meta">
-                          <Mail />
-                          <span>{feedback.user?.email}</span>
-                        </span>
-                      </div>
-                      
-                      <div className="ui-cluster" style={{ gap: 6, marginTop: 6 }}>
-                        <span className="orders-meta">
-                          <Calendar />
-                          <span>{new Date(feedback.createdAt).toLocaleDateString('tr-TR', {
-                            day: 'numeric',
-                            month: 'long',
-                            year: 'numeric'
-                          })}</span>
-                        </span>
-                        <span className="ui-badge">
-                          {feedback.category}
-                        </span>
-                        <span className="ui-badge ui-badge--warn">
-                          <Star />
-                          {avgRating.toFixed(1)}/5
-                        </span>
-                      </div>
-
-                      {(feedback.milestone || feedback.tags?.length > 0) && (
-                        <div className="ui-cluster" style={{ marginTop: 8 }}>
-                          {feedback.milestone && <span className="ui-badge ui-badge--brand">{feedback.milestone}. sipariş anketi</span>}
-                          {(feedback.tags || []).map((tag) => <span key={tag} className="ui-badge">{FEEDBACK_TAG_LABELS[tag] || tag}</span>)}
-                        </div>
-                      )}
-                      {feedback.title && (
-                        <h5 className="ui-strong" style={{ marginTop: 8 }}>{feedback.title}</h5>
-                      )}
-
-                      {/* Rating Grid */}
-                      <div className="ui-cluster" style={{ gap: "6px 16px", marginTop: 8 }}>
-                        {Object.entries(feedback.ratings).map(([key, rating]) => {
-                          if (rating === 0) return null;
-                          return (
-                            <div key={key}>
-                              <div className="ui-text-xs ui-muted">
-                                {key === "usability" ? "Kullanıcı Dostu" :
-                                 key === "expectations" ? "Beklenti" :
-                                 key === "repeat" ? "Tekrar Tercih" : "Genel"}
-                              </div>
-                              <div className="ui-stars">
-                                {renderStars(rating)}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Sağ Taraf - Durum ve Aksiyonlar */}
-                  <div className="ui-cluster">
-                    <span className={`ui-badge ${statusInfo.color}`}>
-                      {statusInfo.icon}
-                      {feedback.status}
-                    </span>
-
-                    <select
-                      value={feedback.status}
-                      onChange={(e) => handleStatusUpdate(feedback._id, e.target.value)}
-                      aria-label="Durumu değiştir"
-                      className="ui-field ui-field--sm ui-field--auto"
-                    >
-                      <option value="Yeni">Yeni</option>
-                      <option value="İnceleniyor">İnceleniyor</option>
-                      <option value="Çözüldü">Çözüldü</option>
-                      <option value="Kapatıldı">Kapatıldı</option>
-                    </select>
-
-                    <div className="products-actions">
-                      <button
-                        onClick={() => setExpandedFeedback(isExpanded ? null : feedback._id)}
-                        aria-expanded={isExpanded}
-                        className="ui-icon-btn"
-                        title={isExpanded ? "Mesajı gizle" : "Mesajı göster"}
-                        aria-label={isExpanded ? "Mesajı gizle" : "Mesajı göster"}
-                      >
-                        {isExpanded ? <ChevronUp /> : <ChevronDown />}
-                      </button>
-                      <button
-                        onClick={() => handleDelete(feedback._id)}
-                        className="ui-icon-btn ui-icon-btn--danger"
-                        title="Sil"
-                        aria-label="Sil"
-                      >
-                        <Trash2 />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Genişletilmiş İçerik */}
-                {isExpanded && (
-                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--ui-line)" }}>
-                    {/* Mesaj */}
-                    {feedback.message && (
-                      <div>
-                        <h6 className="ui-overline" style={{ marginBottom: 4 }}>Mesaj</h6>
-                        <p className="ui-wrap-anywhere" style={{ whiteSpace: "pre-wrap" }}>{feedback.message}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </article>
-            );
-          })
-        )}
-      </div>
+      {selected && (
+        <FeedbackDrawer
+          f={selected}
+          order={orders[selected._id]}
+          busy={busy}
+          focusReply={focusReply}
+          onClose={() => { setSelectedId(null); setFocusReply(false); }}
+          onStatus={changeStatus}
+          onReply={saveReply}
+          onDelete={remove}
+          onOpenOrder={openOrder}
+        />
+      )}
+      <ShortcutHelp open={helpOpen} onClose={() => setHelpOpen(false)} items={[[["r"], "Seçili kaydı yanıtla"], [["c"], "Seçili kaydı çözüldü işaretle"], [["e"], "Görünen listeyi CSV indir"]]} />
     </div>
   );
 };

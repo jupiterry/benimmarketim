@@ -1,0 +1,538 @@
+/* Geri bildirimler ekranı (FeedbackList) — admin-system.css belirteçleriyle, önek: fbk- */
+
+.admin-layout .fbk {
+  gap: 14px;
+}
+
+/* ── Puan dağılımı + anket özeti ───────────────────────────────────── */
+.admin-layout .fbk-insights {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 10px;
+}
+.admin-layout .fbk-dist-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.admin-layout .fbk-dist-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px 44px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 32px;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius);
+  background: transparent;
+  color: var(--ui-text);
+  font: inherit;
+  font-size: var(--ui-fs-sm);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--ui-ease),
+    border-color var(--ui-ease);
+}
+.admin-layout .fbk-dist-row:hover {
+  background: var(--ui-surface-2);
+}
+.admin-layout .fbk-dist-row[aria-pressed="true"] {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand-soft);
+}
+.admin-layout .fbk-dist-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+}
+.admin-layout .fbk-dist-track {
+  position: relative;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--ui-surface-3);
+}
+.admin-layout .fbk-dist-bar {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  border-radius: 999px;
+  background: var(--ui-brand);
+  transition: width var(--ui-ease);
+}
+.admin-layout .fbk-dist-row[aria-pressed="true"] .fbk-dist-bar {
+  background: var(--ui-brand-strong);
+}
+.admin-layout .fbk-dist-count {
+  font-weight: 600;
+  text-align: right;
+}
+.admin-layout .fbk-dist-pct {
+  text-align: right;
+}
+
+.admin-layout .fbk-subavg,
+.admin-layout .fbk-subratings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px 14px;
+  margin: 0;
+}
+.admin-layout .fbk-subavg dt,
+.admin-layout .fbk-subratings dt {
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+}
+.admin-layout .fbk-subavg dd,
+.admin-layout .fbk-subratings dd {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 0;
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+}
+
+/* ── Etiketler ───────────────────────────────────────────────────────── */
+.admin-layout .fbk-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin-top: 6px;
+}
+.admin-layout .fbk-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 20px;
+  padding: 1px 8px;
+  border: 1px solid var(--ui-line);
+  border-radius: 999px;
+  background: var(--ui-surface-2);
+  color: var(--ui-text-2);
+  font: inherit;
+  font-size: var(--ui-fs-xs);
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.admin-layout .fbk-tag svg {
+  width: 11px;
+  height: 11px;
+}
+.admin-layout .fbk-tag[data-neg="true"] {
+  border-color: var(--ui-danger-bg);
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+}
+.admin-layout .fbk-tags--big {
+  margin-top: 0;
+}
+.admin-layout .fbk-tags--big .fbk-tag {
+  min-height: 30px;
+  padding: 2px 10px;
+  font-size: var(--ui-fs-sm);
+  cursor: pointer;
+  transition:
+    border-color var(--ui-ease),
+    background-color var(--ui-ease);
+}
+.admin-layout .fbk-tags--big .fbk-tag:hover {
+  border-color: var(--ui-line-strong);
+}
+.admin-layout .fbk-tags--big .fbk-tag[aria-pressed="true"] {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+}
+.admin-layout .fbk-tags--big .fbk-tag .ui-count {
+  margin-left: 2px;
+}
+
+/* ── Araç çubuğu ─────────────────────────────────────────────────────── */
+.admin-layout .fbk-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+.admin-layout .fbk-search {
+  flex: 1 1 260px;
+  max-width: 420px;
+}
+.admin-layout .fbk-chips {
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+}
+.admin-layout .fbk-toolbar-right {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+.admin-layout .fbk-active {
+  gap: 6px;
+  color: var(--ui-text-3);
+}
+.admin-layout .fbk-active > svg {
+  width: 14px;
+  height: 14px;
+}
+.admin-layout .fbk-active-chip {
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .fbk-active-chip svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ── Liste ───────────────────────────────────────────────────────────── */
+.admin-layout .fbk-list {
+  overflow: hidden;
+}
+.admin-layout .fbk-row {
+  grid-template-columns: 36px minmax(0, 1fr) 118px 112px 136px auto;
+  cursor: pointer;
+  outline: none;
+}
+.admin-layout .fbk-head {
+  min-height: 36px;
+  padding-top: 0;
+  padding-bottom: 0;
+  background: var(--ui-surface-2);
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  cursor: default;
+}
+.admin-layout .fbk-row:not(.fbk-head) {
+  box-shadow: inset 3px 0 0 transparent;
+}
+.admin-layout .fbk-row[data-tone="danger"] {
+  box-shadow: inset 3px 0 0 var(--ui-danger);
+}
+.admin-layout .fbk-row[data-pending="true"] .fbk-avatar {
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+.admin-layout .fbk-row[data-active="true"],
+.admin-layout .fbk-row:focus-visible {
+  background: var(--ui-surface-2);
+  box-shadow: inset 3px 0 0 var(--ui-brand);
+}
+.admin-layout .fbk-row[data-selected="true"] {
+  background: var(--ui-brand-soft);
+}
+.admin-layout .fbk-row:last-of-type {
+  border-bottom: 0;
+}
+.admin-layout .fbk-avatar {
+  width: 36px;
+  height: 36px;
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .fbk-main {
+  min-width: 0;
+}
+.admin-layout .fbk-main-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  min-width: 0;
+}
+.admin-layout .fbk-main-top .ui-list-title {
+  max-width: 100%;
+}
+.admin-layout .fbk-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  margin: 2px 0 0;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.admin-layout .fbk-text strong {
+  color: var(--ui-text);
+  font-weight: 600;
+}
+.admin-layout .fbk-rating {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.admin-layout .fbk-score {
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+}
+.admin-layout .fbk-date {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text-2);
+}
+.admin-layout .fbk-date time,
+.admin-layout .fbk-order-flag {
+  white-space: nowrap;
+}
+.admin-layout .fbk-order-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+}
+.admin-layout .fbk-order-flag svg {
+  width: 12px;
+  height: 12px;
+}
+.admin-layout .fbk-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.admin-layout .fbk-replied {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-ok-ink);
+}
+.admin-layout .fbk-replied svg {
+  width: 12px;
+  height: 12px;
+}
+.admin-layout .fbk-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0.55;
+  transition: opacity var(--ui-ease);
+}
+.admin-layout .fbk-row:hover .fbk-actions,
+.admin-layout .fbk-row[data-active="true"] .fbk-actions,
+.admin-layout .fbk-actions:focus-within {
+  opacity: 1;
+}
+.admin-layout .fbk-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  min-height: 40px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--ui-line);
+  background: var(--ui-surface-2);
+}
+.admin-layout .fbk-kbd {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+/* ── Çekmece ─────────────────────────────────────────────────────────── */
+.admin-layout .fbk-drawer-body {
+  gap: 18px;
+}
+.admin-layout .fbk-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.admin-layout .fbk-section > .ui-between {
+  align-items: center;
+}
+.admin-layout .fbk-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--ui-line);
+  border-left-width: 4px;
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-2);
+}
+.admin-layout .fbk-hero[data-tone="ok"] { border-left-color: var(--ui-ok); }
+.admin-layout .fbk-hero[data-tone="warn"] { border-left-color: var(--ui-warn); }
+.admin-layout .fbk-hero[data-tone="danger"] { border-left-color: var(--ui-danger); }
+.admin-layout .fbk-hero-score {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.admin-layout .fbk-hero-num {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+.admin-layout .fbk-stars--lg .ui-star {
+  width: 20px;
+  height: 20px;
+}
+.admin-layout .fbk-message {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+}
+.admin-layout .fbk-order {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+}
+.admin-layout .fbk-order-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .fbk-order-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .fbk-order-lines li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+}
+.admin-layout .fbk-reply {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-brand-soft);
+  color: var(--ui-text);
+}
+.admin-layout .fbk-reply > svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--ui-brand);
+}
+.admin-layout .fbk-reply > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.admin-layout .fbk-textarea {
+  min-height: 96px;
+  padding: 8px 10px;
+  resize: vertical;
+  font-family: inherit;
+}
+.admin-layout .fbk-reply-foot {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.admin-layout .fbk-reply-foot .ui-hint {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+}
+.admin-layout .fbk-drawer-foot {
+  width: 100%;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.admin-layout .fbk-btn-danger {
+  color: var(--ui-danger-ink);
+}
+.admin-layout .fbk-btn-danger:hover {
+  background: var(--ui-danger-bg);
+}
+
+/* ── Mobil ───────────────────────────────────────────────────────────── */
+@media (max-width: 1000px) {
+  .admin-layout .fbk-insights {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 760px) {
+  .admin-layout .fbk-head {
+    display: none;
+  }
+  .admin-layout .fbk-row {
+    grid-template-columns: 36px minmax(0, 1fr);
+    grid-template-areas:
+      "avatar main"
+      "rating rating"
+      "date status"
+      "actions actions";
+    row-gap: 8px;
+    padding: 12px 14px;
+  }
+  .admin-layout .fbk-avatar { grid-area: avatar; }
+  .admin-layout .fbk-main { grid-area: main; }
+  .admin-layout .fbk-rating { grid-area: rating; }
+  .admin-layout .fbk-date { grid-area: date; flex-direction: row; align-items: center; gap: 10px; }
+  .admin-layout .fbk-status { grid-area: status; flex-direction: row; align-items: center; justify-content: flex-end; }
+  .admin-layout .fbk-actions {
+    grid-area: actions;
+    justify-content: flex-end;
+    padding-top: 8px;
+    border-top: 1px dashed var(--ui-line);
+    opacity: 1;
+  }
+  .admin-layout .fbk-actions .ui-icon-btn {
+    width: 36px;
+    height: 36px;
+  }
+  .admin-layout .fbk-search {
+    max-width: none;
+  }
+  .admin-layout .fbk-toolbar-right {
+    width: 100%;
+    margin-left: 0;
+  }
+  .admin-layout .fbk-toolbar-right > select {
+    flex: 1 1 140px;
+    width: auto;
+  }
+  .admin-layout .fbk-chips {
+    width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+  .admin-layout .fbk-chips > button {
+    flex-shrink: 0;
+  }
+  .admin-layout .fbk-kbd {
+    display: none;
+  }
+  .admin-layout .fbk-dist-row {
+    grid-template-columns: 40px minmax(0, 1fr) 36px 40px;
+  }
+  .admin-layout .fbk-hero-num {
+    font-size: 26px;
+  }
+  .admin-layout .fbk .ui-kpi-note {
+    white-space: normal;
+  }
+}
