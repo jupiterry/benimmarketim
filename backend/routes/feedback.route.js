@@ -7,6 +7,8 @@ import {
   getFeedbackStats,
   deleteFeedback,
   getUserFeedbacks,
+  replyToFeedback,
+  getFeedbackOrder,
 } from "../controllers/feedback.controller.js";
 import { getOrderFeedbackPrompt, submitOrderFeedback } from "../controllers/orderFeedback.controller.js";
 
@@ -24,5 +26,8 @@ router.get("/", protectRoute, adminRoute, getAllFeedbacks);
 router.get("/stats", protectRoute, adminRoute, getFeedbackStats);
 router.patch("/:id/status", protectRoute, adminRoute, updateFeedbackStatus);
 router.delete("/:id", protectRoute, adminRoute, deleteFeedback);
+// Yönetici paneli ekleri: yanıt yazma ve bağlı sipariş özeti
+router.patch("/:id/reply", protectRoute, adminRoute, replyToFeedback);
+router.get("/:id/order", protectRoute, adminRoute, getFeedbackOrder);
 
 export default router; 

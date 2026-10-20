@@ -73,14 +73,15 @@ test("recent window + active orders: merged without duplicates, newest first, ha
 });
 
 test("load older: before + limit reports hasMore from the extra row", async (t) => {
-  const calls = mockFind(t, () => [order(40), order(41), order(42)]);
+  const rows = [order(40), order(41), order(42)];
+  const calls = mockFind(t, () => rows);
   const before = new Date(Date.now() - 39 * DAY);
   const data = await getOrderAnalyticsData({ before, limit: 2 });
   assert.deepEqual(calls[0].filter, { createdAt: { $lt: before } });
   assert.equal(calls[0].limit, 3);
   assert.equal(data.meta.count, 2);
   assert.equal(data.meta.hasMore, true);
-  assert.equal(data.meta.oldestCreatedAt, new Date(order(41).createdAt).toISOString());
+  assert.equal(data.meta.oldestCreatedAt, new Date(rows[1].createdAt).toISOString()); // aynı nesne: Date.now() farkı olmaz
 });
 
 test("refresh: updatedSince only asks for orders changed after that moment", async (t) => {

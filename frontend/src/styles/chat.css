@@ -1,0 +1,1050 @@
+/* Mesajlar (ChatTab) ve Bekleyen destekler (SupportQueueTab) — admin-system.css belirteçleriyle.
+   Önek: cht-. Tüm kurallar .admin-layout altında kapsamlı. */
+
+/* ══ Ortak ═══════════════════════════════════════════════════════════ */
+.admin-layout .cht {
+  gap: 12px;
+}
+.admin-layout .cht-kbd-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 0 2px;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+}
+.admin-layout .cht-kbd-hint kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-right: 2px;
+  border: 1px solid var(--ui-line-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--ui-surface);
+  color: var(--ui-text-2);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+}
+.admin-layout .cht-avatar {
+  position: relative;
+  flex-shrink: 0;
+}
+.admin-layout .cht-avatar .ui-avatar {
+  width: 36px;
+  height: 36px;
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .cht-avatar--lg .ui-avatar {
+  width: 48px;
+  height: 48px;
+  font-size: var(--ui-fs-lg);
+}
+.admin-layout .cht-online {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--ui-surface);
+  border-radius: 50%;
+  background: var(--ui-ok);
+}
+.admin-layout .cht-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+/* ══ Yerleşim: üç sütun ═════════════════════════════════════════════ */
+.admin-layout .cht-layout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr) 296px;
+  gap: 12px;
+  height: calc(100dvh - var(--app-top, 52px) - 176px);
+  min-height: 520px;
+}
+.admin-layout .cht-list,
+.admin-layout .cht-thread,
+.admin-layout .cht-customer {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+}
+
+/* ── Sohbet listesi ─────────────────────────────────────────────── */
+.admin-layout .cht-list-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 10px 8px;
+  border-bottom: 1px solid var(--ui-line);
+}
+.admin-layout .cht-list-head .ui-search {
+  width: 100%;
+}
+.admin-layout .cht-list-head .ui-chips {
+  flex-wrap: wrap;
+}
+.admin-layout .cht-list-head .ui-chips > button {
+  height: 26px;
+  padding: 0 8px;
+}
+.admin-layout .cht-list-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.admin-layout .cht-list-body .ui-skeleton-rows {
+  padding: 8px 10px;
+}
+.admin-layout .cht-list-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px;
+  border-top: 1px solid var(--ui-line);
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+}
+.admin-layout .cht-row {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--ui-line);
+  border-left: 3px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--ui-ease);
+}
+.admin-layout .cht-row:hover {
+  background: var(--ui-surface-2);
+}
+.admin-layout .cht-row[data-cursor="true"] {
+  background: var(--ui-surface-2);
+  box-shadow: inset 0 0 0 1px var(--ui-line-strong);
+}
+.admin-layout .cht-row[data-selected="true"] {
+  background: var(--ui-brand-soft);
+  border-left-color: var(--ui-brand);
+  box-shadow: none;
+}
+.admin-layout .cht-row:focus-visible {
+  outline-offset: -2px;
+}
+.admin-layout .cht-row-main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.admin-layout .cht-row-top,
+.admin-layout .cht-row-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.admin-layout .cht-row-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--ui-fs-md);
+  font-weight: 600;
+  color: var(--ui-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-layout .cht-row[data-unread="true"] .cht-row-name {
+  font-weight: 700;
+}
+.admin-layout .cht-row-time {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--ui-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .cht-row-preview {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-layout .cht-row[data-unread="true"] .cht-row-preview {
+  color: var(--ui-text);
+}
+.admin-layout .cht-row-preview[data-typing="true"] {
+  color: var(--ui-brand);
+  font-weight: 600;
+}
+.admin-layout .cht-row-preview-from {
+  color: var(--ui-text-3);
+}
+.admin-layout .cht-unread {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--ui-brand);
+  color: var(--ui-surface);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .cht-row-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+}
+.admin-layout .cht-row-tags .ui-badge {
+  height: 18px;
+  padding: 0 6px;
+  font-size: 10.5px;
+}
+.admin-layout .cht-row-tags .ui-badge svg {
+  width: 11px;
+  height: 11px;
+}
+
+/* ── Sohbet alanı ────────────────────────────────────────────────── */
+.admin-layout .cht-thread-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 60px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--ui-line);
+}
+.admin-layout .cht-thread-who {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.admin-layout .cht-thread-title {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.admin-layout .cht-thread-title h2 {
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--ui-fs-lg);
+  font-weight: 650;
+  color: var(--ui-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-layout .cht-thread-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 10px;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+}
+.admin-layout .cht-thread-sub span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.admin-layout .cht-thread-sub svg {
+  width: 12px;
+  height: 12px;
+}
+.admin-layout .cht-thread-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+}
+.admin-layout .cht-back {
+  display: none;
+}
+.admin-layout .cht-customer-toggle {
+  display: none;
+}
+.admin-layout .cht-messages {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  padding: 16px 18px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--ui-surface-2);
+}
+.admin-layout .cht-messages-end {
+  flex: 1 1 auto;
+}
+.admin-layout .cht-day {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 8px;
+  color: var(--ui-text-3);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.admin-layout .cht-day::before,
+.admin-layout .cht-day::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--ui-line);
+}
+.admin-layout .cht-msg {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: min(72%, 640px);
+  margin-top: 6px;
+}
+.admin-layout .cht-msg[data-cont="true"] {
+  margin-top: 0;
+}
+.admin-layout .cht-msg[data-from="admin"] {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+.admin-layout .cht-msg[data-from="system"] {
+  align-self: center;
+  align-items: center;
+  max-width: 90%;
+  margin: 8px 0;
+}
+.admin-layout .cht-msg-from {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 4px 3px;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--ui-text-3);
+}
+.admin-layout .cht-msg-from svg {
+  width: 12px;
+  height: 12px;
+}
+.admin-layout .cht-msg[data-from="ai"] .cht-msg-from {
+  color: var(--ui-info-ink);
+}
+.admin-layout .cht-bubble {
+  padding: 8px 12px;
+  border: 1px solid var(--ui-line);
+  border-radius: 14px 14px 14px 4px;
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font-size: var(--ui-fs-md);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.admin-layout .cht-msg[data-cont="true"][data-from="user"] .cht-bubble,
+.admin-layout .cht-msg[data-cont="true"][data-from="ai"] .cht-bubble {
+  border-top-left-radius: 6px;
+}
+.admin-layout .cht-msg[data-from="admin"] .cht-bubble {
+  border-color: var(--ui-brand);
+  border-radius: 14px 14px 4px 14px;
+  background: var(--ui-brand);
+  color: var(--ui-surface);
+}
+.admin-layout .cht-msg[data-cont="true"][data-from="admin"] .cht-bubble {
+  border-top-right-radius: 6px;
+}
+.admin-layout .cht-msg[data-from="ai"] .cht-bubble {
+  border-color: var(--ui-info);
+  background: var(--ui-info-bg);
+  color: var(--ui-text);
+}
+.admin-layout .cht-msg[data-from="system"] .cht-bubble {
+  padding: 4px 12px;
+  border-style: dashed;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  text-align: center;
+}
+.admin-layout .cht-bubble a {
+  color: inherit;
+  text-decoration: underline;
+}
+.admin-layout .cht-bubble-img {
+  display: block;
+  max-width: 260px;
+  max-height: 240px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+.admin-layout .cht-bubble-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.admin-layout .cht-bubble-file svg {
+  width: 14px;
+  height: 14px;
+}
+.admin-layout .cht-cart {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  font-size: var(--ui-fs-xs);
+  white-space: normal;
+}
+.admin-layout .cht-cart-title {
+  font-weight: 650;
+  color: var(--ui-text-2);
+}
+.admin-layout .cht-cart-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.admin-layout .cht-msg-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 2px 4px 0;
+  font-size: 11px;
+  color: var(--ui-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .cht-msg-meta svg {
+  width: 13px;
+  height: 13px;
+}
+.admin-layout .cht-msg-meta[data-seen="true"] svg {
+  color: var(--ui-ok);
+}
+.admin-layout .cht-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--ui-surface);
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .cht-typing i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ui-text-3);
+  animation: cht-blink 1.2s infinite;
+}
+.admin-layout .cht-typing i:nth-child(2) { animation-delay: 0.2s; }
+.admin-layout .cht-typing i:nth-child(3) { animation-delay: 0.4s; }
+@keyframes cht-blink {
+  0%, 80%, 100% { opacity: 0.25; }
+  40% { opacity: 1; }
+}
+.admin-layout .cht-jump {
+  position: sticky;
+  bottom: 0;
+  align-self: center;
+  margin-top: 8px;
+  box-shadow: var(--ui-shadow-pop);
+}
+.admin-layout .cht-thread-empty {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+.admin-layout .cht-thread .ui-banner {
+  margin: 10px 14px 0;
+  border-radius: var(--ui-radius);
+}
+
+/* ── Yazma alanı ──────────────────────────────────────────────────── */
+.admin-layout .cht-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px 10px;
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .cht-quick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.admin-layout .cht-quick-scroll {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 6px;
+  min-width: 0;
+  padding-bottom: 2px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.admin-layout .cht-quick-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  flex-shrink: 0;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: 999px;
+  background: var(--ui-surface);
+  color: var(--ui-text-2);
+  font: inherit;
+  font-size: var(--ui-fs-xs);
+  font-weight: 550;
+  white-space: nowrap;
+  transition:
+    background-color var(--ui-ease),
+    border-color var(--ui-ease),
+    color var(--ui-ease);
+}
+.admin-layout .cht-quick-chip:hover {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+}
+.admin-layout .cht-quick-chip kbd {
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--ui-surface-3);
+  color: var(--ui-text-3);
+  font: inherit;
+  font-size: 10px;
+}
+.admin-layout .cht-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.admin-layout .cht-input {
+  flex: 1 1 auto;
+  min-height: 42px;
+  max-height: 160px;
+  padding: 10px 12px;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font: inherit;
+  font-size: var(--ui-fs-md);
+  line-height: 1.45;
+  resize: none;
+  overflow-y: auto;
+}
+.admin-layout .cht-input::placeholder {
+  color: var(--ui-text-3);
+}
+.admin-layout .cht-input:focus {
+  border-color: var(--ui-brand);
+  outline: 2px solid var(--ui-brand-soft);
+  outline-offset: 0;
+}
+.admin-layout .cht-input:disabled {
+  background: var(--ui-surface-2);
+  color: var(--ui-text-3);
+}
+.admin-layout .cht-send {
+  height: 42px;
+  flex-shrink: 0;
+}
+.admin-layout .cht-composer-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--ui-text-3);
+}
+.admin-layout .cht-composer-foot[data-over="true"] .cht-count {
+  color: var(--ui-danger-ink);
+  font-weight: 600;
+}
+.admin-layout .cht-composer-closed {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px;
+  border-top: 1px solid var(--ui-line);
+  background: var(--ui-surface-2);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+}
+
+/* ── Hızlı cevap düzenleyici ─────────────────────────────────────── */
+.admin-layout .cht-quick-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-2);
+}
+.admin-layout .cht-quick-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+  color: var(--ui-text-2);
+}
+.admin-layout .cht-quick-editor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.admin-layout .cht-quick-editor-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.admin-layout .cht-quick-editor-row .ui-field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.admin-layout .cht-quick-editor-add {
+  display: flex;
+  gap: 6px;
+}
+.admin-layout .cht-quick-editor-add .ui-field {
+  flex: 1 1 auto;
+}
+
+/* ── Müşteri kartı ───────────────────────────────────────────────── */
+.admin-layout .cht-customer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--ui-line);
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+  color: var(--ui-text-2);
+}
+.admin-layout .cht-customer-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  padding: 14px;
+  overflow-y: auto;
+}
+.admin-layout .cht-customer-id {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+.admin-layout .cht-customer-id h3 {
+  margin: 6px 0 0;
+  font-size: var(--ui-fs-lg);
+  font-weight: 650;
+  color: var(--ui-text);
+  overflow-wrap: anywhere;
+}
+.admin-layout .cht-customer-id .ui-muted {
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .cht-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.admin-layout .cht-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  color: var(--ui-text-3);
+  text-transform: uppercase;
+}
+.admin-layout .cht-kv {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text);
+}
+.admin-layout .cht-kv svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--ui-text-3);
+}
+.admin-layout .cht-kv a {
+  overflow: hidden;
+  color: inherit;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-layout .cht-kv a:hover {
+  color: var(--ui-brand);
+  text-decoration: underline;
+}
+.admin-layout .cht-order {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-2);
+}
+.admin-layout .cht-order-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.admin-layout .cht-order-amount {
+  font-size: var(--ui-fs-lg);
+  font-weight: 650;
+  color: var(--ui-text);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .cht-order-sub {
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-2);
+}
+.admin-layout .cht-support {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--ui-line);
+  border-left: 3px solid var(--ui-warn);
+  border-radius: var(--ui-radius);
+  background: var(--ui-warn-bg);
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text);
+}
+.admin-layout .cht-support[data-status="in_progress"],
+.admin-layout .cht-support[data-status="accepted"] {
+  border-left-color: var(--ui-ok);
+  background: var(--ui-ok-bg);
+}
+.admin-layout .cht-support[data-status="closed"] {
+  border-left-color: var(--ui-line-strong);
+  background: var(--ui-surface-2);
+}
+.admin-layout .cht-support p {
+  margin: 0;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-2);
+}
+.admin-layout .cht-customer-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--ui-line);
+  background: var(--ui-surface);
+}
+.admin-layout .cht-customer-foot .ui-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.admin-layout .cht-customer-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.admin-layout .cht-stat {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-2);
+}
+.admin-layout .cht-stat b {
+  font-size: var(--ui-fs-lg);
+  font-weight: 650;
+  color: var(--ui-text);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .cht-stat span {
+  font-size: 11px;
+  color: var(--ui-text-3);
+}
+
+/* ══ Bekleyen destekler ═════════════════════════════════════════════ */
+.admin-layout .cht-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.admin-layout .cht-toolbar .ui-search {
+  flex: 1 1 220px;
+  max-width: 320px;
+}
+.admin-layout .cht-toolbar .ui-chips {
+  flex-wrap: wrap;
+}
+.admin-layout .cht-toolbar-sep {
+  width: 1px;
+  height: 22px;
+  background: var(--ui-line);
+}
+.admin-layout .cht-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.admin-layout .cht-ticket {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--ui-line);
+  border-left: 3px solid var(--ui-line-strong);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+  transition: border-color var(--ui-ease), box-shadow var(--ui-ease);
+}
+.admin-layout .cht-ticket[data-cursor="true"] {
+  border-color: var(--ui-brand);
+  box-shadow: inset 0 0 0 1px var(--ui-brand);
+}
+.admin-layout .cht-ticket[data-late="true"] {
+  border-left-color: var(--ui-danger);
+}
+.admin-layout .cht-ticket[data-status="in_progress"],
+.admin-layout .cht-ticket[data-status="accepted"] {
+  border-left-color: var(--ui-ok);
+}
+.admin-layout .cht-ticket-main {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.admin-layout .cht-ticket-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.admin-layout .cht-ticket-name {
+  margin: 0;
+  font-size: var(--ui-fs-md);
+  font-weight: 650;
+  color: var(--ui-text);
+}
+.admin-layout .cht-ticket-summary {
+  margin: 0;
+  font-size: var(--ui-fs-sm);
+  line-height: 1.5;
+  color: var(--ui-text);
+}
+.admin-layout .cht-ticket-last {
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-layout .cht-ticket-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+}
+.admin-layout .cht-ticket-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.admin-layout .cht-ticket-meta svg {
+  width: 12px;
+  height: 12px;
+}
+.admin-layout .cht-wait {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .cht-wait svg {
+  width: 12px;
+  height: 12px;
+}
+.admin-layout .cht-wait[data-late="true"] {
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+}
+.admin-layout .cht-wait[data-late="soon"] {
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+.admin-layout .cht-ticket-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+.admin-layout .cht-ticket-actions .ui-btn {
+  justify-content: center;
+  white-space: nowrap;
+}
+
+/* ══ Orta ekran: iki sütun (760–1100) ═══════════════════════════════ */
+@media (max-width: 1100px) {
+  .admin-layout .cht-layout {
+    grid-template-columns: 300px minmax(0, 1fr);
+  }
+  .admin-layout .cht-customer {
+    display: none;
+  }
+  .admin-layout .cht-customer-toggle {
+    display: inline-flex;
+  }
+  .admin-layout .cht-msg {
+    max-width: 82%;
+  }
+}
+/* Çekmece içindeki müşteri kartı: kenarlıksız, tam yükseklik */
+.admin-layout .ui-drawer-body.cht-drawer-body {
+  padding: 0;
+}
+.admin-layout .ui-drawer .cht-customer {
+  display: flex;
+  border: 0;
+  border-radius: 0;
+  height: 100%;
+}
+
+/* ══ Mobil: tek sütun, liste ↔ sohbet geçişi ════════════════════════ */
+@media (max-width: 760px) {
+  .admin-layout .cht-layout {
+    grid-template-columns: minmax(0, 1fr);
+    height: calc(100dvh - var(--app-top, 52px) - 128px);
+    min-height: 420px;
+  }
+  .admin-layout .cht-layout[data-view="list"] .cht-thread,
+  .admin-layout .cht-layout[data-view="chat"] .cht-list {
+    display: none;
+  }
+  .admin-layout .cht-back {
+    display: inline-flex;
+  }
+  .admin-layout .cht-thread-head {
+    padding: 8px 10px;
+  }
+  .admin-layout .cht-thread-sub,
+  .admin-layout .cht-thread-head .cht-avatar {
+    display: none;
+  }
+  .admin-layout .cht-thread-title h2 {
+    font-size: var(--ui-fs-md);
+  }
+  .admin-layout .cht-messages {
+    padding: 12px;
+  }
+  .admin-layout .cht-msg {
+    max-width: 88%;
+  }
+  .admin-layout .cht-composer {
+    padding: 8px 10px;
+  }
+  .admin-layout .cht-send span {
+    display: none;
+  }
+  .admin-layout .cht-send {
+    width: 42px;
+    padding: 0;
+    justify-content: center;
+  }
+  .admin-layout .cht-composer-foot .cht-hint-keys {
+    display: none;
+  }
+  .admin-layout .cht-kbd-hint {
+    display: none;
+  }
+  .admin-layout .cht-hide-narrow {
+    display: none;
+  }
+  .admin-layout .cht-ticket {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-layout .cht-ticket-avatar {
+    display: none;
+  }
+  .admin-layout .cht-ticket-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .admin-layout .cht-ticket-actions .ui-btn {
+    flex: 1 1 auto;
+    min-height: 36px;
+  }
+  .admin-layout .cht-toolbar .ui-search {
+    max-width: none;
+  }
+}

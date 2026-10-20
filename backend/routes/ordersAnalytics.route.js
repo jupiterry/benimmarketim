@@ -17,6 +17,7 @@ import {
   updateItemQuantity,
   addProductToOrder,
   toggleManualFlag,
+  getDashboardSummary,
 } from "../controllers/ordersAnalytics.controller.js";
 
 const router = express.Router();
@@ -66,6 +67,10 @@ router.get("/", protectRoute, adminRoute, async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 });
+
+// Genel bakış ekranı özeti: sunucuda hesaplanır, tüm geçmiş istemciye gitmez
+// ?period=today|7d|30d|month|all ya da period=custom&from=ISO&to=ISO
+router.get("/summary", protectRoute, adminRoute, getDashboardSummary);
 
 // Admin sipariş durumu güncelleme
 // İşlem kayıtları: ?category=product&q=süt&target=<ürünId>&actor=<id>&before=<ISO>&limit=50

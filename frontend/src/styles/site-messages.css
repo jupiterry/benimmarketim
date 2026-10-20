@@ -1,0 +1,395 @@
+/* Başvurular ve mesajlar (SiteMessagesTab) — yalnızca yerleşim; renkler admin-system.css belirteçlerinden */
+
+.admin-layout .sms > .app-pagehead {
+  margin-bottom: 0;
+}
+
+/* ── Araç çubuğu ───────────────────────────────────────────────────── */
+.admin-layout .sms-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-s2) var(--ui-s3);
+}
+.admin-layout .sms-toolbar + .sms-toolbar {
+  margin-top: calc(var(--ui-s2) * -1);
+}
+.admin-layout .sms-search {
+  flex: 1 1 260px;
+  max-width: 420px;
+}
+.admin-layout .sms-toolbar .ui-segmented {
+  margin-left: auto;
+}
+.admin-layout .sms-chips {
+  flex-wrap: wrap;
+  gap: var(--ui-s1);
+}
+.admin-layout .sms-chip-count {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.admin-layout .sms-chips > button[aria-pressed="true"] .sms-chip-count {
+  background: var(--ui-surface);
+  color: var(--ui-brand-ink);
+}
+.admin-layout .sms-topic-select {
+  margin-left: auto;
+  max-width: 240px;
+}
+
+/* ── Liste ─────────────────────────────────────────────────────────── */
+.admin-layout .sms-list {
+  overflow: hidden;
+}
+.admin-layout .sms-list[aria-busy="true"] {
+  opacity: 0.6;
+}
+.admin-layout .sms-row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto 90px auto;
+  align-items: center;
+  gap: var(--ui-s3);
+  padding: 12px var(--ui-s4);
+  border-top: 1px solid var(--ui-line);
+  cursor: pointer;
+  transition: background-color var(--ui-ease);
+}
+.admin-layout .sms-row:first-child {
+  border-top: 0;
+}
+.admin-layout .sms-row:hover,
+.admin-layout .sms-row[data-active="true"] {
+  background: var(--ui-surface-2);
+}
+.admin-layout .sms-row[data-active="true"] {
+  box-shadow: inset 3px 0 0 var(--ui-brand);
+}
+.admin-layout .sms-row[data-status="new"] {
+  box-shadow: inset 3px 0 0 var(--ui-warn);
+}
+.admin-layout .sms-row[data-status="new"][data-active="true"] {
+  box-shadow: inset 3px 0 0 var(--ui-brand);
+}
+.admin-layout .sms-row[data-status="done"] .ui-list-title,
+.admin-layout .sms-row[data-status="done"] .sms-excerpt {
+  color: var(--ui-text-2);
+}
+.admin-layout .sms-kind {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+}
+.admin-layout .sms-kind svg {
+  width: 18px;
+  height: 18px;
+}
+.admin-layout .sms-kind--kvkk {
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+}
+.admin-layout .sms-kind--contact {
+  background: var(--ui-info-bg);
+  color: var(--ui-info-ink);
+}
+.admin-layout .sms-main {
+  min-width: 0;
+}
+.admin-layout .sms-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.admin-layout .sms-title .ui-list-title {
+  margin: 0;
+}
+.admin-layout .sms-topic-tag {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.admin-layout .sms-excerpt {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  margin: 3px 0 0;
+  overflow: hidden;
+  font-size: var(--ui-fs-sm);
+  line-height: 1.45;
+  color: var(--ui-text);
+  overflow-wrap: anywhere;
+}
+.admin-layout .sms-meta {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 4px 0 0;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+}
+.admin-layout .sms-meta > span + span::before {
+  content: "·";
+  margin: 0 5px;
+  color: var(--ui-line-strong);
+}
+.admin-layout .sms-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.admin-layout .sms-badges .ui-badge svg {
+  width: 13px;
+  height: 13px;
+}
+.admin-layout .sms-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+  white-space: nowrap;
+}
+.admin-layout .sms-time svg {
+  width: 13px;
+  height: 13px;
+}
+.admin-layout .sms-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ui-s1);
+}
+.admin-layout .sms-more {
+  display: flex;
+  justify-content: center;
+  padding: var(--ui-s3);
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .sms-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-s2);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .sms-kbd kbd {
+  display: inline-block;
+  min-width: 18px;
+  margin: 0 1px;
+  padding: 1px 5px;
+  border: 1px solid var(--ui-line-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--ui-surface);
+  font-family: inherit;
+  font-size: 11px;
+  text-align: center;
+}
+
+/* ── Çekmece ───────────────────────────────────────────────────────── */
+.admin-layout .sms-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s2);
+  padding-bottom: var(--ui-s4);
+  border-bottom: 1px solid var(--ui-line);
+}
+.admin-layout .sms-section:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.admin-layout .sms-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-s2);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .sms-section-head h3 {
+  margin: 0;
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ui-text-3);
+}
+.admin-layout .sms-deadline {
+  padding: var(--ui-s2) var(--ui-s3);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-2);
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .sms-deadline-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 10px;
+}
+.admin-layout .sms-deadline-top > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--ui-text);
+}
+.admin-layout .sms-deadline-top svg {
+  width: 14px;
+  height: 14px;
+}
+.admin-layout .sms-deadline-top .ui-muted {
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .sms-meter {
+  height: 5px;
+  margin-top: 8px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--ui-surface-3);
+}
+.admin-layout .sms-meter i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ui-ok);
+}
+.admin-layout .sms-deadline[data-tone="warn"] .sms-meter i {
+  background: var(--ui-warn);
+}
+.admin-layout .sms-deadline[data-tone="danger"] {
+  background: var(--ui-danger-bg);
+}
+.admin-layout .sms-deadline[data-tone="danger"] .sms-deadline-top > span:first-child {
+  color: var(--ui-danger-ink);
+}
+.admin-layout .sms-deadline[data-tone="danger"] .sms-meter i {
+  background: var(--ui-danger);
+}
+.admin-layout .sms-person {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-s3);
+}
+.admin-layout .sms-person .ui-list-title {
+  margin: 0 0 6px;
+}
+.admin-layout .sms-contact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-s1);
+}
+.admin-layout .sms-contact .ui-btn {
+  max-width: 100%;
+  text-decoration: none;
+}
+.admin-layout .sms-contact .ui-btn svg {
+  flex-shrink: 0;
+}
+.admin-layout .sms-topic {
+  margin: 0;
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+  color: var(--ui-text);
+}
+.admin-layout .sms-message {
+  padding: var(--ui-s3);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-2);
+  font-size: var(--ui-fs-md);
+  line-height: 1.6;
+  color: var(--ui-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.admin-layout .ui-drawer-foot > a.ui-btn {
+  flex: 1 1 0;
+  text-decoration: none;
+}
+
+/* ── Mobil ─────────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .admin-layout .sms-row {
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "kind main badges"
+      "kind actions actions";
+    row-gap: var(--ui-s2);
+  }
+  .admin-layout .sms-kind { grid-area: kind; align-self: start; }
+  .admin-layout .sms-main { grid-area: main; }
+  .admin-layout .sms-badges { grid-area: badges; align-items: flex-end; }
+  .admin-layout .sms-time { display: none; }
+  .admin-layout .sms-actions { grid-area: actions; justify-content: flex-start; }
+}
+@media (max-width: 760px) {
+  .admin-layout .sms-search {
+    max-width: none;
+    flex-basis: 100%;
+  }
+  .admin-layout .sms-toolbar .ui-segmented {
+    width: 100%;
+    margin-left: 0;
+  }
+  .admin-layout .sms-toolbar .ui-segmented > button {
+    padding: 0 4px;
+  }
+  .admin-layout .sms-chips {
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+  .admin-layout .sms-topic-select {
+    margin-left: 0;
+    max-width: none;
+  }
+  .admin-layout .sms-row {
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "kind main main"
+      "badges badges time"
+      "actions actions actions";
+    padding: var(--ui-s3);
+  }
+  .admin-layout .sms-badges {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .admin-layout .sms-time {
+    display: inline-flex;
+    grid-area: time;
+    align-self: center;
+  }
+  .admin-layout .sms-actions .ui-btn,
+  .admin-layout .sms-actions .ui-icon-btn {
+    min-height: 36px;
+  }
+  .admin-layout .sms-actions .ui-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+  .admin-layout .sms-excerpt {
+    -webkit-line-clamp: 3;
+  }
+}

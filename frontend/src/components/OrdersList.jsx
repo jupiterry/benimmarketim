@@ -694,7 +694,15 @@ const OrdersList = () => {
   const [selectedOrderIds, setSelectedOrderIds] = useState([]);
   const [problemOnly, setProblemOnly] = useState(false);
   const [delayedOnly, setDelayedOnly] = useState(false);
-  useEffect(() => { const preset = sessionStorage.getItem("admin-order-preset"); if (preset === "active") setStatusFilter("active"); if (preset === "delayed") setDelayedOnly(true); sessionStorage.removeItem("admin-order-preset"); }, []);
+  useEffect(() => {
+    const preset = sessionStorage.getItem("admin-order-preset");
+    if (preset === "active") setStatusFilter("active");
+    if (preset === "delayed") setDelayedOnly(true);
+    sessionStorage.removeItem("admin-order-preset");
+    // Komut paletinden sipariş/müşteri aramasıyla gelindiyse arama kutusuna yaz
+    const search = sessionStorage.getItem("admin-order-search");
+    if (search) { setSearchTerm(search); sessionStorage.removeItem("admin-order-search"); }
+  }, []);
   const [dateFilter, setDateFilter] = useState("all");
   const [deliveryPointFilter, setDeliveryPointFilter] = useState("all");
   const [minAmount, setMinAmount] = useState("");

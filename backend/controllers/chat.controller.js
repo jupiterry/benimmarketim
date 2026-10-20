@@ -405,3 +405,51 @@ export const deleteChat = async (req, res) => {
     res.status(500).json({ message: "Server hatası", error: error.message });
   }
 };
+
+// Yönetici paneli müşteri kartı: sohbetin sahibi, sipariş sayısı, son sipariş özeti ve
+// bu sohbete bağlı destek talebi. Salt okunur; mobil uygulamanın kullandığı uçlara dokunmaz.
+export const getChatContext = async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    const chat = await Chat.findById(chatId).select("user order status mode assignedAgent createdAt").lean();
+    if (!chat) {
+      return res.status(404).json({ message: "Sohbet bulunamadı!" });
+    }
+    const [customer, orderCount, lastOrder, supportRequest] = await Promise.all([
+      User.findById(chat.user).select("name email phone createdAt lastActive").lean(),
+      Order.countDocuments({ user: chat.user }),
+      Order.findOne({ user: chat.user }).sort({ createdAt: -1 }).select("_id totalAmount status createdAt products deliveryPoint").lean(),
+      SupportRequest.findOne({ conversation: chatId }).sort({ createdAt: -1 }).populate("assignedTo", "name").lean(),
+    ]);
+    res.json({
+      success: true,
+      customer: customer || null,
+      orderCount,
+      lastOrder: lastOrder
+        ? {
+            _id: lastOrder._id,
+            totalAmount: lastOrder.totalAmount,
+            status: lastOrder.status,
+            createdAt: lastOrder.createdAt,
+            productCount: Array.isArray(lastOrder.products) ? lastOrder.products.reduce((sum, p) => sum + (Number(p.quantity) || 0), 0) : 0,
+            deliveryPoint: lastOrder.deliveryPoint || null,
+          }
+        : null,
+      supportRequest: supportRequest
+        ? {
+            _id: supportRequest._id,
+            status: supportRequest.status,
+            priority: supportRequest.priority,
+            reason: supportRequest.reason,
+            aiSummary: supportRequest.aiSummary,
+            assignedTo: supportRequest.assignedTo || null,
+            createdAt: supportRequest.createdAt,
+            acceptedAt: supportRequest.acceptedAt || null,
+          }
+        : null,
+    });
+  } catch (error) {
+    console.error("Sohbet bağlamı alınırken hata:", error.message);
+    res.status(500).json({ message: "Server hatası", error: error.message });
+  }
+};
