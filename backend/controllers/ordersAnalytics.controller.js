@@ -620,3 +620,235 @@ export const toggleManualFlag = async (req, res) => {
     res.status(500).json({ message: "Server hatası", error: error.message });
   }
 };
+
+// ── Genel bakış özeti (yönetici panosu) ──────────────────────────────────────
+// Tüm sipariş geçmişini belleğe çekmek yerine dönem özetini sunucuda aggregate ile hesaplar.
+// Mağaza saati Türkiye (UTC+3, yaz saati yok); gün/ay sınırları buna göre alınır.
+const TR_OFFSET_MS = 3 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+export const DELAYED_PREPARING_MINUTES = 20;
+export const DASHBOARD_PERIODS = ["today", "7d", "30d", "month", "all", "custom"];
+
+const startOfTrDay = (date) => new Date(Math.floor((date.getTime() + TR_OFFSET_MS) / DAY_MS) * DAY_MS - TR_OFFSET_MS);
+const startOfTrMonth = (date) => {
+  const shifted = new Date(date.getTime() + TR_OFFSET_MS);
+  return new Date(Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), 1) - TR_OFFSET_MS);
+};
+const addTrMonths = (start, months) => {
+  const shifted = new Date(start.getTime() + TR_OFFSET_MS);
+  return new Date(Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth() + months, 1) - TR_OFFSET_MS);
+};
+const parseIsoDate = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+/**
+ * Dönem sınırlarını üretir: { period, start, end, previous: {start, end} | null, bucket }
+ *  - today: bugün 00:00'dan şimdiye (saatlik seri), önceki = dün aynı saate kadar
+ *  - 7d / 30d: son N gün (bugün dahil, günlük seri), önceki = ondan önceki N gün
+ *  - month: bu ayın başından (günlük seri), önceki = geçen ayın tamamı
+ *  - all: sınırsız (aylık seri), karşılaştırma yok
+ *  - custom: from/to (ISO; to hariç) — revenuePeriods dönemleri için; önceki = aynı uzunlukta bir önceki aralık
+ */
+export const buildDashboardRange = (query = {}, now = new Date()) => {
+  const period = DASHBOARD_PERIODS.includes(query.period) ? query.period : "today";
+  const todayStart = startOfTrDay(now);
+  if (period === "today") {
+    const elapsed = now.getTime() - todayStart.getTime();
+    const previousStart = new Date(todayStart.getTime() - DAY_MS);
+    return { period, start: todayStart, end: null, bucket: "hour", previous: { start: previousStart, end: new Date(previousStart.getTime() + elapsed) } };
+  }
+  if (period === "7d" || period === "30d") {
+    const days = period === "7d" ? 7 : 30;
+    const start = new Date(todayStart.getTime() - (days - 1) * DAY_MS);
+    return { period, start, end: null, bucket: "day", previous: { start: new Date(start.getTime() - days * DAY_MS), end: start } };
+  }
+  if (period === "month") {
+    const start = startOfTrMonth(now);
+    return { period, start, end: null, bucket: "day", previous: { start: addTrMonths(start, -1), end: start } };
+  }
+  if (period === "custom") {
+    const start = parseIsoDate(query.from);
+    const end = parseIsoDate(query.to);
+    if (start) {
+      const effectiveEnd = end && end > start ? end : null;
+      const length = (effectiveEnd || now).getTime() - start.getTime();
+      const days = length / DAY_MS;
+      return {
+        period, start, end: effectiveEnd,
+        bucket: days <= 2 ? "hour" : days <= 92 ? "day" : "month",
+        previous: { start: new Date(start.getTime() - length), end: start },
+      };
+    }
+  }
+  return { period: "all", start: null, end: null, bucket: "month", previous: null };
+};
+
+const rangeMatch = (range) => {
+  const createdAt = {};
+  if (range.start) createdAt.$gte = range.start;
+  if (range.end) createdAt.$lt = range.end;
+  return Object.keys(createdAt).length ? { createdAt } : {};
+};
+const BUCKET_FORMAT = { hour: "%Y-%m-%dT%H", day: "%Y-%m-%d", month: "%Y-%m" };
+const bucketKey = (date, bucket) => {
+  const shifted = new Date(date.getTime() + TR_OFFSET_MS).toISOString();
+  return bucket === "hour" ? shifted.slice(0, 13) : bucket === "day" ? shifted.slice(0, 10) : shifted.slice(0, 7);
+};
+/** Seriyi boş kovalarla doldurur; böylece grafik satışsız gün/saatleri de gösterir (en fazla 400 nokta) */
+export const fillSeries = (rows, range, bucket, now = new Date()) => {
+  const byKey = new Map(rows.map((row) => [row._id, row]));
+  // Başlangıcı olmayan dönemde (tüm zamanlar) seri ilk satışla başlar
+  const keyToDate = (key) => new Date(key.length === 7 ? `${key}-01T00:00:00+03:00` : key.length === 10 ? `${key}T00:00:00+03:00` : `${key}:00:00+03:00`);
+  const first = range.start || (rows.length ? keyToDate(rows[0]._id) : now);
+  const last = range.end ? new Date(range.end.getTime() - 1) : now;
+  const series = [];
+  let cursor = new Date(first.getTime());
+  while (cursor <= last && series.length < 400) {
+    const key = bucketKey(cursor, bucket);
+    const row = byKey.get(key);
+    series.push({ key, orders: row?.orders || 0, revenue: Math.round((row?.revenue || 0) * 100) / 100 });
+    if (bucket === "hour") cursor = new Date(cursor.getTime() + 60 * 60 * 1000);
+    else if (bucket === "day") cursor = new Date(cursor.getTime() + DAY_MS);
+    else cursor = addTrMonths(startOfTrMonth(cursor), 1);
+  }
+  return series;
+};
+
+const periodTotalsStage = [
+  { $group: {
+    _id: null,
+    orders: { $sum: 1 },
+    cancelled: { $sum: { $cond: [{ $eq: ["$status", "İptal Edildi"] }, 1, 0] } },
+    revenue: { $sum: { $cond: [{ $eq: ["$status", "İptal Edildi"] }, 0, "$totalAmount"] } },
+  } },
+];
+const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;
+const pct = (current, previous) => (previous ? round2(((current - previous) / previous) * 100) : null);
+const summarizeTotals = (row) => {
+  const orders = row?.orders || 0;
+  const cancelled = row?.cancelled || 0;
+  const completed = orders - cancelled;
+  const revenue = round2(row?.revenue);
+  return { orders, cancelled, completed, revenue, averageBasket: completed ? round2(revenue / completed) : 0, cancelRate: orders ? round2((cancelled / orders) * 100) : 0 };
+};
+
+/** Model dosyası yoksa (örn. ayrı dağıtım) ilgili sayı atlanır */
+const loadModel = async (path) => {
+  try {
+    return (await import(path)).default;
+  } catch {
+    return null;
+  }
+};
+const safeCount = async (model, filter) => {
+  if (!model) return null;
+  try {
+    return await model.countDocuments(filter);
+  } catch {
+    return null;
+  }
+};
+
+export const computeDashboardSummary = async (query = {}, now = new Date()) => {
+  const range = buildDashboardRange(query, now);
+  const match = rangeMatch(range);
+  const notCancelled = { status: { $ne: "İptal Edildi" } };
+  const [facet] = await Order.aggregate([
+    { $match: match },
+    { $facet: {
+      totals: periodTotalsStage,
+      byStatus: [{ $group: { _id: "$status", count: { $sum: 1 } } }],
+      byDorm: [
+        { $match: notCancelled },
+        { $group: { _id: "$deliveryPoint", orders: { $sum: 1 }, revenue: { $sum: "$totalAmount" } } },
+        { $sort: { orders: -1 } },
+      ],
+      series: [
+        { $match: notCancelled },
+        { $group: { _id: { $dateToString: { format: BUCKET_FORMAT[range.bucket], date: "$createdAt", timezone: "+03:00" } }, orders: { $sum: 1 }, revenue: { $sum: "$totalAmount" } } },
+        { $sort: { _id: 1 } },
+        { $limit: 400 },
+      ],
+      topProducts: [
+        { $match: notCancelled },
+        { $unwind: "$products" },
+        { $match: { "products.isManual": { $ne: true } } },
+        { $group: { _id: { $ifNull: ["$products.product", "$products.name"] }, name: { $first: "$products.name" }, quantity: { $sum: "$products.quantity" }, revenue: { $sum: { $multiply: ["$products.price", "$products.quantity"] } } } },
+        { $sort: { quantity: -1, revenue: -1 } },
+        { $limit: 5 },
+      ],
+      manual: [
+        { $match: notCancelled },
+        { $unwind: "$products" },
+        { $match: { "products.isManual": true } },
+        { $group: { _id: null, revenue: { $sum: { $multiply: ["$products.price", "$products.quantity"] } } } },
+      ],
+    } },
+  ]);
+  const previousRows = range.previous
+    ? await Order.aggregate([{ $match: rangeMatch(range.previous) }, ...periodTotalsStage])
+    : [];
+  const current = summarizeTotals(facet?.totals?.[0]);
+  const previous = range.previous ? summarizeTotals(previousRows[0]) : null;
+
+  const [Product, SupportRequest] = await Promise.all([loadModel("../models/product.model.js"), loadModel("../models/supportRequest.model.js")]);
+  const delayedBefore = new Date(now.getTime() - DELAYED_PREPARING_MINUTES * 60 * 1000);
+  const [delayedOrders, preparingOrders, activeOrders, productsWithoutImage, productsOutOfStock, waitingSupport, totalCustomers, newCustomers, recentRows] = await Promise.all([
+    Order.countDocuments({ status: "Hazırlanıyor", createdAt: { $lt: delayedBefore } }),
+    Order.countDocuments({ status: "Hazırlanıyor" }),
+    Order.countDocuments({ status: { $in: ACTIVE_ORDER_STATUSES } }),
+    safeCount(Product, { isHidden: { $ne: true }, $or: [{ image: "" }, { image: null }, { image: { $exists: false } }] }),
+    safeCount(Product, { isHidden: { $ne: true }, isOutOfStock: true }),
+    safeCount(SupportRequest, { status: "waiting" }),
+    safeCount(User, {}),
+    range.start ? safeCount(User, rangeMatch(range)) : Promise.resolve(null),
+    Order.find({}).select("user totalAmount status createdAt deliveryPoint deliveryPointName products").populate("user", "name").sort({ createdAt: -1 }).limit(8).lean(),
+  ]);
+
+  const statusCounts = Object.fromEntries((facet?.byStatus || []).map((row) => [row._id, row.count]));
+  return {
+    period: range.period,
+    range: { start: range.start ? range.start.toISOString() : null, end: range.end ? range.end.toISOString() : null, bucket: range.bucket },
+    generatedAt: now.toISOString(),
+    totals: current,
+    previous,
+    delta: previous ? {
+      orders: pct(current.orders, previous.orders),
+      revenue: pct(current.revenue, previous.revenue),
+      averageBasket: pct(current.averageBasket, previous.averageBasket),
+      cancelRate: previous.orders ? round2(current.cancelRate - previous.cancelRate) : null,
+    } : null,
+    statusDistribution: ["Hazırlanıyor", "Yolda", "Teslim Edildi", "İptal Edildi"].map((status) => ({ status, count: statusCounts[status] || 0 })),
+    dormDistribution: (facet?.byDorm || []).map((row) => ({ deliveryPoint: row._id || "unknown", orders: row.orders, revenue: round2(row.revenue) })),
+    series: fillSeries(facet?.series || [], range, range.bucket, now),
+    topProducts: (facet?.topProducts || []).map((row) => ({ productId: typeof row._id === "object" && row._id ? String(row._id) : null, name: row.name || "Bilinmeyen Ürün", quantity: row.quantity, revenue: round2(row.revenue) })),
+    manualRevenue: round2(facet?.manual?.[0]?.revenue),
+    customers: { total: totalCustomers, new: newCustomers },
+    attention: { delayedOrders, preparingOrders, activeOrders, productsWithoutImage, productsOutOfStock, waitingSupport },
+    recentOrders: recentRows.map((order) => ({
+      orderId: String(order._id),
+      customerName: order.user?.name || "Müşteri",
+      totalAmount: order.totalAmount,
+      status: order.status,
+      itemCount: Array.isArray(order.products) ? order.products.reduce((sum, item) => sum + (item.quantity || 0), 0) : 0,
+      deliveryPoint: order.deliveryPoint,
+      deliveryPointName: order.deliveryPointName || "",
+      createdAt: order.createdAt,
+    })),
+  };
+};
+
+// GET /orders-analytics/summary?period=today|7d|30d|month|all  (custom: &from=ISO&to=ISO)
+export const getDashboardSummary = async (req, res) => {
+  try {
+    const summary = await computeDashboardSummary(req.query);
+    res.set("Cache-Control", "no-store");
+    res.json({ summary });
+  } catch (error) {
+    console.error("Pano özeti hesaplanırken hata:", error.message);
+    res.status(500).json({ message: "Pano özeti hesaplanamadı", error: error.message });
+  }
+};
