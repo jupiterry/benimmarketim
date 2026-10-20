@@ -1,0 +1,429 @@
+/* Satış analizi ekranı (AdvancedAnalyticsTab) — admin-system.css belirteçleriyle, önek: anl- */
+
+.admin-layout .anl-page {
+  gap: 16px;
+}
+/* Yeniden yüklerken mevcut çizim soluk kalır, sıçrama olmaz */
+.admin-layout .anl-page[data-busy] > :not(.app-pagehead) {
+  opacity: 0.6;
+  pointer-events: none;
+  transition: opacity var(--ui-ease);
+}
+.admin-layout .anl-banner {
+  border-radius: var(--ui-radius-lg);
+}
+.admin-layout .anl-banner > span {
+  flex: 1;
+}
+.admin-layout .anl-grid {
+  gap: 16px;
+}
+
+/* ── KPI ─────────────────────────────────────────────────────────────── */
+.admin-layout .anl-kpis .ui-kpi-note {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  white-space: normal;
+}
+.admin-layout .anl-prev {
+  color: var(--ui-text-3);
+}
+.admin-layout .anl-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-text-2);
+}
+.admin-layout .anl-delta svg {
+  width: 13px;
+  height: 13px;
+}
+.admin-layout .anl-delta[data-tone="good"] { color: var(--ui-ok-ink); }
+.admin-layout .anl-delta[data-tone="bad"] { color: var(--ui-danger-ink); }
+.admin-layout .anl-delta[data-dir="none"] { font-weight: 500; color: var(--ui-text-3); }
+.admin-layout .anl-delta-label {
+  font-weight: 500;
+  color: var(--ui-text-3);
+}
+
+/* ── Paneller ────────────────────────────────────────────────────────── */
+.admin-layout .anl-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.admin-layout .anl-head {
+  flex-wrap: wrap;
+}
+.admin-layout .anl-head-tools {
+  flex-wrap: wrap;
+}
+.admin-layout .anl-subhead {
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .anl-chart-body {
+  padding: 12px 12px 4px;
+}
+.admin-layout .anl-chart {
+  width: 100%;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .anl-chart svg {
+  overflow: visible;
+}
+.admin-layout .anl-foot-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  padding: 8px 12px 8px 16px;
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .anl-foot-bar .ui-hint {
+  margin: 0;
+}
+.admin-layout .anl-foot {
+  margin: 8px 0 0;
+}
+
+/* Gösterge (legend) ve ipucu anahtarları: çizgi örneği */
+.admin-layout .anl-legend {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-2);
+}
+.admin-layout .anl-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.admin-layout .anl-legend-key,
+.admin-layout .anl-tip-key {
+  display: inline-block;
+  width: 14px;
+  height: 0;
+  border-top: 2px solid var(--ui-brand);
+}
+.admin-layout .anl-legend-key[data-key="previous"],
+.admin-layout .anl-tip-key[data-key="previous"],
+.admin-layout .anl-tip-key[data-key="previousOrders"] {
+  border-top-style: dashed;
+  border-top-color: var(--ui-text-3);
+}
+.admin-layout .anl-tip {
+  padding: 8px 10px;
+  min-width: 140px;
+}
+.admin-layout .anl-tip-title {
+  display: block;
+  margin-bottom: 4px;
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  color: var(--ui-text-2);
+}
+.admin-layout .anl-tip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .anl-tip-row strong {
+  color: var(--ui-text);
+}
+.admin-layout .anl-tip-row span {
+  color: var(--ui-text-3);
+}
+
+/* ── Saat dilimi ısı çubukları ───────────────────────────────────────── */
+.admin-layout .anl-heat-strip {
+  display: grid;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  gap: 2px;
+}
+.admin-layout .anl-heat-cell {
+  position: relative;
+  height: 44px;
+  border-radius: 4px;
+  background: var(--ui-surface-3);
+  overflow: visible;
+  cursor: default;
+}
+.admin-layout .anl-heat-cell > i {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--ui-brand);
+}
+.admin-layout .anl-heat-cell:hover,
+.admin-layout .anl-heat-cell:focus-visible {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: 1px;
+}
+.admin-layout .anl-heat-tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  z-index: 3;
+  display: none;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 8px;
+  border: 1px solid var(--ui-line);
+  border-radius: 6px;
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-pop);
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.admin-layout .anl-heat-tip strong {
+  color: var(--ui-text);
+}
+.admin-layout .anl-heat-cell:hover .anl-heat-tip,
+.admin-layout .anl-heat-cell:focus-visible .anl-heat-tip {
+  display: flex;
+}
+.admin-layout .anl-heat-cell:first-child .anl-heat-tip,
+.admin-layout .anl-heat-cell:nth-child(2) .anl-heat-tip {
+  left: 0;
+  transform: none;
+}
+.admin-layout .anl-heat-cell:last-child .anl-heat-tip,
+.admin-layout .anl-heat-cell:nth-last-child(2) .anl-heat-tip {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+.admin-layout .anl-heat-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-text-3);
+}
+.admin-layout .anl-dayparts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+.admin-layout .anl-daypart {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.admin-layout .anl-daypart-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .anl-daypart-head strong {
+  color: var(--ui-text);
+}
+.admin-layout .anl-daypart-val {
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-2);
+}
+
+/* ── Yurt ve sipariş durumu ──────────────────────────────────────────── */
+.admin-layout .anl-dorms {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.admin-layout .anl-dorm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.admin-layout .anl-dorm-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .anl-dorm-head strong {
+  color: var(--ui-text);
+}
+.admin-layout .anl-dorm-sub {
+  margin: 0;
+}
+.admin-layout .anl-status {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+}
+.admin-layout .anl-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .anl-status-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ui-text-2);
+}
+.admin-layout .anl-status-val {
+  font-weight: 600;
+  color: var(--ui-text);
+}
+
+/* ── Ürün tablosu ────────────────────────────────────────────────────── */
+.admin-layout .anl-table-wrap {
+  border: 0;
+  border-radius: 0;
+}
+.admin-layout .anl-table td.anl-product {
+  min-width: 160px;
+  max-width: 280px;
+}
+.admin-layout .anl-product-name {
+  display: block;
+  font-weight: 600;
+  color: var(--ui-text);
+}
+.admin-layout .anl-product small {
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .anl-strong {
+  font-weight: 600;
+  color: var(--ui-text);
+}
+
+/* ── Genel göstergeler ───────────────────────────────────────────────── */
+.admin-layout .anl-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+}
+.admin-layout .anl-facts > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--ui-line);
+}
+.admin-layout .anl-facts > div:nth-child(odd) {
+  border-right: 1px solid var(--ui-line);
+}
+.admin-layout .anl-facts > div:nth-last-child(-n + 2) {
+  border-bottom: 0;
+}
+.admin-layout .anl-facts dt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  color: var(--ui-text-2);
+}
+.admin-layout .anl-facts dt svg {
+  width: 14px;
+  height: 14px;
+  color: var(--ui-text-3);
+}
+.admin-layout .anl-facts dd {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--ui-text);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .anl-facts dd small {
+  font-size: var(--ui-fs-xs);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.admin-layout .anl-shelf {
+  min-width: 0;
+}
+.admin-layout .anl-shelf > .ui-panel {
+  height: 100%;
+}
+.admin-layout .anl-shelf .ui-table-wrap,
+.admin-layout .anl-shelf table {
+  max-width: 100%;
+}
+
+/* ── Dar ekranlar ────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .admin-layout .anl-kpis {
+    --ui-kpi-cols: 3;
+  }
+}
+@media (max-width: 760px) {
+  .admin-layout .anl-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-layout .anl-kpis {
+    --ui-kpi-cols: 2;
+  }
+  .admin-layout .anl-kpis .ui-kpi-value {
+    font-size: 18px;
+  }
+  .admin-layout .anl-heat-cell {
+    height: 32px;
+  }
+  .admin-layout .anl-heat-axis > span:nth-child(even) {
+    visibility: hidden;
+  }
+  .admin-layout .anl-dayparts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .admin-layout .anl-status,
+  .admin-layout .anl-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-layout .anl-facts > div:nth-child(odd) {
+    border-right: 0;
+  }
+  .admin-layout .anl-facts > div:nth-last-child(-n + 2) {
+    border-bottom: 1px solid var(--ui-line);
+  }
+  .admin-layout .anl-facts > div:last-child {
+    border-bottom: 0;
+  }
+  .admin-layout .anl-shelf .dash-telegram-body {
+    overflow-x: auto;
+  }
+  .admin-layout .anl-foot-bar .ui-btn {
+    min-height: 36px;
+  }
+  /* Dar ekranda sipariş sütunu gizlenir; adet ve ciro sığar */
+  .admin-layout .anl-table th:nth-child(4),
+  .admin-layout .anl-table td:nth-child(4) {
+    display: none;
+  }
+  .admin-layout .anl-table td.anl-product {
+    min-width: 120px;
+    max-width: 170px;
+  }
+  .admin-layout .anl-table th,
+  .admin-layout .anl-table td {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+}

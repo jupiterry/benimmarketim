@@ -1,0 +1,556 @@
+/* Yeni ürün ekranı (CreateProductForm) — admin-system.css belirteçleriyle, önek: crp- */
+
+.admin-layout .crp-page {
+  gap: 16px;
+}
+
+/* ── Kaydedildi şeridi ───────────────────────────────────────────────── */
+.admin-layout .crp-saved {
+  flex-wrap: wrap;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+}
+.admin-layout .crp-saved-text {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.admin-layout .crp-saved-actions {
+  flex-wrap: wrap;
+}
+
+/* ── İki sütun ───────────────────────────────────────────────────────── */
+.admin-layout .crp-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 16px;
+  align-items: start;
+}
+.admin-layout .crp-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 16px;
+}
+
+/* ── Form bölümleri ──────────────────────────────────────────────────── */
+.admin-layout .crp-section {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 16px 24px;
+  padding: 20px var(--ui-s4);
+  border-bottom: 1px solid var(--ui-line);
+}
+.admin-layout .crp-section-head h2 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ui-text);
+}
+.admin-layout .crp-section-head p {
+  margin: 0;
+  font-size: var(--ui-fs-xs);
+  line-height: 1.45;
+  color: var(--ui-text-3);
+}
+.admin-layout .crp-section > :not(.crp-section-head) {
+  grid-column: 2;
+}
+.admin-layout .crp-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.admin-layout .crp-fields--2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.admin-layout .crp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.admin-layout .crp-field .ui-hint {
+  margin: 0;
+}
+.admin-layout .crp-error {
+  color: var(--ui-danger-ink);
+}
+.admin-layout .crp-field .ui-field[aria-invalid="true"] {
+  border-color: var(--ui-danger);
+}
+.admin-layout .crp-hints {
+  margin-top: 2px;
+}
+.admin-layout .crp-hints > button {
+  height: 26px;
+  padding: 0 9px;
+}
+.admin-layout .crp-money > span {
+  font-weight: 600;
+}
+.admin-layout .crp-textarea {
+  min-height: 84px;
+  resize: vertical;
+}
+.admin-layout .crp-counter {
+  align-self: flex-end;
+}
+
+/* ── Görsel bırakma alanı ────────────────────────────────────────────── */
+.admin-layout .crp-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.admin-layout .crp-drop {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 132px;
+  padding: 16px;
+  border: 1.5px dashed var(--ui-line-strong);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-2);
+  cursor: pointer;
+  transition: border-color var(--ui-ease), background-color var(--ui-ease);
+}
+.admin-layout .crp-drop:hover,
+.admin-layout .crp-drop[data-dragging] {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand-soft);
+}
+.admin-layout .crp-drop[data-filled] {
+  border-style: solid;
+  background: var(--ui-surface);
+}
+.admin-layout .crp-drop-empty {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text);
+}
+.admin-layout .crp-drop-empty svg {
+  width: 18px;
+  height: 18px;
+}
+.admin-layout .crp-drop-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  background: var(--ui-surface);
+  color: var(--ui-brand);
+  border: 1px solid var(--ui-line);
+}
+.admin-layout .crp-drop-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-line);
+}
+.admin-layout .crp-drop-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.admin-layout .crp-drop-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .crp-image-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.admin-layout .crp-image-tools .ui-btn[aria-pressed="true"] {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+}
+.admin-layout .crp-image-hint {
+  flex: 1 1 180px;
+  margin: 0;
+}
+
+/* ── Görünürlük anahtarları ──────────────────────────────────────────── */
+.admin-layout .crp-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.admin-layout .crp-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  cursor: pointer;
+  transition: border-color var(--ui-ease), background-color var(--ui-ease);
+}
+.admin-layout .crp-toggle:hover {
+  border-color: var(--ui-line-strong);
+}
+.admin-layout .crp-toggle:has(input:checked) {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand-soft);
+}
+.admin-layout .crp-toggle input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: var(--ui-brand);
+}
+.admin-layout .crp-toggle-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+}
+.admin-layout .crp-toggle:has(input:checked) .crp-toggle-icon {
+  background: var(--ui-surface);
+  color: var(--ui-brand-ink);
+}
+.admin-layout .crp-toggle-icon svg {
+  width: 15px;
+  height: 15px;
+}
+.admin-layout .crp-toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.admin-layout .crp-toggle-text strong {
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  color: var(--ui-text);
+}
+.admin-layout .crp-toggle-text small {
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+}
+
+/* ── Eylemler ────────────────────────────────────────────────────────── */
+.admin-layout .crp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px var(--ui-s4);
+  background: var(--ui-surface-2);
+  border-radius: 0 0 var(--ui-radius-lg) var(--ui-radius-lg);
+}
+.admin-layout .crp-actions-main {
+  flex-wrap: wrap;
+}
+.admin-layout .crp-kbd {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+}
+.admin-layout .crp-kbd kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 1px 5px;
+  border: 1px solid var(--ui-line-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--ui-surface);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.3;
+  text-align: center;
+  color: var(--ui-text-2);
+}
+.admin-layout .crp-dirty {
+  margin-left: 6px;
+}
+
+/* ── Canlı önizleme: müşteri uygulamasındaki kart ────────────────────── */
+.admin-layout .crp-preview-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  background: var(--ui-surface-2);
+  border-radius: 0 0 var(--ui-radius-lg) var(--ui-radius-lg);
+}
+.admin-layout .crp-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 220px;
+  overflow: hidden;
+  border: 1px solid var(--ui-line);
+  border-radius: 14px;
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-pop);
+}
+.admin-layout .crp-card-img {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  background: var(--ui-surface);
+  color: var(--ui-text-3);
+  border-bottom: 1px solid var(--ui-line);
+}
+.admin-layout .crp-card-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.admin-layout .crp-card-img > svg {
+  width: 44px;
+  height: 44px;
+  opacity: 0.6;
+}
+.admin-layout .crp-card-off {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: var(--ui-danger);
+  color: var(--ui-surface);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.admin-layout .crp-card-star {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  padding: 5px;
+  border-radius: 50%;
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+.admin-layout .crp-card-star svg {
+  width: 13px;
+  height: 13px;
+}
+.admin-layout .crp-card-sold {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ui-surface-3);
+  color: var(--ui-text);
+  font-weight: 700;
+  font-size: var(--ui-fs-lg);
+  opacity: 0.92;
+}
+.admin-layout .crp-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px 12px;
+}
+.admin-layout .crp-card-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  min-height: 2.6em;
+  overflow: hidden;
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ui-text);
+  overflow-wrap: anywhere;
+}
+.admin-layout .crp-card-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+.admin-layout .crp-card-now {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ui-brand-ink);
+}
+.admin-layout .crp-card-old {
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+}
+.admin-layout .crp-card-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  margin-top: 2px;
+  border-radius: 8px;
+  background: var(--ui-brand);
+  color: var(--ui-surface);
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+}
+.admin-layout .crp-card-btn svg {
+  width: 14px;
+  height: 14px;
+}
+.admin-layout .crp-card[data-out] .crp-card-btn {
+  background: var(--ui-surface-3);
+  color: var(--ui-text-3);
+}
+.admin-layout .crp-preview-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .crp-preview-meta > li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.admin-layout .crp-preview-meta .ui-badge svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ── Son eklenenler ──────────────────────────────────────────────────── */
+.admin-layout .crp-recent-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-layout .crp-recent-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ui-line);
+}
+.admin-layout .crp-recent-row:last-child {
+  border-bottom: 0;
+}
+.admin-layout .crp-recent-row .ui-thumb {
+  width: 36px;
+  height: 36px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-line);
+}
+.admin-layout .crp-recent-row .ui-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.admin-layout .crp-recent-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+.admin-layout .crp-recent-text strong {
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  color: var(--ui-text);
+}
+.admin-layout .crp-recent-text small {
+  font-size: var(--ui-fs-xs);
+}
+
+/* ── Dar ekranlar ────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .admin-layout .crp-layout {
+    grid-template-columns: minmax(0, 1fr) 280px;
+  }
+  .admin-layout .crp-section {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-layout .crp-section > :not(.crp-section-head) {
+    grid-column: 1;
+  }
+}
+@media (max-width: 760px) {
+  .admin-layout .crp-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-layout .crp-side {
+    position: static;
+  }
+  .admin-layout .crp-preview-body {
+    flex-direction: row;
+    align-items: flex-start;
+    padding: 12px;
+  }
+  .admin-layout .crp-card {
+    max-width: 150px;
+    flex-shrink: 0;
+  }
+  .admin-layout .crp-preview-meta > li {
+    justify-content: flex-start;
+    text-align: left;
+  }
+  .admin-layout .crp-fields--2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-layout .crp-section {
+    padding: 16px 14px;
+  }
+  .admin-layout .crp-drop {
+    flex-direction: column;
+    text-align: center;
+  }
+  .admin-layout .crp-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .admin-layout .crp-actions-main > .ui-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+    min-height: 40px;
+  }
+  .admin-layout .crp-kbd {
+    display: none;
+  }
+}

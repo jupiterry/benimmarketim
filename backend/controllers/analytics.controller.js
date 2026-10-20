@@ -453,3 +453,248 @@ export const updateOrderStatus = async (req, res) => {
 		res.status(500).json({ error: "Sipariş durumu güncellenirken hata oluştu" });
 	}
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dönem karşılaştırması: GET /analytics/compare?period=day|week|month|year
+// Bu dönem (başından şimdiye) ile önceki dönemin aynı noktaya kadarki kısmını kıyaslar;
+// kırılımlar (saat, yurt, kategori, ürün, hazırlama süresi) seçili dönem için hesaplanır.
+// Türkiye saati sabit UTC+3 (2016'dan beri yaz saati yok); sınırlar buna göre çizilir.
+// ─────────────────────────────────────────────────────────────────────────────
+const TR_OFFSET_MS = 3 * 60 * 60 * 1000;
+const COMPARE_PERIODS = new Set(["day", "week", "month", "year"]);
+const ACTIVE_STATUSES = ["Hazırlanıyor", "Yolda", "Teslim Edildi", "İptal Edildi"];
+
+/** Yerel (TR) takvime göre dönem başlangıcını UTC Date olarak verir */
+const periodStart = (date, period) => {
+	const local = new Date(date.getTime() + TR_OFFSET_MS);
+	const y = local.getUTCFullYear();
+	const m = local.getUTCMonth();
+	const d = local.getUTCDate();
+	let start;
+	switch (period) {
+		case "day": start = Date.UTC(y, m, d); break;
+		case "week": {
+			const dow = (local.getUTCDay() + 6) % 7; // Pazartesi = 0
+			start = Date.UTC(y, m, d - dow);
+			break;
+		}
+		case "year": start = Date.UTC(y, 0, 1); break;
+		default: start = Date.UTC(y, m, 1);
+	}
+	return new Date(start - TR_OFFSET_MS);
+};
+
+/** Bir dönem başlangıcını bir önceki döneme kaydırır (takvim birimine göre) */
+const shiftPeriod = (start, period, delta) => {
+	const local = new Date(start.getTime() + TR_OFFSET_MS);
+	let next;
+	switch (period) {
+		case "day": next = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate() + delta); break;
+		case "week": next = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate() + 7 * delta); break;
+		case "year": next = Date.UTC(local.getUTCFullYear() + delta, 0, 1); break;
+		default: next = Date.UTC(local.getUTCFullYear(), local.getUTCMonth() + delta, 1);
+	}
+	return new Date(next - TR_OFFSET_MS);
+};
+
+/**
+ * Karşılaştırma pencereleri: current = [bu dönemin başı, şimdi),
+ * previous = [önceki dönemin başı, önceki dönemde aynı mesafe), previousFull = önceki dönemin tamamı.
+ */
+export const resolveComparePeriods = (period = "week", now = new Date()) => {
+	const unit = COMPARE_PERIODS.has(period) ? period : "week";
+	const currentStart = periodStart(now, unit);
+	const previousStart = shiftPeriod(currentStart, unit, -1);
+	const elapsed = now.getTime() - currentStart.getTime();
+	const previousEnd = new Date(Math.min(previousStart.getTime() + elapsed, currentStart.getTime()));
+	return {
+		period: unit,
+		current: { start: currentStart, end: now },
+		previous: { start: previousStart, end: previousEnd },
+		previousFull: { start: previousStart, end: currentStart },
+	};
+};
+
+const trHour = (date) => new Date(new Date(date).getTime() + TR_OFFSET_MS).getUTCHours();
+const trDay = (date) => new Date(new Date(date).getTime() + TR_OFFSET_MS).toISOString().slice(0, 10);
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const pct = (current, previous) => (previous > 0 ? round2(((current - previous) / previous) * 100) : null);
+const diff = (current, previous) => (previous === null || current === null ? null : round2(current - previous));
+
+/** Hazırlanıyor → Yolda arası dakika (statusHistory'den; "Hazırlanıyor" kaydı yoksa sipariş zamanı esas alınır) */
+export const prepMinutes = (order) => {
+	const history = Array.isArray(order.statusHistory) ? order.statusHistory : [];
+	const shipped = history.find((h) => h.status === "Yolda" && h.changedAt);
+	if (!shipped) return null;
+	const preparing = history.find((h) => h.status === "Hazırlanıyor" && h.changedAt);
+	const from = new Date(preparing?.changedAt || order.createdAt).getTime();
+	const to = new Date(shipped.changedAt).getTime();
+	if (!Number.isFinite(from) || !Number.isFinite(to) || to < from) return null;
+	return (to - from) / 60000;
+};
+
+const median = (values) => {
+	if (!values.length) return null;
+	const sorted = [...values].sort((a, b) => a - b);
+	const mid = Math.floor(sorted.length / 2);
+	return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+};
+
+/** Sipariş listesinden dönem özeti (saf; test edilebilir) */
+export const summarizeCompareOrders = (orders = []) => {
+	const valid = orders.filter((o) => o.status !== "İptal Edildi");
+	const cancelled = orders.filter((o) => o.status === "İptal Edildi");
+	const revenue = round2(valid.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0));
+	const prep = valid.map(prepMinutes).filter((m) => m !== null);
+	const avgPrep = prep.length ? round2(prep.reduce((a, b) => a + b, 0) / prep.length) : null;
+	return {
+		orders: valid.length,
+		revenue,
+		cancelled: cancelled.length,
+		cancelledAmount: round2(cancelled.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0)),
+		cancelRate: orders.length ? round2((cancelled.length / orders.length) * 100) : null,
+		averageOrderValue: valid.length ? round2(revenue / valid.length) : 0,
+		couponOrders: valid.filter((o) => o.couponCode).length,
+		couponDiscount: round2(valid.reduce((sum, o) => sum + (Number(o.couponDiscount) || 0), 0)),
+		avgPrepMinutes: avgPrep,
+		medianPrepMinutes: prep.length ? round2(median(prep)) : null,
+		prepSampled: prep.length,
+		units: valid.reduce((sum, o) => sum + (o.products || []).reduce((s, p) => s + (Number(p.quantity) || 0), 0), 0),
+	};
+};
+
+/** Dönem başından itibaren gün sırası (1..n) ile günlük ciro/sipariş; iki dönem aynı eksende çizilir */
+export const dailySeries = (orders, start) => {
+	const startDay = trDay(start);
+	const map = new Map();
+	for (const o of orders) {
+		if (o.status === "İptal Edildi") continue;
+		const day = trDay(o.createdAt);
+		const entry = map.get(day) || { date: day, amount: 0, orders: 0 };
+		entry.amount = round2(entry.amount + (Number(o.totalAmount) || 0));
+		entry.orders += 1;
+		map.set(day, entry);
+	}
+	const startMs = Date.UTC(+startDay.slice(0, 4), +startDay.slice(5, 7) - 1, +startDay.slice(8, 10));
+	return [...map.values()]
+		.sort((a, b) => (a.date < b.date ? -1 : 1))
+		.map((e) => ({ ...e, dayIndex: Math.round((Date.UTC(+e.date.slice(0, 4), +e.date.slice(5, 7) - 1, +e.date.slice(8, 10)) - startMs) / 86400000) + 1 }));
+};
+
+/** Saat dilimine göre sipariş (24 satır, TR saati) */
+export const hourlyBreakdown = (orders) => {
+	const rows = Array.from({ length: 24 }, (_, hour) => ({ hour, orders: 0, revenue: 0 }));
+	for (const o of orders) {
+		if (o.status === "İptal Edildi") continue;
+		const row = rows[trHour(o.createdAt)];
+		row.orders += 1;
+		row.revenue = round2(row.revenue + (Number(o.totalAmount) || 0));
+	}
+	return rows;
+};
+
+/** Yurda göre sipariş ve ciro */
+export const dormBreakdown = (orders) => {
+	const map = new Map();
+	for (const o of orders) {
+		if (o.status === "İptal Edildi") continue;
+		const key = o.deliveryPoint || "unknown";
+		const row = map.get(key) || { deliveryPoint: key, orders: 0, revenue: 0 };
+		row.orders += 1;
+		row.revenue = round2(row.revenue + (Number(o.totalAmount) || 0));
+		map.set(key, row);
+	}
+	return [...map.values()].sort((a, b) => b.revenue - a.revenue);
+};
+
+/** En çok satan ürünler (sipariş satırlarından; adet, sipariş sayısı, ciro) */
+export const topProductsBreakdown = (orders, limit = 10) => {
+	const map = new Map();
+	for (const o of orders) {
+		if (o.status === "İptal Edildi") continue;
+		for (const line of o.products || []) {
+			const key = String(line.product || line.name || "");
+			if (!key) continue;
+			const row = map.get(key) || { productId: line.product ? String(line.product) : null, name: line.name || "İsimsiz ürün", category: line.category || null, units: 0, orders: 0, revenue: 0 };
+			row.units += Number(line.quantity) || 0;
+			row.orders += 1;
+			row.revenue = round2(row.revenue + (Number(line.price) || 0) * (Number(line.quantity) || 0));
+			map.set(key, row);
+		}
+	}
+	return [...map.values()].sort((a, b) => b.units - a.units || b.revenue - a.revenue).slice(0, limit);
+};
+
+const COMPARE_FIELDS = "products totalAmount status statusHistory createdAt deliveryPoint couponCode couponDiscount";
+const findCompareOrders = (range) =>
+	Order.find({ createdAt: { $gte: range.start, $lt: range.end }, status: { $in: ACTIVE_STATUSES } }).select(COMPARE_FIELDS).lean();
+
+/** Kategoriye göre ciro: satırdaki `category` alanı, eski siparişlerde ürün kaydından tamamlanır */
+const categoryRevenue = (range) =>
+	Order.aggregate([
+		{ $match: { createdAt: { $gte: range.start, $lt: range.end }, status: { $ne: "İptal Edildi" } } },
+		{ $unwind: "$products" },
+		{
+			$lookup: {
+				from: "products",
+				localField: "products.product",
+				foreignField: "_id",
+				pipeline: [{ $project: { category: 1 } }],
+				as: "productInfo",
+			},
+		},
+		{
+			$group: {
+				_id: { $ifNull: ["$products.category", { $arrayElemAt: ["$productInfo.category", 0] }] },
+				units: { $sum: "$products.quantity" },
+				revenue: { $sum: { $multiply: ["$products.price", "$products.quantity"] } },
+			},
+		},
+		{ $project: { _id: 0, category: { $ifNull: ["$_id", "diger"] }, units: 1, revenue: { $round: ["$revenue", 2] } } },
+		{ $sort: { revenue: -1 } },
+	]);
+
+/** Saf hesaplama: veritabanı sonuçlarından yanıt gövdesi */
+export const buildCompareResponse = ({ ranges, currentOrders, previousOrders, categories }) => {
+	const previousInWindow = previousOrders.filter((o) => new Date(o.createdAt).getTime() < ranges.previous.end.getTime());
+	const current = summarizeCompareOrders(currentOrders);
+	const previous = summarizeCompareOrders(previousInWindow);
+	const previousFull = summarizeCompareOrders(previousOrders);
+	const catTotal = categories.reduce((sum, c) => sum + (Number(c.revenue) || 0), 0);
+	return {
+		period: ranges.period,
+		generatedAt: ranges.current.end.toISOString(),
+		current: { start: ranges.current.start.toISOString(), end: ranges.current.end.toISOString(), ...current },
+		previous: { start: ranges.previous.start.toISOString(), end: ranges.previous.end.toISOString(), ...previous },
+		previousFull: { start: ranges.previousFull.start.toISOString(), end: ranges.previousFull.end.toISOString(), revenue: previousFull.revenue, orders: previousFull.orders },
+		deltas: {
+			revenue: pct(current.revenue, previous.revenue),
+			orders: pct(current.orders, previous.orders),
+			averageOrderValue: pct(current.averageOrderValue, previous.averageOrderValue),
+			units: pct(current.units, previous.units),
+			cancelRate: diff(current.cancelRate, previous.cancelRate),
+			avgPrepMinutes: diff(current.avgPrepMinutes, previous.avgPrepMinutes),
+			couponDiscount: pct(current.couponDiscount, previous.couponDiscount),
+		},
+		salesByDay: { current: dailySeries(currentOrders, ranges.current.start), previous: dailySeries(previousOrders, ranges.previous.start) },
+		hourly: hourlyBreakdown(currentOrders),
+		byDorm: dormBreakdown(currentOrders),
+		byCategory: categories.map((c) => ({ ...c, share: catTotal > 0 ? round2((c.revenue / catTotal) * 100) : 0 })),
+		topProducts: topProductsBreakdown(currentOrders),
+	};
+};
+
+export const getAnalyticsCompare = async (req, res) => {
+	try {
+		const ranges = resolveComparePeriods(String(req.query.period || "week"), new Date());
+		const [currentOrders, previousOrders, categories] = await Promise.all([
+			findCompareOrders(ranges.current),
+			findCompareOrders(ranges.previousFull),
+			categoryRevenue(ranges.current),
+		]);
+		res.json(buildCompareResponse({ ranges, currentOrders, previousOrders, categories }));
+	} catch (error) {
+		console.error("Analytics compare error:", error);
+		res.status(500).json({ message: "Karşılaştırma verileri alınırken bir hata oluştu" });
+	}
+};
