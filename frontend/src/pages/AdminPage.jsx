@@ -13,6 +13,7 @@ import AdminSidebar from "../components/admin/AdminSidebar";
 import AdminHeader from "../components/admin/AdminHeader";
 import CommandPalette from "../components/admin/CommandPalette";
 import { PageHeader, usePref } from "../components/admin/ui";
+import ErrorBoundary from "../components/admin/ui/ErrorBoundary";
 
 // Tab Components
 import CreateProductForm from "../components/CreateProductForm";
@@ -785,7 +786,9 @@ const AdminPage = () => {
           {["audit", "bulk-upload"].includes(activeTab) && (
             <PageHeader title={tabLabels[activeTab]} description={tabDescriptions[activeTab]} />
           )}
-          <div key={activeTab}>{renderContent()}</div>
+          <ErrorBoundary resetKey={activeTab}>
+            <div key={activeTab}>{renderContent()}</div>
+          </ErrorBoundary>
         </div>
       </main>
     </div>

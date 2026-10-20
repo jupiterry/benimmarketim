@@ -310,7 +310,7 @@ const AdvancedAnalyticsTab = () => {
         <div className="anl-foot-bar">
           <span className="ui-hint">
             {period === "day" ? `Toplam ${num(current.orders)} sipariş · ${money(current.revenue)}`
-              : `Önceki dönemin tamamı: ${money(compare.previousFull.revenue)} · ${num(compare.previousFull.orders)} sipariş`}
+              : `Önceki dönemin tamamı: ${money(compare.previousFull?.revenue ?? 0)} · ${num(compare.previousFull?.orders ?? 0)} sipariş`}
           </span>
           <button type="button" className="ui-btn ui-btn--sm ui-btn--ghost" onClick={period === "day" ? downloadHourly : downloadDaily} disabled={!hasOrders}><Download /> CSV indir</button>
         </div>

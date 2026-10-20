@@ -123,7 +123,7 @@ export default function AdminHeader({
           <Search size={17} />
         </button>
         <button
-          className="app-icon-btn"
+          className="app-icon-btn app-refresh-btn"
           onClick={onRefresh}
           disabled={refreshing}
           aria-label="Verileri yenile"

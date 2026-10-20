@@ -392,7 +392,7 @@ const PhotocopyTab = () => {
       <PageHeader
         title="Fotokopi"
         description="Fotokopi taleplerini ve dosyalarını buradan yönetin."
-        meta={stats ? `${stats.totalFiles} dosya` : undefined}
+        meta={Number.isFinite(stats?.totalFiles) ? `${stats.totalFiles} dosya` : undefined}
         actions={(
           <button type="button" className="ui-btn" onClick={() => load()} disabled={loading}>
             <RefreshCw className={loading ? "ui-spin" : ""} aria-hidden="true" />Yenile

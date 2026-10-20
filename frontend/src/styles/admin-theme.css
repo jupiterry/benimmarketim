@@ -5423,3 +5423,23 @@ button.ord-point:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Dar ekranda başlık: hızlı ekleme ve yenileme alt çubuğa/sayfaya bırakılır, taşma olmaz */
+@media (max-width: 760px) {
+  .admin-layout .app-quick,
+  .app-top-actions .app-refresh-btn {
+    display: none;
+  }
+  .app-top {
+    overflow: hidden;
+  }
+}
+.admin-layout .ui-error-boundary {
+  margin: 24px auto;
+  max-width: 520px;
+  border: 1px solid var(--ui-danger-bg);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+}
+.admin-layout .ui-error-boundary > svg {
+  color: var(--ui-danger);
+}
