@@ -78,20 +78,83 @@ const SIZE_WORD = /^(\d.*|gr|g|kg|lt|l|ml|cl|adet|li|lu|lik|luk|paket|pet|cam|si
 const DERIVATIVE_WORDS = new Set(["unu", "cipsi", "suyu", "sosu", "tozu", "kremasi", "kolonyasi", "sabunu", "sampuani", "sirkesi", "ezmesi", "kurabiyesi", "biskuvisi", "gofreti", "cikolatasi", "dondurmasi", "receli", "salatasi", "corbasi", "harci", "salcasi", "puresi", "nisastasi", "yagi", "cayi", "cesnisi", "bulyon", "aromasi", "kokusu", "mamasi", "krakeri", "kraker", "patlagi", "kolasi", "gazozu", "sakizi", "sekeri"]);
 const INFLECTION_SUFFIXES = new Set(["i", "u", "si", "su", "lar", "ler", "lari", "leri"]);
 const FLAVOUR_WORDS = new Set(["lays", "doritos", "ruffles", "cheetos", "pringles", "patos", "cerezza", "cips", "aromali", "cesnili", "tadinda", "soslu"]);
-export const cartMatchScore = (productName, terms) => {
+// Türkçede asıl ürün en sondaki addır: "Zeytin Özlü Sabun" bir sabundur, "Domates Salçası" bir salçadır,
+// "Zeytin Yağı" bir yağdır. İstenen kelimeden SONRA böyle bir ürün türü geliyorsa ürün istenen şey değildir.
+// Kökler aksansız ve eksiz yazılır; "sabunu", "yağı" gibi ekli hâlleri stripInflection ile yakalanır.
+const PRODUCT_TYPE_ROOTS = new Set([
+  // Kişisel bakım ve temizlik
+  "sabun", "sampuan", "krem", "losyon", "jel", "kolonya", "parfum", "deodorant", "deterjan", "temizleyici", "yumusatici",
+  "mendil", "pecete", "macun", "firca", "pamuk", "ped", "maske", "tonik", "serum", "sprey", "balsam", "kopuk", "tiras",
+  "oda", "mum", "kokusu", "esans",
+  // Mutfak gereçleri
+  "bardak", "kupa", "tabak", "kasik", "catal", "tencere", "tava", "suzgec", "kabi", "kavanozu", "poset", "torba", "folyo",
+  // Gıda türevleri
+  "yag", "sirke", "ezme", "pate", "sos", "cips", "kraker", "biskuvi", "gofret", "kek", "kurabiye", "cikolata", "dondurma",
+  "recel", "helva", "corba", "salca", "pure", "nisasta", "un", "toz", "bulyon", "cesni", "aroma", "krema", "maya",
+  "kirinti", "lokum", "sakiz", "suyu", "makarna", "eriste", "pogaca", "simit", "borek", "kahvalti", "kahvaltilik",
+]);
+// İstenen kelimeden hemen sonra gelip ürünün o şeyin kendisi olmadığını söyleyen sözcükler ("Zeytin Özlü").
+const CONTENT_MODIFIERS = new Set(["ozlu", "ozu", "ozutlu", "ekstrakti", "ekstraktli", "esansli", "kokulu", "aromali", "katkili", "iceren", "tadinda", "cesnili", "soslu", "yaprakli", "yapragi"]);
+// Kişisel bakım/temizlik gibi reyonlar; buradaki ürünler yalnızca müşteri böyle bir ürün istediyse önerilir.
+const NON_FOOD_CATEGORY = /(bakim|temizlik|kozmetik|deterjan|hijyen|parfum|ev gerec|ev ve yasam|mutfak gerec|kirtasiye|evcil|elektronik|oyuncak|aksesuar)/;
+const NON_FOOD_ROOTS = new Set(["sabun", "sampuan", "krem", "losyon", "jel", "kolonya", "parfum", "deodorant", "deterjan", "temizleyici", "yumusatici", "mendil", "pecete", "macun", "firca", "pamuk", "ped", "maske", "tonik", "serum", "sprey", "balsam", "tiras", "camasir", "bulasik", "tuvalet", "kagit", "havlu", "cop", "sunger", "bez", "cilt", "sac", "dis", "dus", "banyo", "temizlik", "hijyen", "bakim", "mama", "kum", "pil", "ampul", "kalem", "defter"]);
+// Sepet kaleminde atılabilecek niteleyiciler: renk, tür, genel ad.
+const SOFT_ITEM_WORDS = new Set(["siyah", "yesil", "beyaz", "kirmizi", "sari", "taze", "sade", "tam", "yagli", "yarim", "az", "light", "organik", "dogal", "koy", "ev", "kucuk", "buyuk", "dilim", "dilimli", "rendelenmis", "kahvaltilik", "peyniri", "paket", "kutu", "sise"]);
+const INFLECTION_ENDINGS = ["lari", "leri", "lar", "ler", "si", "su", "i", "u"];
+const stripInflection = (word) => {
+  for (const ending of INFLECTION_ENDINGS) if (word.length > ending.length + 2 && word.endsWith(ending)) return word.slice(0, -ending.length);
+  return word;
+};
+// Ek alınca yumuşayan son ünsüz geri sertleştirilir: "bardağı" → "bardak", "kabı" → "kap".
+const SOFTENED = { g: "k", b: "p", d: "t" };
+const isProductType = (word) => {
+  if (DERIVATIVE_WORDS.has(word) || PRODUCT_TYPE_ROOTS.has(word)) return true;
+  const stem = stripInflection(word);
+  const hardened = SOFTENED[stem.slice(-1)] ? stem.slice(0, -1) + SOFTENED[stem.slice(-1)] : stem;
+  return PRODUCT_TYPE_ROOTS.has(stem) || PRODUCT_TYPE_ROOTS.has(hardened);
+};
+const isNonFoodTerm = (term) => NON_FOOD_ROOTS.has(term) || NON_FOOD_ROOTS.has(stripInflection(term));
+const isInflectionOf = (word, term) => word.startsWith(term) && INFLECTION_SUFFIXES.has(word.slice(term.length));
+
+// İstenen kelimenin üründe nerede geçtiği: tam hâli, ek almış hâli ("Salçası") ya da iki kelimeye bölünmüş
+// yazımı ("zeytinyağı" istendi, ürün "Zeytin Yağı").
+const findTerm = (words, term) => {
+  const exact = words.indexOf(term);
+  if (exact !== -1) return { index: exact, end: exact, exact: true };
+  const inflected = words.findIndex((word) => isInflectionOf(word, term));
+  if (inflected !== -1) return { index: inflected, end: inflected, exact: false };
+  for (let i = 0; i + 1 < words.length; i += 1) {
+    const joined = words[i] + words[i + 1];
+    if (joined === term || isInflectionOf(joined, term)) return { index: i, end: i + 1, exact: joined === term };
+  }
+  return null;
+};
+
+export const cartMatchScore = (productName, terms, category = "") => {
   const words = normalize(productName).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
   const nameWords = words.filter((word) => !SIZE_WORD.test(word));
   let score = -words.length * 0.1;
-  for (const term of terms) {
+  // "zeytin yağı" istenip ürün "Zeytinyağı" diye yazılmışsa iki kelime tek kelime sayılır.
+  const joined = terms.join("");
+  const wanted = terms.length > 1 && words.some((word) => word === joined || isInflectionOf(word, joined)) ? [joined] : terms;
+  let lastMatch = -1;
+  for (const term of wanted) {
     // Tam kelime yoksa ek almış hâli de sayılır ("salça" → "Salçası", "pirinç" → "Pirinci"); "-li/-lu" türevleri sayılmaz ("Sütlü").
-    const exact = words.indexOf(term);
-    const index = exact !== -1 ? exact : words.findIndex((word) => word.startsWith(term) && INFLECTION_SUFFIXES.has(word.slice(term.length)));
-    if (index === -1) continue;
-    score += (exact !== -1 ? 3 : 2.5) + (index === 0 ? 2 : 0) + (nameWords[nameWords.length - 1] === words[index] ? 2 : 0);
-    const next = words[index + 1];
-    if (next && DERIVATIVE_WORDS.has(next) && !terms.includes(next)) score -= 4;
+    const hit = findTerm(words, term);
+    if (!hit) continue;
+    lastMatch = Math.max(lastMatch, hit.end);
+    score += (hit.exact ? 3 : 2.5) + (hit.index === 0 ? 2 : 0) + (nameWords[nameWords.length - 1] === words[hit.end] ? 2 : 0);
+  }
+  if (lastMatch !== -1) {
+    const isWanted = (word) => wanted.some((term) => word.startsWith(term)) || terms.includes(word);
+    const after = words.slice(lastMatch + 1).filter((word) => !SIZE_WORD.test(word) && !isWanted(word));
+    // "Zeytin Özlü Sabun", "Domates Salçası", "Kristal Zeytin Yağı": istenen şeyin kendisi değil.
+    if (after.some(isProductType)) score -= 5;
+    else if (after.length && CONTENT_MODIFIERS.has(after[0])) score -= 5;
   }
   if (!terms.some((term) => FLAVOUR_WORDS.has(term)) && words.some((word) => FLAVOUR_WORDS.has(word))) score -= 4;
+  // Kahvaltılık zeytin isteyene kişisel bakım reyonundan ürün gelmez; sabun isteyene gelir.
+  if (category && NON_FOOD_CATEGORY.test(normalize(category)) && !terms.some(isNonFoodTerm)) score -= 6;
   return score;
 };
 
@@ -288,13 +351,20 @@ export const runAiTool = async (intent, authenticatedUserId) => {
       const patterns = terms.map((term) => turkishInsensitivePattern(term));
       const base = { isHidden: { $ne: true }, isOutOfStock: { $ne: true } };
       let candidates = await Product.find({ ...base, $and: patterns.map((pattern) => ({ name: { $regex: pattern, $options: "i" } })) }).select(fields).limit(60).lean();
+      // Tüm kelimeleri içeren ürün yoksa yalnızca niteleyen kelimeler bırakılarak yeniden aranır:
+      // "siyah zeytin" → "zeytin", "kaşar peyniri" → "kaşar". "ejderha meyvesi" gibi isteklerde kelime
+      // atılmaz; aksi hâlde başka bir "meyvesi" eklenirdi.
+      const coreTerms = terms.filter((term) => !SOFT_ITEM_WORDS.has(term));
+      if (!candidates.length && coreTerms.length && coreTerms.length < terms.length) {
+        candidates = await Product.find({ ...base, $and: coreTerms.map((term) => ({ name: { $regex: turkishInsensitivePattern(term), $options: "i" } })) }).select(fields).limit(60).lean();
+      }
       const byName = candidates.length > 0;
       if (!candidates.length) candidates = await Product.find({ ...base, category: { $regex: patterns[0], $options: "i" } }).select(fields).limit(12).lean();
       if (!candidates.length) { missing.push(item.name); continue; }
       // Önce adı isteğe en çok uyan ("süt" için "Sütlü çikolata" değil "Süt 1 L"), sonra en uygun fiyatlı ürün seçilir; aynı ürün iki kez eklenmez.
       // Aynı ölçüde uyan diğer ürünler, bütçe aşılırsa yerine konabilecek denkler olarak saklanır.
       const priced = (await effectivePriceMap(candidates)).filter((product) => !resolved.some((line) => line.productId === product.id))
-        .map((product) => ({ product, score: cartMatchScore(product.name, terms) }))
+        .map((product) => ({ product, score: cartMatchScore(product.name, terms, product.category) }))
         .sort((a, b) => b.score - a.score || a.product.price - b.product.price);
       if (!priced.length) continue;
       const [best, ...rest] = priced;

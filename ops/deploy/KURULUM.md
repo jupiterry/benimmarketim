@@ -9,7 +9,7 @@ Canlı klasör main adlı temiz bir Git checkout olarak hazırlandı. Önceki ka
 
 Repo public olduğundan origin salt okunur HTTPS kullanıyor; GitHub'a erişim için ayrı repo anahtarı gerekmedi. `bmdeploy` kullanıcısının parolası kapalı. Home ve `.ssh` dizinleri root'a ait; root'a ait `authorized_keys` içindeki `restrict,command=...` kuralı sadece yayın giriş betiğine izin veriyor. Genel SSH ayarları değiştirilmedi. Aşağıdaki `/etc/ssh/authorized_keys` yöntemi alternatif ilk kurulum tarifidir; mevcut kurulumda tekrar uygulanması gerekmez.
 
-Resmi checksum'u doğrulanan Node v22.23.3 `/opt/benimmarketim-node22` içine kuruldu. Sistem Node 20 ve Telegram süreci değiştirilmedi. Sonraki backend yayınları API'yi açıkça bu Node 22 yorumlayıcısıyla reload eder. GitHub Actions environment secret'ları kullanıcı tarafından girildi; bunların doğruluğu ilk gerçek workflow çalışmasıyla sınanır.
+Resmi checksum'u doğrulanan Node v22.23.3 `/opt/benimmarketim-node22` içine kuruldu. Sistem Node 20 ve diğer PM2 süreçleri değiştirilmedi. Sonraki backend yayınları API'yi açıkça bu Node 22 yorumlayıcısıyla reload eder. GitHub Actions environment secret'ları kullanıcı tarafından girildi; bunların doğruluğu ilk gerçek workflow çalışmasıyla sınanır.
 
 ## İncelemede doğrulanan yapı
 

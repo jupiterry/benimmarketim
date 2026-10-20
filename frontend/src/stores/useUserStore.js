@@ -4,6 +4,9 @@ import axios from "../lib/axios";
 import { toast } from "react-hot-toast";
 import { detectDeviceType } from "../lib/deviceDetection";
 
+// Türkiye cep telefonu biçimi: 05XXXXXXXXX
+export const PHONE_PATTERN = /^05\d{9}$/;
+
 export const useUserStore = create(
   persist(
     (set, get) => ({
@@ -64,10 +67,12 @@ export const useUserStore = create(
       logout: async () => {
         try {
           await axios.post("/auth/logout");
-          set({ user: null });
           toast.success("Çıkış yapıldı");
         } catch (error) {
           toast.error(error.response?.data?.message || "Çıkış yapılırken bir hata oluştu");
+        } finally {
+          // API başarısız olsa bile yerel oturum temizlenir
+          set({ user: null });
         }
       },
 
@@ -106,14 +111,49 @@ export const useUserStore = create(
       },
 
       updatePhone: async (phone) => {
+        const normalized = String(phone ?? "").replace(/\s+/g, "");
+        if (!PHONE_PATTERN.test(normalized)) {
+          toast.error("Telefon numarası 05XXXXXXXXX biçiminde olmalıdır");
+          return false;
+        }
         try {
-          const response = await axios.put("/auth/update-phone", { phone });
+          const response = await axios.put("/auth/update-phone", { phone: normalized });
           set((state) => ({
             user: { ...state.user, phone: response.data.phone }
           }));
           toast.success("Telefon numarası güncellendi");
+          return true;
         } catch (error) {
           toast.error(error.response?.data?.message || "Telefon numarası güncellenemedi");
+          return false;
+        }
+      },
+
+      updateProfilePhoto: async (image) => {
+        try {
+          const response = await axios.put("/auth/profile-photo", { image });
+          set((state) => ({
+            user: { ...state.user, avatar: response.data.avatar ?? null }
+          }));
+          toast.success("Profil fotoğrafı güncellendi");
+          return true;
+        } catch (error) {
+          toast.error(error.response?.data?.message || "Profil fotoğrafı yüklenemedi");
+          return false;
+        }
+      },
+
+      removeProfilePhoto: async () => {
+        try {
+          await axios.delete("/auth/profile-photo");
+          set((state) => ({
+            user: { ...state.user, avatar: null }
+          }));
+          toast.success("Profil fotoğrafı kaldırıldı");
+          return true;
+        } catch (error) {
+          toast.error(error.response?.data?.message || "Profil fotoğrafı kaldırılamadı");
+          return false;
         }
       }
     }),
@@ -146,14 +186,12 @@ axios.interceptors.response.use(
         originalRequest._retry = true;
 
         try {
-          if (refreshPromise) {
-            await refreshPromise;
-            return axios(originalRequest);
+          if (!refreshPromise) {
+            refreshPromise = useUserStore.getState().refreshToken().finally(() => {
+              refreshPromise = null;
+            });
           }
-
-          refreshPromise = useUserStore.getState().refreshToken();
           await refreshPromise;
-          refreshPromise = null;
 
           return axios(originalRequest);
         } catch (refreshError) {

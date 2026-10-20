@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { UserPlus, Mail, Lock, User, ArrowRight, Loader, Phone, ShoppingCart, Sparkles, Eye, EyeOff, Check, X, Gift } from "lucide-react";
 import { motion } from "framer-motion";
-import { useUserStore } from "../stores/useUserStore";
+import { PHONE_PATTERN, useUserStore } from "../stores/useUserStore";
 import axios from "../lib/axios";
+import toast from "react-hot-toast";
 
 const SignUpPage = () => {
 	const [searchParams] = useSearchParams();
@@ -22,6 +23,34 @@ const SignUpPage = () => {
 	const [checkingReferral, setCheckingReferral] = useState(false);
 
 	const { signup, loading } = useUserStore();
+	const referralTimerRef = useRef(null);
+	const referralRequestRef = useRef(0);
+
+	// Referral kodu kontrolü (yalnızca en son istek dikkate alınır)
+	const checkReferralCode = useCallback(async (code) => {
+		if (!code || code.length < 4) {
+			setReferralValid(null);
+			setReferralMessage("");
+			return;
+		}
+
+		const requestId = ++referralRequestRef.current;
+		setCheckingReferral(true);
+		try {
+			const response = await axios.get(`/referrals/check/${code}`);
+			if (requestId !== referralRequestRef.current) return;
+			if (response.data.success) {
+				setReferralValid(true);
+				setReferralMessage(response.data.message || `${response.data.referrerName} sizi davet etti!`);
+			}
+		} catch (error) {
+			if (requestId !== referralRequestRef.current) return;
+			setReferralValid(false);
+			setReferralMessage("Geçersiz referral kodu");
+		} finally {
+			if (requestId === referralRequestRef.current) setCheckingReferral(false);
+		}
+	}, []);
 
 	// URL'den referral kodu al
 	useEffect(() => {
@@ -30,48 +59,42 @@ const SignUpPage = () => {
 			setReferralCode(refCode.toUpperCase());
 			checkReferralCode(refCode.toUpperCase());
 		}
-	}, [searchParams]);
+	}, [searchParams, checkReferralCode]);
 
-	// Referral kodu kontrolü
-	const checkReferralCode = async (code) => {
-		if (!code || code.length < 4) {
-			setReferralValid(null);
-			setReferralMessage("");
-			return;
-		}
-		
-		setCheckingReferral(true);
-		try {
-			const response = await axios.get(`/referrals/check/${code}`);
-			if (response.data.success) {
-				setReferralValid(true);
-				setReferralMessage(response.data.message || `${response.data.referrerName} sizi davet etti!`);
-			}
-		} catch (error) {
-			setReferralValid(false);
-			setReferralMessage("Geçersiz referral kodu");
-		} finally {
-			setCheckingReferral(false);
-		}
-	};
+	useEffect(() => () => clearTimeout(referralTimerRef.current), []);
 
 	const handleReferralCodeChange = (e) => {
 		const code = e.target.value.toUpperCase();
 		setReferralCode(code);
-		
-		// Debounce check
+		setReferralValid(null);
+		setReferralMessage("");
+
+		// 400 ms gecikmeli kontrol: her tuşta istek atılmaz
+		clearTimeout(referralTimerRef.current);
 		if (code.length >= 6) {
-			checkReferralCode(code);
-		} else {
-			setReferralValid(null);
-			setReferralMessage("");
+			referralTimerRef.current = setTimeout(() => checkReferralCode(code), 400);
 		}
 	};
 
+	const normalizedPhone = formData.phone.replace(/\s+/g, "");
+	const phoneValid = PHONE_PATTERN.test(normalizedPhone);
+
 	const handleSubmit = (e) => {
 		e.preventDefault();
+		if (!phoneValid) {
+			toast.error("Telefon numarası 05XXXXXXXXX biçiminde olmalıdır");
+			return;
+		}
+		if (formData.password.length < 6) {
+			toast.error("Şifre en az 6 karakter olmalıdır");
+			return;
+		}
+		if (formData.password !== formData.confirmPassword) {
+			toast.error("Şifreler eşleşmiyor");
+			return;
+		}
 		// Referral kodu ile signup
-		signup({ ...formData, referralCode: referralValid ? referralCode : undefined });
+		signup({ ...formData, phone: normalizedPhone, referralCode: referralValid ? referralCode : undefined });
 	};
 
 	// Password strength check
@@ -238,12 +261,16 @@ const SignUpPage = () => {
 									<input
 										type="tel"
 										required
+										inputMode="numeric"
+										pattern="05[0-9]{9}"
+										maxLength={11}
+										title="05 ile başlayan 11 haneli telefon numarası"
 										value={formData.phone}
-										onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+										onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/[^\d]/g, "").slice(0, 11) })}
 										className="block w-full pl-12 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-xl 
 										text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 
 										focus:border-emerald-500/50 transition-all duration-300 hover:bg-white/[0.07]"
-										placeholder="05XX XXX XX XX"
+										placeholder="05XXXXXXXXX"
 									/>
 								</div>
 							</div>
@@ -282,6 +309,7 @@ const SignUpPage = () => {
 									<input
 										type={showPassword ? "text" : "password"}
 										required
+										minLength={6}
 										value={formData.password}
 										onChange={(e) => setFormData({ ...formData, password: e.target.value })}
 										className="block w-full pl-12 pr-12 py-3.5 bg-white/5 border border-white/10 rounded-xl 

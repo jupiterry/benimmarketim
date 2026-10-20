@@ -4,6 +4,8 @@ import cookieParser from "cookie-parser";
 import compression from "compression";
 import path from "path";
 import cors from "cors";
+import helmet from "helmet";
+import mongoSanitize from "express-mongo-sanitize";
 import fs from "fs";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -26,8 +28,6 @@ import photocopyRoutes from "./routes/photocopy.route.js";
 import bannerRoutes from "./routes/banner.route.js";
 import categoryRoutes from "./routes/category.route.js";
 import cartReminderRoutes from "./routes/cartReminder.route.js";
-import n8nRoutes from "./routes/n8n.route.js";
-import telegramRoutes from "./routes/telegram.route.js";
 import versionRoutes from "./routes/version.route.js";
 import referralRoutes from "./routes/referral.route.js";
 import chatRoutes from "./routes/chat.route.js";
@@ -56,9 +56,7 @@ const corsOptions = {
   origin: [
     "http://localhost:5173", 
     "https://www.devrekbenimmarketim.com",
-    "http://www.devrekbenimmarketim.com",
     "https://devrekbenimmarketim.com", // www olmayan domain
-    "http://devrekbenimmarketim.com",  // www olmayan domain (http)
     "https://res.cloudinary.com",
     // Flutter için localhost ve emulator IP'leri
     "http://localhost:3000",
@@ -79,12 +77,16 @@ const corsOptions = {
     "If-Modified-Since",
     "If-None-Match"
   ],
-  exposedHeaders: ['Access-Control-Allow-Origin', 'Set-Cookie'],
+  // Sipariş listesi toplam sayısı (GET /api/orders-analytics) tarayıcıdan okunabilsin
+  exposedHeaders: ["X-Total-Count"],
   optionsSuccessStatus: 200,
 };
 
 const app = express();
 const httpServer = createServer(app);
+
+// Nginx arkasında çalışır: req.ip ve secure cookie için ilk proxy'ye güvenilir
+app.set("trust proxy", 1);
 
 // Express middleware'leri
 app.use(cors(corsOptions));
@@ -110,6 +112,14 @@ app.use(compression({
   filter: (req, res) => !req.path.startsWith("/socket.io") && compression.filter(req, res),
 }));
 app.use(express.json({ limit: "10mb" }));
+// Sorgu/gövde içindeki "$" ve "." ile başlayan anahtarları temizler (Mongo operatör enjeksiyonu)
+app.use(mongoSanitize());
+// Güvenlik başlıkları. SPA ve Cloudinary görselleri bozulmasın diye CSP/CORP/COEP kapalı.
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: false,
+  crossOriginEmbedderPolicy: false,
+}));
 app.use(cookieParser());
 
 // Socket.IO yapılandırması - Sağlam ve Güvenilir
@@ -306,8 +316,6 @@ app.use("/api/photocopy", photocopyRoutes);
 app.use("/api/banners", bannerRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/cart-reminders", cartReminderRoutes);
-app.use("/api/n8n", n8nRoutes);
-app.use("/api/telegram", telegramRoutes);
 app.use("/api", versionRoutes);
 app.use("/api/referrals", referralRoutes);
 app.use("/api/chat", chatRoutes);
@@ -324,88 +332,8 @@ app.use("/api/price-watch", priceWatchRoutes);
 app.use("/api/admin-notifications", adminFeedRoutes);
 app.use("/api/order-alarm", orderAlarmRoutes);
 
-// ============ SEO ENDPOINTS ============
-
-// robots.txt endpoint
-app.get('/robots.txt', (req, res) => {
-  const robotsTxt = `User-agent: *
-Allow: /
-Disallow: /api/
-Disallow: /admin
-Disallow: /panel
-
-# Sitemap
-Sitemap: https://devrekbenimmarketim.com/sitemap.xml
-
-# Crawl-delay
-Crawl-delay: 1
-`;
-  res.setHeader('Content-Type', 'text/plain');
-  res.send(robotsTxt);
-});
-
-// sitemap.xml endpoint
-app.get('/sitemap.xml', async (req, res) => {
-  try {
-    const baseUrl = 'https://devrekbenimmarketim.com';
-    const today = new Date().toISOString().split('T')[0];
-    
-    // Statik sayfalar
-    const staticPages = [
-      { url: '/', priority: '1.0', changefreq: 'daily' },
-      { url: '/hakkimizda', priority: '0.7', changefreq: 'monthly' },
-      { url: '/iletisim', priority: '0.7', changefreq: 'monthly' },
-      { url: '/sss', priority: '0.6', changefreq: 'monthly' },
-      { url: '/gizlilik', priority: '0.5', changefreq: 'yearly' },
-      { url: '/kullanim-kosullari', priority: '0.5', changefreq: 'yearly' },
-      { url: '/kvkk', priority: '0.5', changefreq: 'yearly' },
-      { url: '/mesafeli-satis', priority: '0.5', changefreq: 'yearly' },
-      { url: '/iade-politikasi', priority: '0.5', changefreq: 'yearly' },
-      { url: '/cerez-politikasi', priority: '0.5', changefreq: 'yearly' },
-    ];
-    
-    // Kategori sayfaları
-    const categories = [
-      'kahve', 'yiyecekler', 'kahvalti', 'icecekler', 'sut-urunleri',
-      'atistirma', 'kisisel-bakim', 'temizlik', 'su', 'ev-gerecleri',
-      'dondurulmus', 'baharat', 'dondurma'
-    ];
-    
-    const categoryPages = categories.map(cat => ({
-      url: `/${cat}`,
-      priority: '0.8',
-      changefreq: 'daily'
-    }));
-    
-    // Tüm sayfaları birleştir
-    const allPages = [...staticPages, ...categoryPages];
-    
-    // XML oluştur
-    let xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-`;
-    
-    for (const page of allPages) {
-      xml += `  <url>
-    <loc>${baseUrl}${page.url}</loc>
-    <lastmod>${today}</lastmod>
-    <changefreq>${page.changefreq}</changefreq>
-    <priority>${page.priority}</priority>
-  </url>
-`;
-    }
-    
-    xml += `</urlset>`;
-    
-    res.setHeader('Content-Type', 'application/xml');
-    res.send(xml);
-  } catch (error) {
-    console.error('Sitemap oluşturulurken hata:', error);
-    res.status(500).send('Sitemap oluşturulamadı');
-  }
-});
-
-// ============ END SEO ENDPOINTS ============
+// robots.txt ve sitemap.xml frontend build'i tarafından üretilir (frontend/scripts/prerender-seo.mjs) ve
+// production'da aşağıdaki express.static ile frontend/dist içinden sunulur; burada ayrıca üretilmez.
 
 if (process.env.NODE_ENV === "production") {
   const currentDir = path.resolve(__dirname);

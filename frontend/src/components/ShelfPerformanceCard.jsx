@@ -35,7 +35,7 @@ export default function ShelfPerformanceCard() {
   const total = sources.reduce((sum, row) => sum + row.revenue, 0);
 
   return (
-    <section className="ui-panel dash-telegram" aria-label="Raf performansı">
+    <section className="ui-panel dash-sidecard" aria-label="Raf performansı">
       <div className="ui-panel-head">
         <div>
           <h2>Raf performansı</h2>
@@ -43,7 +43,7 @@ export default function ShelfPerformanceCard() {
         </div>
       </div>
       {data && (
-        <div className="ui-panel-body dash-telegram-body">
+        <div className="ui-panel-body dash-sidecard-body">
           {tracked.length === 0 && (
             <p>Henüz kaynak bilgisi gelmedi. Mobil uygulama sipariş satırlarında kaynağı göndermeye başladığında burada rafların sipariş, adet ve cirosu görünecek.</p>
           )}

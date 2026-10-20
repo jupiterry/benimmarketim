@@ -19,9 +19,10 @@ Modern tasarıma sahip, React ve Node.js ile geliştirilmiş kapsamlı bir e-tic
 
 ### 📝 Kullanıcı Yönetimi
 - Sezgisel kullanıcı kaydı ve giriş akışları
-- Profil yönetimi
+- Profil yönetimi: telefon güncelleme (`PUT /api/auth/update-phone`) ve profil fotoğrafı
+  (`PUT`/`DELETE /api/auth/profile-photo`, Cloudinary `avatars/` klasörü)
 - Sipariş geçmişi takibi
-- Şifre kurtarma seçenekleri
+- Hesap silme: siparişler anonimleştirilerek saklanır, kişisel veriler silinir
 
 ### 🛒 E-Ticaret Özellikleri
 - Kategoriler halinde düzenlenmiş ürün yönetimi
@@ -48,11 +49,10 @@ Modern tasarıma sahip, React ve Node.js ile geliştirilmiş kapsamlı bir e-tic
 - Otomatik önbellek yenileme
 - Optimum veritabanı kullanımı
 
-### 🔗 n8n Entegrasyonu
-- Otomatik webhook gönderimi (sipariş, kullanıcı kaydı vb.)
-- n8n'den webhook alma desteği
-- Workflow otomasyonu için hazır altyapı
-- Detaylı entegrasyon kılavuzu için `N8N_INTEGRATION.md` dosyasına bakın
+### 🔔 Bildirimler ve Yedek
+- Yeni sipariş: yönetici paneline Socket.IO bildirimi ve sipariş alarmı uygulaması
+- Müşteriye sipariş durumu bildirimleri (OneSignal/FCM)
+- Gece veritabanı yedeği yalnızca sunucuda tutulur (`backend/workers/BACKUP.md`)
 
 ## 🛠️ Teknoloji Yığını
 
@@ -62,6 +62,8 @@ Modern tasarıma sahip, React ve Node.js ile geliştirilmiş kapsamlı bir e-tic
 - Tailwind CSS
 - Framer Motion
 - Vite
+
+Backend bağımlılıkları kök `package.json`, frontend bağımlılıkları `frontend/package.json` içindedir.
 
 **Backend:**
 - Node.js
@@ -79,10 +81,7 @@ Modern tasarıma sahip, React ve Node.js ile geliştirilmiş kapsamlı bir e-tic
 
 ### Backend Kurulumu
 ```bash
-# Backend dizinine git
-cd backend
-
-# Bağımlılıkları kur
+# Proje kökünde bağımlılıkları kur
 npm install
 
 # .env dosyasını oluştur (örnek .env.example dosyasını kopyalayabilirsiniz)
@@ -90,6 +89,9 @@ cp .env.example .env
 
 # Sunucuyu başlat
 npm run dev
+
+# Backend testleri
+npm run test:ai-support
 ```
 
 ### Frontend Kurulumu

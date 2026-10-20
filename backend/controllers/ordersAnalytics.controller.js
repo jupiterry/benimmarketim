@@ -1,16 +1,103 @@
 import Order from "../models/order.model.js";
-import User from "../models/user.model.js";
+import Coupon from "../models/coupon.model.js";
 import { notifyOrderStatusChange } from "../services/orderStatusNotifier.js";
 import { evaluateMissionsForUser } from "../services/mission.service.js";
+import { processReferralFirstOrder } from "./referral.controller.js";
+
+export const ORDER_STATUSES = ["Hazırlanıyor", "Yolda", "Teslim Edildi", "İptal Edildi"];
+const PENDING_STATUS = "Hazırlanıyor";
+const DELIVERED_STATUS = "Teslim Edildi";
+
+// Liste sorgusu parametreleri: status, limit (varsayılan 300, en fazla 1000; 0 = tüm siparişler), page, since (ISO tarih)
+export const parseOrderListOptions = (query = {}) => {
+  const rawLimit = Number.parseInt(query.limit, 10);
+  const limit = rawLimit === 0 ? 0 : Math.min(1000, Math.max(1, rawLimit || 300));
+  const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
+  const status = typeof query.status === "string" && ORDER_STATUSES.includes(query.status) ? query.status : null;
+  const sinceDate = typeof query.since === "string" && query.since ? new Date(query.since) : null;
+  const since = sinceDate && !Number.isNaN(sinceDate.getTime()) ? sinceDate : null;
+  return { limit, page, status, since };
+};
+
+// Referral ödülü: davet edilen kullanıcının İLK siparişi teslim edildiğinde bir kez verilir.
+// (Referral belgesinde ilgili kaydın status alanı "pending" ise verilir; sonrasında "rewarded" olur.)
+export const grantReferralRewardIfDelivered = async (order, previousStatus) => {
+  try {
+    if (!order || order.status !== DELIVERED_STATUS || previousStatus === DELIVERED_STATUS) return null;
+    const deliveredBefore = await Order.countDocuments({
+      user: order.user,
+      status: DELIVERED_STATUS,
+      _id: { $ne: order._id },
+    });
+    if (deliveredBefore > 0) return null; // ilk teslim edilen sipariş değil
+    const result = await processReferralFirstOrder(order.user);
+    if (result?.success) console.log("Referral ödülü verildi. Referrer:", result.referrerId);
+    return result;
+  } catch (error) {
+    console.error("Referral ödülü işlenirken hata:", error.message);
+    return null;
+  }
+};
+
+// İptal edilen siparişin kuponunu geri açar: usedBy kaydı çıkarılır, usageCount azaltılır
+export const releaseCouponForOrder = async (order) => {
+  try {
+    if (!order?.couponCode) return;
+    const updated = await Coupon.findOneAndUpdate(
+      { code: String(order.couponCode).toUpperCase().trim(), "usedBy.orderId": order._id },
+      { $pull: { usedBy: { orderId: order._id } }, $inc: { usageCount: -1 } },
+      { new: true }
+    );
+    if (!updated) return;
+    // Limit dolduğu için kapatılmış bir kupon tekrar kullanılabilir hale gelir (süresi geçmemişse)
+    if (
+      !updated.isActive &&
+      updated.usageLimit !== null &&
+      updated.usageCount < updated.usageLimit &&
+      updated.expirationDate > new Date()
+    ) {
+      await Coupon.updateOne({ _id: updated._id }, { $set: { isActive: true } });
+    }
+  } catch (error) {
+    console.error("Kupon kullanımı geri alınırken hata:", error.message);
+  }
+};
+
+// Durum özeti: belge yüklemeden $group ile sayım
+export const getOrderStatusSummary = async (req, res) => {
+  try {
+    const rows = await Order.aggregate([{ $group: { _id: "$status", n: { $sum: 1 } } }]);
+    const counts = {};
+    let total = 0;
+    for (const row of rows) {
+      counts[row._id || "Bilinmiyor"] = row.n;
+      total += row.n;
+    }
+    res.json({ counts, total, pendingCount: counts[PENDING_STATUS] || 0 });
+  } catch (error) {
+    console.error("Sipariş özeti alınırken hata:", error.message);
+    res.status(500).json({ message: "Server hatası", error: error.message });
+  }
+};
 
 // Tüm siparişleri getirirken "status" bilgisini de ekleyelim
-export const getOrderAnalyticsData = async () => {
+// options: { status, limit, page, since } (parseOrderListOptions). Yanıt şekli korunur;
+// totalOrders filtreye göre toplam sayıdır (X-Total-Count başlığı için).
+export const getOrderAnalyticsData = async (options = {}) => {
   try {
-    const totalOrders = await Order.countDocuments();
-    const orders = await Order.find()
+    const { limit = 300, page = 1, status = null, since = null } = options;
+    const filter = {};
+    if (status) filter.status = status;
+    if (since) filter.createdAt = { $gte: since };
+
+    const totalOrders = await Order.countDocuments(filter);
+    let orderQuery = Order.find(filter)
       .populate("user", "name email")
       .populate("products.product", "name price image")
       .sort({ createdAt: -1 });
+    // limit=0: sayfalama yok, tüm siparişler (dashboard "tüm zamanlar" analitiği)
+    if (limit > 0) orderQuery = orderQuery.skip((page - 1) * limit).limit(limit);
+    const orders = await orderQuery;
 
     const groupedOrders = orders.reduce((acc, order) => {
       if (!order.user || !order.products) {
@@ -99,6 +186,10 @@ export const updateOrderStatus = async (req, res) => {
     notifyOrderStatusChange(order, previousStatus);
     // Teslim edilen sipariş bir görevi tamamlıyorsa ödül kuponu tanımlanır (yanıtı bekletmez)
     if (status === "Teslim Edildi" && previousStatus !== status) evaluateMissionsForUser(order.user, new Date(), { deliveredOrder: order });
+    // Davet edilen müşterinin ilk siparişi teslim edildiyse davet edene ödül kuponu (yanıtı bekletmez)
+    if (status === "Teslim Edildi" && previousStatus !== status) grantReferralRewardIfDelivered(order, previousStatus);
+    // Admin iptal ettiyse kupon kullanımı geri alınır (yanıtı bekletmez)
+    if (status === "İptal Edildi" && previousStatus !== status) releaseCouponForOrder(order);
 
     // Socket.IO ile kullanıcıya bildirim gönder
     try {
@@ -228,8 +319,8 @@ export const cancelOrder = async (req, res) => {
       return res.status(404).json({ message: "Sipariş bulunamadı!" });
     }
 
-    // Kullanıcının kendi siparişini iptal etme kontrolü
-    if (!req.user.isAdmin && order.user.toString() !== userId.toString()) {
+    // Kullanıcının kendi siparişini iptal etme kontrolü (admin her siparişi iptal edebilir)
+    if (req.user.role !== "admin" && order.user.toString() !== userId.toString()) {
       return res.status(403).json({ message: "Bu siparişi iptal etme yetkiniz yok!" });
     }
 
@@ -241,6 +332,9 @@ export const cancelOrder = async (req, res) => {
     order.status = "İptal Edildi";
     order.statusHistory.push({ status: "İptal Edildi", changedAt: new Date(), changedBy: req.user._id });
     await order.save();
+
+    // Kupon kullanımı geri alınır (müşteri kuponunu tekrar kullanabilsin)
+    await releaseCouponForOrder(order);
 
     // Yönetim paneli müşterinin iptalini 30 sn'lik yenilemeyi beklemeden görsün
     try {

@@ -833,7 +833,7 @@
 .dash-quick {
   grid-column: span 3;
 }
-.dash-telegram {
+.dash-sidecard {
   grid-column: 1 / -1;
 }
 .dash-sales-total {
@@ -1145,35 +1145,35 @@
   height: 14px;
   margin-left: auto;
 }
-.dash-telegram-body {
+.dash-sidecard-body {
   color: var(--ui-text-2);
   font-size: var(--ui-fs-sm);
 }
-.dash-telegram-body p {
+.dash-sidecard-body p {
   margin: 0 0 6px;
 }
-.admin-layout .dash-telegram-body .ui-link {
+.admin-layout .dash-sidecard-body .ui-link {
   margin-top: 0;
   font-size: inherit;
 }
-.dash-telegram-body summary {
+.dash-sidecard-body summary {
   margin-top: 8px;
   color: var(--ui-text);
   font-weight: 600;
   cursor: pointer;
 }
-.dash-telegram-body ul {
+.dash-sidecard-body ul {
   margin: 4px 0 0;
   padding: 0;
   list-style: none;
 }
-.dash-telegram-body li {
+.dash-sidecard-body li {
   padding: 7px 0;
   border-bottom: 1px solid var(--ui-line);
   font-size: var(--ui-fs-xs);
 }
 /* Sipariş alarmı telefonları (OrderAlarmDevicesCard) */
-.dash-telegram-body li.dash-alarm-device {
+.dash-sidecard-body li.dash-alarm-device {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2329,12 +2329,12 @@
   .dash-top,
   .dash-profit,
   .dash-quick,
-  .dash-telegram {
+  .dash-sidecard {
     grid-column: span 6;
   }
   .dash-sales,
   .dash-recent,
-  .dash-telegram {
+  .dash-sidecard {
     grid-column: 1 / -1;
   }
   /* Detay paneli sağdan açılan çekmeceye dönüşür */
@@ -2481,7 +2481,7 @@
   .dash-top,
   .dash-profit,
   .dash-quick,
-  .dash-telegram {
+  .dash-sidecard {
     grid-column: 1 / -1;
   }
   .admin-layout .ui-metrics {

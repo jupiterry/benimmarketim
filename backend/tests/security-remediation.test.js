@@ -109,6 +109,7 @@ test("order status updates emit only to owner and admin rooms", async (t) => {
     _id: "order-1",
     user: { toString: () => "user-1" },
     status: "Hazırlanıyor",
+    statusHistory: [],
     save: async () => {},
   };
   t.mock.method(Order, "findById", async () => order);
@@ -117,6 +118,7 @@ test("order status updates emit only to owner and admin rooms", async (t) => {
   const currentRes = response();
   await updateAnalyticsOrderStatus({
     body: { orderId: "order-1", status: "Yolda" },
+    user: { _id: "admin-1", role: "admin" },
     app: { get: () => current.io },
   }, currentRes);
   assert.equal(currentRes.code, 200);
@@ -135,26 +137,41 @@ test("order status updates emit only to owner and admin rooms", async (t) => {
   assert.deepEqual(legacy.targeted[0].rooms, ["user_user-1", "adminRoom"]);
 });
 
-test("login limiter accepts ten attempts per minute and rejects the next one", () => {
-  const makeReq = () => ({
-    ip: "203.0.113.9",
-    body: { email: "rate-limit-security-test@example.com" },
-  });
-
-  for (let i = 0; i < 10; i += 1) {
+test("login limiter: 10 attempts per IP, separate and more lenient bucket per email", () => {
+  const email = "rate-limit-security-test@example.com";
+  const makeReq = (ip = "203.0.113.9") => ({ ip, body: { email } });
+  const attempt = (req) => {
     let called = false;
     const res = response();
-    loginRateLimiter(makeReq(), res, () => { called = true; });
+    loginRateLimiter(req, res, () => { called = true; });
+    return { called, res };
+  };
+
+  for (let i = 0; i < 10; i += 1) {
+    const { called, res } = attempt(makeReq());
     assert.equal(called, true);
     assert.equal(res.code, 200);
   }
 
-  let called = false;
-  const blocked = response();
-  loginRateLimiter(makeReq(), blocked, () => { called = true; });
-  assert.equal(called, false);
-  assert.equal(blocked.code, 429);
-  assert.ok(Number(blocked.headers["Retry-After"]) >= 1);
+  const blocked = attempt(makeReq());
+  assert.equal(blocked.called, false);
+  assert.equal(blocked.res.code, 429);
+  assert.ok(Number(blocked.res.headers["Retry-After"]) >= 1);
+
+  // Aynı e-posta, başka IP: e-posta kovası (20) henüz dolmadı → kurban kilitlenmez
+  const otherIp = attempt(makeReq("198.51.100.7"));
+  assert.equal(otherIp.called, true);
+
+  // Aynı IP, başka e-posta: IP kovası dolu → engellenir
+  const otherEmail = attempt({ ip: "203.0.113.9", body: { email: "someone-else@example.com" } });
+  assert.equal(otherEmail.called, false);
+  assert.equal(otherEmail.res.code, 429);
+
+  // E-posta kovası: 10 (ilk IP) + 1 + 9 = 20 deneme sonrası 21. engellenir
+  for (let i = 0; i < 9; i += 1) assert.equal(attempt(makeReq("198.51.100.7")).called, true);
+  const emailBlocked = attempt(makeReq("192.0.2.33"));
+  assert.equal(emailBlocked.called, false);
+  assert.equal(emailBlocked.res.code, 429);
 });
 
 test("sensitive signup logs and global order status broadcasts are absent", () => {

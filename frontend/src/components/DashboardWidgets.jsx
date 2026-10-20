@@ -16,7 +16,7 @@ import {
   Percent,
 } from "lucide-react";
 import axios from "../lib/axios";
-import TelegramNotificationsCard from "./TelegramNotificationsCard";
+import socketService from "../lib/socket";
 import OrderAlarmDevicesCard from "./OrderAlarmDevicesCard";
 import ShelfPerformanceCard from "./ShelfPerformanceCard";
 import { NEW_ACTIVITY_YEAR_START, REVENUE_PERIODS, summarizeRevenue } from "../lib/revenuePeriods";
@@ -242,19 +242,19 @@ const DashboardWidgets = ({ onNavigate }) => {
 
       const salesTrend = getLast7DaysSales(allOrders);
 
-      setStats({
+      // liveOrderCount özet uç noktasından (fetchSummary) gelir
+      setStats((prev) => ({
+        ...prev,
         todaySales,
         todayOrders: todayOrders.length,
         salesTrend,
         popularProducts,
         lowStockProducts,
-        liveOrderCount: allOrders.filter((o) => o.status === "Hazırlanıyor" && isCurrentActivityOrder(o))
-          .length,
         recentOrders,
         totalUsers: users.length,
         statusDistribution,
         allOrders,
-      });
+      }));
     } catch (error) {
       setError(true);
       console.error("Dashboard verileri yüklenirken hata:", error);
@@ -264,24 +264,49 @@ const DashboardWidgets = ({ onNavigate }) => {
     }
   }, []);
 
+  // Hafif özet uç noktası: yalnızca durum sayıları (bekleyen sipariş rozeti için).
+  const fetchSummary = useCallback(async () => {
+    try {
+      const res = await axios.get("/orders-analytics/summary");
+      const pendingCount = Number(res.data?.pendingCount ?? res.data?.counts?.["Hazırlanıyor"] ?? 0);
+      setStats((prev) => ({ ...prev, liveOrderCount: pendingCount }));
+    } catch (error) {
+      console.error("Sipariş özeti alınırken hata:", error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchDashboardData();
+    fetchSummary();
+  }, [fetchDashboardData, fetchSummary]);
 
-    const interval = setInterval(() => {
-      fetchLiveData();
-    }, 10000);
-
-    return () => clearInterval(interval);
-  }, [fetchDashboardData]);
+  // Sabit aralıklı sorgu yerine Socket.IO olaylarında yenile (AdminPage admin odasına katılır).
+  useEffect(() => {
+    const socket = socketService.connect();
+    let timer = null;
+    const refresh = () => {
+      // Art arda gelen olayları tek istekte topla
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        timer = null;
+        fetchSummary();
+        fetchLiveData();
+      }, 800);
+    };
+    socket.on("newOrder", refresh);
+    socket.on("orderStatusUpdated", refresh);
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      socket.off("newOrder", refresh);
+      socket.off("orderStatusUpdated", refresh);
+    };
+  }, [fetchSummary]);
 
   const fetchLiveData = async () => {
     try {
       const res = await axios.get("/orders-analytics");
       const orders = res.data.orderAnalyticsData?.usersOrders || [];
       const allOrders = orders.flatMap((user) => user.orders || []);
-      const liveCount = allOrders.filter(
-        (o) => o.status === "Hazırlanıyor" && isCurrentActivityOrder(o),
-      ).length;
 
       const recentOrders = allOrders
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
@@ -296,7 +321,6 @@ const DashboardWidgets = ({ onNavigate }) => {
 
       setStats((prev) => ({
         ...prev,
-        liveOrderCount: liveCount,
         recentOrders,
         allOrders,
       }));
@@ -308,6 +332,7 @@ const DashboardWidgets = ({ onNavigate }) => {
   const handleRefresh = () => {
     setRefreshing(true);
     fetchDashboardData();
+    fetchSummary();
   };
 
   const getLast7DaysSales = (orders) => {
@@ -768,7 +793,6 @@ const DashboardWidgets = ({ onNavigate }) => {
           </div>
         </section>
 
-        <TelegramNotificationsCard />
         <OrderAlarmDevicesCard />
         <ShelfPerformanceCard />
       </div>

@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 import { ViteImageOptimizer } from 'vite-plugin-image-optimizer';
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
 	plugins: [
 		react(),
 		ViteImageOptimizer({
@@ -36,14 +36,22 @@ export default defineConfig({
 			cacheLocation: '.vite-image-cache'
 		})
 	],
+	// Üretim paketinde console.log/debug/info çağrıları atılır; console.error ve
+	// console.warn kalır (hata ayıklama için). `pure` yalnızca listelenenleri siler.
+	esbuild: command === "build"
+		? {
+			pure: ["console.log", "console.debug", "console.info"],
+			drop: ["debugger"],
+		}
+		: undefined,
 	server: {
 		proxy: {
-			"/api": "http://devrekbenimmarketim.com",
+			"/api": "http://localhost:5000",
 			"/socket.io": {
-				target: 'http://devrekbenimmarketim.com',
+				target: "http://localhost:5000",
 				ws: true,
 				changeOrigin: true
 			}
 		},
 	},
-});
+}));

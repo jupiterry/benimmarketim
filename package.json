@@ -8,7 +8,7 @@
 		"start": "node backend/server.js",
 		"build": "npm install && npm install --prefix frontend && npm run build --prefix frontend",
 		"migrate:ai-support": "node backend/scripts/migrate-ai-support.js",
-		"test:ai-support": "node --test backend/tests/ai-support.test.js backend/tests/ai-routing.integration.test.js backend/tests/ai-quality.test.js backend/tests/order-status-notifier.test.js backend/tests/push-notifications.test.js backend/tests/site-messages.test.js backend/tests/order-feedback.test.js backend/tests/missions.test.js backend/tests/cart-assistant.test.js backend/tests/saved-carts.test.js backend/tests/coupon-request.test.js backend/tests/cart-sync.test.js backend/tests/app-activity.test.js backend/tests/chat-takeover.test.js backend/tests/push-draft.test.js backend/tests/product-assist.test.js backend/tests/order-delay.test.js backend/tests/db-backup.test.js backend/tests/price-watch.test.js backend/tests/market-price.test.js backend/tests/camgoz.test.js backend/tests/admin-feed.test.js backend/tests/order-alarm.test.js backend/tests/flash-sale.test.js backend/tests/recommendation.test.js",
+		"test:ai-support": "node --test backend/tests/ai-support.test.js backend/tests/ai-routing.integration.test.js backend/tests/ai-quality.test.js backend/tests/order-status-notifier.test.js backend/tests/push-notifications.test.js backend/tests/site-messages.test.js backend/tests/order-feedback.test.js backend/tests/missions.test.js backend/tests/cart-assistant.test.js backend/tests/saved-carts.test.js backend/tests/coupon-request.test.js backend/tests/cart-sync.test.js backend/tests/app-activity.test.js backend/tests/chat-takeover.test.js backend/tests/push-draft.test.js backend/tests/product-assist.test.js backend/tests/order-delay.test.js backend/tests/db-backup.test.js backend/tests/price-watch.test.js backend/tests/market-price.test.js backend/tests/camgoz.test.js backend/tests/admin-feed.test.js backend/tests/order-alarm.test.js backend/tests/flash-sale.test.js backend/tests/recommendation.test.js backend/tests/security-remediation.test.js backend/tests/order-cancel-referral.test.js",
 		"backup:now": "node backend/workers/backup.run.js --now",
 		"backup:restore": "node backend/scripts/restore-backup.js",
 		"price-watch:deneme": "node backend/workers/priceWatch.run.js --deneme"
@@ -18,7 +18,6 @@
 	"type": "module",
 	"license": "ISC",
 	"dependencies": {
-		"@hello-pangea/dnd": "^18.0.1",
 		"@socket.io/redis-adapter": "^8.3.0",
 		"axios": "^1.8.1",
 		"bcryptjs": "^2.4.3",
@@ -27,38 +26,21 @@
 		"cookie-parser": "^1.4.6",
 		"cors": "^2.8.5",
 		"csv-parser": "^3.2.0",
-		"disable-devtool": "^0.3.8",
 		"dotenv": "^16.4.5",
 		"express": "^4.19.2",
+		"express-mongo-sanitize": "^2.2.0",
 		"firebase-admin": "^12.0.0",
-		"framer-motion": "^12.4.7",
+		"helmet": "^8.3.0",
 		"ioredis": "^5.4.1",
 		"json2csv": "^6.0.0-alpha.2",
 		"jsonwebtoken": "^9.0.2",
 		"mongoose": "^8.5.3",
 		"multer": "^1.4.5-lts.1",
 		"node-cron": "^3.0.3",
-		"react-infinite-scroll-component": "^6.1.0",
-		"react-slick": "^0.30.3",
-		"slick-carousel": "^1.8.1",
-		"socket.io": "^4.8.1",
-		"socket.io-client": "^4.8.1",
-		"stripe": "^16.8.0",
-		"twilio": "^5.5.0",
-		"uuid": "^13.0.0",
-		"zustand": "^5.0.3"
+		"sharp": "^0.33.5",
+		"socket.io": "^4.8.1"
 	},
 	"devDependencies": {
-		"@babel/plugin-transform-react-jsx": "^7.25.9",
-		"@babel/plugin-transform-runtime": "^7.26.9",
-		"imagemin": "^9.0.1",
-		"imagemin-gifsicle": "^5.2.0",
-		"imagemin-mozjpeg": "^7.0.0",
-		"imagemin-pngquant": "^5.0.1",
-		"imagemin-svgo": "^11.0.1",
-		"nodemon": "^3.1.4",
-		"sharp": "^0.33.5",
-		"svgo": "^3.3.2",
-		"vite-plugin-image-optimizer": "^1.1.8"
+		"nodemon": "^3.1.4"
 	}
 }

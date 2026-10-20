@@ -191,7 +191,8 @@ const CouponComposer = ({ mode, coupon, existingCodes, onClose, onSaved }) => {
   const { confirm } = useConfirm();
 
   useEffect(() => {
-    axios.get("/products?limit=5000")
+    // fields=card: açıklama gibi kullanılmayan alanlar gelmez (ad, fiyat, kategori, görsel, isHidden yeterli)
+    axios.get("/products?limit=5000&fields=card")
       .then(({ data }) => setProductOptions(data.products || []))
       .catch(() => setProductOptions([]))
       .finally(() => setProductsLoaded(true));

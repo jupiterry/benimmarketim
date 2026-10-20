@@ -17,8 +17,6 @@ import {
   Clock,
   Database,
   Settings,
-  Eye,
-  EyeOff,
   LogIn
 } from "lucide-react";
 import axios from "../lib/axios";
@@ -28,7 +26,7 @@ import { Link } from "react-router-dom";
 import "../styles/legal.css";
 
 const AccountDeletionPage = () => {
-  const { user, logout } = useUserStore();
+  const { user, logout, checkingAuth } = useUserStore();
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [deletionReason, setDeletionReason] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
@@ -37,12 +35,12 @@ const AccountDeletionPage = () => {
   const [selectedDataTypes, setSelectedDataTypes] = useState([]);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
-  // Üye olmayan kullanıcılar için giriş modal'ını göster
+  // Oturum kontrolü bitene kadar bekle; üye olmayan kullanıcılar için giriş
+  // modal'ını göster, kullanıcı gelince kapat.
   useEffect(() => {
-    if (!user) {
-      setShowLoginModal(true);
-    }
-  }, [user]);
+    if (checkingAuth) return;
+    setShowLoginModal(!user);
+  }, [user, checkingAuth]);
 
   const handleDeleteAccount = async () => {
     if (!user) {
@@ -63,7 +61,7 @@ const AccountDeletionPage = () => {
 
     setIsDeleting(true);
     try {
-      await axios.post('/user/delete-account', {
+      await axios.post('/users/delete-account', {
         reason: deletionReason,
         deletionType: deletionType,
         selectedDataTypes: deletionType === "partial" ? selectedDataTypes : null

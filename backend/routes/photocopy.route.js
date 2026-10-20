@@ -20,8 +20,13 @@ const storage = multer.diskStorage({
 		cb(null, path.join(process.cwd(), "uploads", "photocopy"));
 	},
 	filename: (req, file, cb) => {
+		// Diskteki ad güvenli hale getirilir (yol ayracı, boşluk, özel karakter yok); kullanıcıya
+		// gösterilen ad (originalName) veritabanında olduğu gibi saklanır.
+		const base = path.basename(String(file.originalname || "dosya"));
+		const ext = path.extname(base).replace(/[^\w.]/g, "").slice(0, 10).toLowerCase();
+		const stem = path.basename(base, path.extname(base)).replace(/[^\w.-]/g, "_").slice(0, 80) || "dosya";
 		const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-		cb(null, uniqueSuffix + "-" + file.originalname);
+		cb(null, `${uniqueSuffix}-${stem}${ext}`);
 	},
 });
 

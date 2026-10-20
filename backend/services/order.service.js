@@ -2,7 +2,7 @@
  * order.service.js
  *
  * Sipariş iş mantığı için merkezi servis.
- * cart.controller.js ve payment.controller.js bu servisten yararlanır.
+ * cart.controller.js bu servisten yararlanır.
  * Fiyat hesaplama, kupon doğrulama ve bildirim gönderme tek bir yerde yönetilir.
  */
 
@@ -10,7 +10,6 @@ import Product from "../models/product.model.js";
 import WeeklyProduct from "../models/weeklyProduct.model.js";
 import Coupon from "../models/coupon.model.js";
 import Order from "../models/order.model.js";
-import { sendOrderNotification } from "./n8n.service.js";
 import { notifyAdmins } from "./adminFeed.service.js";
 import { signalOrderAlarm } from "./orderAlarm.service.js";
 import {
@@ -27,8 +26,9 @@ import {
  * İstemciden gelen fiyat bilgisi ASLA kullanılmaz.
  *
  * @param {Array<{product: string, quantity: number}>} cartProducts - İstemciden gelen sepet öğeleri
+ * @param {{ checkAvailability?: boolean }} [options] - checkAvailability=false: gizli/stoksuz ürün hata vermez (sepet görünümü)
  * @returns {{ orderProducts, totalAmount }}
- * @throws {Error} Ürün bulunamazsa veya miktar geçersizse
+ * @throws {Error} Ürün bulunamazsa, miktar geçersizse ya da ürün satışta değilse
  */
 // Sipariş satırının geldiği raf/ekran (ölçüm). Bilinmeyen değerler yok sayılır.
 export const ORDER_SOURCES = [
@@ -40,7 +40,7 @@ export const normalizeOrderSource = (value) => {
   return ORDER_SOURCES.includes(source) ? source : null;
 };
 
-export async function buildOrderProducts(cartProducts) {
+export async function buildOrderProducts(cartProducts, { checkAvailability = true } = {}) {
   // Haftalık indirimli ürünleri tek sorguda al
   const weeklyProducts = await WeeklyProduct.find({ isActive: true }).lean();
   const weeklyPriceMap = new Map();
@@ -70,6 +70,13 @@ export async function buildOrderProducts(cartProducts) {
     const product = productMap.get(cartItem.product.toString());
     if (!product) {
       throw new Error(`Ürün bulunamadı: ${cartItem.product}`);
+    }
+    // Gizli veya stokta olmayan ürün sipariş edilemez (istemci eski listeyi tutmuş olabilir)
+    if (checkAvailability && product.isHidden) {
+      throw Object.assign(new Error(`"${product.name}" artık satışta değil, lütfen sepetinizden çıkarın.`), { statusCode: 400 });
+    }
+    if (checkAvailability && product.isOutOfStock) {
+      throw Object.assign(new Error(`"${product.name}" stokta yok, lütfen sepetinizden çıkarın.`), { statusCode: 400 });
     }
 
     const weeklyPrice = weeklyPriceMap.get(product._id.toString());
@@ -199,15 +206,14 @@ export async function commitCouponUsage(appliedCoupon, userId, orderId) {
 // ─────────────────────────────────────────────
 
 /**
- * Yeni sipariş için Socket.IO ve n8n bildirimlerini gönderir.
- * Ana işlem akışını engellemez (setImmediate ile arka plana alınır).
+ * Yeni sipariş için sipariş alarmı ve Socket.IO (admin) bildirimlerini gönderir.
+ * Ana işlem akışını engellemez.
  *
  * @param {Object} io - Socket.IO sunucu nesnesi
  * @param {Object} newOrder - Kaydedilen sipariş belgesi
  * @param {Object} requestUser - req.user nesnesi
- * @param {string} phone - Sipariş telefon numarası
  */
-export function dispatchOrderNotifications(io, newOrder, requestUser, phone) {
+export function dispatchOrderNotifications(io, newOrder, requestUser) {
   // ─── Sipariş alarmı telefonları (bu süreçte bekleyenler hemen yeniden bakar) ───
   try {
     signalOrderAlarm();
@@ -243,69 +249,4 @@ export function dispatchOrderNotifications(io, newOrder, requestUser, phone) {
   } catch (socketError) {
     console.error("Socket.IO bildirimi gönderilirken hata:", socketError);
   }
-
-  // ─── n8n: Webhook (arka plan, hata ana akışı engellemez) ───
-  setImmediate(async () => {
-    try {
-      const orderData = await Order.findById(newOrder._id).populate(
-        "user",
-        "name email phone"
-      );
-
-      if (!orderData) {
-        console.error("[n8n] Sipariş verisi bulunamadı, bildirim gönderilemedi.");
-        return;
-      }
-
-      const products = orderData.products
-        .filter((p) => p && (p.name || p.product?.name))
-        .map((p) => ({
-          name: p.name || p.product?.name || "Bilinmeyen Ürün",
-          quantity: p.quantity || 1,
-          price: p.price || p.product?.price || 0,
-          total: (p.price || 0) * (p.quantity || 1),
-        }));
-
-      if (products.length === 0) {
-        console.error("[n8n] Ürün listesi boş, bildirim gönderilemedi.");
-        return;
-      }
-
-      const notificationData = {
-        orderId: newOrder._id.toString(),
-        _id: newOrder._id,
-        orderNumber: newOrder._id.toString(),
-        user: {
-          id: requestUser._id.toString(),
-          _id: requestUser._id,
-          name: requestUser.name || orderData.user?.name || "",
-          email: requestUser.email || orderData.user?.email || "",
-          // Siparişte girilen numara önceliklidir (profildeki eski olabilir).
-          phone: phone || orderData.phone || requestUser.phone || "",
-        },
-        products,
-        totalAmount: newOrder.totalAmount || 0,
-        city: newOrder.city || "",
-        deliveryPoint: newOrder.deliveryPoint || "",
-        deliveryPointName: newOrder.deliveryPointName || "",
-        status: newOrder.status || "Hazırlanıyor",
-        createdAt: newOrder.createdAt || new Date(),
-        note: newOrder.note || "",
-      };
-
-      if (!notificationData.user.name || !notificationData.user.phone) {
-        console.error("[n8n] Kullanıcı bilgileri eksik, bildirim gönderilemedi.");
-        return;
-      }
-
-      const result = await sendOrderNotification(notificationData);
-      if (result) {
-        console.log("[n8n] Sipariş bildirimi başarıyla gönderildi.");
-      } else {
-        console.error("[n8n] Sipariş bildirimi gönderilemedi.");
-      }
-    } catch (n8nError) {
-      console.error("[n8n] Bildirim gönderilirken hata:", n8nError.message);
-    }
-  });
 }

@@ -264,14 +264,26 @@ export const getProducts = async (req, res) => {
     const cardOnly = fields === "card";
     let query = {};
 
-    if (category) {
+    if (category !== undefined && category !== "") {
+      if (typeof category !== "string") {
+        return res.status(400).json({ message: "Geçersiz kategori" });
+      }
       // Eskiden `^kategori$` (büyük/küçük harf duyarsız) regex'i kullanılıyordu; aynı sonucu
       // büyük/küçük harf duyarsız collation ile doğrudan eşitlik + {category, order} indeksiyle verir.
-      query.category = String(category);
+      query.category = category;
     }
 
     if (search) {
-      query.name = { $regex: new RegExp(search, "i") }; // Case-insensitive arama
+      if (typeof search !== "string") {
+        return res.status(400).json({ message: "Geçersiz arama" });
+      }
+      // Regex özel karakterleri kaçırılır (ReDoS / sorgu enjeksiyonu önlemi)
+      query.name = { $regex: new RegExp(escapeRegex(search.slice(0, 100)), "i") }; // Case-insensitive arama
+    }
+
+    // Gizli ürünler yalnızca yönetici isteğinde listelenir (route optionalAuth ile req.user doldurur)
+    if (req.user?.role !== "admin") {
+      query.isHidden = { $ne: true };
     }
 
     // Offline Sync Support: Check If-Modified-Since header
@@ -402,17 +414,21 @@ export const updateProductPrice = async (req, res) => {
   }
 };
 
+const SEARCH_RESULT_LIMIT = 50;
+
 export const searchProducts = async (req, res) => {
   const { q, category, minPrice, maxPrice, sort = "createdAt" } = req.query;
 
   try {
-    if (!q || q.trim() === '') {
+    if (typeof q !== "string" || q.trim() === '') {
       return res.status(400).json({ success: false, message: "Arama terimi gerekli" });
     }
+    if (category !== undefined && typeof category !== "string") {
+      return res.status(400).json({ success: false, message: "Geçersiz kategori" });
+    }
 
-    // Arama terimini güvenli hale getir
-    const searchTerm = q.trim();
-    const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // Arama terimini güvenli hale getir (regex özel karakterleri kaçırılır)
+    const searchTerm = q.trim().slice(0, 100);
     const safeTerm = escapeRegex(searchTerm);
     const searchWords = searchTerm.split(' ').filter(word => word.length > 0);
 
@@ -437,7 +453,7 @@ export const searchProducts = async (req, res) => {
       ]
     };
 
-    if (category) searchQuery.$and.push({ category: category.trim() });
+    if (category && category.trim()) searchQuery.$and.push({ category: category.trim() });
     const parsedMin = Number(minPrice);
     const parsedMax = Number(maxPrice);
     if (Number.isFinite(parsedMin) || Number.isFinite(parsedMax)) {
@@ -452,7 +468,7 @@ export const searchProducts = async (req, res) => {
       sort === "price_high" ? { price: -1 } :
       sort === "name_asc" ? { name: 1 } :
       sort === "name_desc" ? { name: -1 } : { createdAt: -1 }
-    );
+    ).limit(SEARCH_RESULT_LIMIT);
 
     // Arama sonuçlarını skorlama
     const scoredProducts = products.map(product => {

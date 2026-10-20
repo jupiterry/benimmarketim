@@ -6,6 +6,7 @@ import WeeklyProduct from "../models/weeklyProduct.model.js";
 import Order from "../models/order.model.js";
 import { extractBudget, pickTemplate, suggestCartForPrompt, suggestExtras } from "../services/ai/cartAssistant.service.js";
 import { suggestCart } from "../controllers/cartAssistant.controller.js";
+import { cartMatchScore, runAiTool } from "../services/ai/tools.js";
 
 const USER = "507f191e810c19729de860ea";
 const chain = (rows) => ({ sort() { return this; }, limit() { return this; }, select() { return this; }, lean: async () => rows });
@@ -156,4 +157,57 @@ test("money left in the budget is offered as products the customer buys most oft
   t.mock.method(console, "error", () => {});
   Order.find.mock.mockImplementation(() => { throw new Error("db down"); });
   assert.deepEqual(await suggestExtras({ userId: USER, left: 100 }), { source: null, items: [] });
+});
+
+test("an item resolves to the product itself, not something that merely contains it", () => {
+  const olive = cartMatchScore("Marmarabirlik Gemlik Siyah Zeytin 400 gr", ["zeytin"], "Kahvaltılık");
+  assert.ok(olive > 0);
+  // Ürünün asıl adı sondaki kelimedir: zeytinli sabun bir sabundur, zeytinyağı bir yağdır.
+  assert.ok(cartMatchScore("Duru Zeytin Özlü Sabun 4x70 gr", ["zeytin"], "Kişisel Bakım") <= 0);
+  assert.ok(cartMatchScore("Duru Zeytin Özlü 4x70 gr", ["zeytin"], "Kişisel Bakım") <= 0);
+  assert.ok(cartMatchScore("Kristal Zeytin Yağı 1 lt", ["zeytin"]) <= 0);
+  assert.ok(cartMatchScore("Komili Zeytinyağı 1 L", ["zeytin"]) <= 0);
+  assert.ok(cartMatchScore("Paşabahçe Çay Bardağı 6'lı", ["cay"]) <= 0);
+  assert.ok(cartMatchScore("Tat Domates Salçası", ["domates"]) <= 0);
+  // Asıl istenen buysa eşleşir; yazım farkı ("zeytin yağı" / "zeytinyağı") önemli değil.
+  assert.ok(cartMatchScore("Komili Zeytinyağı 1 L", ["zeytinyagi"]) > 0);
+  assert.ok(cartMatchScore("Komili Zeytinyağı 1 L", ["zeytin", "yagi"]) > 0);
+  assert.ok(cartMatchScore("Kristal Zeytin Yağı 1 lt", ["zeytinyagi"]) > 0);
+  assert.ok(cartMatchScore("Dalan Zeytinyağlı Sabun", ["sabun"], "Kişisel Bakım") > 0);
+  // Önde gelen niteleyici ürünü değiştirmez.
+  assert.ok(cartMatchScore("Sütaş Krem Peynir 200 gr", ["peynir"], "Kahvaltılık") > 0);
+  assert.ok(cartMatchScore("Çaykur Rize Çayı 1000 gr", ["cay"], "İçecek") > 0);
+});
+
+test("a breakfast olive is never filled with soap or olive oil; it is reported missing instead", async (t) => {
+  t.mock.method(WeeklyProduct, "find", () => chain([]));
+  const p = (n, name, category, price = 50) => ({ _id: `507f191e810c19729de89${String(n).padStart(3, "0")}`, name, category, price });
+  let shelf = [p(1, "Duru Zeytin Özlü Sabun 4x70 gr", "Kişisel Bakım", 45), p(2, "Komili Zeytinyağı 1 L", "Temel Gıda", 320), p(3, "Kristal Zeytin Yağı 1 lt", "Temel Gıda", 300)];
+  t.mock.method(Product, "find", () => chain(shelf));
+  let result = await runAiTool({ name: "suggestCart", items: "1 zeytin" }, USER);
+  assert.equal(result.found, false);
+  assert.deepEqual(result.missing, ["zeytin"]);
+
+  shelf = [...shelf, p(4, "Marmarabirlik Gemlik Siyah Zeytin 400 gr", "Kahvaltılık", 160)];
+  result = await runAiTool({ name: "suggestCart", items: "1 zeytin" }, USER);
+  assert.equal(result.items[0].name, "Marmarabirlik Gemlik Siyah Zeytin 400 gr");
+  assert.deepEqual(result.items[0].alternatives, []);
+});
+
+test("a descriptive word is dropped when nothing matches all words, a distinguishing one is not", async (t) => {
+  t.mock.method(WeeklyProduct, "find", () => chain([]));
+  const queries = [];
+  t.mock.method(Product, "find", (filter) => {
+    const key = JSON.stringify(filter);
+    queries.push(key);
+    const regexes = (filter.$and || []).length;
+    if (regexes === 1 && key.includes("zeyt")) return chain([{ _id: "507f191e810c19729de89901", name: "Gemlik Zeytin 400 gr", category: "Kahvaltılık", price: 120 }]);
+    return chain([]);
+  });
+  let result = await runAiTool({ name: "suggestCart", items: "1 siyah zeytin" }, USER);
+  assert.equal(result.items[0].name, "Gemlik Zeytin 400 gr");
+  queries.length = 0;
+  result = await runAiTool({ name: "suggestCart", items: "1 ejderha meyvesi" }, USER);
+  assert.equal(result.found, false);
+  assert.ok(queries.every((key) => key.includes("ejderha") || key.includes("category")));
 });

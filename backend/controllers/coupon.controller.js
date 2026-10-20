@@ -1,5 +1,4 @@
 import Coupon from "../models/coupon.model.js";
-import User from "../models/user.model.js";
 import Order from "../models/order.model.js";
 import { buildOrderProducts } from "../services/order.service.js";
 import {
@@ -15,11 +14,6 @@ const findUserCoupons = async (userId) => {
     $or: [{ userId }, { userId: null }, { userId: { $exists: false } }],
   }).sort({ userId: -1, createdAt: -1 });
 };
-
-// NOT: createReferralRewardCoupon bu dosyanın alt kısmında tanımlıdır.
-// useCoupon içindeki çağrı aynı modül kapsamında olduğu için çalışır.
-// Eğer bu fonksiyon başka bir dosyaya taşınırsa buraya açık import eklenmeli.
-// Örnek: import { createReferralRewardCoupon } from "./referral.controller.js";
 
 // Kullanıcının kuponlarını getir (TÜM kullanıcıya ait kuponlar)
 export const getCoupon = async (req, res) => {
@@ -119,7 +113,7 @@ export const validateCoupon = async (req, res) => {
     } = req.body;
     const userId = req.user?._id;
 
-    if (!code) {
+    if (typeof code !== "string" || !code.trim()) {
       return res.status(400).json({ success: false, message: "Kupon kodu gerekli" });
     }
 
@@ -142,7 +136,7 @@ export const validateCoupon = async (req, res) => {
     let orderProducts = [];
     let verifiedAmount = Number(orderAmount || 0);
     if (Array.isArray(products) && products.length > 0) {
-      const built = await buildOrderProducts(products);
+      const built = await buildOrderProducts(products, { checkAvailability: false });
       orderProducts = built.orderProducts;
       verifiedAmount = built.totalAmount;
     }
@@ -182,7 +176,7 @@ export const recommendCoupons = async (req, res) => {
     let orderProducts = [];
     let verifiedAmount = Number(orderAmount || 0);
     if (Array.isArray(products) && products.length > 0) {
-      const built = await buildOrderProducts(products);
+      const built = await buildOrderProducts(products, { checkAvailability: false });
       orderProducts = built.orderProducts;
       verifiedAmount = built.totalAmount;
     }
@@ -271,73 +265,6 @@ export const getCouponAnalytics = async (req, res) => {
   } catch (error) {
     console.error("Kupon analitiği alınırken hata:", error);
     res.status(500).json({ success: false, message: "Analitik alınamadı" });
-  }
-};
-
-// ─────────────────────────────────────────────────────────────────
-// #3 — createReferralRewardCoupon bu dosyada aşağıda (satır ~351)
-// tanımlıdır. useCoupon içinden çağrılabilmesi için onu ÖNCE
-// bildiriyoruz. Eğer bu fonksiyon başka bir dosyaya taşınırsa
-// açık bir import satırı eklenmeli (yukarıdaki yorum satırına bak).
-// ─────────────────────────────────────────────────────────────────
-
-// Kuponu kullan (Sipariş tamamlandığında çağrılır)
-export const useCoupon = async (couponCode, userId, orderId, orderAmount) => {
-  try {
-    const normalizedCode = couponCode.toUpperCase().trim();
-    const now = new Date();
-
-    // Kullanım limiti için atomik güncelleme: iki sipariş aynı anda gelse bile
-    // limit aşılarak usageCount artırılamaz.
-    const coupon = await Coupon.findOneAndUpdate(
-      {
-        code: normalizedCode,
-        isActive: true,
-        expirationDate: { $gt: now },
-        $or: [
-          { usageLimit: null },
-          { $expr: { $lt: ["$usageCount", "$usageLimit"] } }
-        ]
-      },
-      {
-        $inc: { usageCount: 1 },
-        $push: {
-          usedBy: { user: userId, orderId, usedAt: now }
-        }
-      },
-      { new: true }
-    );
-
-    if (!coupon) {
-      return {
-        success: false,
-        message: "Kupon kullanım limiti dolmuş, süresi geçmiş veya kupon artık aktif değil"
-      };
-    }
-
-    // Kupon kullanım limiti dolduysa sonraki siparişlere kapat.
-    if (coupon.usageLimit !== null && coupon.usageCount >= coupon.usageLimit) {
-      await Coupon.updateOne(
-        { _id: coupon._id },
-        { $set: { isActive: false } }
-      );
-    }
-
-    // Referral ödülü kupon kullanımından bağımsız bir yan etkidir; ödül
-    // oluşturulamazsa gerçekleşmiş kupon kullanımını geri almış sayma.
-    if (coupon.isReferralCoupon && coupon.referredBy) {
-      try {
-        await createReferralRewardCoupon(coupon.referredBy);
-      } catch (referralError) {
-        console.error("Referral ödül kuponu oluşturulamadı:", referralError.message);
-      }
-    }
-
-    const discount = coupon.calculateDiscount(orderAmount);
-    return { success: true, discount };
-  } catch (error) {
-    console.error("Kupon kullanılırken hata:", error);
-    return { success: false, message: "Sunucu hatası" };
   }
 };
 
@@ -523,39 +450,5 @@ export const toggleCouponStatus = async (req, res) => {
   } catch (error) {
     console.error("Kupon durumu değiştirilirken hata:", error);
     res.status(500).json({ success: false, message: "Sunucu hatası" });
-  }
-};
-
-// Referral ödül kuponu oluştur (Dahili fonksiyon)
-export const createReferralRewardCoupon = async (userId) => {
-  try {
-    const user = await User.findById(userId);
-    if (!user) return null;
-
-    // Benzersiz kupon kodu oluştur
-    const code = `TESEKKUR${Date.now().toString(36).toUpperCase()}`;
-    
-    const expirationDate = new Date();
-    expirationDate.setDate(expirationDate.getDate() + 30); // 30 gün geçerli
-
-    const coupon = new Coupon({
-      code,
-      description: "Arkadaşını getirdiğin için teşekkür kuponu! %10 indirim",
-      discountType: "percentage",
-      discountPercentage: 10,
-      minimumOrderAmount: 100,
-      usageLimit: 1,
-      userUsageLimit: 1,
-      expirationDate,
-      userId: userId, // Bu kullanıcıya özel
-      isReferralCoupon: false
-    });
-
-    await coupon.save();
-
-    return coupon;
-  } catch (error) {
-    console.error("Referral ödül kuponu oluşturulurken hata:", error);
-    return null;
   }
 };

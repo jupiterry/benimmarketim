@@ -1,8 +1,10 @@
 import io from 'socket.io-client';
 
-const SOCKET_URL = import.meta.env.DEV 
-  ? "http://localhost:5000" 
-  : "https://www.devrekbenimmarketim.com";
+// Üretimde sayfa hangi origin'den sunuluyorsa Socket.IO da oraya bağlanır
+// (www / www'suz alan adı farkı yüzünden CORS sorunu çıkmaz).
+const SOCKET_URL = import.meta.env.DEV
+  ? "http://localhost:5000"
+  : window.location.origin;
 
 class SocketService {
   constructor() {
@@ -22,16 +24,8 @@ class SocketService {
       reconnectionDelay: 1000,
     });
 
-    this.socket.on('connect', () => {
-      console.log('✅ Socket.IO Bağlandı:', this.socket.id);
-    });
-
     this.socket.on('connect_error', (err) => {
-      console.error('❌ Socket.IO Bağlantı Hatası:', err.message);
-    });
-
-    this.socket.on('disconnect', (reason) => {
-      console.log('⚠️ Socket.IO Bağlantısı Kesildi:', reason);
+      console.error('Socket.IO bağlantı hatası:', err.message);
     });
 
     return this.socket;
@@ -52,11 +46,10 @@ class SocketService {
     // Token web sayfası yenilendiğinde JS state'inde olmayabilir. Backend,
     // HttpOnly accessToken cookie'sini Socket.IO handshake'inden doğrular.
     socket.emit('joinAdminRoom', token ? { token } : {});
-    console.log('🔐 Admin odası isteği gönderildi');
 
     // Backend'den gelen hata bildirimi
     socket.once('error', (err) => {
-      console.error('❌ Admin odası reddedildi:', err?.message || err);
+      console.error('Admin odası reddedildi:', err?.message || err);
     });
   }
 
@@ -65,7 +58,6 @@ class SocketService {
     const socket = this.getSocket();
     if (socket && chatId) {
       socket.emit('joinChat', chatId);
-      console.log('💬 Sohbet odasına katılındı:', chatId);
     }
   }
 
@@ -74,7 +66,6 @@ class SocketService {
     const socket = this.getSocket();
     if (socket && chatId) {
       socket.emit('leaveChat', chatId);
-      console.log('👋 Sohbet odasından ayrılındı:', chatId);
     }
   }
 

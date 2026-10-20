@@ -7,6 +7,10 @@ import { notifyOrderStatusChange } from "../services/orderStatusNotifier.js";
 import { evaluateMissionsForUser } from "../services/mission.service.js";
 import {
   getOrderAnalyticsData,
+  getOrderStatusSummary,
+  parseOrderListOptions,
+  grantReferralRewardIfDelivered,
+  releaseCouponForOrder,
   getDailyOrdersData,
   updateOrderStatus,
   getUserOrders,
@@ -21,10 +25,16 @@ import {
 
 const router = express.Router();
 
+// Admin paneli için sipariş durum özeti (belge yüklemeden): { counts, total, pendingCount }
+router.get("/summary", protectRoute, adminRoute, getOrderStatusSummary);
+
 // Admin paneli için sipariş analitikleri
+// Sorgu: ?status=Hazırlanıyor&limit=300&page=1&since=2026-10-01T00:00:00Z (hepsi isteğe bağlı; limit=0 → tüm siparişler)
 router.get("/", protectRoute, adminRoute, async (req, res) => {
   try {
-    const orderAnalyticsData = await getOrderAnalyticsData();
+    const options = parseOrderListOptions(req.query);
+    const orderAnalyticsData = await getOrderAnalyticsData(options);
+    res.setHeader("X-Total-Count", String(orderAnalyticsData.totalOrders));
 
     const endDate = new Date();
     const startDate = new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -58,7 +68,11 @@ router.put("/bulk-status", protectRoute, adminRoute, auditAdminAction("Toplu sip
     order.statusHistory.push({ status, changedAt: new Date(), changedBy: req.user._id });
     await order.save();
     notifyOrderStatusChange(order, previousStatus);
-    if (status === "Teslim Edildi" && previousStatus !== status) evaluateMissionsForUser(order.user);
+    if (status === "Teslim Edildi" && previousStatus !== status) {
+      evaluateMissionsForUser(order.user);
+      grantReferralRewardIfDelivered(order, previousStatus);
+    }
+    if (status === "İptal Edildi" && previousStatus !== status) releaseCouponForOrder(order);
     req.app.get("io")?.to(`user_${order.user.toString()}`).to("adminRoom").emit("orderStatusUpdated", { orderId: order._id, newStatus: status, message: `Sipariş durumu güncellendi: ${status}` });
   }
   return res.json({ updated: orders.length });

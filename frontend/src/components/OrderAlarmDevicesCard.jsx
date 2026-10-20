@@ -50,14 +50,14 @@ export default function OrderAlarmDevicesCard() {
   const online = devices.filter((device) => device.lastSeenAt && now - new Date(device.lastSeenAt).getTime() < ONLINE_MS).length;
 
   return (
-    <section className="ui-panel dash-telegram" aria-label="Sipariş alarmı telefonları">
+    <section className="ui-panel dash-sidecard" aria-label="Sipariş alarmı telefonları">
       <div className="ui-panel-head">
         <div>
           <h2>Sipariş alarmı telefonları</h2>
           <p>{error || (!data ? 'Kontrol ediliyor…' : devices.length === 0 ? 'Henüz eşlenmiş telefon yok.' : `${devices.length} telefon eşli · ${online} telefon şu an bağlı`)}</p>
         </div>
       </div>
-      <div className="ui-panel-body dash-telegram-body">
+      <div className="ui-panel-body dash-sidecard-body">
         <p>Telefona “Sipariş Alarmı” uygulamasını kurup yönetici hesabıyla giriş yapın. Yeni siparişte telefon, birisi “Siparişi Gördüm” ya da “Kabul Et” diyene kadar çalar; bir telefonda verilen onay diğerlerini de susturur.</p>
         {devices.length > 0 && (
           <ul>

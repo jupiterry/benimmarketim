@@ -89,7 +89,7 @@ else
   git merge-base --is-ancestor "$target" origin/main
 fi
 # A tracked secret/upload would be overwritten by Git: refuse before modifying live files.
-if git ls-tree -r --name-only "$target" | grep -E '(^|/)(\.env($|\.)|\.telegram\.env$|uploads/)' | grep -vE '(^|/)\.env\.example$' >/dev/null; then
+if git ls-tree -r --name-only "$target" | grep -E '(^|/)(\.env($|\.)|uploads/)' | grep -vE '(^|/)\.env\.example$' >/dev/null; then
   echo 'Protected files are tracked in target.'; false
 fi
 changes=$(git diff --name-only "$old" "$target")

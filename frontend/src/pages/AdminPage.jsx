@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { lazy, Suspense, useEffect, useState, useMemo, useCallback, useRef } from "react";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
 import { useProductStore } from "../stores/useProductStore";
@@ -12,29 +12,31 @@ import "../styles/admin-theme.css";
 import AdminSidebar from "../components/admin/AdminSidebar";
 import AdminHeader from "../components/admin/AdminHeader";
 import CommandPalette from "../components/admin/CommandPalette";
+import LoadingSpinner from "../components/LoadingSpinner";
 
-// Tab Components
-import CreateProductForm from "../components/CreateProductForm";
-import ProductAssistTab from "../components/ProductAssistTab";
-import PriceWatchTab from "../components/PriceWatchTab";
-import ProductsList from "../components/ProductsList";
-import OrdersList from "../components/OrdersList";
-import FeedbackList from "../components/FeedbackList";
-import SettingsTab from "../components/SettingsTab";
+// Tab Components — varsayılan sekme (Genel bakış) ilk pakette kalır,
+// diğer sekmeler yalnızca açıldıklarında indirilir.
 import DashboardWidgets from "../components/DashboardWidgets";
-import UsersTab from "../components/UsersTab";
-import PhotocopyTab from "../components/PhotocopyTab";
-import BannerTab from "../components/BannerTab";
-import CouponsTab from "../components/CouponsTab";
-import ReferralsTab from "../components/ReferralsTab";
-import AdvancedAnalyticsTab from "../components/AdvancedAnalyticsTab";
-import AdminAuditTab from "../components/AdminAuditTab";
-import ChatTab from "../components/ChatTab";
-import WeeklyProductsTab from "../components/WeeklyProductsTab";
-import AiKnowledgeCenter from "../components/AiKnowledgeCenter";
-import SupportQueueTab from "../components/SupportQueueTab";
-import PushBroadcastTab from "../components/PushBroadcastTab";
-import SiteMessagesTab from "../components/SiteMessagesTab";
+const CreateProductForm = lazy(() => import("../components/CreateProductForm"));
+const ProductAssistTab = lazy(() => import("../components/ProductAssistTab"));
+const PriceWatchTab = lazy(() => import("../components/PriceWatchTab"));
+const ProductsList = lazy(() => import("../components/ProductsList"));
+const OrdersList = lazy(() => import("../components/OrdersList"));
+const FeedbackList = lazy(() => import("../components/FeedbackList"));
+const SettingsTab = lazy(() => import("../components/SettingsTab"));
+const UsersTab = lazy(() => import("../components/UsersTab"));
+const PhotocopyTab = lazy(() => import("../components/PhotocopyTab"));
+const BannerTab = lazy(() => import("../components/BannerTab"));
+const CouponsTab = lazy(() => import("../components/CouponsTab"));
+const ReferralsTab = lazy(() => import("../components/ReferralsTab"));
+const AdvancedAnalyticsTab = lazy(() => import("../components/AdvancedAnalyticsTab"));
+const AdminAuditTab = lazy(() => import("../components/AdminAuditTab"));
+const ChatTab = lazy(() => import("../components/ChatTab"));
+const WeeklyProductsTab = lazy(() => import("../components/WeeklyProductsTab"));
+const AiKnowledgeCenter = lazy(() => import("../components/AiKnowledgeCenter"));
+const SupportQueueTab = lazy(() => import("../components/SupportQueueTab"));
+const PushBroadcastTab = lazy(() => import("../components/PushBroadcastTab"));
+const SiteMessagesTab = lazy(() => import("../components/SiteMessagesTab"));
 
 import { Package, Upload } from "lucide-react";
 
@@ -229,16 +231,15 @@ const AdminPage = () => {
 
   const fetchAdminBadges = async () => {
     try {
-      const [ordersResponse, chatResponse] = await Promise.all([
-        axios.get("/orders-analytics"),
+      const [summaryResponse, chatResponse] = await Promise.all([
+        axios.get("/orders-analytics/summary"),
         axios.get("/chat/unread-count"),
       ]);
-      const usersOrders =
-        ordersResponse.data?.orderAnalyticsData?.usersOrders || [];
-      const orders = usersOrders.flatMap((entry) => entry.orders || []);
+      const summary = summaryResponse.data || {};
       setAdminBadges({
-        orders: orders.filter((order) => order.status === "Hazırlanıyor")
-          .length,
+        orders: Number(
+          summary.pendingCount ?? summary.counts?.["Hazırlanıyor"] ?? 0,
+        ),
         chats: Number(
           chatResponse.data?.count || chatResponse.data?.unreadCount || 0,
         ),
@@ -506,8 +507,14 @@ const AdminPage = () => {
       }
     };
 
+    // Sipariş durumu değişince bekleyen sipariş rozeti özetten yenilenir
+    const handleOrderStatusUpdated = () => {
+      fetchAdminBadges();
+    };
+
     socket.on("connect", joinAdminRoom);
     socket.on("newOrder", handleNewOrder);
+    socket.on("orderStatusUpdated", handleOrderStatusUpdated);
     socket.on("SupportRequestCreated", handleSupportRequest);
     socket.on("newChatMessage", handleChatMessage);
     socket.on("appOpened", handleAppOpened);
@@ -524,6 +531,7 @@ const AdminPage = () => {
     return () => {
       socket.off("connect", joinAdminRoom);
       socket.off("newOrder", handleNewOrder);
+      socket.off("orderStatusUpdated", handleOrderStatusUpdated);
       socket.off("SupportRequestCreated", handleSupportRequest);
       socket.off("newChatMessage", handleChatMessage);
       socket.off("appOpened", handleAppOpened);
@@ -730,7 +738,9 @@ const AdminPage = () => {
               </div>
             </header>
           )}
-          <div key={activeTab}>{renderContent()}</div>
+          <Suspense fallback={<LoadingSpinner />}>
+            <div key={activeTab}>{renderContent()}</div>
+          </Suspense>
         </div>
       </main>
     </div>

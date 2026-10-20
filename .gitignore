@@ -13,7 +13,6 @@ dist-ssr
 *.local
 
 .env
-.telegram.env
 .env.*
 !.env.example
 uploads/
@@ -35,3 +34,11 @@ frontend/.vite-image-cache/
 
 # Local Android order alarm project
 /siparis-alarm-android/
+
+# Yerel çalışma klasörleri ve arşivler (repoya girmez)
+artifacts/
+aliz-motorent/
+.codex-ai-deploy/
+benimmarketim-support-windows/
+*.tar.gz
+*.tgz

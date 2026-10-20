@@ -119,7 +119,7 @@ export const getCartReminderStats = async (req, res) => {
 
     // Count users with FCM tokens
     const usersWithFCM = await User.countDocuments({
-      fcmToken: { $exists: true, $ne: null, $ne: '' },
+      fcmToken: { $exists: true, $nin: [null, ''] },
       pushNotificationsEnabled: true,
     });
 
@@ -134,7 +134,7 @@ export const getCartReminderStats = async (req, res) => {
           ],
         },
         { pushNotificationsEnabled: true },
-        { fcmToken: { $exists: true, $ne: null, $ne: '' } },
+        { fcmToken: { $exists: true, $nin: [null, ''] } },
       ],
     });
 

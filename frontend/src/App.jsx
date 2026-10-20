@@ -12,6 +12,7 @@ import { useSettingsStore } from "./stores/useSettingsStore";
 import Footer from "./components/Footer";
 import ScrollToTop from "./components/ScrollToTop";
 import { ConfirmProvider } from "./components/ConfirmModal";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 // Ana sayfa ve kategori sayfaları ilk pakette kalır (önceden render edilip
 // hemen gösterilirler). Diğer sayfalar ve admin paneli yalnızca açıldıklarında
@@ -94,6 +95,7 @@ function App() {
 
         <div className="relative z-50 flex-grow">
           {!isAdminPanel && <Navbar />}
+          <ErrorBoundary>
           <Suspense fallback={<LoadingSpinner />}>
           <Routes>
             <Route path="/" element={<HomePage />} />
@@ -166,6 +168,7 @@ function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           </Suspense>
+          </ErrorBoundary>
         </div>
 
         {!isAdminPanel && <Footer />}

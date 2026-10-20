@@ -27,10 +27,10 @@ export const getAnalytics = async (req, res) => {
 		const totalUsers = await User.countDocuments();
 		const totalProducts = await Product.countDocuments();
 
-		// Seçili dönem için sipariş verileri
+		// Seçili dönem için sipariş verileri (yalnızca gerekli alanlar)
 		const currentPeriodOrders = await Order.find({
 			createdAt: { $gte: startDate }
-		});
+		}).select("status totalAmount couponCode couponDiscount").lean();
 
 		// Önceki dönem için sipariş verileri
 		const previousPeriodStart = new Date(startDate);
@@ -48,11 +48,14 @@ export const getAnalytics = async (req, res) => {
 
 		const previousPeriodOrders = await Order.find({
 			createdAt: { $gte: previousPeriodStart, $lt: startDate }
-		});
+		}).select("status totalAmount couponCode couponDiscount").lean();
 
-		// Toplam gelir hesaplama - Tüm zamanlar için (İptal edilenler hariç)
-		const allOrders = await Order.find({ status: { $ne: "İptal Edildi" } });
-		const totalRevenue = allOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+		// Toplam gelir hesaplama - Tüm zamanlar için (İptal edilenler hariç); belge yüklemeden $sum
+		const [revenueRow] = await Order.aggregate([
+			{ $match: { status: { $ne: "İptal Edildi" } } },
+			{ $group: { _id: null, total: { $sum: { $ifNull: ["$totalAmount", 0] } } } },
+		]);
+		const totalRevenue = revenueRow?.total || 0;
 
 		// Değişim oranları hesaplama
 		const currentPeriodRevenue = currentPeriodOrders.filter(o => o.status !== "İptal Edildi").reduce((sum, order) => sum + (order.totalAmount || 0), 0);

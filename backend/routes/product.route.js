@@ -33,78 +33,34 @@ import {
 } from "../controllers/product.controller.js"; // Tüm kontrolörleri import et
 
 const router = express.Router();
-const upload = multer({ dest: "uploads/" }); // Dosyaları "uploads" klasörüne kaydet
-
-
-
-// Sadece "Bilinmeyen" markalı ürünlere brand ekleyen endpoint
-router.get("/update-brands", protectRoute, adminRoute, async (req, res) => {
-  try {
-    // Sadece markası "Bilinmeyen" olan ürünleri bul
-    const products = await Product.find({ brand: "Bilinmeyen" });
-
-    const updatedProducts = await Promise.all(
-      products.map(async (product) => {
-        // Ürün isminin ilk kelimesini al
-        let firstWord = product.name.split(" ")[0];
-        
-        // Özel düzeltme gerektiren bir marka mı kontrol et
-        let brand = brandCorrections[firstWord] || firstWord;
-
-        // Markayı güncelle
-        product.brand = brand;
-        await product.save();
-        return product;
-      })
-    );
-
-    res.status(200).json({
-      message: `${updatedProducts.length} adet "Bilinmeyen" markalı ürün güncellendi!`,
-      updatedProducts,
-    });
-  } catch (error) {
-    console.error("Hata:", error);
-    res.status(500).json({ message: "Bir hata oluştu", error });
-  }
+// CSV toplu yükleme: yalnızca .csv, en fazla 5 MB; dosyalar "uploads" klasörüne geçici yazılır
+const upload = multer({
+  dest: "uploads/",
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, cb) => {
+    const isCsv = /\.csv$/i.test(file.originalname || "") ||
+      ["text/csv", "application/csv", "application/vnd.ms-excel", "text/plain"].includes(file.mimetype);
+    if (!isCsv) return cb(new Error("Yalnızca CSV dosyası yüklenebilir"));
+    cb(null, true);
+  },
 });
-
-// Kategoriye göre markaları getiren endpoint
-router.get("/brands/:category", async (req, res) => {
-  try {
-    const { category } = req.params;
-    const products = await Product.find({ category }, { brand: 1, _id: 0 });
-    
-    // Markaları normalize et ve filtrele
-    const brands = products
-      .map(product => {
-        // Önce marka ismini normalize et (varsa düzeltmeyi kullan)
-        const normalizedBrand = brandNormalizations[product.brand] || product.brand;
-        return normalizedBrand;
-      })
-      .filter(brand => 
-        brand && // boş değerleri filtrele
-        !excludedBrands.includes(brand) // istenmeyen markaları filtrele
-      );
-
-    // Benzersiz markaları al
-    const uniqueBrands = [...new Set(brands)].sort();
-    
-    res.status(200).json({
-      message: `${category} kategorisindeki markalar getirildi`,
-      brands: uniqueBrands,
-    });
-  } catch (error) {
-    console.error("Hata:", error);
-    res.status(500).json({ message: "Bir hata oluştu", error });
-  }
-});
+const handleCsvUpload = (req, res, next) => {
+  upload.single("file")(req, res, (error) => {
+    if (error) {
+      return res.status(400).json({
+        message: error.code === "LIMIT_FILE_SIZE" ? "CSV dosyası en fazla 5 MB olabilir" : error.message,
+      });
+    }
+    next();
+  });
+};
 
 // Toplu ürün yükleme endpoint'i
 router.post(
   "/bulk-upload",
   protectRoute,
   adminRoute,
-  upload.single("file"),
+  handleCsvUpload,
   async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ message: "Lütfen bir dosya yükleyin." });
@@ -161,35 +117,6 @@ router.post("/reorder", protectRoute, adminRoute, async (req, res) => {
   }
 });
 
-// Marka isimlerini düzeltmek için endpoint
-router.get("/normalize-brands", protectRoute, adminRoute, async (req, res) => {
-  try {
-    const products = await Product.find();
-    
-    const updatedProducts = await Promise.all(
-      products.map(async (product) => {
-        // Marka ismini normalize et
-        const normalizedBrand = brandNormalizations[product.brand];
-        
-        if (normalizedBrand) {
-          product.brand = normalizedBrand;
-          await product.save();
-        }
-        
-        return product;
-      })
-    );
-
-    res.status(200).json({
-      message: "Marka isimleri normalize edildi",
-      updatedProducts,
-    });
-  } catch (error) {
-    console.error("Hata:", error);
-    res.status(500).json({ message: "Bir hata oluştu", error });
-  }
-});
-
 // İndirim fiyatı güncelleme endpoint'i
 router.put("/update-discount/:id", protectRoute, adminRoute, async (req, res) => {
   try {
@@ -222,7 +149,8 @@ router.patch("/:id/image", protectRoute, adminRoute, updateProductImage);
 router.delete("/:id/discount", protectRoute, adminRoute, auditAdminAction("İndirim kaldırma", req => req.params.id), removeProductDiscount);
 
 // Mevcut rotalar
-router.get("/", getProducts); // Admin için tüm ürünleri getir
+// Ürün listesi: yönetici isteğinde (geçerli token) gizli ürünler de döner, misafir/müşteride dönmez
+router.get("/", optionalAuth, getProducts);
 router.get("/featured", getFeaturedProducts);
 router.get("/recommendations", getRecommendedProducts);
 router.get("/personalized", protectRoute, getPersonalizedProducts);
@@ -230,19 +158,19 @@ router.get("/personalized", protectRoute, getPersonalizedProducts);
 router.get("/home-feed", optionalAuth, getHomeFeed);
 router.get("/popular", getPopularProducts);
 router.get("/shelf-performance", protectRoute, adminRoute, getShelfPerformance);
-// Static search routes must precede the dynamic /:id route.
+// Static routes must precede the dynamic /:id route.
 router.get("/search", searchProducts);
+router.get('/export-csv', protectRoute, adminRoute, exportProductsToCSV);
+router.get('/detect-brands', protectRoute, adminRoute, detectProductBrands);
 router.get("/:id/similar", getSimilarProducts); // Similar products endpoint
 router.get("/:id", getProductById);
 router.post("/", protectRoute, adminRoute, createProduct);
-router.patch("/:id", protectRoute, adminRoute, toggleFeaturedProduct);
-router.delete("/:id", protectRoute, adminRoute, deleteProduct);
 router.put("/update-price/:id", protectRoute, adminRoute, auditAdminAction("Fiyat değişikliği", req => req.params.id), updateProductPrice);
-router.put("/:id", protectRoute, adminRoute, auditAdminAction("Ürün değişikliği", req => req.params.id), updateProduct); // Ürün güncelleme endpoint'i
 router.patch("/toggle-hidden/:id", protectRoute, adminRoute, toggleHiddenProduct);
 router.patch("/toggle-out-of-stock/:id", protectRoute, adminRoute, toggleOutOfStock);
-router.get('/export-csv', protectRoute, adminRoute, exportProductsToCSV);
-router.get('/detect-brands', protectRoute, adminRoute, detectProductBrands);
+router.patch("/:id", protectRoute, adminRoute, toggleFeaturedProduct);
+router.delete("/:id", protectRoute, adminRoute, deleteProduct);
+router.put("/:id", protectRoute, adminRoute, auditAdminAction("Ürün değişikliği", req => req.params.id), updateProduct); // Ürün güncelleme endpoint'i
 
 // Toplu İşlem Route'ları
 router.post("/bulk-delete", protectRoute, adminRoute, bulkDeleteProducts);

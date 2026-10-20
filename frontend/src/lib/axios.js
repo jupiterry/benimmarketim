@@ -1,17 +1,10 @@
 import axios from "axios";
 
-// Development ve production ortamları için farklı baseURL
-const getBaseURL = () => {
-	// Development ortamında (Vite dev server)
-	if (import.meta.env.DEV) {
-		return "http://localhost:5000/api"; // Backend'e direkt bağlan
-	}
-	// Production ortamında
-	return "/api";
-};
-
+// Hem geliştirme hem üretimde aynı origin üzerinden /api kullanılır.
+// Geliştirmede Vite dev sunucusu /api isteklerini vite.config.js'deki
+// proxy ile http://localhost:5000'e iletir; böylece çerezler ve CORS sorunsuz çalışır.
 const axiosInstance = axios.create({
-	baseURL: getBaseURL(),
+	baseURL: "/api",
 	withCredentials: true, // send cookies to the server
 });
 

@@ -650,6 +650,8 @@ const SHORTCUTS = [
   [["?"], "Bu yardımı aç / kapat"],
 ];
 
+const ORDERS_PAGE_SIZE = 300;
+
 // Main Component
 const OrdersList = () => {
   const { user } = useUserStore();
@@ -701,6 +703,10 @@ const OrdersList = () => {
   const [freshIds, setFreshIds] = useState([]);
   const knownIdsRef = useRef(null);
   const refreshTimerRef = useRef(null);
+  // Sunucudan en yeni 300 sipariş çekilir; "Daha fazla yükle" sonraki sayfaları ekler.
+  const loadedPagesRef = useRef(1);
+  const [totalOrderCount, setTotalOrderCount] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const searchInputRef = useRef(null);
   const keyboardRef = useRef({});
 
@@ -794,9 +800,18 @@ const OrdersList = () => {
     }
   };
 
+  const readTotalCount = (response) => {
+    const header = Number(response.headers?.["x-total-count"]);
+    if (Number.isFinite(header) && header >= 0) return header;
+    const fromBody = Number(response.data?.orderAnalyticsData?.totalOrders);
+    return Number.isFinite(fromBody) ? fromBody : null;
+  };
+
   const fetchOrderAnalyticsData = async () => {
     try {
-      const response = await axios.get("/orders-analytics");
+      // Yenilemede o ana kadar yüklenen sayfa aralığı korunur
+      const limit = ORDERS_PAGE_SIZE * loadedPagesRef.current;
+      const response = await axios.get("/orders-analytics", { params: { limit, page: 1 } });
       const sortedUsersOrders = response.data.orderAnalyticsData?.usersOrders?.map(userOrder => ({
         ...userOrder,
         orders: userOrder.orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
@@ -806,6 +821,7 @@ const OrdersList = () => {
         totalOrders: response.data.orderAnalyticsData?.totalOrders || 0,
         usersOrders: sortedUsersOrders,
       });
+      setTotalOrderCount(readTotalCount(response));
       setLastRefresh(new Date());
 
       // Son yenilemeden bu yana gelen siparişler listede kısa süre vurgulanır
@@ -825,6 +841,43 @@ const OrdersList = () => {
       toast.error("Siparişler yüklenirken hata oluştu");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Sonraki sayfayı (daha eski siparişler) mevcut listeye ekler
+  const loadMoreOrders = async () => {
+    if (loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const nextPage = loadedPagesRef.current + 1;
+      const response = await axios.get("/orders-analytics", { params: { limit: ORDERS_PAGE_SIZE, page: nextPage } });
+      const incoming = response.data.orderAnalyticsData?.usersOrders || [];
+      loadedPagesRef.current = nextPage;
+      setTotalOrderCount(readTotalCount(response));
+      setOrderAnalyticsData((current) => {
+        const groups = (current?.usersOrders || []).map((group) => ({ ...group, orders: [...group.orders] }));
+        for (const userOrder of incoming) {
+          const userId = String(userOrder.user?._id || userOrder.user?.id || "");
+          const existing = groups.find((group) => String(group.user?._id || group.user?.id || "") === userId);
+          if (existing) {
+            const known = new Set(existing.orders.map((order) => order.orderId));
+            existing.orders.push(...(userOrder.orders || []).filter((order) => !known.has(order.orderId)));
+            existing.orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+          } else {
+            groups.push({
+              ...userOrder,
+              orders: [...(userOrder.orders || [])].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
+            });
+          }
+        }
+        knownIdsRef.current = new Set(groups.flatMap((group) => group.orders.map((order) => order.orderId)));
+        return { totalOrders: current?.totalOrders || 0, usersOrders: groups };
+      });
+    } catch (error) {
+      console.error("Daha fazla sipariş yüklenirken hata:", error.response || error.message);
+      toast.error("Daha fazla sipariş yüklenemedi");
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -895,12 +948,14 @@ const OrdersList = () => {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // Yedek yenileme: anlık güncellemeler Socket.IO olaylarıyla gelir, bu aralık yalnızca
+  // bağlantı koptuğunda listenin eskimemesi içindir.
   useEffect(() => {
     let interval;
     if (autoRefresh) {
       interval = setInterval(() => {
         fetchOrderAnalyticsData();
-      }, 30000);
+      }, 60000);
     }
     return () => clearInterval(interval);
   }, [autoRefresh]);
@@ -1223,6 +1278,8 @@ const OrdersList = () => {
 
   // Pano durumları sütunlarla gösterdiği için durum çipini yok sayar
   const filteredOrders = filterOrders(allOrders, { ignoreStatus: view === "board" });
+  const loadedOrderCount = allOrders.length;
+  const hasMoreOrders = Number.isFinite(totalOrderCount) && totalOrderCount > loadedOrderCount;
 
   const totalPages = Math.ceil(filteredOrders.length / ordersPerPage);
   // Arama ya da silme sonrası sayfa sayısı azalırsa boş bir sayfada kalınmaz
@@ -1755,7 +1812,17 @@ const OrdersList = () => {
           )}
 
           <div className="ord-list-foot">
-            <span className="ui-num">{filteredOrders.length} sipariş</span>
+            <span className="ui-num">
+              {filteredOrders.length} sipariş
+              {hasMoreOrders && (
+                <>
+                  {" "}·{" "}
+                  <button type="button" className="ui-btn ui-btn--sm" onClick={loadMoreOrders} disabled={loadingMore}>
+                    {loadingMore ? "Yükleniyor..." : `Daha fazla yükle (${loadedOrderCount}/${totalOrderCount})`}
+                  </button>
+                </>
+              )}
+            </span>
             {/* Pagination */}
             {totalPages > 1 && (
               <nav className="ui-pagination" aria-label="Sayfalama">

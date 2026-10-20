@@ -1,7 +1,7 @@
 import User from "../models/user.model.js";
 import Order from "../models/order.model.js";
-import Product from "../models/product.model.js";
 import Feedback from "../models/feedback.model.js";
+import { deleteUserAccount } from "../services/account.service.js";
 
 // Kullanıcı bilgilerini getir
 export const getUserInfo = async (req, res) => {
@@ -94,39 +94,29 @@ export const deleteAccount = async (req, res) => {
     
     const { reason, deletionType, selectedDataTypes } = req.body;
 
-    if (!reason || reason.trim() === '') {
+    if (typeof reason !== "string" || reason.trim() === '') {
       return res.status(400).json({ message: "Hesap silme nedeni belirtilmelidir" });
     }
 
-    if (deletionType === "partial" && (!selectedDataTypes || selectedDataTypes.length === 0)) {
+    if (deletionType === "partial" && (!Array.isArray(selectedDataTypes) || selectedDataTypes.length === 0)) {
       return res.status(400).json({ message: "Kısmi silme için en az bir veri türü seçilmelidir" });
     }
 
-    let deletionTasks = [];
     let message = "";
 
     if (deletionType === "full") {
-      // Tam hesap silme
-      deletionTasks = [
-        // Siparişleri sil
-        Order.deleteMany({ user: userId }),
-        
-        // Geri bildirimleri sil
-        Feedback.deleteMany({ user: userId }),
-        
-        // Sepet verilerini temizle (eğer ayrı bir model varsa)
-        // Cart.deleteMany({ user: userId }),
-        
-        // Kullanıcıyı sil
-        User.findByIdAndDelete(userId)
-      ];
+      // Tam hesap silme: ortak servis (siparişler anonimleştirilir, kişisel veriler silinir)
+      await deleteUserAccount(userId);
+      res.clearCookie("accessToken");
+      res.clearCookie("refreshToken");
       message = "Hesabınız ve tüm verileriniz başarıyla silindi";
     } else {
       // Kısmi veri silme
-      deletionTasks = [];
+      const deletionTasks = [];
       
       if (selectedDataTypes.includes("orders")) {
-        deletionTasks.push(Order.deleteMany({ user: userId }));
+        // Siparişler silinmez; kullanıcı bağı anonimleştirilir
+        deletionTasks.push(Order.updateMany({ user: userId }, { $set: { userDeleted: true, userDeletedAt: new Date() } }));
       }
       
       if (selectedDataTypes.includes("feedback")) {
@@ -151,11 +141,10 @@ export const deleteAccount = async (req, res) => {
         }
       }
       
+      if (deletionTasks.length > 0) {
+        await Promise.all(deletionTasks);
+      }
       message = "Seçilen verileriniz başarıyla silindi";
-    }
-
-    if (deletionTasks.length > 0) {
-      await Promise.all(deletionTasks);
     }
 
     // Log kaydı

@@ -5,7 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import mongoose from "mongoose";
 import {
-  backupFileName, createBackup, inspectBackup, pruneBackups, readBackupLines, restoreBackup, sendBackupToTelegram,
+  backupFileName, createBackup, inspectBackup, pruneBackups, readBackupLines, restoreBackup,
 } from "../services/dbBackup.service.js";
 import { runBackupOnce } from "../workers/backup.worker.js";
 
@@ -139,43 +139,27 @@ test("old backups are pruned, newest kept", async () => {
   for (const day of [3, 4, 5]) assert.ok(left.includes(`benimmarketim-2026-10-0${day}-0330.json.gz.enc`));
 });
 
-test("telegram receives only encrypted backups, as a protected document to the owner", async (t) => {
+test("nightly run records success, skips its own log and records failure", async (t) => {
   const dir = await tempDir();
-  const result = await createBackup({ db: fakeDb(sample()), EJSON, dir, password: "p" });
-  const calls = [];
-  t.mock.method(globalThis, "fetch", async (url, options) => {
-    calls.push({ url: String(url), form: options.body });
-    return { ok: true, status: 200, json: async () => ({ ok: true }) };
-  });
-  assert.deepEqual(await sendBackupToTelegram({ token: "T", chatId: "42", result }), { sent: true });
-  assert.match(calls[0].url, /\/botT\/sendDocument$/);
-  assert.equal(calls[0].form.get("chat_id"), "42");
-  assert.equal(calls[0].form.get("protect_content"), "true");
-  assert.match(calls[0].form.get("caption"), /1\.205 kayıt/);
-  assert.equal(calls[0].form.get("document").size, result.bytes);
-  assert.deepEqual(await sendBackupToTelegram({ token: "T", chatId: "42", result: { ...result, encrypted: false } }), { sent: false, reason: "not-encrypted" });
-  assert.deepEqual(await sendBackupToTelegram({ token: "", chatId: "42", result }), { sent: false, reason: "telegram-not-configured" });
-  const big = await sendBackupToTelegram({ token: "T", chatId: "42", result: { ...result, bytes: 60 * 1024 * 1024 } });
-  assert.equal(big.reason, "too-large");
-  assert.match(calls.at(-1).url, /sendMessage$/);
-});
-
-test("nightly run records success, skips its own log and alerts the owner on failure", async (t) => {
-  const dir = await tempDir();
-  const db = fakeDb({ ...sample(), telegram_state: [{ _id: "main", chatId: "42" }] });
-  const sent = [];
-  t.mock.method(globalThis, "fetch", async (url) => { sent.push(String(url)); return { ok: true, status: 200, json: async () => ({ ok: true }) }; });
-  const settings = { dir, keep: 14, password: "p", telegramToken: "T" };
+  const db = fakeDb({ ...sample(), backup_state: [{ _id: "main", note: "x" }] });
+  const fetchCalls = [];
+  t.mock.method(globalThis, "fetch", async (url) => { fetchCalls.push(String(url)); return { ok: true, status: 200, json: async () => ({ ok: true }) }; });
+  const settings = { dir, keep: 14, password: "p" };
   const ok = await runBackupOnce({ db, settings, EJSON });
   assert.equal(ok.ok, true);
-  assert.equal(ok.telegram.sent, true);
+  assert.equal(ok.encrypted, true);
+  assert.deepEqual(Object.keys(ok).sort(), ["at", "bytes", "collections", "documents", "durationMs", "encrypted", "file", "ok", "removed"], "yedek kaydında dış gönderim alanı yoktur");
   assert.equal(db.data.get("backup_runs").docs.length, 1);
   assert.ok(!("backup_runs" in ok.collections));
-  assert.ok("telegram_state" in ok.collections);
+  assert.ok("backup_state" in ok.collections);
+  const files = await fs.readdir(dir);
+  assert.equal(files.length, 1);
+  assert.equal(files[0], ok.file);
 
   const broken = { ...db, listCollections: () => ({ toArray: async () => { throw new Error("Atlas bağlantısı koptu"); } }) };
   const failed = await runBackupOnce({ db: broken, settings, EJSON });
   assert.equal(failed.ok, false);
   assert.match(failed.error, /Atlas/);
-  assert.match(sent.at(-1), /sendMessage$/);
+  assert.equal(db.data.get("backup_runs").docs.length, 2);
+  assert.equal(fetchCalls.length, 0, "hiçbir dış servise istek atılmaz");
 });

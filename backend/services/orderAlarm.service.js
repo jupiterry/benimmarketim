@@ -246,7 +246,7 @@ export const istanbulDayStart = (now = new Date()) => {
   return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()) - 3 * 3600 * 1000);
 };
 
-/** Günlük özet: iptaller sipariş sayısına ve ciroya katılmaz (Telegram özetiyle aynı kural). */
+/** Günlük özet: iptaller sipariş sayısına ve ciroya katılmaz. */
 export const summarizeOrders = (orders) => {
   const byStatus = Object.fromEntries(ORDER_STATUSES.map((status) => [status, 0]));
   let revenue = 0;

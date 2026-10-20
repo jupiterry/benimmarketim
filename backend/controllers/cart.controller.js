@@ -2,8 +2,6 @@ import Product from "../models/product.model.js";
 import Order from "../models/order.model.js";
 import Settings from "../models/settings.model.js";
 import { redis } from "../lib/redis.js";
-import { processReferralFirstOrder } from "./referral.controller.js";
-import { useCoupon } from "./coupon.controller.js";
 import {
   buildOrderProducts,
   validateAndCalculateCoupon,
@@ -141,6 +139,12 @@ export const addToCart = async (req, res) => {
     if (!product) {
       return res.status(404).json({ error: "Ürün bulunamadı!" });
     }
+    if (product.isHidden) {
+      return res.status(400).json({ error: `"${product.name}" artık satışta değil.` });
+    }
+    if (product.isOutOfStock) {
+      return res.status(400).json({ error: `"${product.name}" şu anda stokta yok.` });
+    }
 
     const existingItem = user.cartItems.find(
       (item) => item.product?.toString() === productId
@@ -180,13 +184,16 @@ export const getCartProducts = async (req, res) => {
     const validCartItems = req.user.cartItems.filter((item) => item.product);
     const products = await Product.find({
       _id: { $in: validCartItems.map((item) => item.product) },
-    });
+    }).lean();
 
+    // Fiyatlandırma (haftalık/indirimli) order.service ile aynı kuralla hesaplanır.
+    // Sepet görünümünde gizli/stoksuz ürün hata vermez; sipariş anında reddedilir.
     const { orderProducts } = await buildOrderProducts(
       validCartItems.map((item) => ({
         product: item.product.toString(),
         quantity: item.quantity,
-      }))
+      })),
+      { checkAvailability: false }
     );
     const pricingMap = new Map(
       orderProducts.map((item) => [item.product.toString(), item])
@@ -198,7 +205,7 @@ export const getCartProducts = async (req, res) => {
       );
       const pricing = pricingMap.get(product._id.toString());
       return {
-        ...product.toJSON(),
+        ...product,
         price: pricing?.price ?? product.price,
         originalPrice: product.price,
         actualPrice: pricing?.price ?? product.price,
@@ -407,23 +414,12 @@ export const placeOrder = async (req, res) => {
     }
     await req.user.save();
 
-    // Referral: İlk sipariş kontrolü
-    try {
-      const userOrderCount = await Order.countDocuments({ user: req.user._id });
-      if (userOrderCount === 1) {
-        const referralResult = await processReferralFirstOrder(req.user._id);
-        if (referralResult.success) {
-          console.log("Referral ödülü verildi. Referrer:", referralResult.referrerId);
-        }
-      }
-    } catch (refError) {
-      // Referral hatası ana işlemi etkilemez
-      console.error("Referral işlemi sırasında hata:", refError);
-    }
+    // Referral ödülü artık sipariş oluşturulduğunda değil, ilk sipariş "Teslim Edildi"
+    // olduğunda verilir (ordersAnalytics.controller.js → grantReferralRewardIfDelivered).
 
-    // Socket.IO + n8n bildirimleri (order.service — arka planda)
+    // Sipariş alarmı + Socket.IO admin bildirimi (order.service — arka planda)
     const io = req.app.get("io");
-    dispatchOrderNotifications(io, newOrder, req.user, phone);
+    dispatchOrderNotifications(io, newOrder, req.user);
 
     res.status(201).json({
       success: true,

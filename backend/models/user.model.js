@@ -31,6 +31,11 @@ const userSchema = new mongoose.Schema(
 			type: String,
 			trim: true,
 		},
+		// Profil fotoğrafı (Cloudinary secure_url, klasör: avatars)
+		avatar: {
+			type: String,
+			default: null,
+		},
 		lastActive: {
 			type: Date,
 			default: Date.now
@@ -116,6 +121,9 @@ const userSchema = new mongoose.Schema(
 		timestamps: true,
 	}
 );
+
+// Sepet hatırlatma görevi: terk edilmiş sepet + bildirim açık kullanıcılar
+userSchema.index({ cartLastUpdated: 1, pushNotificationsEnabled: 1 });
 
 // Pre-save hook: Şifre değiştiyse kayıt öncesi hash'le
 userSchema.pre("save", async function () {

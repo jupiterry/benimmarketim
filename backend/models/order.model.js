@@ -95,6 +95,9 @@ const orderSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    // Hesabını silen kullanıcının siparişi: kayıt kalır, kullanıcı bağı anonimleşir
+    userDeleted: { type: Boolean, default: false },
+    userDeletedAt: { type: Date, default: null },
     // Cihaz bilgileri
     device: {
       platform: {
@@ -118,6 +121,8 @@ const orderSchema = new mongoose.Schema(
 // Son siparişler ve öneri istatistiği (son 30 gün) / kullanıcının sipariş geçmişi
 orderSchema.index({ createdAt: -1 });
 orderSchema.index({ user: 1, createdAt: -1 });
+// Yönetici paneli: duruma göre filtre + en yeni sipariş; durum özeti ($group)
+orderSchema.index({ status: 1, createdAt: -1 });
 
 const Order = mongoose.model("Order", orderSchema);
 

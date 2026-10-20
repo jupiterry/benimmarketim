@@ -25,22 +25,6 @@ export const useProductStore = create((set) => ({
         }
     },
 
-    // Toplu ürün oluşturma
-    createBulkProducts: async (productsData) => {
-        set({ loading: true });
-        try {
-            const res = await axios.post("/products/bulk", productsData);
-            set((prevState) => ({
-                products: [...prevState.products, ...res.data],
-                loading: false,
-            }));
-            toast.success("Toplu ürünler başarıyla oluşturuldu");
-        } catch (error) {
-            toast.error(error.response?.data?.error || "Toplu ürünler oluşturulamadı");
-            set({ loading: false });
-        }
-    },
-
     // Tüm ürünleri getir
     fetchAllProducts: async () => {
         set({ loading: true });
@@ -181,23 +165,4 @@ export const useProductStore = create((set) => ({
             toast.error(error.response?.data?.message || "Tükendi durumu değiştirilirken hata oluştu.");
         }
     },
-
-    // Ürün adını güncelle
-    updateProductName: async (productId, newName) => {
-        set({ loading: true });
-        try {
-            const response = await axios.put(`/products/update-name/${productId}`, { name: newName });
-            set((prevProducts) => ({
-                products: prevProducts.products.map((product) =>
-                    product._id === productId ? { ...product, name: response.data.product.name } : product
-                ),
-                loading: false,
-            }));
-            toast.success("Ürün adı başarıyla güncellendi");
-        } catch (error) {
-            set({ loading: false });
-            toast.error(error.response?.data?.error || "İsim güncellenemedi");
-        }
-    },
-
 }));
