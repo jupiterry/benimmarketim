@@ -5,6 +5,7 @@ import {
   createBanner,
   updateBanner,
   deleteBanner,
+  uploadBannerImage,
 } from "../controllers/banner.controller.js";
 import { protectRoute, adminRoute } from "../middleware/auth.middleware.js";
 
@@ -16,6 +17,7 @@ router.get("/", getBanners);
 // Admin routes
 router.get("/admin", protectRoute, adminRoute, getAllBanners);
 router.post("/", protectRoute, adminRoute, createBanner);
+router.post("/upload", protectRoute, adminRoute, uploadBannerImage);
 router.put("/:id", protectRoute, adminRoute, updateBanner);
 router.delete("/:id", protectRoute, adminRoute, deleteBanner);
 
