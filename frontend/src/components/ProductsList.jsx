@@ -10,6 +10,7 @@ import axios from "../lib/axios";
 import { cloudinaryImage } from "../lib/image";
 import { useProductStore } from "../stores/useProductStore";
 import { useConfirm } from "./ConfirmModal";
+import { HANDOFF, takeHandoff } from "./admin/ui";
 import ProductDrawer from "./products/ProductDrawer";
 import { FlashBadge, FlashSaleForm, FlashSaleManager } from "./products/FlashSale";
 import {
@@ -336,6 +337,11 @@ const ProductsList = ({ onCreate }) => {
   }, []);
 
   useEffect(() => { loadProducts(); loadSales(); }, [loadProducts, loadSales]);
+  // Komut paletinden "ürünü aç" ile gelindiyse çekmeceyi aç
+  useEffect(() => {
+    const id = takeHandoff(HANDOFF.product);
+    if (id) setDetailId(id);
+  }, []);
 
   const catalog = useMemo(() => (Array.isArray(products) ? products : []), [products]);
   const flashByProduct = useMemo(() => flashIndex(sales, now), [sales, now]);

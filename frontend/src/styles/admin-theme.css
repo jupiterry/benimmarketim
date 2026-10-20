@@ -56,7 +56,7 @@
   cursor: pointer;
 }
 .admin-layout select option {
-  background: #fff;
+  background: var(--ui-surface);
   color: var(--ui-text);
 }
 .app-skip {
@@ -2067,7 +2067,7 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--ui-surface);
   box-shadow: 0 1px 2px rgba(16, 24, 40, 0.25);
   transition: transform var(--ui-ease);
 }
@@ -2589,11 +2589,11 @@ body:has(.admin-layout) .confirm-backdrop {
 }
 body:has(.admin-layout) .confirm-dialog {
   max-width: 400px;
-  border: 1px solid #e6e8eb;
+  border: 1px solid var(--ui-line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--ui-surface);
   box-shadow: 0 16px 40px rgba(16, 24, 40, 0.14), 0 2px 6px rgba(16, 24, 40, 0.06);
-  color: #16191d;
+  color: var(--ui-text);
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 body:has(.admin-layout) .confirm-accent {
@@ -2606,8 +2606,8 @@ body:has(.admin-layout) .confirm-icon {
   padding: 8px;
   border: 0;
   border-radius: 8px;
-  background: #eef0f2;
-  color: #4d545e;
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
 }
 body:has(.admin-layout) .confirm-icon svg {
   width: 18px;
@@ -2615,25 +2615,25 @@ body:has(.admin-layout) .confirm-icon svg {
   color: inherit;
 }
 body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-icon {
-  background: #fdebe8;
-  color: #a82c22;
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
 }
 body:has(.admin-layout) .confirm-root[data-type="warning"] .confirm-icon {
-  background: #fdf3dc;
-  color: #8a560a;
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
 }
 body:has(.admin-layout) .confirm-root[data-type="success"] .confirm-icon {
-  background: #e3f4ea;
-  color: #17663f;
+  background: var(--ui-ok-bg);
+  color: var(--ui-ok-ink);
 }
 body:has(.admin-layout) .confirm-title {
   margin-bottom: 4px;
-  color: #16191d;
+  color: var(--ui-text);
   font-size: 15px;
   font-weight: 650;
 }
 body:has(.admin-layout) .confirm-message {
-  color: #4d545e;
+  color: var(--ui-text-2);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -2644,10 +2644,10 @@ body:has(.admin-layout) .confirm-close {
 body:has(.admin-layout) .confirm-close svg {
   width: 16px;
   height: 16px;
-  color: #6b727d;
+  color: var(--ui-text-3);
 }
 body:has(.admin-layout) .confirm-close:hover {
-  background: #eef0f2;
+  background: var(--ui-surface-3);
 }
 body:has(.admin-layout) .confirm-actions {
   justify-content: flex-end;
@@ -2665,26 +2665,26 @@ body:has(.admin-layout) .confirm-ok {
   font-weight: 600;
 }
 body:has(.admin-layout) .confirm-cancel {
-  border: 1px solid #d2d6db;
-  background: #fff;
-  color: #16191d;
+  border: 1px solid var(--ui-line-strong);
+  background: var(--ui-surface);
+  color: var(--ui-text);
 }
 body:has(.admin-layout) .confirm-cancel:hover {
-  background: #f7f8f9;
+  background: var(--ui-surface-2);
 }
 body:has(.admin-layout) .confirm-ok {
   border: 1px solid transparent;
-  background: #17573d;
+  background: var(--ui-brand);
   color: #fff;
 }
 body:has(.admin-layout) .confirm-ok:hover {
-  background: #0f4530;
+  background: var(--ui-brand-strong);
 }
 body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok {
-  background: #cf3f33;
+  background: var(--ui-danger);
 }
 body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok:hover {
-  background: #a82c22;
+  background: var(--ui-danger-ink);
 }
 
 /* ══ Yeni sipariş bildirimi (sayfa düzeninin dışında, toast içinde) ════ */
@@ -2692,11 +2692,11 @@ body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok:hover {
   width: 360px;
   max-width: calc(100vw - 24px);
   padding: 14px;
-  border: 1px solid #e6e8eb;
+  border: 1px solid var(--ui-line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--ui-surface);
   box-shadow: 0 16px 40px rgba(16, 24, 40, 0.14), 0 2px 6px rgba(16, 24, 40, 0.06);
-  color: #16191d;
+  color: var(--ui-text);
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: 13px;
   line-height: 1.45;
@@ -2721,11 +2721,11 @@ body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok:hover {
   height: 30px;
   flex-shrink: 0;
   border-radius: 8px;
-  background: #e8f2ec;
-  color: #14553a;
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
 }
 .admin-toast-title {
-  color: #14553a;
+  color: var(--ui-brand-ink);
   font-size: 12px;
   font-weight: 650;
 }
@@ -2739,16 +2739,16 @@ body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok:hover {
 .admin-toast-close {
   padding: 2px 6px;
   border-radius: 6px;
-  color: #6b727d;
+  color: var(--ui-text-3);
   font-size: 12px;
 }
 .admin-toast-close:hover {
-  background: #eef0f2;
-  color: #16191d;
+  background: var(--ui-surface-3);
+  color: var(--ui-text);
 }
 .admin-toast-meta {
   margin-top: 6px !important;
-  color: #4d545e;
+  color: var(--ui-text-2);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
@@ -2759,7 +2759,7 @@ body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok:hover {
   gap: 12px;
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid #e6e8eb;
+  border-top: 1px solid var(--ui-line);
 }
 .admin-toast-amount {
   font-size: 18px;
@@ -2770,13 +2770,13 @@ body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok:hover {
   height: 32px;
   padding: 0 12px;
   border-radius: 6px;
-  background: #17573d;
+  background: var(--ui-brand);
   color: #fff;
   font-size: 13px;
   font-weight: 600;
 }
 .admin-toast-action:hover {
-  background: #0f4530;
+  background: var(--ui-brand-strong);
 }
 
 /* ══ Sekmeler arası tutarlılık (v2) ═══════════════════════════════════
@@ -3675,7 +3675,7 @@ body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok:hover {
   width: 38px;
   height: 38px;
   border-radius: 11px;
-  background: linear-gradient(145deg, #1f7a52, #0f4530);
+  background: linear-gradient(145deg, #1f7a52, var(--ui-brand-strong));
   color: #fff;
   box-shadow: 0 6px 16px rgba(15, 69, 48, 0.28);
 }
@@ -3712,7 +3712,7 @@ body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok:hover {
 }
 .admin-layout .push-idea:hover {
   border-color: var(--ui-brand);
-  background: #fff;
+  background: var(--ui-surface);
   color: var(--ui-brand);
 }
 .admin-layout .push-ai-input {
@@ -3726,7 +3726,7 @@ body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok:hover {
   min-height: 64px;
   padding-block: 9px;
   border-color: #d5e6dc;
-  background: #fff;
+  background: var(--ui-surface);
   resize: vertical;
 }
 .admin-layout .push-ai-go {
@@ -3755,7 +3755,7 @@ body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok:hover {
 }
 .admin-layout .push-ai .push-ai-option[data-selected="true"] {
   border-color: var(--ui-brand);
-  background: #fff;
+  background: var(--ui-surface);
   box-shadow: 0 0 0 2px var(--ui-brand-soft), 0 6px 16px rgba(15, 69, 48, 0.1);
 }
 
@@ -3839,7 +3839,7 @@ body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok:hover {
 }
 .admin-layout .push-emoji:hover {
   border-color: var(--ui-line-strong);
-  background: #fff;
+  background: var(--ui-surface);
   transform: translateY(-1px);
 }
 
@@ -4306,7 +4306,7 @@ body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok:hover {
   height: 12px;
 }
 .ord-next-item[data-attention="true"] .ord-next-wait {
-  background: #fff;
+  background: var(--ui-surface);
   color: var(--ui-danger-ink);
 }
 .ord-next-go {
@@ -4438,7 +4438,7 @@ body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok:hover {
   background: rgba(255, 255, 255, 0.14);
 }
 .ord-hour[data-now] > i {
-  background: #fff;
+  background: var(--ui-surface);
 }
 .ord-hours-axis {
   display: grid;
@@ -5323,4 +5323,103 @@ button.ord-point:hover {
 }
 .ord-card[data-compact] .ord-card-name strong {
   font-weight: 600;
+}
+
+/* ══ Başlık: canlı durum çubuğu ═══════════════════════════════════════ */
+.app-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 6px;
+}
+.app-status-conn,
+.app-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--ui-line);
+  border-radius: 999px;
+  background: var(--ui-surface-2);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 550;
+  white-space: nowrap;
+}
+.app-status-conn[data-on="true"] {
+  border-color: transparent;
+  background: var(--ui-ok-bg);
+  color: var(--ui-ok-ink);
+}
+.app-status-conn[data-on="false"] {
+  border-color: transparent;
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+  animation: app-status-blink 1.4s ease-in-out infinite;
+}
+@keyframes app-status-blink {
+  50% { opacity: 0.55; }
+}
+.app-status-chip {
+  cursor: pointer;
+  transition: border-color var(--ui-ease), background-color var(--ui-ease);
+}
+.app-status-chip:hover {
+  border-color: var(--ui-line-strong);
+  background: var(--ui-surface-3);
+}
+.app-status-chip b {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-text);
+}
+.app-status-chip[data-tone="warn"] {
+  border-color: transparent;
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+.app-status-chip[data-tone="warn"] b { color: inherit; }
+.app-status-chip[data-tone="info"] {
+  border-color: transparent;
+  background: var(--ui-info-bg);
+  color: var(--ui-info-ink);
+}
+.app-status-chip[data-tone="info"] b { color: inherit; }
+@media (max-width: 1100px) {
+  .app-status-conn span,
+  .app-status-chip span { display: none; }
+}
+@media (max-width: 760px) {
+  .app-status-chip[data-tone=""] { display: none; }
+  .app-status { margin-right: 2px; }
+}
+/* Komut paleti: gruplar ve ürün görseli */
+.command-palette-group + .command-palette-group {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--ui-line);
+}
+.command-palette-group-title {
+  margin: 0;
+  padding: 6px 10px 2px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ui-text-3);
+}
+.command-palette-thumb {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  border: 1px solid var(--ui-line);
+  background: var(--ui-surface);
+  object-fit: contain;
+}
+.command-palette-item small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

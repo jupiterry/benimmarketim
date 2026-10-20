@@ -12,6 +12,7 @@ import "../styles/admin-theme.css";
 import AdminSidebar from "../components/admin/AdminSidebar";
 import AdminHeader from "../components/admin/AdminHeader";
 import CommandPalette from "../components/admin/CommandPalette";
+import { PageHeader, usePref } from "../components/admin/ui";
 
 // Tab Components
 import CreateProductForm from "../components/CreateProductForm";
@@ -93,11 +94,40 @@ const AdminPage = () => {
   const [notifications, setNotifications] = useState([]);
   const [lastSync, setLastSync] = useState(null);
   const [adminBadges, setAdminBadges] = useState({ orders: 0, chats: 0 });
+  // Tema: açık / koyu / sisteme göre; tercih tarayıcıda saklanır
+  const [themePref, setThemePref] = usePref("admin-theme", "system");
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false);
+  useEffect(() => {
+    const mql = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!mql) return undefined;
+    const onChange = () => setSystemDark(mql.matches);
+    mql.addEventListener?.("change", onChange);
+    return () => mql.removeEventListener?.("change", onChange);
+  }, []);
+  const resolvedTheme = themePref === "system" ? (systemDark ? "dark" : "light") : themePref;
+  const toggleTheme = useCallback(() => {
+    setThemePref((current) => {
+      const isDark = current === "system" ? systemDark : current === "dark";
+      return isDark ? "light" : "dark";
+    });
+  }, [setThemePref, systemDark]);
+  // Canlı bağlantı durumu (başlıktaki durum çubuğu)
+  const [socketConnected, setSocketConnected] = useState(() => Boolean(socketService.socket?.connected));
   const activeTabRef = useRef(activeTab);
   useEffect(() => {
     activeTabRef.current = activeTab;
   }, [activeTab]);
   const handledOrderIdsRef = useRef(new Set());
+  useEffect(() => {
+    const socket = socketService.connect();
+    const on = () => setSocketConnected(true);
+    const off = () => setSocketConnected(false);
+    setSocketConnected(Boolean(socket.connected));
+    socket.on("connect", on);
+    socket.on("disconnect", off);
+    socket.on("connect_error", off);
+    return () => { socket.off("connect", on); socket.off("disconnect", off); socket.off("connect_error", off); };
+  }, []);
 
   // Stores
   const { fetchAllProducts, products } = useProductStore();
@@ -139,6 +169,14 @@ const AdminPage = () => {
     }),
     [],
   );
+
+  // Tarayıcı sekmesi: bekleyen sipariş sayısı + açık bölüm
+  useEffect(() => {
+    const previous = document.title;
+    const pending = adminBadges.orders > 0 ? `(${adminBadges.orders}) ` : "";
+    document.title = `${pending}${tabLabels[activeTab] || "Yönetim"} · Benim Marketim`;
+    return () => { document.title = previous; };
+  }, [activeTab, adminBadges.orders, tabLabels]);
 
   const tabDescriptions = {
     analytics:
@@ -590,7 +628,21 @@ const AdminPage = () => {
   const handleTabChange = useCallback((tab, preset) => {
     if (tab === "orders" && preset) sessionStorage.setItem("admin-order-preset", preset);
     setActiveTab(tab);
+    setMobileMenuOpen(false);
   }, []);
+
+  // Ekran bileşenleri başka bir bölüme geçmek için bu olayı yayınlar:
+  // window.dispatchEvent(new CustomEvent("admin-navigate", { detail: "users" | { tab, preset } }))
+  useEffect(() => {
+    const onNavigate = (event) => {
+      const detail = event.detail;
+      if (!detail) return;
+      if (typeof detail === "string") handleTabChange(detail);
+      else if (detail.tab) handleTabChange(detail.tab, detail.preset);
+    };
+    window.addEventListener("admin-navigate", onNavigate);
+    return () => window.removeEventListener("admin-navigate", onNavigate);
+  }, [handleTabChange]);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -661,7 +713,7 @@ const AdminPage = () => {
   };
 
   return (
-    <div className={`admin-layout app ${sidebarCollapsed ? "is-rail" : ""}`}>
+    <div className={`admin-layout app ${sidebarCollapsed ? "is-rail" : ""}`} data-theme={resolvedTheme}>
       <a className="app-skip" href="#admin-workspace">
         İçeriğe geç
       </a>
@@ -671,6 +723,9 @@ const AdminPage = () => {
         onClose={() => setCommandPaletteOpen(false)}
         onNavigate={handleTabChange}
         currentTab={activeTab}
+        products={products}
+        users={users}
+        onToggleTheme={toggleTheme}
       />
 
       {/* Sidebar */}
@@ -714,6 +769,9 @@ const AdminPage = () => {
           onNavigate={handleTabChange}
           user={user}
           lastSync={lastSync}
+          status={{ connected: socketConnected, orders: adminBadges.orders, chats: adminBadges.chats }}
+          theme={resolvedTheme}
+          onToggleTheme={toggleTheme}
         />
 
         {/* Content Area */}
@@ -723,13 +781,9 @@ const AdminPage = () => {
           className="admin-content app-content"
           data-tab={activeTab}
         >
-          {!["dashboard", "orders", "products", "analytics", "weekly-products", "coupons", "banners", "referrals", "feedback", "photocopy", "settings", "support-queue", "push", "site-messages"].includes(activeTab) && (
-            <header className="app-pagehead">
-              <div>
-                <h1>{tabLabels[activeTab]}</h1>
-                <p>{tabDescriptions[activeTab]}</p>
-              </div>
-            </header>
+          {/* Ekranlar kendi başlığını çizer; yalnızca küçük yardımcı sekmeler ortak başlığı kullanır */}
+          {["audit", "bulk-upload"].includes(activeTab) && (
+            <PageHeader title={tabLabels[activeTab]} description={tabDescriptions[activeTab]} />
           )}
           <div key={activeTab}>{renderContent()}</div>
         </div>

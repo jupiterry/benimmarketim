@@ -15,6 +15,10 @@ import {
   Plus,
   CalendarDays,
   ChevronDown,
+  Sun,
+  Moon,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { useUserStore } from "../../stores/useUserStore";
 
@@ -30,6 +34,9 @@ export default function AdminHeader({
   onNavigate,
   user,
   lastSync,
+  status = { connected: true, orders: 0, chats: 0 },
+  theme = "light",
+  onToggleTheme,
 }) {
   const [panel, setPanel] = useState(null);
   const root = useRef(null);
@@ -72,6 +79,19 @@ export default function AdminHeader({
         <kbd>Ctrl K</kbd>
       </button>
       <div className="app-top-actions">
+        {/* Canlı durum: bağlantı, bekleyen sipariş ve okunmamış mesaj */}
+        <div className="app-status" role="status" aria-label="Canlı durum">
+          <span className="app-status-conn" data-on={status.connected} title={status.connected ? `Canlı bağlantı açık${lastSync ? ` · son yenileme ${lastSync}` : ""}` : "Canlı bağlantı kopuk; yeniden bağlanılıyor"}>
+            {status.connected ? <Wifi size={13} /> : <WifiOff size={13} />}
+            <span>{status.connected ? "Canlı" : "Bağlantı yok"}</span>
+          </span>
+          <button type="button" className="app-status-chip" data-tone={status.orders > 0 ? "warn" : ""} onClick={() => onNavigate?.("orders", "active")} title="Bekleyen siparişler">
+            <ShoppingBag size={13} /><b>{status.orders}</b><span>bekleyen</span>
+          </button>
+          <button type="button" className="app-status-chip" data-tone={status.chats > 0 ? "info" : ""} onClick={() => onNavigate?.("chat")} title="Okunmamış mesajlar">
+            <MessageCircle size={13} /><b>{status.chats}</b><span>mesaj</span>
+          </button>
+        </div>
         <span className="app-top-date">
           <CalendarDays size={14} />
           {new Date().toLocaleDateString("tr-TR", {
@@ -87,6 +107,14 @@ export default function AdminHeader({
           <Plus /> <span>Yeni ürün</span>
         </button>
         <span className="app-top-sep" />
+        <button
+          className="app-icon-btn"
+          onClick={onToggleTheme}
+          aria-label={theme === "dark" ? "Açık temaya geç" : "Koyu temaya geç"}
+          title={theme === "dark" ? "Açık temaya geç" : "Koyu temaya geç"}
+        >
+          {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
         <button
           className="app-icon-btn app-mobile-search"
           onClick={onSearchClick}
