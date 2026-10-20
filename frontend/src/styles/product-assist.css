@@ -53,10 +53,12 @@
   position: absolute;
   inset: auto 8px 8px;
   padding: 4px 8px;
+  border: 1px solid var(--ui-line);
   border-radius: var(--ui-radius);
-  background: rgba(16, 24, 40, 0.72);
-  color: #fff;
+  background: var(--ui-surface);
+  color: var(--ui-text);
   font-size: var(--ui-fs-xs);
+  font-weight: 600;
 }
 .admin-layout .pa-photo-status {
   display: grid;
@@ -133,7 +135,7 @@
   overflow: hidden;
   border: 1px solid var(--ui-line);
   border-radius: var(--ui-radius-lg);
-  background: #fff;
+  background: var(--ui-surface);
   cursor: pointer;
   transition: border-color var(--ui-ease), box-shadow var(--ui-ease);
 }
@@ -158,7 +160,7 @@
   bottom: 6px;
   padding: 2px 6px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--ui-surface);
   color: var(--ui-text-2);
   font-size: 11px;
   font-weight: 600;
@@ -172,7 +174,7 @@
   padding: 3px;
   border-radius: 50%;
   background: var(--ui-brand);
-  color: #fff;
+  color: var(--ui-surface);
 }
 .admin-layout .pa-tile-check svg {
   width: 14px;
@@ -200,12 +202,12 @@
   overflow: hidden;
   border: 1px solid var(--ui-line);
   border-radius: var(--ui-radius-lg);
-  background-color: #fff;
+  background-color: var(--ui-surface);
   background-image:
-    linear-gradient(45deg, #eef0f2 25%, transparent 25%),
-    linear-gradient(-45deg, #eef0f2 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #eef0f2 75%),
-    linear-gradient(-45deg, transparent 75%, #eef0f2 75%);
+    linear-gradient(45deg, var(--ui-surface-3) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--ui-surface-3) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--ui-surface-3) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--ui-surface-3) 75%);
   background-size: 20px 20px;
   background-position: 0 0, 0 10px, 10px -10px, -10px 0;
 }
@@ -228,6 +230,25 @@
 @media (max-width: 900px) {
   .admin-layout .pa {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 760px) {
+  .admin-layout .pa-shell > .app-pagehead .ui-segmented {
+    width: 100%;
+  }
+  .admin-layout .pa-search {
+    flex-wrap: wrap;
+  }
+  .admin-layout .pa-search .ui-field {
+    flex-basis: 100%;
+  }
+  .admin-layout .pa-search .ui-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+  .admin-layout .pa-actions .ui-btn {
+    flex: 1 1 auto;
+    justify-content: center;
   }
 }
 @media (max-width: 560px) {
@@ -253,22 +274,15 @@
 }
 
 /* ══ Tek ürün / toplu ekleme seçimi ══════════════════════════════════════ */
-.admin-layout .pa-shell {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ui-s4, 16px);
+.admin-layout .pa-shell > .app-pagehead {
+  margin-bottom: 0;
 }
-.admin-layout .pa-mode {
-  align-self: flex-start;
-}
-.admin-layout .pa-mode > button {
-  min-height: 34px;
+.admin-layout .pa-shell > .app-pagehead .ui-segmented > button {
+  min-height: 32px;
   padding: 0 14px;
-  font-size: var(--ui-fs-sm);
 }
-.admin-layout .pa-mode-hint {
-  color: var(--ui-text-3);
-  font-weight: 500;
+.admin-layout .pa-shell > div[hidden] {
+  display: none;
 }
 
 /* ══ Toplu ekleme ════════════════════════════════════════════════════════ */
@@ -343,8 +357,8 @@
   height: 22px;
   padding: 0 6px;
   border-radius: 999px;
-  background: rgba(16, 24, 40, 0.72);
-  color: #fff;
+  background: var(--ui-text);
+  color: var(--ui-surface);
   font-size: 12px;
   font-weight: 700;
   line-height: 22px;
@@ -359,7 +373,7 @@
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.94);
+  background: var(--ui-surface);
   color: var(--ui-text);
   box-shadow: 0 0 0 1px var(--ui-line);
 }
@@ -483,12 +497,12 @@
   overflow: hidden;
   border: 1px solid var(--ui-line);
   border-radius: 10px;
-  background-color: #fff;
+  background-color: var(--ui-surface);
   background-image:
-    linear-gradient(45deg, #f1f3f5 25%, transparent 25%),
-    linear-gradient(-45deg, #f1f3f5 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #f1f3f5 75%),
-    linear-gradient(-45deg, transparent 75%, #f1f3f5 75%);
+    linear-gradient(45deg, var(--ui-surface-3) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--ui-surface-3) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--ui-surface-3) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--ui-surface-3) 75%);
   background-size: 12px 12px;
   background-position: 0 0, 0 6px, 6px -6px, -6px 0;
   color: var(--ui-text-3);
