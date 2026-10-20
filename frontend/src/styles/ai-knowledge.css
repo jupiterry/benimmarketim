@@ -1,0 +1,381 @@
+/* Yapay zekâ bilgi merkezi (AiKnowledgeCenter) — yalnızca yerleşim; renkler admin-system.css belirteçlerinden */
+
+.admin-layout .aik > .app-pagehead {
+  margin-bottom: 0;
+}
+
+/* ── Rol açıklaması (katlanır) ─────────────────────────────────────── */
+.admin-layout .aik-role-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-s2);
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--ui-s4);
+  border: 0;
+  background: none;
+  color: var(--ui-text);
+  font: inherit;
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+}
+.admin-layout .aik-role-toggle svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ui-text-3);
+  transition: transform var(--ui-ease);
+}
+.admin-layout .aik-role-toggle svg:first-child {
+  color: var(--ui-info);
+}
+.admin-layout .aik-role[data-open="true"] .aik-role-toggle svg:last-child {
+  transform: rotate(180deg);
+}
+.admin-layout .aik-role-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ui-s3);
+  padding: 0 var(--ui-s4) var(--ui-s4);
+}
+.admin-layout .aik-role-col {
+  padding: var(--ui-s3);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-ok-bg);
+}
+.admin-layout .aik-role-col[data-tone="warn"] {
+  background: var(--ui-warn-bg);
+}
+.admin-layout .aik-role-col strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-ok-ink);
+}
+.admin-layout .aik-role-col[data-tone="warn"] strong {
+  color: var(--ui-warn-ink);
+}
+.admin-layout .aik-role-col strong svg {
+  width: 15px;
+  height: 15px;
+}
+.admin-layout .aik-role-col p {
+  margin: 4px 0 0;
+  font-size: var(--ui-fs-sm);
+  line-height: 1.5;
+  color: var(--ui-text);
+}
+
+/* ── Araç çubuğu ───────────────────────────────────────────────────── */
+.admin-layout .aik-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-s2) var(--ui-s3);
+}
+.admin-layout .aik-search {
+  flex: 1 1 260px;
+  max-width: 420px;
+}
+.admin-layout .aik-sort {
+  margin-left: auto;
+}
+.admin-layout .aik-chips {
+  flex-wrap: wrap;
+  gap: var(--ui-s1);
+  margin-top: calc(var(--ui-s2) * -1);
+}
+.admin-layout .aik-chip-count {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.admin-layout .aik-chips > button[aria-pressed="true"] .aik-chip-count {
+  background: var(--ui-surface);
+  color: var(--ui-brand-ink);
+}
+
+/* ── Kart ızgarası ─────────────────────────────────────────────────── */
+.admin-layout .aik-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--ui-s3);
+}
+.admin-layout .aik-card-skeleton {
+  display: block;
+  height: 210px;
+  border-radius: var(--ui-radius-lg);
+}
+.admin-layout .aik-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+  transition: border-color var(--ui-ease), box-shadow var(--ui-ease);
+}
+.admin-layout .aik-card:hover {
+  border-color: var(--ui-line-strong);
+}
+.admin-layout .aik-card[data-active="true"] {
+  border-color: var(--ui-brand);
+  box-shadow: 0 0 0 2px var(--ui-brand-soft);
+}
+.admin-layout .aik-card[data-muted="true"] {
+  background: var(--ui-surface-2);
+}
+.admin-layout .aik-card[data-muted="true"] .aik-card-title,
+.admin-layout .aik-card[data-muted="true"] .aik-card-content {
+  color: var(--ui-text-2);
+}
+.admin-layout .aik-card-main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--ui-s2);
+  width: 100%;
+  padding: var(--ui-s3) var(--ui-s4);
+  border: 0;
+  border-radius: var(--ui-radius-lg) var(--ui-radius-lg) 0 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.admin-layout .aik-card-main:hover {
+  background: var(--ui-surface-2);
+}
+.admin-layout .aik-card-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 8px;
+}
+.admin-layout .aik-card-top .ui-badge svg {
+  width: 12px;
+  height: 12px;
+}
+.admin-layout .aik-card-title {
+  margin: 0;
+  font-size: var(--ui-fs-md);
+  font-weight: 650;
+  line-height: 1.35;
+  color: var(--ui-text);
+  overflow-wrap: anywhere;
+}
+.admin-layout .aik-card-content {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--ui-fs-sm);
+  line-height: 1.5;
+  color: var(--ui-text-2);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.admin-layout .aik-card-keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: auto 0 0;
+}
+.admin-layout .aik-card-keywords > span {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .aik-card-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-s2);
+  padding: 6px var(--ui-s3) 6px var(--ui-s4);
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .aik-card-foot .ui-toggle {
+  min-height: 30px;
+}
+.admin-layout .aik-card-time {
+  margin-left: auto;
+  font-size: var(--ui-fs-xs);
+  white-space: nowrap;
+}
+.admin-layout .aik-card-actions {
+  display: flex;
+  gap: 2px;
+}
+.admin-layout .aik-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-s2);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .aik-kbd kbd {
+  display: inline-block;
+  min-width: 18px;
+  margin: 0 1px;
+  padding: 1px 5px;
+  border: 1px solid var(--ui-line-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--ui-surface);
+  font-family: inherit;
+  font-size: 11px;
+  text-align: center;
+}
+
+/* ── Çekmece formu ─────────────────────────────────────────────────── */
+.admin-layout .aik-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s4);
+}
+.admin-layout .aik-form .ui-label {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--ui-s2);
+  margin-bottom: 4px;
+}
+.admin-layout .aik-form-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 200px;
+  gap: var(--ui-s3);
+  align-items: start;
+}
+.admin-layout .aik-custom-cat {
+  margin-top: 6px;
+}
+.admin-layout .aik-priority input[type="range"] {
+  width: 100%;
+  height: 34px;
+  margin: 0;
+  accent-color: var(--ui-brand);
+}
+.admin-layout .aik-priority .ui-hint {
+  display: block;
+  margin-top: 2px;
+}
+.admin-layout .aik-textarea {
+  min-height: 160px;
+  padding: 8px 10px;
+  line-height: 1.5;
+  resize: vertical;
+}
+.admin-layout .aik-keywords {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-height: 38px;
+  padding: 4px 6px;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+}
+.admin-layout .aik-keywords:focus-within {
+  border-color: var(--ui-brand);
+}
+.admin-layout .aik-keyword {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px 2px 8px;
+  border-radius: 999px;
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+}
+.admin-layout .aik-keyword button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.admin-layout .aik-keyword button:hover {
+  background: var(--ui-surface);
+}
+.admin-layout .aik-keyword button svg {
+  width: 11px;
+  height: 11px;
+}
+.admin-layout .aik-keyword-input {
+  flex: 1 1 120px;
+  min-width: 0;
+  min-height: 26px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--ui-text);
+  font: inherit;
+  font-size: var(--ui-fs-sm);
+  outline: none;
+}
+.admin-layout .aik-form .ui-option small {
+  display: block;
+  font-size: var(--ui-fs-xs);
+  font-weight: 500;
+  color: var(--ui-text-3);
+}
+.admin-layout .aik-delete {
+  flex: 0 0 auto;
+  color: var(--ui-danger-ink);
+}
+
+/* ── Mobil ─────────────────────────────────────────────────────────── */
+@media (max-width: 760px) {
+  .admin-layout .aik-role-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-layout .aik-search {
+    max-width: none;
+    flex-basis: 100%;
+  }
+  .admin-layout .aik-toolbar .ui-segmented {
+    flex: 1 1 auto;
+  }
+  .admin-layout .aik-sort {
+    margin-left: 0;
+  }
+  .admin-layout .aik-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+  .admin-layout .aik-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-layout .aik-form-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-layout .aik-card-foot .ui-icon-btn {
+    min-width: 36px;
+    min-height: 36px;
+  }
+  .admin-layout .aik-kbd {
+    display: none;
+  }
+}

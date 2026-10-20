@@ -76,6 +76,12 @@ const feedbackSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    // Yönetici yanıtı (panelden yazılır; mobil uygulama bu alanı yalnızca okur)
+    adminReply: {
+      text: { type: String, default: "" },
+      at: { type: Date, default: null },
+      by: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    },
   },
   { timestamps: true }
 );

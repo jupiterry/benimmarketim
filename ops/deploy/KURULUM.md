@@ -11,6 +11,19 @@ Repo public olduğundan origin salt okunur HTTPS kullanıyor; GitHub'a erişim i
 
 Resmi checksum'u doğrulanan Node v22.23.3 `/opt/benimmarketim-node22` içine kuruldu. Sistem Node 20 ve diğer PM2 süreçleri değiştirilmedi. Sonraki backend yayınları API'yi açıkça bu Node 22 yorumlayıcısıyla reload eder. GitHub Actions environment secret'ları kullanıcı tarafından girildi; bunların doğruluğu ilk gerçek workflow çalışmasıyla sınanır.
 
+## 16 Ekim 2026: sağlık kontrolü güncellemesi
+
+14 Ekim'den beri yayınlar "Deploy and recovery failed" ile bitiyordu. Sunucudaki sağlık kontrolü tüm kataloğu döndüren `/api/products` için yalnızca 5 sn bekliyordu (GitHub'daki dış kontrol 20 sn bekler). Betik artık hızlı `/api/version-check` adresini 20 sn zaman aşımıyla kontrol ediyor ve başarısızlıkta son HTTP kodlarını (`Last health check: site=… api=…`) CI kaydına yazıyor.
+
+Sunucudaki betik checkout dışında root'a ait bir kopya olduğu için bu değişiklik **kendiliğinden devreye girmez**. Yönetici bir kez şunu çalıştırmalıdır:
+
+```bash
+cd /var/www/benimmarketim && git fetch origin main && git show origin/main:ops/deploy/deploy.sh > /tmp/benimmarketim-deploy.sh
+bash -n /tmp/benimmarketim-deploy.sh && install -o root -g root -m 755 /tmp/benimmarketim-deploy.sh /usr/local/sbin/benimmarketim-deploy
+```
+
+Ardından GitHub Actions'ta "Web production deploy" iş akışını main için yeniden çalıştırın (Re-run all jobs).
+
 ## İncelemede doğrulanan yapı
 
 - Kök `package.json`: `start` → `node backend/server.js`; test → `npm run test:ai-support`.

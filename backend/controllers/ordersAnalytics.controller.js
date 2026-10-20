@@ -1,23 +1,12 @@
 import Order from "../models/order.model.js";
 import Coupon from "../models/coupon.model.js";
+import { processReferralFirstOrder } from "./referral.controller.js";
+import User from "../models/user.model.js";
 import { notifyOrderStatusChange } from "../services/orderStatusNotifier.js";
 import { evaluateMissionsForUser } from "../services/mission.service.js";
-import { processReferralFirstOrder } from "./referral.controller.js";
+import { recordAdminAction } from "../services/adminAudit.service.js";
 
-export const ORDER_STATUSES = ["Hazırlanıyor", "Yolda", "Teslim Edildi", "İptal Edildi"];
-const PENDING_STATUS = "Hazırlanıyor";
 const DELIVERED_STATUS = "Teslim Edildi";
-
-// Liste sorgusu parametreleri: status, limit (varsayılan 300, en fazla 1000; 0 = tüm siparişler), page, since (ISO tarih)
-export const parseOrderListOptions = (query = {}) => {
-  const rawLimit = Number.parseInt(query.limit, 10);
-  const limit = rawLimit === 0 ? 0 : Math.min(1000, Math.max(1, rawLimit || 300));
-  const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
-  const status = typeof query.status === "string" && ORDER_STATUSES.includes(query.status) ? query.status : null;
-  const sinceDate = typeof query.since === "string" && query.since ? new Date(query.since) : null;
-  const since = sinceDate && !Number.isNaN(sinceDate.getTime()) ? sinceDate : null;
-  return { limit, page, status, since };
-};
 
 // Referral ödülü: davet edilen kullanıcının İLK siparişi teslim edildiğinde bir kez verilir.
 // (Referral belgesinde ilgili kaydın status alanı "pending" ise verilir; sonrasında "rewarded" olur.)
@@ -63,97 +52,135 @@ export const releaseCouponForOrder = async (order) => {
   }
 };
 
-// Durum özeti: belge yüklemeden $group ile sayım
-export const getOrderStatusSummary = async (req, res) => {
-  try {
-    const rows = await Order.aggregate([{ $group: { _id: "$status", n: { $sum: 1 } } }]);
-    const counts = {};
-    let total = 0;
-    for (const row of rows) {
-      counts[row._id || "Bilinmiyor"] = row.n;
-      total += row.n;
+export const ACTIVE_ORDER_STATUSES = ["Hazırlanıyor", "Yolda"];
+const ORDER_LIST_FIELDS =
+  "user products totalAmount subtotalAmount couponCode couponDiscount discountPercentage status deliveryTracking statusHistory note phone city deliveryPoint deliveryPointName createdAt updatedAt device";
+
+const listQuery = (filter) =>
+  Order.find(filter)
+    .select(ORDER_LIST_FIELDS)
+    .populate("user", "name email")
+    .populate("products.product", "name price image")
+    .sort({ createdAt: -1 });
+
+/** Siparişleri müşteriye göre gruplar (yanıt biçimi eskisiyle aynı) */
+export const groupOrdersByUser = (orders) => {
+  const groupedOrders = orders.reduce((acc, order) => {
+    if (!order.user || !order.products) {
+      console.log("Eksik veriler: ", order._id);
+      return acc;
     }
-    res.json({ counts, total, pendingCount: counts[PENDING_STATUS] || 0 });
-  } catch (error) {
-    console.error("Sipariş özeti alınırken hata:", error.message);
-    res.status(500).json({ message: "Server hatası", error: error.message });
-  }
+
+    const userId = order.user._id.toString();
+    if (!acc[userId]) {
+      acc[userId] = {
+        user: {
+          id: order.user._id,
+          name: order.user.name || "Bilinmeyen Kullanıcı",
+          email: order.user.email,
+          phone: order.phone,
+          address: `${order.city}`,
+        },
+        orders: [],
+      };
+    }
+
+    acc[userId].orders.push({
+      orderId: order._id,
+      products: order.products.map((p) => ({
+        name: p.name || p.product?.name || "Bilinmeyen Ürün",
+        quantity: p.quantity,
+        price: p.price ?? p.product?.price ?? 0,
+        image: p.image || p.product?.image || null,
+        isManual: p.isManual || false,
+      })),
+      totalAmount: order.totalAmount,
+      subtotalAmount: order.subtotalAmount || order.totalAmount,
+      couponCode: order.couponCode || null,
+      couponDiscount: order.couponDiscount || 0,
+      discountPercentage: order.discountPercentage || 0,
+      status: order.status,
+      deliveryTracking: order.deliveryTracking || "",
+      statusHistory: order.statusHistory || [],
+      note: order.note,
+      // Siparişte girilen telefon; müşteri her siparişte farklı numara verebilir
+      phone: order.phone,
+      city: order.city,
+      deliveryPoint: order.deliveryPoint,
+      deliveryPointName: order.deliveryPointName,
+      createdAt: order.createdAt,
+      updatedAt: order.updatedAt,
+      // Cihaz bilgisi
+      device: order.device || null,
+    });
+
+    return acc;
+  }, {});
+  return Object.values(groupedOrders);
 };
 
-// Tüm siparişleri getirirken "status" bilgisini de ekleyelim
-// options: { status, limit, page, since } (parseOrderListOptions). Yanıt şekli korunur;
-// totalOrders filtreye göre toplam sayıdır (X-Total-Count başlığı için).
+/**
+ * Sipariş listesi. Seçenek verilmezse eskisi gibi TÜM siparişler döner (panoda tüm zamanlar
+ * cirosu için). Sipariş ekranı yalnızca ihtiyacı olanı ister:
+ *  - since:        bu tarihten sonra oluşturulanlar (örn. son 30 gün)
+ *  - before+limit: bu tarihten eski en yeni `limit` sipariş ("daha eski siparişleri yükle")
+ *  - active:       tarihten bağımsız tüm Hazırlanıyor / Yolda siparişleri
+ *  - updatedSince: yalnızca bu andan sonra değişen siparişler (yenileme; diğerleri yok sayılır)
+ */
 export const getOrderAnalyticsData = async (options = {}) => {
   try {
-    const { limit = 300, page = 1, status = null, since = null } = options;
-    const filter = {};
-    if (status) filter.status = status;
-    if (since) filter.createdAt = { $gte: since };
+    const { since, before, limit, active, updatedSince } = options;
+    const scoped = Boolean(since || before || limit || active || updatedSince);
+    const serverTime = new Date();
+    const totalOrders = await Order.countDocuments();
 
-    const totalOrders = await Order.countDocuments(filter);
-    let orderQuery = Order.find(filter)
-      .populate("user", "name email")
-      .populate("products.product", "name price image")
-      .sort({ createdAt: -1 });
-    // limit=0: sayfalama yok, tüm siparişler (dashboard "tüm zamanlar" analitiği)
-    if (limit > 0) orderQuery = orderQuery.skip((page - 1) * limit).limit(limit);
-    const orders = await orderQuery;
+    if (!scoped) {
+      const orders = await listQuery({}).lean();
+      return { totalOrders, usersOrders: groupOrdersByUser(orders) };
+    }
 
-    const groupedOrders = orders.reduce((acc, order) => {
-      if (!order.user || !order.products) {
-        console.log("Eksik veriler: ", order);
-        return acc;
+    let orders;
+    let hasMore = false;
+    let oldestCreatedAt = null;
+    if (updatedSince) {
+      orders = await listQuery({ updatedAt: { $gt: updatedSince } }).lean();
+    } else {
+      const created = {};
+      if (since) created.$gte = since;
+      if (before) created.$lt = before;
+      const recentFilter = Object.keys(created).length ? { createdAt: created } : {};
+      let recentQuery = listQuery(recentFilter);
+      if (limit) recentQuery = recentQuery.limit(limit + 1);
+      const [recent, activeOrders] = await Promise.all([
+        since || before || limit ? recentQuery.lean() : Promise.resolve([]),
+        active ? listQuery({ status: { $in: ACTIVE_ORDER_STATUSES } }).lean() : Promise.resolve([]),
+      ]);
+      if (limit && recent.length > limit) {
+        recent.length = limit;
+        hasMore = true;
       }
-
-      const userId = order.user._id.toString();
-      if (!acc[userId]) {
-        acc[userId] = {
-          user: {
-            id: order.user._id,
-            name: order.user.name || "Bilinmeyen Kullanıcı",
-            email: order.user.email,
-            phone: order.phone,
-            address: `${order.city}`,
-          },
-          orders: [],
-        };
-      }
-
-      acc[userId].orders.push({
-        orderId: order._id,
-        products: order.products.map((p) => ({
-          name: p.name || p.product?.name || "Bilinmeyen Ürün",
-          quantity: p.quantity,
-          price: p.price ?? p.product?.price ?? 0,
-          image: p.image || p.product?.image || null,
-          isManual: p.isManual || false,
-        })),
-        totalAmount: order.totalAmount,
-        subtotalAmount: order.subtotalAmount || order.totalAmount,
-        couponCode: order.couponCode || null,
-        couponDiscount: order.couponDiscount || 0,
-        discountPercentage: order.discountPercentage || 0,
-        status: order.status,
-        deliveryTracking: order.deliveryTracking || "",
-        statusHistory: order.statusHistory || [],
-        note: order.note,
-        // Siparişte girilen telefon; müşteri her siparişte farklı numara verebilir
-        phone: order.phone,
-        city: order.city,
-        deliveryPoint: order.deliveryPoint,
-        deliveryPointName: order.deliveryPointName,
-        createdAt: order.createdAt,
-        updatedAt: order.updatedAt,
-        // Cihaz bilgisi
-        device: order.device || null,
+      const oldest = recent.length ? recent[recent.length - 1].createdAt : since || before;
+      if (!limit && oldest) hasMore = Boolean(await Order.exists({ createdAt: { $lt: oldest } }));
+      const seen = new Set();
+      orders = [...recent, ...activeOrders].filter((order) => {
+        const id = order._id.toString();
+        if (seen.has(id)) return false;
+        seen.add(id);
+        return true;
       });
-
-      return acc;
-    }, {});
+      orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      oldestCreatedAt = oldest || null;
+    }
 
     return {
       totalOrders,
-      usersOrders: Object.values(groupedOrders),
+      usersOrders: groupOrdersByUser(orders),
+      meta: {
+        serverTime: serverTime.toISOString(),
+        hasMore,
+        oldestCreatedAt: oldestCreatedAt ? new Date(oldestCreatedAt).toISOString() : null,
+        count: orders.length,
+      },
     };
   } catch (error) {
     console.error("Siparişler alınırken hata oluştu:", error.message);
@@ -181,14 +208,19 @@ export const updateOrderStatus = async (req, res) => {
     order.status = status;
     order.statusHistory.push({ status, changedAt: new Date(), changedBy: req.user._id });
     await order.save();
+    if (previousStatus !== status) {
+      recordAdminAction(req, { action: "Sipariş durumu değiştirildi", category: "order", target: String(order._id),
+        targetName: `Sipariş #${String(order._id).slice(-6).toUpperCase()} · ${order.deliveryPointName || order.deliveryPoint || ""}`.trim(),
+        changes: [{ label: "Durum", from: previousStatus, to: status }] });
+    }
 
     // Müşterinin telefonuna anlık bildirim (yanıtı bekletmez, hata siparişi etkilemez)
     notifyOrderStatusChange(order, previousStatus);
     // Teslim edilen sipariş bir görevi tamamlıyorsa ödül kuponu tanımlanır (yanıtı bekletmez)
-    if (status === "Teslim Edildi" && previousStatus !== status) evaluateMissionsForUser(order.user, new Date(), { deliveredOrder: order });
-    // Davet edilen müşterinin ilk siparişi teslim edildiyse davet edene ödül kuponu (yanıtı bekletmez)
-    if (status === "Teslim Edildi" && previousStatus !== status) grantReferralRewardIfDelivered(order, previousStatus);
-    // Admin iptal ettiyse kupon kullanımı geri alınır (yanıtı bekletmez)
+    if (status === "Teslim Edildi" && previousStatus !== status) {
+      evaluateMissionsForUser(order.user, new Date(), { deliveredOrder: order });
+      grantReferralRewardIfDelivered(order, previousStatus);
+    }
     if (status === "İptal Edildi" && previousStatus !== status) releaseCouponForOrder(order);
 
     // Socket.IO ile kullanıcıya bildirim gönder
@@ -319,7 +351,7 @@ export const cancelOrder = async (req, res) => {
       return res.status(404).json({ message: "Sipariş bulunamadı!" });
     }
 
-    // Kullanıcının kendi siparişini iptal etme kontrolü (admin her siparişi iptal edebilir)
+    // Kullanıcının kendi siparişini iptal etme kontrolü
     if (req.user.role !== "admin" && order.user.toString() !== userId.toString()) {
       return res.status(403).json({ message: "Bu siparişi iptal etme yetkiniz yok!" });
     }
@@ -332,8 +364,6 @@ export const cancelOrder = async (req, res) => {
     order.status = "İptal Edildi";
     order.statusHistory.push({ status: "İptal Edildi", changedAt: new Date(), changedBy: req.user._id });
     await order.save();
-
-    // Kupon kullanımı geri alınır (müşteri kuponunu tekrar kullanabilsin)
     await releaseCouponForOrder(order);
 
     // Yönetim paneli müşterinin iptalini 30 sn'lik yenilemeyi beklemeden görsün
@@ -641,5 +671,237 @@ export const toggleManualFlag = async (req, res) => {
   } catch (error) {
     console.error("Manuel işareti güncellenirken hata:", error.message);
     res.status(500).json({ message: "Server hatası", error: error.message });
+  }
+};
+
+// ── Genel bakış özeti (yönetici panosu) ──────────────────────────────────────
+// Tüm sipariş geçmişini belleğe çekmek yerine dönem özetini sunucuda aggregate ile hesaplar.
+// Mağaza saati Türkiye (UTC+3, yaz saati yok); gün/ay sınırları buna göre alınır.
+const TR_OFFSET_MS = 3 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+export const DELAYED_PREPARING_MINUTES = 20;
+export const DASHBOARD_PERIODS = ["today", "7d", "30d", "month", "all", "custom"];
+
+const startOfTrDay = (date) => new Date(Math.floor((date.getTime() + TR_OFFSET_MS) / DAY_MS) * DAY_MS - TR_OFFSET_MS);
+const startOfTrMonth = (date) => {
+  const shifted = new Date(date.getTime() + TR_OFFSET_MS);
+  return new Date(Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), 1) - TR_OFFSET_MS);
+};
+const addTrMonths = (start, months) => {
+  const shifted = new Date(start.getTime() + TR_OFFSET_MS);
+  return new Date(Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth() + months, 1) - TR_OFFSET_MS);
+};
+const parseIsoDate = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+/**
+ * Dönem sınırlarını üretir: { period, start, end, previous: {start, end} | null, bucket }
+ *  - today: bugün 00:00'dan şimdiye (saatlik seri), önceki = dün aynı saate kadar
+ *  - 7d / 30d: son N gün (bugün dahil, günlük seri), önceki = ondan önceki N gün
+ *  - month: bu ayın başından (günlük seri), önceki = geçen ayın tamamı
+ *  - all: sınırsız (aylık seri), karşılaştırma yok
+ *  - custom: from/to (ISO; to hariç) — revenuePeriods dönemleri için; önceki = aynı uzunlukta bir önceki aralık
+ */
+export const buildDashboardRange = (query = {}, now = new Date()) => {
+  const period = DASHBOARD_PERIODS.includes(query.period) ? query.period : "today";
+  const todayStart = startOfTrDay(now);
+  if (period === "today") {
+    const elapsed = now.getTime() - todayStart.getTime();
+    const previousStart = new Date(todayStart.getTime() - DAY_MS);
+    return { period, start: todayStart, end: null, bucket: "hour", previous: { start: previousStart, end: new Date(previousStart.getTime() + elapsed) } };
+  }
+  if (period === "7d" || period === "30d") {
+    const days = period === "7d" ? 7 : 30;
+    const start = new Date(todayStart.getTime() - (days - 1) * DAY_MS);
+    return { period, start, end: null, bucket: "day", previous: { start: new Date(start.getTime() - days * DAY_MS), end: start } };
+  }
+  if (period === "month") {
+    const start = startOfTrMonth(now);
+    return { period, start, end: null, bucket: "day", previous: { start: addTrMonths(start, -1), end: start } };
+  }
+  if (period === "custom") {
+    const start = parseIsoDate(query.from);
+    const end = parseIsoDate(query.to);
+    if (start) {
+      const effectiveEnd = end && end > start ? end : null;
+      const length = (effectiveEnd || now).getTime() - start.getTime();
+      const days = length / DAY_MS;
+      return {
+        period, start, end: effectiveEnd,
+        bucket: days <= 2 ? "hour" : days <= 92 ? "day" : "month",
+        previous: { start: new Date(start.getTime() - length), end: start },
+      };
+    }
+  }
+  return { period: "all", start: null, end: null, bucket: "month", previous: null };
+};
+
+const rangeMatch = (range) => {
+  const createdAt = {};
+  if (range.start) createdAt.$gte = range.start;
+  if (range.end) createdAt.$lt = range.end;
+  return Object.keys(createdAt).length ? { createdAt } : {};
+};
+const BUCKET_FORMAT = { hour: "%Y-%m-%dT%H", day: "%Y-%m-%d", month: "%Y-%m" };
+const bucketKey = (date, bucket) => {
+  const shifted = new Date(date.getTime() + TR_OFFSET_MS).toISOString();
+  return bucket === "hour" ? shifted.slice(0, 13) : bucket === "day" ? shifted.slice(0, 10) : shifted.slice(0, 7);
+};
+/** Seriyi boş kovalarla doldurur; böylece grafik satışsız gün/saatleri de gösterir (en fazla 400 nokta) */
+export const fillSeries = (rows, range, bucket, now = new Date()) => {
+  const byKey = new Map(rows.map((row) => [row._id, row]));
+  // Başlangıcı olmayan dönemde (tüm zamanlar) seri ilk satışla başlar
+  const keyToDate = (key) => new Date(key.length === 7 ? `${key}-01T00:00:00+03:00` : key.length === 10 ? `${key}T00:00:00+03:00` : `${key}:00:00+03:00`);
+  const first = range.start || (rows.length ? keyToDate(rows[0]._id) : now);
+  const last = range.end ? new Date(range.end.getTime() - 1) : now;
+  const series = [];
+  let cursor = new Date(first.getTime());
+  while (cursor <= last && series.length < 400) {
+    const key = bucketKey(cursor, bucket);
+    const row = byKey.get(key);
+    series.push({ key, orders: row?.orders || 0, revenue: Math.round((row?.revenue || 0) * 100) / 100 });
+    if (bucket === "hour") cursor = new Date(cursor.getTime() + 60 * 60 * 1000);
+    else if (bucket === "day") cursor = new Date(cursor.getTime() + DAY_MS);
+    else cursor = addTrMonths(startOfTrMonth(cursor), 1);
+  }
+  return series;
+};
+
+const periodTotalsStage = [
+  { $group: {
+    _id: null,
+    orders: { $sum: 1 },
+    cancelled: { $sum: { $cond: [{ $eq: ["$status", "İptal Edildi"] }, 1, 0] } },
+    revenue: { $sum: { $cond: [{ $eq: ["$status", "İptal Edildi"] }, 0, "$totalAmount"] } },
+  } },
+];
+const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;
+const pct = (current, previous) => (previous ? round2(((current - previous) / previous) * 100) : null);
+const summarizeTotals = (row) => {
+  const orders = row?.orders || 0;
+  const cancelled = row?.cancelled || 0;
+  const completed = orders - cancelled;
+  const revenue = round2(row?.revenue);
+  return { orders, cancelled, completed, revenue, averageBasket: completed ? round2(revenue / completed) : 0, cancelRate: orders ? round2((cancelled / orders) * 100) : 0 };
+};
+
+/** Model dosyası yoksa (örn. ayrı dağıtım) ilgili sayı atlanır */
+const loadModel = async (path) => {
+  try {
+    return (await import(path)).default;
+  } catch {
+    return null;
+  }
+};
+const safeCount = async (model, filter) => {
+  if (!model) return null;
+  try {
+    return await model.countDocuments(filter);
+  } catch {
+    return null;
+  }
+};
+
+export const computeDashboardSummary = async (query = {}, now = new Date()) => {
+  const range = buildDashboardRange(query, now);
+  const match = rangeMatch(range);
+  const notCancelled = { status: { $ne: "İptal Edildi" } };
+  const [facet] = await Order.aggregate([
+    { $match: match },
+    { $facet: {
+      totals: periodTotalsStage,
+      byStatus: [{ $group: { _id: "$status", count: { $sum: 1 } } }],
+      byDorm: [
+        { $match: notCancelled },
+        { $group: { _id: "$deliveryPoint", orders: { $sum: 1 }, revenue: { $sum: "$totalAmount" } } },
+        { $sort: { orders: -1 } },
+      ],
+      series: [
+        { $match: notCancelled },
+        { $group: { _id: { $dateToString: { format: BUCKET_FORMAT[range.bucket], date: "$createdAt", timezone: "+03:00" } }, orders: { $sum: 1 }, revenue: { $sum: "$totalAmount" } } },
+        { $sort: { _id: 1 } },
+        { $limit: 400 },
+      ],
+      topProducts: [
+        { $match: notCancelled },
+        { $unwind: "$products" },
+        { $match: { "products.isManual": { $ne: true } } },
+        { $group: { _id: { $ifNull: ["$products.product", "$products.name"] }, name: { $first: "$products.name" }, quantity: { $sum: "$products.quantity" }, revenue: { $sum: { $multiply: ["$products.price", "$products.quantity"] } } } },
+        { $sort: { quantity: -1, revenue: -1 } },
+        { $limit: 5 },
+      ],
+      manual: [
+        { $match: notCancelled },
+        { $unwind: "$products" },
+        { $match: { "products.isManual": true } },
+        { $group: { _id: null, revenue: { $sum: { $multiply: ["$products.price", "$products.quantity"] } } } },
+      ],
+    } },
+  ]);
+  const previousRows = range.previous
+    ? await Order.aggregate([{ $match: rangeMatch(range.previous) }, ...periodTotalsStage])
+    : [];
+  const current = summarizeTotals(facet?.totals?.[0]);
+  const previous = range.previous ? summarizeTotals(previousRows[0]) : null;
+
+  const [Product, SupportRequest] = await Promise.all([loadModel("../models/product.model.js"), loadModel("../models/supportRequest.model.js")]);
+  const delayedBefore = new Date(now.getTime() - DELAYED_PREPARING_MINUTES * 60 * 1000);
+  const [delayedOrders, preparingOrders, activeOrders, productsWithoutImage, productsOutOfStock, waitingSupport, totalCustomers, newCustomers, recentRows] = await Promise.all([
+    Order.countDocuments({ status: "Hazırlanıyor", createdAt: { $lt: delayedBefore } }),
+    Order.countDocuments({ status: "Hazırlanıyor" }),
+    Order.countDocuments({ status: { $in: ACTIVE_ORDER_STATUSES } }),
+    safeCount(Product, { isHidden: { $ne: true }, $or: [{ image: "" }, { image: null }, { image: { $exists: false } }] }),
+    safeCount(Product, { isHidden: { $ne: true }, isOutOfStock: true }),
+    safeCount(SupportRequest, { status: "waiting" }),
+    safeCount(User, {}),
+    range.start ? safeCount(User, rangeMatch(range)) : Promise.resolve(null),
+    Order.find({}).select("user totalAmount status createdAt deliveryPoint deliveryPointName products").populate("user", "name").sort({ createdAt: -1 }).limit(8).lean(),
+  ]);
+
+  const statusCounts = Object.fromEntries((facet?.byStatus || []).map((row) => [row._id, row.count]));
+  return {
+    period: range.period,
+    range: { start: range.start ? range.start.toISOString() : null, end: range.end ? range.end.toISOString() : null, bucket: range.bucket },
+    generatedAt: now.toISOString(),
+    totals: current,
+    previous,
+    delta: previous ? {
+      orders: pct(current.orders, previous.orders),
+      revenue: pct(current.revenue, previous.revenue),
+      averageBasket: pct(current.averageBasket, previous.averageBasket),
+      cancelRate: previous.orders ? round2(current.cancelRate - previous.cancelRate) : null,
+    } : null,
+    statusDistribution: ["Hazırlanıyor", "Yolda", "Teslim Edildi", "İptal Edildi"].map((status) => ({ status, count: statusCounts[status] || 0 })),
+    dormDistribution: (facet?.byDorm || []).map((row) => ({ deliveryPoint: row._id || "unknown", orders: row.orders, revenue: round2(row.revenue) })),
+    series: fillSeries(facet?.series || [], range, range.bucket, now),
+    topProducts: (facet?.topProducts || []).map((row) => ({ productId: typeof row._id === "object" && row._id ? String(row._id) : null, name: row.name || "Bilinmeyen Ürün", quantity: row.quantity, revenue: round2(row.revenue) })),
+    manualRevenue: round2(facet?.manual?.[0]?.revenue),
+    customers: { total: totalCustomers, new: newCustomers },
+    attention: { delayedOrders, preparingOrders, activeOrders, productsWithoutImage, productsOutOfStock, waitingSupport },
+    recentOrders: recentRows.map((order) => ({
+      orderId: String(order._id),
+      customerName: order.user?.name || "Müşteri",
+      totalAmount: order.totalAmount,
+      status: order.status,
+      itemCount: Array.isArray(order.products) ? order.products.reduce((sum, item) => sum + (item.quantity || 0), 0) : 0,
+      deliveryPoint: order.deliveryPoint,
+      deliveryPointName: order.deliveryPointName || "",
+      createdAt: order.createdAt,
+    })),
+  };
+};
+
+// GET /orders-analytics/summary?period=today|7d|30d|month|all  (custom: &from=ISO&to=ISO)
+export const getDashboardSummary = async (req, res) => {
+  try {
+    const summary = await computeDashboardSummary(req.query);
+    res.set("Cache-Control", "no-store");
+    res.json({ summary });
+  } catch (error) {
+    console.error("Pano özeti hesaplanırken hata:", error.message);
+    res.status(500).json({ message: "Pano özeti hesaplanamadı", error: error.message });
   }
 };

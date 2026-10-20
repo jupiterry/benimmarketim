@@ -1,0 +1,729 @@
+/* Genel bakış ekranı (DashboardWidgets) — admin-system.css belirteçleriyle, önek: dsh- */
+
+.admin-layout .dsh-page {
+  gap: 14px;
+}
+.admin-layout .dsh-page[aria-busy="true"] .dsh-columns,
+.admin-layout .dsh-page[aria-busy="true"] .dsh-kpis,
+.admin-layout .dsh-page[aria-busy="true"] .dsh-attn {
+  opacity: 0.6;
+  transition: opacity var(--ui-ease);
+}
+.admin-layout .dsh-banner {
+  border: 1px solid var(--ui-danger);
+  border-radius: var(--ui-radius-lg);
+}
+.admin-layout .dsh-banner > span {
+  flex: 1 1 auto;
+}
+
+/* ── İskelet ─────────────────────────────────────────────────────── */
+.admin-layout .dsh-skel-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0 8px;
+}
+.admin-layout .dsh-skel-kpis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+/* ── Araç çubuğu: dönem seçici ───────────────────────────────────── */
+.admin-layout .dsh-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.admin-layout .dsh-periods {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.admin-layout .dsh-periods .ui-segmented {
+  flex: 0 1 auto;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.admin-layout .dsh-periods .ui-segmented > button {
+  flex: 0 0 auto;
+}
+.admin-layout .dsh-toolbar-end {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.admin-layout .dsh-switching {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.admin-layout .dsh-switching svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ── Dikkat gerektirenler şeridi ─────────────────────────────────── */
+.admin-layout .dsh-attn {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  overflow-x: auto;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+  scrollbar-width: thin;
+}
+.admin-layout .dsh-attn-ok {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  border-right: 1px solid var(--ui-line);
+  color: var(--ui-ok-ink);
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.admin-layout .dsh-attn-ok svg {
+  width: 16px;
+  height: 16px;
+}
+.admin-layout .dsh-attn-item {
+  display: grid;
+  flex: 1 1 0;
+  grid-template-columns: 18px auto minmax(0, 1fr) 14px;
+  align-items: center;
+  gap: 10px;
+  min-width: 200px;
+  min-height: 60px;
+  padding: 10px 14px;
+  border-right: 1px solid var(--ui-line);
+  color: var(--ui-text);
+  font: inherit;
+  text-align: left;
+  transition: background-color var(--ui-ease);
+}
+.admin-layout .dsh-attn-item:last-child {
+  border-right: 0;
+}
+.admin-layout .dsh-attn-item:hover {
+  background: var(--ui-surface-2);
+}
+.admin-layout .dsh-attn-item:focus-visible {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: -2px;
+}
+.admin-layout .dsh-attn-item > svg {
+  width: 18px;
+  height: 18px;
+  color: var(--ui-text-3);
+}
+.admin-layout .dsh-attn-item > svg:last-child {
+  width: 14px;
+  height: 14px;
+}
+.admin-layout .dsh-attn-item b {
+  font-size: 22px;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .dsh-attn-item strong {
+  display: block;
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  line-height: 1.3;
+}
+.admin-layout .dsh-attn-item small {
+  display: block;
+  overflow: hidden;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-layout .dsh-attn-item[data-tone="danger"] {
+  background: var(--ui-danger-bg);
+}
+.admin-layout .dsh-attn-item[data-tone="danger"] b,
+.admin-layout .dsh-attn-item[data-tone="danger"] > svg:first-child {
+  color: var(--ui-danger-ink);
+}
+.admin-layout .dsh-attn-item[data-tone="warn"] b,
+.admin-layout .dsh-attn-item[data-tone="warn"] > svg:first-child {
+  color: var(--ui-warn-ink);
+}
+.admin-layout .dsh-attn-item[data-tone="info"] b,
+.admin-layout .dsh-attn-item[data-tone="info"] > svg:first-child {
+  color: var(--ui-info-ink);
+}
+
+/* ── Kart sütunları ve sürükle-bırak ─────────────────────────────── */
+.admin-layout .dsh-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 8fr) minmax(0, 4fr);
+  gap: 16px;
+  align-items: start;
+}
+.admin-layout .dsh-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  min-height: 80px;
+  border-radius: var(--ui-radius-lg);
+  transition: background-color var(--ui-ease);
+}
+.admin-layout .dsh-column[data-over="true"] {
+  background: var(--ui-brand-soft);
+  outline: 1px dashed var(--ui-brand);
+  outline-offset: 4px;
+}
+.admin-layout .dsh-card {
+  position: relative;
+  min-width: 0;
+}
+.admin-layout .dsh-card[data-dragging="true"] > .ui-panel {
+  box-shadow: var(--ui-shadow-pop);
+  border-color: var(--ui-brand);
+}
+.admin-layout .dsh-card > .ui-panel > .ui-panel-head {
+  padding-left: 40px;
+}
+.admin-layout .dsh-grip {
+  position: absolute;
+  z-index: 2;
+  top: 14px;
+  left: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--ui-text-3);
+  cursor: grab;
+  transition: background-color var(--ui-ease), color var(--ui-ease);
+}
+.admin-layout .dsh-grip:hover,
+.admin-layout .dsh-grip:focus-visible {
+  background: var(--ui-surface-3);
+  color: var(--ui-text);
+}
+.admin-layout .dsh-grip:focus-visible {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: 1px;
+}
+.admin-layout .dsh-grip:active {
+  cursor: grabbing;
+}
+.admin-layout .dsh-grip svg {
+  width: 16px;
+  height: 16px;
+}
+.admin-layout .dsh-foot {
+  margin: 0;
+}
+.admin-layout .dsh-foot kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 4px;
+  border: 1px solid var(--ui-line-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--ui-surface);
+  color: var(--ui-text-2);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+}
+
+/* ── Satış kartı ─────────────────────────────────────────────────── */
+.admin-layout .dsh-sales-body {
+  padding-top: 12px;
+}
+.admin-layout .dsh-sales-total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 0 0 10px;
+}
+.admin-layout .dsh-sales-total strong {
+  font-size: 26px;
+  font-weight: 650;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  color: var(--ui-text);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .dsh-sales-total span {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .dsh-sales-total .ui-kpi-delta {
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .dsh-chart {
+  height: 236px;
+  min-width: 0;
+}
+.admin-layout .dsh-chart .recharts-wrapper,
+.admin-layout .dsh-chart svg {
+  outline: none;
+}
+.admin-layout .dsh-tip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-pop);
+  color: var(--ui-text);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .dsh-tip strong {
+  font-size: var(--ui-fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .dsh-tip span {
+  color: var(--ui-text-3);
+}
+
+/* ── Dağılım kartı ───────────────────────────────────────────────── */
+.admin-layout .dsh-dist {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.admin-layout .dsh-stack {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 5px;
+}
+.admin-layout .dsh-stack i {
+  min-width: 4px;
+  background: var(--ui-text-3);
+}
+.admin-layout .dsh-stack i[data-tone="warn"] { background: var(--ui-warn); }
+.admin-layout .dsh-stack i[data-tone="info"] { background: var(--ui-info); }
+.admin-layout .dsh-stack i[data-tone="ok"] { background: var(--ui-ok); }
+.admin-layout .dsh-stack i[data-tone="danger"] { background: var(--ui-danger); }
+.admin-layout .dsh-legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-layout .dsh-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .dsh-legend span {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-layout .dsh-legend strong {
+  color: var(--ui-text);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .dsh-legend small {
+  color: var(--ui-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .dsh-subhead {
+  margin: 6px 0 0;
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+  color: var(--ui-text-2);
+}
+.admin-layout .dsh-note {
+  margin: 0;
+}
+.admin-layout .dsh-meters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-layout .dsh-meters li {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  grid-template-areas: "label meter" "label value";
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 2px;
+}
+.admin-layout .dsh-meter-label {
+  grid-area: label;
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  color: var(--ui-text);
+}
+.admin-layout .dsh-meters .dsh-meter {
+  grid-area: meter;
+}
+.admin-layout .dsh-meter-value {
+  grid-area: value;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .dsh-meter {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--ui-surface-3);
+}
+.admin-layout .dsh-meter i {
+  display: block;
+  height: 100%;
+  min-width: 3px;
+  border-radius: 3px;
+  background: var(--ui-brand);
+}
+
+/* ── Satır listeleri (son siparişler, çok satanlar) ──────────────── */
+.admin-layout .dsh-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-layout .dsh-row {
+  display: grid;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--ui-line);
+  color: var(--ui-text);
+  font: inherit;
+  text-align: left;
+  transition: background-color var(--ui-ease);
+}
+.admin-layout .dsh-list > li:last-child .dsh-row {
+  border-bottom: 0;
+}
+.admin-layout .dsh-row:hover {
+  background: var(--ui-surface-2);
+}
+.admin-layout .dsh-row:focus-visible {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: -2px;
+}
+.admin-layout .dsh-row--order {
+  grid-template-columns: 32px minmax(0, 1fr) auto auto 72px 14px;
+}
+.admin-layout .dsh-row--product {
+  grid-template-columns: 24px minmax(0, 1fr) auto auto;
+}
+.admin-layout .dsh-avatar {
+  width: 32px;
+  height: 32px;
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .dsh-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.admin-layout .dsh-row-main strong {
+  display: block;
+  font-size: var(--ui-fs-md);
+  font-weight: 600;
+  line-height: 1.3;
+}
+.admin-layout .dsh-row-main small {
+  display: block;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .dsh-row-main .dsh-meter {
+  width: min(100%, 180px);
+  margin-top: 2px;
+}
+.admin-layout .dsh-row-amount {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.admin-layout .dsh-row-qty {
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.admin-layout .dsh-row-time {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.admin-layout .dsh-row-time svg {
+  width: 12px;
+  height: 12px;
+}
+.admin-layout .dsh-row-time[data-tone="danger"] {
+  color: var(--ui-danger-ink);
+  font-weight: 650;
+}
+.admin-layout .dsh-row-chevron {
+  width: 14px;
+  height: 14px;
+  color: var(--ui-text-3);
+}
+.admin-layout .dsh-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .dsh-list > li:first-child .dsh-rank {
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+}
+
+/* ── Hızlı eylemler ──────────────────────────────────────────────── */
+.admin-layout .dsh-quick {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 12px 16px 16px;
+}
+.admin-layout .dsh-quick button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 68px;
+  padding: 10px 6px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-2);
+  color: var(--ui-text);
+  font: inherit;
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  text-align: center;
+  transition: border-color var(--ui-ease), background-color var(--ui-ease);
+}
+.admin-layout .dsh-quick button:hover {
+  border-color: var(--ui-line-strong);
+  background: var(--ui-surface);
+}
+.admin-layout .dsh-quick button:focus-visible {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: 1px;
+}
+.admin-layout .dsh-quick button svg {
+  width: 18px;
+  height: 18px;
+  color: var(--ui-brand-ink);
+}
+.admin-layout .dsh-quick button:first-child {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand-soft);
+}
+
+/* ── Kâr tahmini ─────────────────────────────────────────────────── */
+.admin-layout .dsh-margin {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  color: var(--ui-text-3);
+}
+.admin-layout .dsh-margin:focus-within {
+  border-color: var(--ui-brand);
+}
+.admin-layout .dsh-margin svg {
+  width: 13px;
+  height: 13px;
+}
+.admin-layout .dsh-margin input {
+  width: 48px;
+  border: 0;
+  background: transparent;
+  color: var(--ui-text);
+  font: inherit;
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  text-align: right;
+  outline: none;
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .dsh-figures {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 12px;
+  margin: 0;
+  padding: 14px 16px 16px;
+}
+.admin-layout .dsh-figures > div {
+  min-width: 0;
+}
+.admin-layout .dsh-figures dt {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .dsh-figures dd {
+  margin: 2px 0 0;
+  font-size: var(--ui-fs-md);
+  font-weight: 650;
+  color: var(--ui-text);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .dsh-figures small {
+  display: block;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .dsh-figure--lead {
+  grid-column: 1 / -1;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--ui-line);
+}
+.admin-layout .dsh-figure--lead dd {
+  font-size: 24px;
+  letter-spacing: -0.015em;
+  color: var(--ui-brand-ink);
+}
+
+/* ── Dar ekranlar ────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .admin-layout .dsh-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-layout .dsh-skel-kpis,
+  .admin-layout .dsh-kpis {
+    --ui-kpi-cols: 3;
+  }
+  .admin-layout .dsh-skel-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 760px) {
+  .admin-layout .dsh-page {
+    gap: 12px;
+  }
+  .admin-layout .dsh-skel-kpis,
+  .admin-layout .dsh-kpis {
+    --ui-kpi-cols: 2;
+  }
+  .admin-layout .dsh-skel-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .admin-layout .dsh-kpis .ui-kpi:first-child {
+    grid-column: 1 / -1;
+  }
+  .admin-layout .dsh-toolbar-end {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .admin-layout .dsh-attn-item {
+    min-width: 170px;
+    min-height: 56px;
+  }
+  .admin-layout .dsh-attn-ok {
+    min-width: 100%;
+    padding: 10px 14px;
+    border-right: 0;
+    border-bottom: 1px solid var(--ui-line);
+  }
+  .admin-layout .dsh-attn {
+    flex-wrap: wrap;
+  }
+  .admin-layout .dsh-attn-item {
+    flex: 1 1 100%;
+    border-right: 0;
+    border-bottom: 1px solid var(--ui-line);
+  }
+  .admin-layout .dsh-attn-item:last-child {
+    border-bottom: 0;
+  }
+  .admin-layout .dsh-attn-item b {
+    min-width: 28px;
+    text-align: right;
+  }
+  .admin-layout .dsh-chart {
+    height: 200px;
+  }
+  .admin-layout .dsh-row--order {
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    grid-template-areas: "avatar main amount" "avatar meta meta";
+    row-gap: 4px;
+  }
+  .admin-layout .dsh-row--order .dsh-avatar { grid-area: avatar; }
+  .admin-layout .dsh-row--order .dsh-row-main { grid-area: main; }
+  .admin-layout .dsh-row--order .dsh-row-amount { grid-area: amount; }
+  .admin-layout .dsh-row--order .ui-badge { grid-area: meta; justify-self: start; }
+  .admin-layout .dsh-row--order .dsh-row-time { grid-area: meta; justify-self: end; }
+  .admin-layout .dsh-row--order .dsh-row-chevron { display: none; }
+  .admin-layout .dsh-row--product {
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+    grid-template-areas: "rank main amount" "rank qty qty";
+    row-gap: 2px;
+  }
+  .admin-layout .dsh-row--product .dsh-rank { grid-area: rank; }
+  .admin-layout .dsh-row--product .dsh-row-main { grid-area: main; }
+  .admin-layout .dsh-row--product .dsh-row-amount { grid-area: amount; }
+  .admin-layout .dsh-row--product .dsh-row-qty { grid-area: qty; }
+  .admin-layout .dsh-figures {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .admin-layout .dsh-quick {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 12px;
+  }
+  .admin-layout .dsh-legend {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

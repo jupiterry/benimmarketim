@@ -290,7 +290,7 @@
   width: 100%;
   height: 100%;
   object-fit: contain;
-  background: #fff;
+  background: var(--ui-surface);
 }
 .admin-layout .prd-thumb svg {
   width: 18px;
@@ -631,7 +631,7 @@
   overflow: hidden;
   border: 1px solid var(--ui-line);
   border-radius: var(--ui-radius-lg);
-  background: #fff;
+  background: var(--ui-surface);
 }
 .admin-layout .prd-hero-img img {
   width: 100%;
@@ -887,7 +887,7 @@
 }
 .admin-layout .prd-flash-thumb img {
   object-fit: contain;
-  background: #fff;
+  background: var(--ui-surface);
 }
 .admin-layout .prd-flash-main {
   display: flex;

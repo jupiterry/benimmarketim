@@ -24,6 +24,8 @@ import {
 import axios from "../lib/axios";
 import { errorMessage, formatPrice, parsePrice } from "../lib/productAssist";
 import { useProductStore } from "../stores/useProductStore";
+import { useConfirm } from "./ConfirmModal";
+import { Drawer, EmptyState, PageHeader, ShortcutHelp, SkeletonRows, useListShortcuts } from "./admin/ui";
 import "../styles/price-watch.css";
 
 const FILTERS = [
@@ -109,7 +111,7 @@ const StatusCard = ({ worker, coverage, onCamgoz }) => {
     <section className="ui-card pw-status" aria-label="Bekçi durumu">
       <div className="pw-status-main">
         <span className={`pw-status-icon pw-tone-${phase.tone}`} aria-hidden="true">
-          {worker.phase === "running" ? <Loader2 className="pw-spin" /> : <Radar />}
+          {worker.phase === "running" ? <Loader2 className="ui-spin" /> : <Radar />}
         </span>
         <div className="ui-grow">
           <p className="pw-status-title">{phase.title}</p>
@@ -394,7 +396,7 @@ const PriceRow = ({ row, busy, onApply, onCheck, onIgnore, onQuery }) => {
         )}
         <div className="pw-tools">
           <button type="button" className="ui-icon-btn ui-icon-btn--sm" title="Şimdi yeniden kontrol et" aria-label="Şimdi yeniden kontrol et" disabled={busy} onClick={() => onCheck(row)}>
-            {busy ? <Loader2 className="pw-spin" /> : <RefreshCw />}
+            {busy ? <Loader2 className="ui-spin" /> : <RefreshCw />}
           </button>
           <button type="button" className="ui-icon-btn ui-icon-btn--sm" title="Arama sözcüğünü düzenle" aria-label="Arama sözcüğünü düzenle" disabled={busy} onClick={() => setEditingQuery((open) => !open)}>
             <Pencil />
@@ -416,7 +418,8 @@ const PriceRow = ({ row, busy, onApply, onCheck, onIgnore, onQuery }) => {
 };
 
 // Camgöz API anahtarı: panelden değiştirilir, sunucuda şifreli saklanır (.env dosyasına dokunulmaz)
-const CamgozDialog = ({ onClose, onSaved }) => {
+const CamgozDrawer = ({ onClose, onSaved }) => {
+  const { confirm } = useConfirm();
   const [config, setConfig] = useState(null);
   const [apiKey, setApiKey] = useState("");
   const [monthly, setMonthly] = useState("");
@@ -433,13 +436,10 @@ const CamgozDialog = ({ onClose, onSaved }) => {
         setMonthly(String(response.data.camgoz.monthlyCredits ?? ""));
       })
       .catch((err) => active && setError(errorMessage(err, "Camgöz ayarları okunamadı.")));
-    const onKey = (event) => event.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
     return () => {
       active = false;
-      window.removeEventListener("keydown", onKey);
     };
-  }, [onClose]);
+  }, []);
 
   const save = async (event) => {
     event.preventDefault();
@@ -488,79 +488,68 @@ const CamgozDialog = ({ onClose, onSaved }) => {
         : "Anahtar yok";
 
   return (
-    <div className="ui-modal-backdrop" onClick={onClose}>
-      <form className="ui-modal pw-camgoz-modal" role="dialog" aria-modal="true" aria-labelledby="pw-camgoz-title" onSubmit={save} onClick={(event) => event.stopPropagation()}>
-        <div className="ui-modal-header">
-          <div>
-            <h2 id="pw-camgoz-title" className="ui-title">
-              Camgöz API anahtarı
-            </h2>
-            <p className="pw-modal-sub">{sourceText}</p>
-          </div>
-          <button type="button" className="ui-icon-btn ui-icon-btn--sm" aria-label="Kapat" onClick={onClose}>
-            <X />
-          </button>
-        </div>
-        <div className="ui-modal-body pw-camgoz-body">
-          {config && (
-            <p className="pw-camgoz-usage">
-              Bu ay {config.used} / {config.monthlyCredits} kredi kullanıldı{config.exhausted ? " — kredi bitti." : "."}
-            </p>
-          )}
-          <label className="pw-query-label" htmlFor="pw-camgoz-key">
-            Yeni API anahtarı
-          </label>
-          <input
-            id="pw-camgoz-key"
-            className="ui-field"
-            type="password"
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="JoJ panelindeki anahtarı yapıştırın"
-            value={apiKey}
-            onChange={(event) => setApiKey(event.target.value)}
-            autoFocus
-          />
-          <p className="ui-hint">
-            Kaydetmeden önce anahtar Camgöz&apos;ün ücretsiz ucuyla denenir (kredi harcamaz). Anahtar sunucuda şifreli saklanır, bir daha
-            gösterilmez; .env&apos;deki anahtarın yerine geçer ve bu ayın kredi sayacı sıfırlanır. Anahtarın JoJ panelinde Product Barcode API
-            planına abone olması gerekir.
-          </p>
-          <label className="pw-query-label" htmlFor="pw-camgoz-monthly">
-            Aylık kredi
-          </label>
-          <input
-            id="pw-camgoz-monthly"
-            className="ui-field pw-barcode-field"
-            inputMode="numeric"
-            value={monthly}
-            onChange={(event) => setMonthly(event.target.value.replace(/[^\d]/g, ""))}
-          />
-          <p className="ui-hint">Ücretsiz paket 500, Başlangıç paketi 10.000. Bekçi bu sayıya gelince Camgöz&apos;ü durdurur.</p>
-          {error && (
-            <p className="pw-status-error" role="alert">
-              <AlertTriangle aria-hidden="true" />
-              <span>{error}</span>
-            </p>
-          )}
-        </div>
-        <div className="ui-modal-footer">
-          {config?.source === "panel" && (
-            <button type="button" className="ui-btn ui-btn--ghost ui-btn--sm" disabled={saving} onClick={removePanelKey}>
-              Panel anahtarını sil (.env&apos;e dön)
-            </button>
-          )}
-          <span className="ui-grow" />
-          <button type="button" className="ui-btn ui-btn--sm" onClick={onClose}>
-            Vazgeç
-          </button>
-          <button type="submit" className="ui-btn ui-btn--primary ui-btn--sm" disabled={saving || !config}>
-            {saving ? <Loader2 className="pw-spin" /> : null}
+    <Drawer title="Camgöz API anahtarı" subtitle={sourceText} icon={KeyRound} width={460} onClose={onClose} dirty={Boolean(apiKey.trim())}
+      onDirtyClose={() => confirm({ title: "Anahtar kaydedilmedi", message: "Girilen anahtar kaydedilmedi. Yine de kapatılsın mı?", confirmText: "Kapat", cancelText: "Geri dön", type: "warning" })}
+      footer={(
+        <>
+          <button type="button" className="ui-btn ui-btn--ghost" onClick={onClose}>Vazgeç</button>
+          <button type="submit" form="pw-camgoz-form" className="ui-btn ui-btn--primary" disabled={saving || !config}>
+            {saving ? <Loader2 className="ui-spin" aria-hidden="true" /> : null}
             {apiKey.trim() ? "Dene ve kaydet" : "Kaydet"}
           </button>
-        </div>
+        </>
+      )}>
+      <form id="pw-camgoz-form" className="pw-camgoz-body" onSubmit={save}>
+        {config && (
+          <p className="pw-camgoz-usage">
+            Bu ay {config.used} / {config.monthlyCredits} kredi kullanıldı{config.exhausted ? " — kredi bitti." : "."}
+          </p>
+        )}
+        <label className="pw-query-label" htmlFor="pw-camgoz-key">
+          Yeni API anahtarı
+        </label>
+        <input
+          id="pw-camgoz-key"
+          className="ui-field"
+          type="password"
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="JoJ panelindeki anahtarı yapıştırın"
+          value={apiKey}
+          onChange={(event) => setApiKey(event.target.value)}
+          autoFocus
+        />
+        <p className="ui-hint">
+          Kaydetmeden önce anahtar Camgöz&apos;ün ücretsiz ucuyla denenir (kredi harcamaz). Anahtar sunucuda şifreli saklanır, bir daha
+          gösterilmez; .env&apos;deki anahtarın yerine geçer ve bu ayın kredi sayacı sıfırlanır. Anahtarın JoJ panelinde Product Barcode API
+          planına abone olması gerekir.
+        </p>
+        <label className="pw-query-label" htmlFor="pw-camgoz-monthly">
+          Aylık kredi
+        </label>
+        <input
+          id="pw-camgoz-monthly"
+          className="ui-field pw-barcode-field"
+          inputMode="numeric"
+          value={monthly}
+          onChange={(event) => setMonthly(event.target.value.replace(/[^\d]/g, ""))}
+        />
+        <p className="ui-hint">Ücretsiz paket 500, Başlangıç paketi 10.000. Bekçi bu sayıya gelince Camgöz&apos;ü durdurur.</p>
+        {error && (
+          <p className="pw-status-error" role="alert">
+            <AlertTriangle aria-hidden="true" />
+            <span>{error}</span>
+          </p>
+        )}
+        {config?.source === "panel" && (
+          <div className="pw-camgoz-remove">
+            <button type="button" className="ui-btn ui-btn--ghost ui-btn--sm" disabled={saving} onClick={removePanelKey}>
+              <X aria-hidden="true" />Panel anahtarını sil (.env&apos;e dön)
+            </button>
+          </div>
+        )}
       </form>
-    </div>
+    </Drawer>
   );
 };
 
@@ -577,6 +566,11 @@ const PriceWatchTab = () => {
   const [camgozOpen, setCamgozOpen] = useState(false);
   const closeCamgoz = useCallback(() => setCamgozOpen(false), []);
   const request = useRef(0);
+  const searchRef = useRef(null);
+  const { helpOpen, setHelpOpen } = useListShortcuts({
+    search: () => searchRef.current?.focus(),
+    searchEscape: () => { setQuery(""); setPage(1); searchRef.current?.blur(); },
+  });
 
   useEffect(() => {
     const timer = setTimeout(() => setSearch(query.trim()), 250);
@@ -676,8 +670,19 @@ const PriceWatchTab = () => {
 
   return (
     <div className="ui-page pw">
-      {data?.worker && <StatusCard worker={data.worker} coverage={data.coverage} onCamgoz={() => setCamgozOpen(true)} />}
-      {camgozOpen && <CamgozDialog onClose={closeCamgoz} onSaved={() => load({ quiet: true })} />}
+      <PageHeader
+        title="Fiyat bekçisi"
+        description="Ürünlerinizin internetteki piyasa fiyatıyla karşılaştırması. Gece kendiliğinden kontrol edilir, fiyatı siz değiştirirsiniz."
+        meta={counts.above !== undefined ? `${counts.above} pahalı` : undefined}
+        actions={(
+          <>
+            <button type="button" className="ui-btn" onClick={() => setCamgozOpen(true)}><KeyRound aria-hidden="true" />Camgöz anahtarı</button>
+            <button type="button" className="ui-btn" onClick={() => load()} disabled={loading}><RefreshCw className={loading ? "ui-spin" : ""} aria-hidden="true" />Yenile</button>
+          </>
+        )}
+      />
+      {loading && !data ? <span className="ui-skeleton pw-status-skeleton" aria-hidden="true" /> : data?.worker && <StatusCard worker={data.worker} coverage={data.coverage} onCamgoz={() => setCamgozOpen(true)} />}
+      {camgozOpen && <CamgozDrawer onClose={closeCamgoz} onSaved={() => load({ quiet: true })} />}
 
       <div className="pw-toolbar">
         <div className="ui-chips pw-filters" role="group" aria-label="Fiyat durumu">
@@ -701,10 +706,12 @@ const PriceWatchTab = () => {
         <label className="ui-search pw-search">
           <Search aria-hidden="true" />
           <input
+            ref={searchRef}
             className="ui-field"
             type="search"
             placeholder="Ürün ara"
             aria-label="Ürün ara"
+            data-esc-clear="true"
             value={query}
             onChange={(event) => {
               setQuery(event.target.value);
@@ -736,16 +743,7 @@ const PriceWatchTab = () => {
 
       <section className="ui-card pw-list-card" aria-busy={loading}>
         {loading && !data ? (
-          <ul className="pw-list">
-            {[0, 1, 2, 3].map((index) => (
-              <li key={index} className="pw-row pw-row--skeleton">
-                <span className="ui-skeleton pw-thumb" />
-                <span className="ui-skeleton" style={{ height: 14, width: "60%" }} />
-                <span className="ui-skeleton" style={{ height: 14, width: "80%" }} />
-                <span className="ui-skeleton" style={{ height: 30, width: "100%" }} />
-              </li>
-            ))}
-          </ul>
+          <SkeletonRows rows={5} height={72} />
         ) : data?.items?.length ? (
           <ul className={`pw-list${loading ? " pw-list--loading" : ""}`}>
             {data.items.map((row) => (
@@ -753,10 +751,12 @@ const PriceWatchTab = () => {
             ))}
           </ul>
         ) : data ? (
-          <div className="ui-empty">
-            <CheckCircle2 aria-hidden="true" />
-            <p className="ui-strong">{search ? "Aramaya uyan ürün yok." : EMPTY_TEXT[filter]}</p>
-          </div>
+          search ? (
+            <EmptyState icon={SearchX} title="Aramaya uyan ürün yok" description={`“${search}” için bu listede sonuç bulunamadı.`}
+              action={<button type="button" className="ui-btn" onClick={() => { setQuery(""); setPage(1); }}>Aramayı temizle</button>} />
+          ) : (
+            <EmptyState icon={CheckCircle2} title={EMPTY_TEXT[filter]} description="Başka bir filtre seçin ya da bekçinin gece kontrolünü bekleyin." />
+          )
         ) : null}
       </section>
 
@@ -773,6 +773,11 @@ const PriceWatchTab = () => {
           </button>
         </nav>
       )}
+      <footer className="pw-foot">
+        <span className="ui-muted">{data ? `${data.total} ürün` : ""}</span>
+        <span className="ui-muted pw-kbd"><kbd>/</kbd> ara · <kbd>?</kbd> yardım</span>
+      </footer>
+      <ShortcutHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
 };

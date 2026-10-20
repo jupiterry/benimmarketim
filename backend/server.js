@@ -2,6 +2,7 @@ import express from "express";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import compression from "compression";
+import { auditFallback } from "./services/adminAudit.service.js";
 import path from "path";
 import cors from "cors";
 import helmet from "helmet";
@@ -121,6 +122,8 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 app.use(cookieParser());
+// Yönetici işlem kayıtları: ayrıntılı kaydı olmayan her başarılı yönetici değişikliği de kaydedilir
+app.use(auditFallback);
 
 // Socket.IO yapılandırması - Sağlam ve Güvenilir
 import { createAdapter } from "@socket.io/redis-adapter";

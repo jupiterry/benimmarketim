@@ -8,9 +8,7 @@ import User from "../models/user.model.js";
 import {
   cancelOrder,
   grantReferralRewardIfDelivered,
-  parseOrderListOptions,
   releaseCouponForOrder,
-  getOrderStatusSummary,
 } from "../controllers/ordersAnalytics.controller.js";
 
 const USER = new mongoose.Types.ObjectId();
@@ -23,28 +21,6 @@ function response() {
     json(body) { this.body = body; return this; },
   };
 }
-
-test("order list options: defaults, caps, limit=0 means all, invalid status/since ignored", () => {
-  assert.deepEqual(parseOrderListOptions({}), { limit: 300, page: 1, status: null, since: null });
-  assert.equal(parseOrderListOptions({ limit: "5000" }).limit, 1000);
-  assert.equal(parseOrderListOptions({ limit: "0" }).limit, 0);
-  assert.equal(parseOrderListOptions({ status: "Yolda" }).status, "Yolda");
-  assert.equal(parseOrderListOptions({ status: "Bilinmeyen" }).status, null);
-  assert.equal(parseOrderListOptions({ since: "not-a-date" }).since, null);
-  assert.equal(parseOrderListOptions({ since: "2026-10-01T00:00:00Z" }).since.toISOString(), "2026-10-01T00:00:00.000Z");
-});
-
-test("status summary groups with aggregate and exposes pendingCount", async (t) => {
-  const pipelines = [];
-  t.mock.method(Order, "aggregate", async (pipeline) => {
-    pipelines.push(pipeline);
-    return [{ _id: "Hazırlanıyor", n: 3 }, { _id: "Teslim Edildi", n: 7 }];
-  });
-  const res = response();
-  await getOrderStatusSummary({}, res);
-  assert.deepEqual(res.body, { counts: { "Hazırlanıyor": 3, "Teslim Edildi": 7 }, total: 10, pendingCount: 3 });
-  assert.deepEqual(pipelines[0], [{ $group: { _id: "$status", n: { $sum: 1 } } }]);
-});
 
 test("cancel: admin uses role, customer cannot cancel someone else's order, coupon usage is released", async (t) => {
   const orderId = new mongoose.Types.ObjectId();

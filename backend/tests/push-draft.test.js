@@ -67,10 +67,11 @@ test("push draft rejects provider copy that exceeds push character limits", asyn
 const chain = (rows) => ({ sort() { return this; }, limit() { return this; }, select() { return this; }, lean() { return Promise.resolve(rows); } });
 const aiReply = (content) => ({ ok: true, status: 200, json: async () => ({ choices: [{ message: { content } }] }) });
 
-test("prompt asks for emoji, three tones, no invented facts and the right screen", () => {
+test("prompt asks for emoji, four tones, no invented facts and the right screen", () => {
   const [system, user] = buildDraftMessages({ prompt: "Yurtta sabah kahvaltısı", target: "cart", recentTitles: ["Saat 23.00'ü geçti"] });
   assert.match(system.content, /Emoji kullan/);
-  assert.match(system.content, /3 farklı/);
+  assert.match(system.content, /4 farklı/);
+  assert.match(system.content, /Merak uyandıran/);
   assert.match(system.content, /uydurma/);
   assert.match(system.content, /sepet ekranı/);
   assert.match(system.content, /Saat 23\.00'ü geçti/);

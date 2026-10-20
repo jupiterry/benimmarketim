@@ -5,6 +5,7 @@ import axios from "../lib/axios";
 import { CATEGORIES, categoryName, errorMessage, formatPrice, shrinkPhoto } from "../lib/productAssist";
 import { useProductStore } from "../stores/useProductStore";
 import ProductAssistBulk from "./ProductAssistBulk";
+import { PageHeader, Segmented } from "./admin/ui";
 import "../styles/product-assist.css";
 
 const INITIAL = {
@@ -364,15 +365,17 @@ const ProductAssistTab = () => {
   };
 
   return (
-    <div className="pa-shell">
-      <div className="ui-segmented pa-mode" role="tablist" aria-label="Ekleme şekli">
-        <button type="button" role="tab" aria-selected={mode === "single"} aria-pressed={mode === "single"} onClick={() => choose("single")}>
-          <Camera />Tek ürün
-        </button>
-        <button type="button" role="tab" aria-selected={mode === "bulk"} aria-pressed={mode === "bulk"} onClick={() => choose("bulk")}>
-          <Layers />Toplu ekle <span className="pa-mode-hint">5–15 ürün</span>
-        </button>
-      </div>
+    <div className="ui-page pa-shell">
+      <PageHeader
+        title="Fotoğraftan ürün ekle"
+        description="Fotoğrafını çekin; ad, kategori ve şeffaf görsel seçenekleri hazırlansın, siz fiyatı girip onaylayın."
+        actions={(
+          <Segmented ariaLabel="Ekleme şekli" value={mode} onChange={choose} options={[
+            { value: "single", label: "Tek ürün", icon: Camera },
+            { value: "bulk", label: "Toplu ekle", icon: Layers, title: "5–15 ürünü tek seferde tanıt ve kaydet" },
+          ]} />
+        )}
+      />
       <div hidden={mode !== "single"}><SingleProductAssist /></div>
       <div hidden={mode !== "bulk"}><ProductAssistBulk /></div>
     </div>

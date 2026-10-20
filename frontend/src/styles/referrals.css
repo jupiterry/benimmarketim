@@ -1,0 +1,531 @@
+/* Davet sistemi (ReferralsTab) — yalnızca yerleşim; renkler admin-system.css belirteçlerinden */
+
+.admin-layout .ref > .app-pagehead {
+  margin-bottom: 0;
+}
+
+/* ── Araç çubuğu ───────────────────────────────────────────────────── */
+.admin-layout .ref-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-s2) var(--ui-s3);
+}
+.admin-layout .ref-search {
+  flex: 1 1 240px;
+  max-width: 360px;
+}
+.admin-layout .ref-chips {
+  flex-wrap: wrap;
+  gap: var(--ui-s1);
+}
+.admin-layout .ref-chip-count {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.admin-layout .ref-chips > button[aria-pressed="true"] .ref-chip-count {
+  background: var(--ui-surface);
+  color: var(--ui-brand-ink);
+}
+.admin-layout .ref-sort {
+  margin-left: auto;
+}
+
+/* ── Yerleşim: liste + yan sütun ───────────────────────────────────── */
+.admin-layout .ref-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: var(--ui-s4);
+  align-items: start;
+}
+.admin-layout .ref-main,
+.admin-layout .ref-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s3);
+  min-width: 0;
+}
+
+/* ── Kod çipi ──────────────────────────────────────────────────────── */
+.admin-layout .ref-code {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-2);
+  color: var(--ui-text-2);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color var(--ui-ease), background-color var(--ui-ease);
+}
+.admin-layout .ref-code:hover {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+}
+.admin-layout .ref-code code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  color: var(--ui-text);
+}
+.admin-layout .ref-code svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+.admin-layout .ref-code--sm {
+  min-height: 28px;
+  padding: 0 8px;
+}
+.admin-layout .ref-code--sm code {
+  font-size: var(--ui-fs-xs);
+}
+
+/* ── Liste ─────────────────────────────────────────────────────────── */
+.admin-layout .ref-list {
+  overflow: hidden;
+}
+.admin-layout .ref-head,
+.admin-layout .ref-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) 150px minmax(0, 1.3fr) 110px 120px;
+  align-items: center;
+  gap: var(--ui-s3);
+  padding: 10px var(--ui-s4);
+}
+.admin-layout .ref-head {
+  min-height: 38px;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-bottom: 1px solid var(--ui-line);
+  background: var(--ui-surface-2);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+}
+.admin-layout .ref-row {
+  border-top: 1px solid var(--ui-line);
+  cursor: pointer;
+  transition: background-color var(--ui-ease);
+}
+.admin-layout .ref-row:first-child {
+  border-top: 0;
+}
+.admin-layout .ref-row:hover,
+.admin-layout .ref-row[data-active="true"] {
+  background: var(--ui-surface-2);
+}
+.admin-layout .ref-row[data-active="true"] {
+  box-shadow: inset 3px 0 0 var(--ui-brand);
+}
+.admin-layout .ref-cell-user {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-s2);
+  min-width: 0;
+}
+.admin-layout .ref-cell-user .ui-avatar {
+  width: 34px;
+  height: 34px;
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .ref-user-text {
+  min-width: 0;
+}
+.admin-layout .ref-user-text p {
+  margin: 0;
+}
+.admin-layout .ref-cell-code {
+  min-width: 0;
+}
+.admin-layout .ref-cell-invited {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .ref-invited {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--ui-text);
+}
+.admin-layout .ref-invited .ui-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+}
+.admin-layout .ref-invited-state {
+  flex-shrink: 0;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+}
+.admin-layout .ref-none {
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .ref-cell-num {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .ref-cell-num strong {
+  font-size: var(--ui-fs-lg);
+  color: var(--ui-text);
+}
+.admin-layout .ref-cell-num .ui-muted {
+  font-size: var(--ui-fs-xs);
+  white-space: nowrap;
+}
+.admin-layout .ref-more {
+  display: flex;
+  justify-content: center;
+  padding: var(--ui-s3);
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .ref-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-s2);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .ref-kbd kbd {
+  display: inline-block;
+  min-width: 18px;
+  margin: 0 1px;
+  padding: 1px 5px;
+  border: 1px solid var(--ui-line-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--ui-surface);
+  font-family: inherit;
+  font-size: 11px;
+  text-align: center;
+}
+
+/* ── Yan sütun ─────────────────────────────────────────────────────── */
+.admin-layout .ref-top-wrap {
+  border: 0;
+  border-radius: 0 0 var(--ui-radius-lg) var(--ui-radius-lg);
+}
+.admin-layout .ref-top th,
+.admin-layout .ref-top td {
+  padding: 8px 12px;
+}
+.admin-layout .ref-top tbody tr:last-child td {
+  border-bottom: 0;
+}
+.admin-layout .ref-top-row {
+  cursor: pointer;
+}
+.admin-layout .ref-top-row:hover td {
+  background: var(--ui-surface-2);
+}
+.admin-layout .ref-top-name {
+  max-width: 160px;
+}
+.admin-layout .ref-top-name > span {
+  display: block;
+}
+.admin-layout .ref-guide-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-s2);
+  width: 100%;
+  min-height: 46px;
+  padding: 0 var(--ui-s4);
+  border: 0;
+  background: none;
+  color: var(--ui-text);
+  font: inherit;
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+}
+.admin-layout .ref-guide-toggle svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ui-text-3);
+  transition: transform var(--ui-ease);
+}
+.admin-layout .ref-guide-toggle svg:first-child {
+  color: var(--ui-brand);
+}
+.admin-layout .ref-guide[data-open="true"] .ref-guide-toggle svg:last-child {
+  transform: rotate(180deg);
+}
+/* Ortak .ui-note-body rengi sabit; karanlık temada okunması için belirtece bağlanır */
+.admin-layout .ref-guide .ui-note-body {
+  color: var(--ui-text);
+}
+.admin-layout .ref-guide-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s3);
+  padding-top: 0;
+}
+.admin-layout .ref-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-layout .ref-steps li {
+  display: flex;
+  gap: var(--ui-s2);
+  align-items: flex-start;
+}
+.admin-layout .ref-steps strong {
+  display: block;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text);
+}
+.admin-layout .ref-steps p {
+  margin: 1px 0 0;
+  font-size: var(--ui-fs-xs);
+  line-height: 1.45;
+  color: var(--ui-text-2);
+}
+
+/* ── Çekmece ───────────────────────────────────────────────────────── */
+.admin-layout .ref-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s2);
+  padding-bottom: var(--ui-s4);
+  border-bottom: 1px solid var(--ui-line);
+}
+.admin-layout .ref-section:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.admin-layout .ref-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-s2);
+}
+.admin-layout .ref-section-head h3 {
+  margin: 0;
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ui-text-3);
+}
+.admin-layout .ref-section .ref-code {
+  align-self: flex-start;
+}
+.admin-layout .ref-section .ui-kv {
+  padding: var(--ui-s3);
+}
+.admin-layout .ref-chain {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+.admin-layout .ref-chain-node {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-s3);
+  width: 100%;
+  padding: var(--ui-s2) var(--ui-s3);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font: inherit;
+  text-align: left;
+}
+.admin-layout .ref-chain-node .ui-avatar {
+  width: 34px;
+  height: 34px;
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .ref-chain-node .ui-avatar svg {
+  width: 16px;
+  height: 16px;
+}
+.admin-layout .ref-chain-node > svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--ui-text-3);
+}
+.admin-layout .ref-chain-node--link {
+  cursor: pointer;
+  transition: border-color var(--ui-ease), background-color var(--ui-ease);
+}
+.admin-layout .ref-chain-node--link:hover {
+  border-color: var(--ui-brand);
+  background: var(--ui-surface-2);
+}
+.admin-layout .ref-chain-node--current {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand-soft);
+}
+.admin-layout .ref-chain-node--current .ui-avatar {
+  background: var(--ui-brand);
+  color: var(--ui-surface);
+}
+.admin-layout .ref-chain-node--muted {
+  border-style: dashed;
+  color: var(--ui-text-2);
+}
+.admin-layout .ref-chain-node--muted .ui-avatar {
+  background: var(--ui-surface-3);
+  color: var(--ui-text-3);
+}
+.admin-layout .ref-chain-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.admin-layout .ref-chain-text strong {
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+}
+.admin-layout .ref-chain-role {
+  flex-basis: 100%;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+}
+.admin-layout .ref-chain-arrow {
+  display: flex;
+  justify-content: center;
+  height: 18px;
+  color: var(--ui-text-3);
+}
+.admin-layout .ref-chain-arrow svg {
+  width: 16px;
+  height: 16px;
+}
+.admin-layout .ref-timeline {
+  padding: var(--ui-s3);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-2);
+}
+.admin-layout .ref-timeline-name {
+  margin: 0 0 var(--ui-s2);
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  color: var(--ui-text);
+  overflow-wrap: anywhere;
+}
+.admin-layout .ref-timeline ol {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-layout .ref-timeline li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text-2);
+}
+.admin-layout .ref-timeline li::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border: 2px solid var(--ui-line-strong);
+  border-radius: 50%;
+  background: var(--ui-surface);
+}
+.admin-layout .ref-timeline li[data-done="true"]::before {
+  border-color: var(--ui-ok);
+  background: var(--ui-ok);
+}
+.admin-layout .ref-timeline li[data-done="true"] span {
+  color: var(--ui-text);
+  font-weight: 600;
+}
+.admin-layout .ref-timeline li em {
+  margin-left: auto;
+  font-style: normal;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Mobil ─────────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .admin-layout .ref-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-layout .ref-head,
+  .admin-layout .ref-row {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.3fr) 90px 120px;
+  }
+  .admin-layout .ref-cell-code,
+  .admin-layout .ref-head > :nth-child(2) {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .admin-layout .ref-search {
+    max-width: none;
+    flex-basis: 100%;
+  }
+  .admin-layout .ref-chips {
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+  .admin-layout .ref-sort {
+    margin-left: 0;
+    width: 100%;
+  }
+  .admin-layout .ref-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "user state"
+      "code num"
+      "invited invited";
+    gap: var(--ui-s2) var(--ui-s3);
+    padding: var(--ui-s3);
+  }
+  .admin-layout .ref-cell-user { grid-area: user; }
+  .admin-layout .ref-cell-state { grid-area: state; }
+  .admin-layout .ref-cell-code { grid-area: code; display: block; }
+  .admin-layout .ref-cell-num { grid-area: num; flex-direction: row; align-items: baseline; gap: 4px; }
+  .admin-layout .ref-cell-num strong { font-size: var(--ui-fs-md); }
+  .admin-layout .ref-cell-invited {
+    grid-area: invited;
+    padding-top: var(--ui-s2);
+    border-top: 1px dashed var(--ui-line);
+  }
+  .admin-layout .ref-top-name {
+    max-width: 140px;
+  }
+}

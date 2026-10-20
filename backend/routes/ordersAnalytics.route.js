@@ -7,10 +7,6 @@ import { notifyOrderStatusChange } from "../services/orderStatusNotifier.js";
 import { evaluateMissionsForUser } from "../services/mission.service.js";
 import {
   getOrderAnalyticsData,
-  getOrderStatusSummary,
-  parseOrderListOptions,
-  grantReferralRewardIfDelivered,
-  releaseCouponForOrder,
   getDailyOrdersData,
   updateOrderStatus,
   getUserOrders,
@@ -21,20 +17,41 @@ import {
   updateItemQuantity,
   addProductToOrder,
   toggleManualFlag,
+  getDashboardSummary,
 } from "../controllers/ordersAnalytics.controller.js";
 
 const router = express.Router();
 
-// Admin paneli için sipariş durum özeti (belge yüklemeden): { counts, total, pendingCount }
-router.get("/summary", protectRoute, adminRoute, getOrderStatusSummary);
-
 // Admin paneli için sipariş analitikleri
-// Sorgu: ?status=Hazırlanıyor&limit=300&page=1&since=2026-10-01T00:00:00Z (hepsi isteğe bağlı; limit=0 → tüm siparişler)
+// Sorgu parametreleri (hepsi isteğe bağlı; hiçbiri yoksa eskisi gibi tüm siparişler döner)
+const parseDate = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+export const parseOrderListQuery = (query = {}) => {
+  const days = Number.parseInt(query.days, 10);
+  const limit = Number.parseInt(query.limit, 10);
+  const since = parseDate(query.since) || (Number.isFinite(days) && days > 0
+    ? new Date(Date.now() - Math.min(days, 3650) * 24 * 60 * 60 * 1000)
+    : null);
+  return {
+    since,
+    before: parseDate(query.before),
+    limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 1000) : null,
+    active: query.active === "1" || query.active === "true",
+    updatedSince: parseDate(query.updatedSince),
+  };
+};
+
 router.get("/", protectRoute, adminRoute, async (req, res) => {
   try {
-    const options = parseOrderListOptions(req.query);
+    const options = parseOrderListQuery(req.query);
+    const scoped = Object.values(options).some(Boolean);
     const orderAnalyticsData = await getOrderAnalyticsData(options);
-    res.setHeader("X-Total-Count", String(orderAnalyticsData.totalOrders));
+
+    // Sipariş ekranı ve rozetler 7 günlük özeti kullanmıyor; yalnızca eski (filtresiz) çağrıda hesaplanır
+    if (scoped) return res.json({ orderAnalyticsData });
 
     const endDate = new Date();
     const startDate = new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -51,10 +68,39 @@ router.get("/", protectRoute, adminRoute, async (req, res) => {
   }
 });
 
+// Genel bakış ekranı özeti: sunucuda hesaplanır, tüm geçmiş istemciye gitmez
+// ?period=today|7d|30d|month|all ya da period=custom&from=ISO&to=ISO
+router.get("/summary", protectRoute, adminRoute, getDashboardSummary);
+
 // Admin sipariş durumu güncelleme
+// İşlem kayıtları: ?category=product&q=süt&target=<ürünId>&actor=<id>&before=<ISO>&limit=50
+export const buildAuditQuery = (query = {}) => {
+  const filter = {};
+  const categories = ["product", "campaign", "order", "customer", "settings", "system", "other"];
+  if (categories.includes(query.category)) filter.category = query.category;
+  if (typeof query.target === "string" && query.target.trim()) filter.target = query.target.trim().slice(0, 200);
+  if (typeof query.actor === "string" && /^[0-9a-f]{24}$/i.test(query.actor)) filter.actor = query.actor;
+  const before = query.before ? new Date(query.before) : null;
+  if (before && !Number.isNaN(before.getTime())) filter.createdAt = { $lt: before };
+  const q = typeof query.q === "string" ? query.q.trim().slice(0, 80) : "";
+  if (q) {
+    const pattern = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    filter.$or = [{ action: pattern }, { targetName: pattern }, { target: pattern }, { "changes.from": pattern }, { "changes.to": pattern }];
+  }
+  const limit = Math.min(200, Math.max(1, Number.parseInt(query.limit, 10) || 50));
+  return { filter, limit };
+};
+
 router.get("/audit", protectRoute, adminRoute, async (req, res) => {
-  const entries = await AdminAudit.find().sort({ createdAt: -1 }).limit(100).populate("actor", "name email").lean();
-  res.json({ entries });
+  try {
+    const { filter, limit } = buildAuditQuery(req.query);
+    const rows = await AdminAudit.find(filter).sort({ createdAt: -1 }).limit(limit + 1).populate("actor", "name email").lean();
+    const hasMore = rows.length > limit;
+    res.json({ entries: rows.slice(0, limit), hasMore });
+  } catch (error) {
+    console.error("İşlem kayıtları alınamadı:", error.message);
+    res.status(500).json({ message: "İşlem kayıtları alınamadı" });
+  }
 });
 router.put("/update-status", protectRoute, adminRoute, auditAdminAction("Sipariş durumu", req => String(req.body.orderId)), updateOrderStatus);
 router.put("/bulk-status", protectRoute, adminRoute, auditAdminAction("Toplu sipariş durumu", req => `${req.body.orderIds?.length || 0} sipariş`), async (req, res) => {
@@ -68,11 +114,7 @@ router.put("/bulk-status", protectRoute, adminRoute, auditAdminAction("Toplu sip
     order.statusHistory.push({ status, changedAt: new Date(), changedBy: req.user._id });
     await order.save();
     notifyOrderStatusChange(order, previousStatus);
-    if (status === "Teslim Edildi" && previousStatus !== status) {
-      evaluateMissionsForUser(order.user);
-      grantReferralRewardIfDelivered(order, previousStatus);
-    }
-    if (status === "İptal Edildi" && previousStatus !== status) releaseCouponForOrder(order);
+    if (status === "Teslim Edildi" && previousStatus !== status) evaluateMissionsForUser(order.user);
     req.app.get("io")?.to(`user_${order.user.toString()}`).to("adminRoom").emit("orderStatusUpdated", { orderId: order._id, newStatus: status, message: `Sipariş durumu güncellendi: ${status}` });
   }
   return res.json({ updated: orders.length });

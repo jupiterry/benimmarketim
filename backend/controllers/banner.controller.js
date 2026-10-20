@@ -1,4 +1,23 @@
 import Banner from "../models/banner.model.js";
+import cloudinary from "../lib/cloudinary.js";
+import { recordAdminAction } from "../services/adminAudit.service.js";
+
+// Yönetici panelinin dosya yükleyicisi: base64 veri adresi (data:image/...) alır, Cloudinary'ye
+// "banners" klasörüne yükler ve kalıcı adresi döner. Vitrin görseli kaydı bu adresle oluşturulur;
+// veritabanına base64 yazılmaz (mobil uygulama aynı kayıtları okuyor).
+export const BANNER_UPLOAD_MAX_BYTES = 6 * 1024 * 1024; // ~6 MB (base64 öncesi yaklaşık 4,5 MB dosya)
+export const BANNER_UPLOAD_TYPES = ["jpeg", "jpg", "png", "webp", "gif", "avif"];
+
+/** Yüklenecek görseli doğrular; sorun varsa Türkçe hata mesajı, yoksa null döner. */
+export const validateBannerUpload = (image) => {
+  if (typeof image !== "string" || !image) return "Görsel verisi zorunludur";
+  const match = /^data:image\/([a-z0-9.+-]+);base64,/i.exec(image);
+  if (!match) return "Görsel base64 veri adresi (data:image/...) olarak gönderilmeli";
+  const type = match[1].toLowerCase().replace("svg+xml", "svg");
+  if (!BANNER_UPLOAD_TYPES.includes(type)) return "Yalnızca JPG, PNG, WebP, GIF ya da AVIF görsel yüklenebilir";
+  if (image.length > BANNER_UPLOAD_MAX_BYTES) return "Görsel çok büyük (en fazla 4,5 MB)";
+  return null;
+};
 
 // Tüm banner'ları getir (public - sadece aktif olanlar)
 export const getBanners = async (req, res) => {
@@ -143,3 +162,37 @@ export const deleteBanner = async (req, res) => {
   }
 };
 
+
+// Vitrin görseli yükle (admin) → { success, url, width, height }
+export const uploadBannerImage = async (req, res) => {
+  try {
+    const { image } = req.body || {};
+    const error = validateBannerUpload(image);
+    if (error) {
+      return res.status(400).json({ success: false, message: error });
+    }
+
+    const uploaded = await cloudinary.uploader.upload(image, { folder: "banners" });
+    recordAdminAction(req, {
+      action: "Vitrin görseli yüklendi",
+      category: "campaign",
+      target: uploaded.public_id || "",
+      targetName: "Vitrin görseli",
+      changes: [{ label: "Görsel", from: "—", to: uploaded.secure_url }],
+    });
+
+    res.status(201).json({
+      success: true,
+      url: uploaded.secure_url,
+      width: uploaded.width ?? null,
+      height: uploaded.height ?? null,
+    });
+  } catch (error) {
+    console.error("Vitrin görseli yüklenirken hata:", error);
+    res.status(500).json({
+      success: false,
+      message: "Görsel yüklenemedi",
+      error: error.message,
+    });
+  }
+};

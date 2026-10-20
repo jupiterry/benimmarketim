@@ -62,6 +62,8 @@ productSchema.index({ name: "text", description: "text" });
 productSchema.index({ category: 1, order: 1 }, { collation: { locale: "en", strength: 2 } });
 // Öne çıkanlar / fırsatlar sorguları
 productSchema.index({ isHidden: 1, isDiscounted: 1 });
+// Son güncelleme (Last-Modified / ürün listesi önbellek anahtarı)
+productSchema.index({ updatedAt: -1 });
 
 const Product = mongoose.model("Product", productSchema);
 

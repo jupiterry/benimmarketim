@@ -1,0 +1,1042 @@
+/* Mağaza ayarları (SettingsTab) — admin-system.css belirteçleriyle, önek: stg- */
+
+/* ── Yerleşim: solda bölüm gezinmesi, sağda içerik ─────────────────── */
+.admin-layout .stg {
+  position: relative;
+  max-width: 1180px;
+}
+.admin-layout .stg-layout {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.admin-layout .stg-nav {
+  position: sticky;
+  top: 72px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.admin-layout .stg-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+}
+.admin-layout .stg-nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: transparent;
+  color: var(--ui-text-2);
+  font: inherit;
+  text-align: left;
+  transition: background-color var(--ui-ease), color var(--ui-ease);
+}
+.admin-layout .stg-nav-item:hover {
+  background: var(--ui-surface-2);
+  color: var(--ui-text);
+}
+.admin-layout .stg-nav-item[aria-selected="true"] {
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+}
+.admin-layout .stg-nav-item[aria-selected="true"] .stg-nav-icon {
+  background: var(--ui-brand);
+  color: var(--ui-surface);
+}
+.admin-layout .stg-nav-item[aria-selected="true"] .stg-nav-short {
+  color: var(--ui-brand-ink);
+  opacity: 0.8;
+}
+.admin-layout .stg-nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--ui-surface-3);
+  color: inherit;
+  transition: background-color var(--ui-ease), color var(--ui-ease);
+}
+.admin-layout .stg-nav-icon svg {
+  width: 15px;
+  height: 15px;
+}
+.admin-layout .stg-nav-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.admin-layout .stg-nav-label {
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+  line-height: 1.3;
+}
+.admin-layout .stg-nav-short {
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.admin-layout .stg-nav-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+  font-size: var(--ui-fs-xs);
+  font-weight: 700;
+}
+.admin-layout .stg-nav-alert {
+  display: inline-flex;
+  color: var(--ui-danger);
+}
+.admin-layout .stg-nav-alert svg {
+  width: 15px;
+  height: 15px;
+}
+.admin-layout .stg-nav-foot {
+  margin: 0;
+  padding: 0 6px;
+}
+.admin-layout .stg kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 1px 5px;
+  border: 1px solid var(--ui-line-strong);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--ui-surface);
+  color: var(--ui-text-2);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: center;
+}
+.admin-layout .stg-content {
+  min-width: 0;
+}
+.admin-layout .stg-section,
+.admin-layout .stg-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.admin-layout .stg--bar .stg-section {
+  padding-bottom: 72px; /* yapışkan kaydet çubuğu son alanı örtmesin */
+}
+.admin-layout .stg-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 18px;
+}
+.admin-layout .stg-banner {
+  flex-wrap: wrap;
+  border-radius: var(--ui-radius);
+}
+.admin-layout .stg-banner > .ui-btn {
+  margin-left: auto;
+}
+
+/* ── Bölüm başlığı ─────────────────────────────────────────────────── */
+.admin-layout .stg-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+.admin-layout .stg-section-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+.admin-layout .stg-section-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+}
+.admin-layout .stg-section-icon svg {
+  width: 17px;
+  height: 17px;
+}
+.admin-layout .stg-section-aside {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.admin-layout .ui-panel[data-disabled="true"] .ui-panel-body {
+  opacity: 0.6;
+}
+.admin-layout .stg-pill .ui-dot {
+  width: 7px;
+  height: 7px;
+}
+
+/* ── Alanlar ve değişiklik vurgusu ─────────────────────────────────── */
+.admin-layout .stg-field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding-left: 10px;
+  border-left: 3px solid transparent;
+  transition: border-color var(--ui-ease);
+}
+.admin-layout .stg-field[data-changed="true"] {
+  border-left-color: var(--ui-warn);
+}
+.admin-layout .stg-field[data-invalid="true"] {
+  border-left-color: var(--ui-danger);
+}
+.admin-layout .stg-field--wide {
+  grid-column: 1 / -1;
+}
+.admin-layout .stg-field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 22px;
+}
+.admin-layout .stg-field-label {
+  margin: 0;
+}
+.admin-layout .stg-field-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.admin-layout .stg-changed-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.admin-layout .stg-field-reset {
+  width: 26px;
+  height: 26px;
+}
+.admin-layout .stg-field-control {
+  min-width: 0;
+}
+.admin-layout .stg-field-hint {
+  margin: 0;
+}
+.admin-layout .stg-field-error {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  color: var(--ui-danger-ink);
+}
+.admin-layout .stg-field-error svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+.admin-layout .ui-field[aria-invalid="true"] {
+  border-color: var(--ui-danger);
+}
+.admin-layout .stg-amount {
+  max-width: 220px;
+}
+.admin-layout .stg-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.admin-layout .stg-url {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+.admin-layout .stg-url > .ui-field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.admin-layout .stg-url > .ui-btn {
+  flex-shrink: 0;
+  text-decoration: none;
+}
+.admin-layout .stg-url > .ui-btn[aria-disabled="true"] {
+  pointer-events: none;
+  opacity: 0.5;
+}
+.admin-layout .stg-range {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.admin-layout .stg-range > input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.admin-layout .stg-range-num {
+  width: 72px;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+/* Satır: metin + sağda kontrol */
+.admin-layout .stg-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-2);
+}
+.admin-layout .stg-row--danger {
+  border-color: var(--ui-warn);
+  background: var(--ui-warn-bg);
+}
+.admin-layout .stg-row--danger .stg-row-title {
+  color: var(--ui-warn-ink);
+}
+.admin-layout .stg-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.admin-layout .stg-row-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--ui-fs-md);
+  font-weight: 650;
+  color: var(--ui-text);
+}
+.admin-layout .stg-row-icon {
+  width: 15px;
+  height: 15px;
+}
+.admin-layout .stg-row-desc {
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text-2);
+  line-height: 1.45;
+}
+.admin-layout .stg-row-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.admin-layout .stg-row-control .ui-badge svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ── Anahtar ────────────────────────────────────────────────────────── */
+.admin-layout .stg-switch {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  min-height: 36px;
+  padding: 4px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+}
+.admin-layout .stg-switch-track {
+  position: relative;
+  display: block;
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--ui-line-strong);
+  transition: background-color var(--ui-ease);
+}
+.admin-layout .stg-switch-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow);
+  transition: transform var(--ui-ease);
+}
+.admin-layout .stg-switch[aria-checked="true"] .stg-switch-track {
+  background: var(--ui-brand);
+}
+.admin-layout .stg-switch[aria-checked="true"][data-tone="warn"] .stg-switch-track {
+  background: var(--ui-warn);
+}
+.admin-layout .stg-switch[aria-checked="true"] .stg-switch-knob {
+  transform: translateX(18px);
+}
+.admin-layout .stg-switch[data-size="lg"] .stg-switch-track {
+  width: 56px;
+  height: 30px;
+}
+.admin-layout .stg-switch[data-size="lg"] .stg-switch-knob {
+  width: 24px;
+  height: 24px;
+}
+.admin-layout .stg-switch[data-size="lg"][aria-checked="true"] .stg-switch-knob {
+  transform: translateX(26px);
+}
+.admin-layout .stg-switch[data-size="lg"][aria-checked="false"] .stg-switch-track {
+  background: var(--ui-danger);
+}
+.admin-layout .stg-switch[data-size="lg"][aria-checked="false"][data-tone=""] .stg-switch-track,
+.admin-layout .stg-hero--soft .stg-switch[aria-checked="false"] .stg-switch-track {
+  background: var(--ui-line-strong);
+}
+
+/* ── Büyük durum kartı (mağaza açık/kapalı, asistan) ────────────────── */
+.admin-layout .stg-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-ok-bg);
+  transition: background-color var(--ui-ease), border-color var(--ui-ease);
+}
+.admin-layout .stg-hero[data-on="false"] {
+  background: var(--ui-danger-bg);
+}
+.admin-layout .stg-hero--soft[data-on="false"] {
+  background: var(--ui-surface-2);
+}
+.admin-layout .stg-hero[data-changed="true"] {
+  border-color: var(--ui-warn);
+  box-shadow: 0 0 0 3px var(--ui-warn-bg);
+}
+.admin-layout .stg-hero-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--ui-surface);
+  color: var(--ui-ok-ink);
+}
+.admin-layout .stg-hero[data-on="false"] .stg-hero-icon {
+  color: var(--ui-danger-ink);
+}
+.admin-layout .stg-hero--soft[data-on="false"] .stg-hero-icon {
+  color: var(--ui-text-3);
+}
+.admin-layout .stg-hero-icon svg {
+  width: 22px;
+  height: 22px;
+}
+.admin-layout .stg-hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.admin-layout .stg-hero-text strong {
+  font-size: var(--ui-fs-lg);
+  font-weight: 700;
+  color: var(--ui-ok-ink);
+}
+.admin-layout .stg-hero[data-on="false"] .stg-hero-text strong {
+  color: var(--ui-danger-ink);
+}
+.admin-layout .stg-hero--soft[data-on="false"] .stg-hero-text strong {
+  color: var(--ui-text);
+}
+.admin-layout .stg-hero-text span {
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text-2);
+  line-height: 1.45;
+}
+
+/* ── Saatler ve zaman çizelgesi ─────────────────────────────────────── */
+.admin-layout .stg-hours {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px 14px;
+}
+.admin-layout .stg-hours > .stg-field {
+  flex: 0 1 190px;
+  min-width: 150px;
+}
+.admin-layout .stg-hours--sm > .stg-field {
+  flex-basis: 160px;
+  min-width: 130px;
+}
+.admin-layout .stg-hours-sep {
+  align-self: center;
+  padding-top: 20px;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-lg);
+}
+.admin-layout .stg-time {
+  min-width: 118px;
+  max-width: 160px;
+}
+.admin-layout[data-theme="dark"] .stg-time,
+.admin-layout[data-theme="dark"] .stg-range > input[type="range"] {
+  color-scheme: dark;
+}
+.admin-layout .stg-range-summary {
+  font-size: var(--ui-fs-md);
+  font-weight: 650;
+  color: var(--ui-text);
+  white-space: nowrap;
+}
+.admin-layout .stg-range-summary small {
+  margin-left: 6px;
+  font-family: inherit;
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  color: var(--ui-text-3);
+}
+.admin-layout .stg-timeline {
+  min-width: 0;
+}
+.admin-layout .stg-timeline-track {
+  position: relative;
+  height: 22px;
+  overflow: hidden;
+  border: 1px solid var(--ui-line);
+  border-radius: 6px;
+  background: var(--ui-surface-2);
+}
+.admin-layout .stg-timeline--compact .stg-timeline-track {
+  height: 10px;
+  border-radius: 4px;
+}
+.admin-layout .stg-timeline-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--ui-line);
+}
+.admin-layout .stg-timeline-tick[data-major="true"] {
+  background: var(--ui-line-strong);
+}
+.admin-layout .stg-timeline--compact .stg-timeline-tick[data-major="false"] {
+  display: none;
+}
+.admin-layout .stg-timeline-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--ui-brand);
+  opacity: 0.85;
+}
+.admin-layout .stg-timeline-fill[data-sametime="true"] {
+  background: var(--ui-danger);
+}
+.admin-layout .stg-week-day[data-open="false"] .stg-timeline-fill {
+  background: var(--ui-text-3);
+  opacity: 0.35;
+}
+.admin-layout .stg-timeline-now {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--ui-danger);
+}
+.admin-layout .stg-timeline-labels {
+  position: relative;
+  height: 16px;
+  margin-top: 3px;
+}
+.admin-layout .stg-timeline-labels span {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: var(--ui-fs-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-text-3);
+}
+.admin-layout .stg-timeline-labels span:first-child {
+  transform: none;
+}
+.admin-layout .stg-timeline-labels span:last-child {
+  transform: translateX(-100%);
+}
+.admin-layout .stg-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+.admin-layout .stg-week-day {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  padding: 8px 8px 7px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+}
+.admin-layout .stg-week-day[data-open="false"] {
+  background: var(--ui-surface-2);
+}
+.admin-layout .stg-week-name {
+  font-size: var(--ui-fs-xs);
+  font-weight: 700;
+  color: var(--ui-text-2);
+}
+.admin-layout .stg-week-hours {
+  font-size: 10.5px;
+  color: var(--ui-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Teslimat noktaları ─────────────────────────────────────────────── */
+.admin-layout .stg-points {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.admin-layout .stg-point {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+  overflow: hidden;
+  transition: border-color var(--ui-ease);
+}
+.admin-layout .stg-point[data-changed="true"] {
+  border-color: var(--ui-warn);
+}
+.admin-layout .stg-point[data-on="false"] {
+  background: var(--ui-surface-2);
+}
+.admin-layout .stg-point-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--ui-line);
+}
+.admin-layout .stg-point-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--ui-ok-bg);
+  color: var(--ui-ok-ink);
+}
+.admin-layout .stg-point[data-on="false"] .stg-point-icon {
+  background: var(--ui-surface-3);
+  color: var(--ui-text-3);
+}
+.admin-layout .stg-point-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.admin-layout .stg-point-title {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 120px;
+  min-width: 0;
+}
+.admin-layout .stg-point-title strong {
+  font-size: var(--ui-fs-md);
+  font-weight: 650;
+  color: var(--ui-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-layout .stg-point-title span {
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+}
+.admin-layout .stg-point-switch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.admin-layout .stg-point-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+}
+
+/* ── Yapay zekâ ─────────────────────────────────────────────────────── */
+.admin-layout .stg-providers {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.admin-layout .stg-provider {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 56px;
+  padding: 10px 12px;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  color: var(--ui-text-2);
+  font: inherit;
+  text-align: left;
+  transition: border-color var(--ui-ease), background-color var(--ui-ease);
+}
+.admin-layout .stg-provider:hover {
+  border-color: var(--ui-text-3);
+}
+.admin-layout .stg-provider[aria-checked="true"] {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+  box-shadow: inset 0 0 0 1px var(--ui-brand);
+}
+.admin-layout .stg-provider strong {
+  font-size: var(--ui-fs-md);
+  font-weight: 650;
+  color: var(--ui-text);
+}
+.admin-layout .stg-provider[aria-checked="true"] strong {
+  color: var(--ui-brand-ink);
+}
+.admin-layout .stg-provider span {
+  font-size: var(--ui-fs-xs);
+}
+
+/* ── Canlı durum / anahtar-değer ızgarası ───────────────────────────── */
+.admin-layout .stg-live {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-2);
+}
+.admin-layout .stg-live-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.admin-layout .stg-live-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px 16px;
+  margin: 0;
+}
+.admin-layout .stg-live-grid dt {
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+}
+.admin-layout .stg-live-grid dd {
+  margin: 2px 0 0;
+  font-size: var(--ui-fs-md);
+  font-weight: 600;
+  color: var(--ui-text);
+  overflow-wrap: anywhere;
+}
+.admin-layout .stg-live-wide {
+  grid-column: 1 / -1;
+}
+.admin-layout .stg-live-error {
+  color: var(--ui-danger-ink);
+  font-weight: 500;
+}
+
+/* ── Entegrasyon kartları ───────────────────────────────────────────── */
+.admin-layout .stg-integration {
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+  overflow: hidden;
+}
+.admin-layout .stg-integration-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--ui-line);
+}
+.admin-layout .stg-integration-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--ui-info-bg);
+  color: var(--ui-info-ink);
+}
+.admin-layout .stg-integration-icon svg {
+  width: 17px;
+  height: 17px;
+}
+.admin-layout .stg-integration-title {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.admin-layout .stg-integration-title strong {
+  font-size: var(--ui-fs-md);
+  font-weight: 650;
+  color: var(--ui-text);
+}
+.admin-layout .stg-integration-title span {
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text-2);
+}
+.admin-layout .stg-integration-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.admin-layout .stg-integration-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+}
+.admin-layout .stg-integration-body .ui-hint {
+  margin: 0;
+}
+.admin-layout .stg-integration-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--ui-line);
+  background: var(--ui-surface-2);
+}
+.admin-layout .stg-integration .ui-badge svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ── Yapışkan kaydet çubuğu ─────────────────────────────────────────── */
+.admin-layout .stg-savebar {
+  position: sticky;
+  bottom: 16px;
+  z-index: 40;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin-top: -56px; /* bölümün alt boşluğunun üstüne biner */
+  padding: 10px 12px 10px 16px;
+  border: 1px solid var(--ui-warn);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-pop);
+}
+.admin-layout .stg-savebar--invalid {
+  border-color: var(--ui-danger);
+}
+.admin-layout .stg-savebar--saved {
+  justify-content: center;
+  border-color: var(--ui-ok);
+  background: var(--ui-ok-bg);
+  color: var(--ui-ok-ink);
+}
+.admin-layout .stg-savebar-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--ui-fs-md);
+  font-weight: 650;
+  color: var(--ui-text);
+}
+.admin-layout .stg-savebar--saved .stg-savebar-text {
+  color: var(--ui-ok-ink);
+}
+.admin-layout .stg-savebar--invalid .stg-savebar-text {
+  color: var(--ui-danger-ink);
+}
+.admin-layout .stg-savebar-text svg {
+  width: 16px;
+  height: 16px;
+}
+.admin-layout .stg-savebar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.admin-layout .stg-savebar-loader {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+
+/* ── Dar ekran ──────────────────────────────────────────────────────── */
+@media (max-width: 980px) {
+  .admin-layout .stg-layout {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .admin-layout .stg-nav {
+    position: static;
+  }
+  .admin-layout .stg-nav-list {
+    flex-direction: row;
+    gap: 2px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .admin-layout .stg-nav-list::-webkit-scrollbar {
+    display: none;
+  }
+  .admin-layout .stg-nav-item {
+    flex: 0 0 auto;
+    width: auto;
+    min-height: 40px;
+    padding: 4px 10px;
+  }
+  .admin-layout .stg-nav-short {
+    display: none;
+  }
+  .admin-layout .stg-nav-icon {
+    width: 26px;
+    height: 26px;
+  }
+  .admin-layout .stg-nav-foot {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .admin-layout .stg-grid-2,
+  .admin-layout .stg-points {
+    grid-template-columns: 1fr;
+  }
+  .admin-layout .stg-providers {
+    grid-template-columns: 1fr;
+  }
+  .admin-layout .stg-provider {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 44px;
+  }
+  .admin-layout .stg-week {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .admin-layout .stg-week-hours {
+    display: none;
+  }
+  .admin-layout .stg-hero {
+    gap: 10px;
+    padding: 12px;
+  }
+  .admin-layout .stg-hero-icon {
+    width: 36px;
+    height: 36px;
+  }
+  .admin-layout .stg-hero-text strong {
+    font-size: var(--ui-fs-md);
+  }
+  .admin-layout .stg-hours {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 8px;
+  }
+  .admin-layout .stg-hours > .stg-field {
+    min-width: 0;
+  }
+  .admin-layout .stg-hours-sep {
+    padding-top: 22px;
+    align-self: start;
+  }
+  .admin-layout .stg-time {
+    min-width: 0;
+    max-width: none;
+    padding: 0 6px;
+  }
+  .admin-layout .stg-savebar {
+    bottom: 72px; /* mobil alt menü çubuğunun üstünde */
+    margin-top: -40px;
+    padding: 10px 12px;
+  }
+  .admin-layout .stg-savebar-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+  .admin-layout .stg-savebar-actions > .ui-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+    min-height: 40px;
+  }
+  .admin-layout .stg-section-aside {
+    width: 100%;
+  }
+  .admin-layout .stg-section-aside > .ui-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .admin-layout .stg-row-control {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
