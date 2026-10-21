@@ -12,7 +12,7 @@ import "../styles/admin-theme.css";
 import AdminSidebar from "../components/admin/AdminSidebar";
 import AdminHeader from "../components/admin/AdminHeader";
 import CommandPalette from "../components/admin/CommandPalette";
-import { PageHeader, usePref } from "../components/admin/ui";
+import { HANDOFF, PageHeader, setHandoff, usePref } from "../components/admin/ui";
 import ErrorBoundary from "../components/admin/ui/ErrorBoundary";
 
 // Tab Components
@@ -265,6 +265,16 @@ const AdminPage = () => {
     fetchAdminBadges();
     updateLastSync();
   }, [fetchAllProducts]);
+
+  // Siparişler ekranı açıkken rozet, ekranın kendi canlı sayısıyla anında güncellenir (ek istek yok)
+  useEffect(() => {
+    const onCount = (event) => {
+      const preparing = Number(event.detail?.preparing);
+      if (Number.isFinite(preparing)) setAdminBadges((prev) => (prev.orders === preparing ? prev : { ...prev, orders: preparing }));
+    };
+    window.addEventListener("admin-orders-count", onCount);
+    return () => window.removeEventListener("admin-orders-count", onCount);
+  }, []);
 
   const fetchAdminBadges = async () => {
     try {
@@ -627,7 +637,7 @@ const AdminPage = () => {
   };
 
   const handleTabChange = useCallback((tab, preset) => {
-    if (tab === "orders" && preset) sessionStorage.setItem("admin-order-preset", preset);
+    if (tab === "orders" && preset) setHandoff(HANDOFF.orderPreset, preset);
     setActiveTab(tab);
     setMobileMenuOpen(false);
   }, []);

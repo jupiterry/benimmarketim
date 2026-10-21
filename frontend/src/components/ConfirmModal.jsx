@@ -1,6 +1,6 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useId, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, Trash2, X, CheckCircle, AlertCircle, Info } from 'lucide-react';
+import { AlertTriangle, Trash2, X, CheckCircle, Info } from 'lucide-react';
 
 // Context
 const ConfirmContext = createContext(null);
@@ -16,6 +16,44 @@ export const useConfirm = () => {
 
 // Modal Component
 const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, confirmText, cancelText, type }) => {
+  const titleId = useId();
+  const messageId = useId();
+  const dialogRef = useRef(null);
+  const cancelRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  // Erişilebilirlik: açılınca odak "Vazgeç"e taşınır, Tab pencerenin düğmeleri arasında döner, Esc vazgeçer;
+  // kapanınca odak pencereyi açan öğeye döner (o öğe hâlâ sayfadaysa). Klavye olayları yakalama aşamasında
+  // işlenir: arkadaki çekmece / liste kısayolları (Esc, Boşluk ile sürükleme…) pencere açıkken tetiklenmez.
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const prev = document.activeElement;
+    cancelRef.current?.focus({ preventScroll: true });
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onCloseRef.current?.();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const buttons = [...(dialogRef.current?.querySelectorAll('button:not(:disabled)') || [])];
+      if (!buttons.length) return;
+      e.preventDefault();
+      const index = buttons.indexOf(document.activeElement);
+      const next = e.shiftKey
+        ? (index <= 0 ? buttons.length - 1 : index - 1)
+        : (index < 0 || index === buttons.length - 1 ? 0 : index + 1);
+      buttons[next].focus();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      if (prev && prev !== document.body && prev.isConnected && typeof prev.focus === 'function') prev.focus({ preventScroll: true });
+    };
+  }, [isOpen]);
+
   const getTypeStyles = () => {
     switch (type) {
       case 'danger':
@@ -82,6 +120,11 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, confirmText,
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0, y: 20 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            ref={dialogRef}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            aria-describedby={message ? messageId : undefined}
             className="confirm-dialog relative w-full max-w-md bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-2xl border border-white/10 shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
@@ -95,24 +138,29 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, confirmText,
                   <Icon className={`w-6 h-6 ${styles.iconColor}`} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className={`confirm-title text-lg font-bold ${styles.headerColor} mb-1`}>
+                  <h3 id={titleId} className={`confirm-title text-lg font-bold ${styles.headerColor} mb-1`}>
                     {title}
                   </h3>
-                  <p className="confirm-message text-gray-300 text-sm leading-relaxed">
+                  <p id={messageId} className="confirm-message text-gray-300 text-sm leading-relaxed">
                     {message}
                   </p>
                 </div>
                 <button
+                  type="button"
                   onClick={onClose}
+                  aria-label="Kapat"
+                  title="Kapat"
                   className="confirm-close flex-shrink-0 p-1.5 hover:bg-white/10 rounded-lg transition-colors"
                 >
-                  <X className="w-5 h-5 text-gray-500 hover:text-white" />
+                  <X className="w-5 h-5 text-gray-500 hover:text-white" aria-hidden="true" />
                 </button>
               </div>
 
               {/* Actions */}
               <div className="confirm-actions flex gap-3 mt-6">
                 <motion.button
+                  ref={cancelRef}
+                  type="button"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={onClose}
@@ -121,6 +169,7 @@ const ConfirmModal = ({ isOpen, onClose, onConfirm, title, message, confirmText,
                   {cancelText}
                 </motion.button>
                 <motion.button
+                  type="button"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => {
@@ -152,8 +201,18 @@ export const ConfirmProvider = ({ children }) => {
     onConfirm: () => {},
   });
 
+  // Açık pencerenin sözü: onayda true, vazgeç/arka plan/çarpı ile kapanınca false döner
+  const resolver = useRef(null);
+  const settle = useCallback((value) => {
+    const resolve = resolver.current;
+    resolver.current = null;
+    resolve?.(value);
+  }, []);
+
   const confirm = useCallback(({ title, message, confirmText = 'Onayla', cancelText = 'İptal', type = 'warning' }) => {
+    settle(false); // Önceki pencere yanıtsız kaldıysa vazgeçilmiş sayılır
     return new Promise((resolve) => {
+      resolver.current = resolve;
       setConfirmState({
         isOpen: true,
         title,
@@ -161,14 +220,15 @@ export const ConfirmProvider = ({ children }) => {
         confirmText,
         cancelText,
         type,
-        onConfirm: () => resolve(true),
+        onConfirm: () => settle(true),
       });
     });
-  }, []);
+  }, [settle]);
 
   const handleClose = useCallback(() => {
+    settle(false);
     setConfirmState((prev) => ({ ...prev, isOpen: false }));
-  }, []);
+  }, [settle]);
 
   return (
     <ConfirmContext.Provider value={{ confirm }}>

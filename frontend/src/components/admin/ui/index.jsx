@@ -196,12 +196,35 @@ export const KpiGrid = ({ children, columns, className = "" }) => (
 );
 
 // ── Çekmece ───────────────────────────────────────────────────────────────
+const FOCUSABLE = 'a[href], button, input, select, textarea, summary, iframe, [tabindex], [contenteditable="true"]';
+const focusablesIn = (root) => [...root.querySelectorAll(FOCUSABLE)].filter((el) =>
+  !el.disabled && el.tabIndex >= 0 && !el.closest("[inert]") && el.getClientRects().length > 0);
+/**
+ * Modal katmanın klavye tuzağı (onKeyDown'da çağrılır): Tab son öğeden ilke, Shift+Tab ilkten sona döner; odak
+ * arka plana kaçmaz. Yalnızca ilk / son öğede araya girer: katmana portal ile çizilen açılır menüler kendi Tab
+ * davranışını korur. Üstte onay penceresi ya da kısayol yardımı varsa dokunmaz.
+ */
+export const trapTabKey = (e, root) => {
+  if (e.key !== "Tab" || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || !root) return;
+  if (document.querySelector(".confirm-root, .ui-modal-backdrop")) return;
+  const items = focusablesIn(root);
+  if (!items.length) return;
+  const active = document.activeElement;
+  const target = e.shiftKey ? (active === items[0] ? items[items.length - 1] : null) : (active === items[items.length - 1] ? items[0] : null);
+  if (!target) return;
+  e.preventDefault();
+  target.focus();
+};
+
 /**
  * Sağdan açılan panel. Esc ve arka plana tıklama kapatır (üstte onay penceresi açıkken değil).
  * `dirty` true ise kapatmadan önce `onDirtyClose` çağrılır (onay sormak için); false dönerse kalır.
+ * `modal` (varsayılan true): aria-modal ve Tab tuzağı. Sayfayı kilitlemeyen (arka planı tıklanabilir) bir çekmece
+ * modal={false} verir; o zaman aria-modal yazılmaz ve odak çekmeceden serbestçe çıkabilir.
  */
-export const Drawer = ({ title, subtitle, icon: Icon, width, onClose, onDirtyClose, dirty = false, tabs, footer, children, className = "", bodyClassName = "" }) => {
+export const Drawer = ({ title, subtitle, icon: Icon, width, onClose, onDirtyClose, dirty = false, tabs, footer, children, className = "", bodyClassName = "", modal = true }) => {
   const closeRef = useRef(null);
+  const asideRef = useRef(null);
   const requestClose = useCallback(async () => {
     if (dirty && onDirtyClose) {
       const ok = await onDirtyClose();
@@ -222,8 +245,10 @@ export const Drawer = ({ title, subtitle, icon: Icon, width, onClose, onDirtyClo
   }, []);
   return (
     <div className="ui-drawer-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) requestClose(); }}>
-      <aside className={`ui-drawer ${className}`} role="dialog" aria-modal="true" aria-label={typeof title === "string" ? title : undefined}
-        style={width ? { width: `min(${width}px, 100vw)` } : undefined}>
+      <aside ref={asideRef} className={`ui-drawer ${className}`} role="dialog" aria-modal={modal ? "true" : undefined}
+        aria-label={typeof title === "string" ? title : undefined}
+        style={width ? { width: `min(${width}px, 100vw)` } : undefined}
+        onKeyDown={modal ? (e) => trapTabKey(e, asideRef.current) : undefined}>
         <div className="ui-drawer-head">
           <div className="ui-drawer-title">
             {Icon && <span className="ui-drawer-icon"><Icon /></span>}
@@ -321,6 +346,8 @@ export const useListShortcuts = (handlers, { enabled = true } = {}) => {
         h.escape?.(e);
         return;
       }
+      // "?" yardımı kapatır da (yardım kendisi açık bir katmandır; aşağıdaki erken dönüşten önce)
+      if (e.key === "?" && helpOpen && !isTypingTarget(e.target)) { e.preventDefault(); setHelpOpen(false); return; }
       if (isTypingTarget(e.target) || hasOpenLayer()) return;
       if (e.key === "?") { e.preventDefault(); setHelpOpen((v) => !v); return; }
       if (e.key === "/" && h.search) { e.preventDefault(); h.search(e); return; }
@@ -341,14 +368,25 @@ const DEFAULT_SHORTCUTS = [
 ];
 /** Kısayol yardımı penceresi; `items` ekran kendine özgü satırlar ekler */
 export const ShortcutHelp = ({ open, onClose, items = [] }) => {
+  // Açılınca odak "Kapat"a (tek odaklanabilir öğe; Tab orada kalır), kapanınca açan öğeye döner
+  const closeBtnRef = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const prev = document.activeElement;
+    closeBtnRef.current?.focus();
+    return () => {
+      if (prev && prev !== document.body && prev.isConnected) prev.focus?.({ preventScroll: true });
+    };
+  }, [open]);
   if (!open) return null;
   const rows = [...DEFAULT_SHORTCUTS, ...items];
   return (
     <div className="ui-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="ui-modal ui-shortcuts" role="dialog" aria-modal="true" aria-label="Klavye kısayolları">
+      <div className="ui-modal ui-shortcuts" role="dialog" aria-modal="true" aria-label="Klavye kısayolları"
+        onKeyDown={(e) => { if (e.key === "Tab") { e.preventDefault(); closeBtnRef.current?.focus(); } }}>
         <div className="ui-modal-header">
           <h2 className="ui-title"><Keyboard /> Klavye kısayolları</h2>
-          <button type="button" className="ui-icon-btn" onClick={onClose} aria-label="Kapat"><X /></button>
+          <button ref={closeBtnRef} type="button" className="ui-icon-btn" onClick={onClose} aria-label="Kapat"><X /></button>
         </div>
         <div className="ui-modal-body">
           <dl className="ui-shortcut-list">
@@ -407,11 +445,14 @@ export const takeHandoff = (key) => {
     return null;
   }
 };
+/** Aktarımı yazar ve "admin-handoff" olayı yayar; hedef ekran zaten açıksa olayı dinleyip hemen okur. */
 export const setHandoff = (key, value) => {
   try {
     sessionStorage.setItem(key, String(value));
   } catch {
     /* depolama kapalı olabilir */
   }
+  // Dinleyici sekme değişiminden sonra çalışsın diye bir sonraki işlem adımında yayılır
+  setTimeout(() => window.dispatchEvent(new CustomEvent("admin-handoff", { detail: { key } })), 0);
 };
 export const HANDOFF = { product: "admin-product-open", order: "admin-order-search", user: "admin-user-open", orderPreset: "admin-order-preset" };

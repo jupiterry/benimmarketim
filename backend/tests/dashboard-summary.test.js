@@ -136,8 +136,8 @@ test("özet: toplamlar, delta, dağılımlar, çok satanlar ve dikkat gerektiren
   assert.equal(delayedFilter.createdAt.$lt.toISOString(), new Date(NOW.getTime() - 20 * 60 * 1000).toISOString());
   assert.equal(summary.recentOrders.length, 1);
   assert.deepEqual(summary.recentOrders[0], {
-    orderId: "64f1a2b3c4d5e6f76ac8bc4d", customerName: "Ayşe", totalAmount: 120, status: "Hazırlanıyor", itemCount: 3,
-    deliveryPoint: "girlsDorm", deliveryPointName: "", createdAt: NOW,
+    orderId: "64f1a2b3c4d5e6f76ac8bc4d", customerName: "Ayşe", customerAvatar: null, paymentMethod: null, paymentMethodLabel: "Belirtilmedi",
+    totalAmount: 120, status: "Hazırlanıyor", itemCount: 3, deliveryPoint: "girlsDorm", deliveryPointName: "", createdAt: NOW,
   });
 });
 

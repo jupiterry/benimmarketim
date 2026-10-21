@@ -1,14 +1,13 @@
 import express from "express";
-import Order from "../models/order.model.js";
 import AdminAudit from "../models/adminAudit.model.js";
 import { auditAdminAction } from "../middleware/adminAudit.js";
 import { adminRoute, protectRoute } from "../middleware/auth.middleware.js";
-import { notifyOrderStatusChange } from "../services/orderStatusNotifier.js";
-import { evaluateMissionsForUser } from "../services/mission.service.js";
 import {
   getOrderAnalyticsData,
   getDailyOrdersData,
   updateOrderStatus,
+  bulkUpdateOrderStatus,
+  updateDeliveryTracking,
   getUserOrders,
   cancelOrder,
   addCustomItemToOrder,
@@ -18,6 +17,10 @@ import {
   addProductToOrder,
   toggleManualFlag,
   getDashboardSummary,
+  normalizeOrderSearch,
+  hasSearchableTerm,
+  INVALID_ORDER_ID_MESSAGE,
+  SEARCH_TOO_SHORT_MESSAGE,
 } from "../controllers/ordersAnalytics.controller.js";
 
 const router = express.Router();
@@ -44,11 +47,70 @@ export const parseOrderListQuery = (query = {}) => {
   };
 };
 
-router.get("/", protectRoute, adminRoute, async (req, res) => {
+export const MAX_ORDER_IDS = 50;
+const OBJECT_ID = /^[0-9a-f]{24}$/i;
+// "a,b" ya da ["a", "b,c"] → ["a", "b", "c"]
+const listParam = (value) =>
+  (Array.isArray(value) ? value : [value])
+    .flatMap((item) => (typeof item === "string" ? item.split(",") : []))
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+/**
+ * parseOrderListQuery'nin 5 anahtarına dokunmadan yeni parametreler (eski/kapsamlı ayrımı değişmez):
+ *  - include=customerStats → her müşteri grubuna user.stats
+ *  - ids=a,b (≤50, 24 haneli; parametre var ama hiçbiri geçerli değil → invalidIds)
+ *  - q=metin (kırpılır, ≤60, baştaki # atılır; 2 harf/rakamdan azsa → invalidQuery)
+ */
+export const parseOrderListExtras = (query = {}) => {
+  const includeCustomerStats = listParam(query.include).includes("customerStats");
+
+  let ids = null;
+  let invalidIds = false;
+  if (query.ids !== undefined) {
+    const seen = new Set();
+    const valid = [];
+    for (const id of listParam(query.ids)) {
+      const key = id.toLowerCase();
+      if (!OBJECT_ID.test(id) || seen.has(key)) continue;
+      seen.add(key);
+      valid.push(key);
+      if (valid.length >= MAX_ORDER_IDS) break;
+    }
+    if (valid.length) ids = valid;
+    else invalidIds = true;
+  }
+
+  let q = null;
+  let invalidQuery = false;
+  if (query.q !== undefined) {
+    const raw = Array.isArray(query.q) ? query.q[0] : query.q;
+    if (typeof raw !== "string") invalidQuery = true;
+    else if (raw.trim()) {
+      const text = normalizeOrderSearch(raw);
+      if (hasSearchableTerm(text)) q = text;
+      else invalidQuery = true;
+    }
+  }
+
+  return { ids, invalidIds, q, invalidQuery, includeCustomerStats };
+};
+
+/** GET /api/orders-analytics — öncelik: ids > q > updatedSince > pencere (since/before/limit/active) */
+export const getOrdersList = async (req, res) => {
   try {
     const options = parseOrderListQuery(req.query);
-    const scoped = Object.values(options).some(Boolean);
-    const orderAnalyticsData = await getOrderAnalyticsData(options);
+    const extras = parseOrderListExtras(req.query);
+    if (extras.invalidIds) return res.status(400).json({ message: INVALID_ORDER_ID_MESSAGE });
+    if (extras.invalidQuery) return res.status(400).json({ message: SEARCH_TOO_SHORT_MESSAGE });
+
+    const scoped = Object.values(options).some(Boolean) || Boolean(extras.ids || extras.q);
+    const orderAnalyticsData = await getOrderAnalyticsData({
+      ...options,
+      ids: extras.ids,
+      q: extras.q,
+      includeCustomerStats: extras.includeCustomerStats,
+    });
 
     // Sipariş ekranı ve rozetler 7 günlük özeti kullanmıyor; yalnızca eski (filtresiz) çağrıda hesaplanır
     if (scoped) return res.json({ orderAnalyticsData });
@@ -63,16 +125,20 @@ router.get("/", protectRoute, adminRoute, async (req, res) => {
       dailyOrdersData,
     });
   } catch (error) {
+    if (Number.isInteger(error?.statusCode) && error.statusCode >= 400 && error.statusCode < 500) {
+      return res.status(error.statusCode).json({ message: error.message });
+    }
     console.error("Sipariş analitikleri alınırken hata:", error.message);
     res.status(500).json({ message: "Server error", error: error.message });
   }
-});
+};
+
+router.get("/", protectRoute, adminRoute, getOrdersList);
 
 // Genel bakış ekranı özeti: sunucuda hesaplanır, tüm geçmiş istemciye gitmez
 // ?period=today|7d|30d|month|all ya da period=custom&from=ISO&to=ISO
 router.get("/summary", protectRoute, adminRoute, getDashboardSummary);
 
-// Admin sipariş durumu güncelleme
 // İşlem kayıtları: ?category=product&q=süt&target=<ürünId>&actor=<id>&before=<ISO>&limit=50
 export const buildAuditQuery = (query = {}) => {
   const filter = {};
@@ -102,30 +168,10 @@ router.get("/audit", protectRoute, adminRoute, async (req, res) => {
     res.status(500).json({ message: "İşlem kayıtları alınamadı" });
   }
 });
+// Admin sipariş durumu güncelleme (tekli/toplu) ve teslimat notu
 router.put("/update-status", protectRoute, adminRoute, auditAdminAction("Sipariş durumu", req => String(req.body.orderId)), updateOrderStatus);
-router.put("/bulk-status", protectRoute, adminRoute, auditAdminAction("Toplu sipariş durumu", req => `${req.body.orderIds?.length || 0} sipariş`), async (req, res) => {
-  const { orderIds, status } = req.body;
-  if (!Array.isArray(orderIds) || orderIds.length < 1 || orderIds.length > 100 || !["Hazırlanıyor", "Yolda", "Teslim Edildi", "İptal Edildi"].includes(status)) return res.status(400).json({ message: "Geçersiz toplu işlem" });
-  const orders = await Order.find({ _id: { $in: orderIds } });
-  if (orders.length !== new Set(orderIds).size) return res.status(404).json({ message: "Bazı siparişler bulunamadı" });
-  for (const order of orders) {
-    const previousStatus = order.status;
-    order.status = status;
-    order.statusHistory.push({ status, changedAt: new Date(), changedBy: req.user._id });
-    await order.save();
-    notifyOrderStatusChange(order, previousStatus);
-    if (status === "Teslim Edildi" && previousStatus !== status) evaluateMissionsForUser(order.user);
-    req.app.get("io")?.to(`user_${order.user.toString()}`).to("adminRoom").emit("orderStatusUpdated", { orderId: order._id, newStatus: status, message: `Sipariş durumu güncellendi: ${status}` });
-  }
-  return res.json({ updated: orders.length });
-});
-router.put("/delivery-tracking", protectRoute, adminRoute, auditAdminAction("Teslimat takibi", req => String(req.body.orderId)), async (req, res) => {
-  const { orderId, deliveryTracking } = req.body;
-  if (typeof deliveryTracking !== "string" || deliveryTracking.length > 120) return res.status(400).json({ message: "Geçersiz teslimat bilgisi" });
-  const order = await Order.findByIdAndUpdate(orderId, { deliveryTracking: deliveryTracking.trim() }, { new: true });
-  if (!order) return res.status(404).json({ message: "Sipariş bulunamadı" });
-  return res.json({ order });
-});
+router.put("/bulk-status", protectRoute, adminRoute, auditAdminAction("Toplu sipariş durumu", req => `${req.body.orderIds?.length || 0} sipariş`), bulkUpdateOrderStatus);
+router.put("/delivery-tracking", protectRoute, adminRoute, auditAdminAction("Teslimat takibi", req => String(req.body.orderId)), updateDeliveryTracking);
 
 // Kullanıcının kendi siparişlerini alması için endpoint
 router.get("/user-orders", protectRoute, getUserOrders);

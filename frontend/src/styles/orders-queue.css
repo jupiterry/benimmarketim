@@ -1,0 +1,835 @@
+/*
+ * Siparişler · Şimdi (operasyon kuyruğu) — QueueView + QueueCard. Önek: so-q-
+ * Yalnızca --ui-* belirteçleri ve onların color-mix karışımları. Öğe durumları (data-level / selected /
+ * cursor / active / pending / fresh) orders.css'tedir; burada YENİDEN biçimlendirilmez.
+ * Kartlar şerit genişliğine göre (container query) düzen değiştirir: geniş şeritte sağda SLA + düğme
+ * sütunu, dar şeritte (tablet, mobil) altta tam genişlikte eylem satırı.
+ */
+
+/* ── Kök ─────────────────────────────────────────────────────────── */
+.admin-layout .so-q {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s4);
+  min-width: 0;
+}
+
+/* ── Şeritler ────────────────────────────────────────────────────── */
+.admin-layout .so-q-lanes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: auto auto;
+  gap: var(--ui-s2) var(--ui-s4);
+  align-items: start;
+  min-width: 0;
+}
+.admin-layout .so-q-lanes[data-single="true"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.admin-layout .so-q-lane {
+  display: grid;
+  grid-row: span 2;
+  grid-template-rows: subgrid;
+  min-width: 0;
+  border-radius: var(--ui-radius-lg);
+}
+@supports not (grid-template-rows: subgrid) {
+  .admin-layout .so-q-lane {
+    grid-template-rows: auto auto;
+    row-gap: var(--ui-s2);
+  }
+}
+
+/* Şerit başlığı (iki şeritte aynı yükseklik: subgrid satırı) */
+.admin-layout .so-q-lane-head {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+}
+.admin-layout .so-q-lane-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.admin-layout .so-q-lane-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+}
+.admin-layout .so-q-lane-icon > svg {
+  width: 16px;
+  height: 16px;
+}
+.admin-layout .so-q-lane[data-lane="prep"] .so-q-lane-icon {
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+.admin-layout .so-q-lane[data-lane="road"] .so-q-lane-icon {
+  background: var(--ui-info-bg);
+  color: var(--ui-info-ink);
+}
+.admin-layout .so-q-lane-title > h2 {
+  margin: 0;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-lg);
+  font-weight: 650;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.admin-layout .so-q-lane-count {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--ui-surface-3);
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+  font-weight: 700;
+  line-height: 1;
+}
+.admin-layout .so-q-lane-sum {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+  white-space: nowrap;
+}
+/* "Toplam" yalnızca mobil şerit şeridinde görünür (masaüstünde tutar şerit adı + sayının yanında) */
+.admin-layout .so-q-lane-sum-label {
+  display: none;
+  color: var(--ui-text-3);
+  font-weight: 600;
+}
+
+/* Şerit eylemleri */
+.admin-layout .so-q-lane-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-width: 0;
+}
+.admin-layout .so-q-lane-note {
+  display: flex;
+  flex: 1 1 180px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  min-width: 0;
+  margin: 0;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  line-height: 1.5;
+}
+.admin-layout .so-q-runsheet {
+  margin-left: auto;
+}
+.admin-layout .so-q-pay-part {
+  white-space: nowrap;
+}
+.admin-layout .so-q-pay-part b {
+  color: var(--ui-text);
+  font-weight: 650;
+}
+.admin-layout .so-q-pay-part[data-tone="warn"],
+.admin-layout .so-q-pay-part[data-tone="warn"] b {
+  color: var(--ui-warn-ink);
+}
+.admin-layout .so-q-sep {
+  color: var(--ui-text-3);
+}
+
+/* "↓ 2 yeni | Gördüm" bölünmüş çip */
+.admin-layout .so-q-unseen {
+  display: inline-flex;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--ui-brand) 28%, transparent);
+  border-radius: 999px;
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+}
+.admin-layout .so-q-unseen > button,
+.admin-layout .so-q-jump {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 26px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--ui-ease);
+}
+.admin-layout .so-q-unseen > button + button {
+  border-left: 1px solid color-mix(in srgb, var(--ui-brand) 28%, transparent);
+}
+.admin-layout .so-q-unseen > button:hover,
+.admin-layout .so-q-jump:hover {
+  background: color-mix(in srgb, var(--ui-brand) 12%, transparent);
+}
+.admin-layout .so-q-unseen > button:focus-visible {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: -2px;
+}
+.admin-layout .so-q-unseen svg,
+.admin-layout .so-q-jump svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.admin-layout .so-q-unseen-seen {
+  font-weight: 600;
+}
+
+/* Yumuşak tonlu toplu eylem düğmeleri (Yola çıkar = bilgi, Teslim et = tamam) */
+.admin-layout .so-q-btn[data-kind="way"] {
+  border-color: color-mix(in srgb, var(--ui-info) 35%, transparent);
+  background: var(--ui-info-bg);
+  color: var(--ui-info-ink);
+}
+.admin-layout .so-q-btn[data-kind="way"]:hover {
+  border-color: var(--ui-info);
+  background: var(--ui-info-bg);
+}
+.admin-layout .so-q-btn[data-kind="done"] {
+  border-color: color-mix(in srgb, var(--ui-ok) 35%, transparent);
+  background: var(--ui-ok-bg);
+  color: var(--ui-ok-ink);
+}
+.admin-layout .so-q-btn[data-kind="done"]:hover {
+  border-color: var(--ui-ok);
+  background: var(--ui-ok-bg);
+}
+.admin-layout .so-q-print b {
+  font-weight: 700;
+}
+.admin-layout .so-q-print-go {
+  color: var(--ui-brand-ink);
+  font-weight: 700;
+}
+
+/* Şerit gövdesi: kart düzeni bu kabın genişliğine göre değişir (container query).
+   Kap şeridin kendisi değil gövdedir; çünkü düzen sınırlaması (container) subgrid'i devre dışı bırakır. */
+.admin-layout .so-q-lane-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s2);
+  min-width: 0;
+  align-self: start;
+  container: so-q-lane / inline-size;
+}
+.admin-layout .so-q-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s2);
+  min-width: 0;
+}
+.admin-layout .so-q-lane-empty {
+  border: 1px dashed var(--ui-line-strong);
+  border-radius: var(--ui-radius-lg);
+}
+.admin-layout .so-q-lane-empty .ui-empty > svg {
+  width: 28px;
+  height: 28px;
+  margin-bottom: 2px;
+}
+
+/* ── Yurt bölümleri ──────────────────────────────────────────────── */
+.admin-layout .so-q-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s2);
+  min-width: 0;
+}
+.admin-layout .so-q-group + .so-q-group {
+  margin-top: var(--ui-s2);
+  padding-top: var(--ui-s3);
+  border-top: 1px dashed var(--ui-line-strong);
+}
+.admin-layout .so-q-group-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "check text"
+    ".     actions";
+  align-items: center;
+  gap: 4px 6px;
+  min-width: 0;
+  padding: 0 2px 0 7px;
+}
+.admin-layout .so-q-group-check {
+  grid-area: check;
+}
+.admin-layout .so-q-group-text {
+  display: flex;
+  grid-area: text;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  min-width: 0;
+}
+.admin-layout .so-q-group-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.admin-layout .so-q-group-title > svg {
+  width: 14px;
+  height: 14px;
+  align-self: center;
+  color: var(--ui-text-3);
+}
+.admin-layout .so-q-group-sum {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 5px;
+  min-width: 0;
+  margin: 0;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  line-height: 1.5;
+}
+.admin-layout .so-q-group-actions {
+  display: flex;
+  grid-area: actions;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  min-width: 0;
+}
+@container so-q-lane (min-width: 760px) {
+  .admin-layout .so-q-group-head {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: "check text actions";
+  }
+}
+
+/* ── Kart ────────────────────────────────────────────────────────── */
+.admin-layout .so-q-card {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "check face head side"
+    "check face meta side";
+  align-items: center;
+  gap: 5px var(--ui-s3);
+  min-width: 0;
+  padding: 10px 12px 10px 6px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+  transition: border-color var(--ui-ease);
+}
+.admin-layout .so-q-card[data-note="true"] {
+  grid-template-areas:
+    "check face head side"
+    "check face meta side"
+    ".     .    note side";
+}
+.admin-layout .so-q-card:hover {
+  border-color: var(--ui-line-strong);
+}
+.admin-layout .so-q-check {
+  grid-area: check;
+}
+.admin-layout .so-q-face {
+  grid-area: face;
+}
+
+/* 1. satır: ad + rozetler, tutar */
+.admin-layout .so-q-head {
+  display: flex;
+  grid-area: head;
+  align-items: flex-start;
+  gap: var(--ui-s2);
+  min-width: 0;
+}
+.admin-layout .so-q-who {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  min-width: 0;
+}
+.admin-layout .so-q-name {
+  flex: 0 1 auto;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ui-text);
+  font: inherit;
+  font-size: var(--ui-fs-lg);
+  font-weight: 650;
+  line-height: 22px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color var(--ui-ease);
+}
+.admin-layout .so-q-card:hover .so-q-name {
+  color: var(--ui-brand-ink);
+}
+.admin-layout .so-q-total {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-lg);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 22px;
+  white-space: nowrap;
+}
+
+/* 2. satır: kod, adet, çipler */
+.admin-layout .so-q-meta {
+  display: flex;
+  grid-area: meta;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  min-width: 0;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .so-q-count {
+  margin-right: 2px;
+  white-space: nowrap;
+}
+
+/* 3. satır: müşteri notu (en çok iki satır; tam metin title'da, ekran okuyucuda ve detayda).
+   Teslimat talimatının sonu ("… arayın") genelde iki satıra sığar; tek satırda geniş şeritte bile kesiliyordu. */
+.admin-layout .so-q-note {
+  display: flex;
+  grid-area: note;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  color: var(--ui-warn-ink);
+  font-size: var(--ui-fs-xs);
+  font-weight: 550;
+  line-height: 1.45;
+}
+.admin-layout .so-q-note > svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.admin-layout .so-q-note-text {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+}
+
+/* Sağ sütun: canlı SLA + sonraki adım */
+.admin-layout .so-q-side {
+  display: flex;
+  grid-area: side;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 6px;
+  min-width: 128px;
+}
+.admin-layout .so-q-side > .so-sla {
+  justify-content: center;
+}
+
+/* Dar şerit (tablet ve mobil): eylem satırı alta iner */
+@container so-q-lane (max-width: 479px) {
+  .admin-layout .so-q-card {
+    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-areas:
+      "check face head"
+      "check face meta"
+      ".     side side";
+    row-gap: 6px;
+  }
+  .admin-layout .so-q-card[data-note="true"] {
+    grid-template-areas:
+      "check face head"
+      "check face meta"
+      ".     note note"
+      ".     side side";
+  }
+  .admin-layout .so-q-side {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    min-width: 0;
+    margin-top: 2px;
+  }
+  /* Sabit en küçük genişlik: "9 dk" ile "41 dk" kartlarında sonraki adım düğmesi aynı x'ten başlasın
+     (72 px = data-size="md" iki basamaklı "NN dk" çipi; 60 dk ve üstü zaten geciken kartlarda biraz daha geniştir) */
+  .admin-layout .so-q-side > .so-sla {
+    flex: 0 0 auto;
+    min-width: 72px;
+  }
+  .admin-layout .so-q-side > .so-next-wrap {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+}
+
+/* ── Bugün tamamlanan ────────────────────────────────────────────── */
+.admin-layout .so-q-done {
+  min-width: 0;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+  container: so-q-done / inline-size;
+}
+.admin-layout .so-q-done-h {
+  margin: 0;
+  font: inherit;
+}
+.admin-layout .so-q-done-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: var(--ui-radius-lg);
+  background: transparent;
+  color: var(--ui-text);
+  font: inherit;
+  text-align: left;
+}
+.admin-layout .so-q-done-toggle {
+  cursor: pointer;
+  transition: background-color var(--ui-ease);
+}
+.admin-layout .so-q-done-toggle:hover {
+  background: var(--ui-surface-2);
+}
+.admin-layout .so-q-done[data-open="true"] .so-q-done-head {
+  border-radius: var(--ui-radius-lg) var(--ui-radius-lg) 0 0;
+}
+.admin-layout .so-q-done-caret,
+.admin-layout .so-q-done-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--ui-text-3);
+}
+.admin-layout .so-q-done-caret {
+  transition: transform var(--ui-ease);
+}
+.admin-layout .so-q-done-toggle[aria-expanded="true"] .so-q-done-caret {
+  transform: rotate(90deg);
+}
+.admin-layout .so-q-done-icon {
+  color: var(--ui-ok);
+}
+.admin-layout .so-q-done-title {
+  margin: 0;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-lg);
+  font-weight: 650;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.admin-layout .so-q-done-sum {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 6px;
+  min-width: 0;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .so-q-done-sum b {
+  color: var(--ui-text);
+  font-weight: 650;
+}
+.admin-layout .so-q-done-hint {
+  margin-left: auto;
+  color: var(--ui-brand-ink);
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+}
+.admin-layout .so-q-done-list {
+  border-top: 1px solid var(--ui-line);
+}
+
+/* Tamamlanan satırı */
+.admin-layout .so-q-done-row {
+  display: grid;
+  grid-template-columns: 44px auto minmax(0, 1.15fr) minmax(0, 1fr) auto auto minmax(84px, auto);
+  grid-template-areas: "time face who chips state undo total";
+  align-items: center;
+  column-gap: var(--ui-s3);
+  min-width: 0;
+  min-height: 52px;
+  padding: 7px 14px;
+  border: 1px solid transparent;
+  border-bottom-color: var(--ui-line);
+  transition: background-color var(--ui-ease);
+}
+.admin-layout .so-q-done-row:last-child {
+  border-bottom-color: transparent;
+  border-radius: 0 0 var(--ui-radius-lg) var(--ui-radius-lg);
+}
+.admin-layout .so-q-done-row:hover {
+  background: var(--ui-surface-2);
+}
+.admin-layout .so-q-done-time {
+  grid-area: time;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.admin-layout .so-q-done-face {
+  grid-area: face;
+}
+.admin-layout .so-q-done-who {
+  display: flex;
+  grid-area: who;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.admin-layout .so-q-done-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ui-text);
+  font: inherit;
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-layout .so-q-done-row:hover .so-q-done-name {
+  color: var(--ui-brand-ink);
+}
+.admin-layout .so-q-done-chips {
+  display: flex;
+  grid-area: chips;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+}
+.admin-layout .so-q-done-state {
+  display: flex;
+  grid-area: state;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.admin-layout .so-q-done-undo {
+  grid-area: undo;
+}
+.admin-layout .so-q-done-total {
+  grid-area: total;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+  text-align: right;
+  white-space: nowrap;
+}
+.admin-layout .so-q-done-total[data-cancelled="true"] {
+  color: var(--ui-text-3);
+  font-weight: 500;
+  text-decoration: line-through;
+}
+@container so-q-done (max-width: 639px) {
+  .admin-layout .so-q-done-row {
+    grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "face who  who   who  total"
+      "face time state undo undo";
+    row-gap: 2px;
+    padding-block: 8px;
+  }
+  .admin-layout .so-q-done-chips {
+    display: none;
+  }
+  .admin-layout .so-q-done-time {
+    font-size: var(--ui-fs-xs);
+  }
+  .admin-layout .so-q-done-undo {
+    justify-self: end;
+  }
+}
+
+/* ── Mobil şerit sekmeleri (yapışkan) ────────────────────────────── */
+.admin-layout .so-q-tabs {
+  position: sticky;
+  top: var(--app-top, 52px);
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-s2);
+  margin: calc(-1 * var(--ui-s1)) calc(-1 * var(--ui-s4)) 0;
+  padding: var(--ui-s2) var(--ui-s4);
+  border-bottom: 1px solid var(--ui-line);
+  background: var(--ui-bg);
+}
+.admin-layout .so-q-seg {
+  flex: 1 1 250px;
+  min-width: 0;
+}
+.admin-layout .so-q-seg > button {
+  position: relative;
+  gap: 5px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 6px;
+}
+.admin-layout .so-q-seg > button:hover:not([aria-pressed="true"]) {
+  background: color-mix(in srgb, var(--ui-surface) 55%, transparent);
+}
+.admin-layout .so-q-seg > button:not([aria-pressed="true"]) .ui-count {
+  background: var(--ui-line-strong);
+  color: var(--ui-text);
+}
+.admin-layout .so-q-seg-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.admin-layout .so-q-seg .so-new-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+}
+.admin-layout .so-q-jump {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 0 11px;
+  border: 1px solid color-mix(in srgb, var(--ui-brand) 28%, transparent);
+  border-radius: 999px;
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .so-q-jump:hover {
+  background: color-mix(in srgb, var(--ui-brand) 18%, var(--ui-brand-soft));
+}
+@media (max-width: 379px) {
+  .admin-layout .so-q-jump-word {
+    display: none;
+  }
+}
+/* Yapışkan sekmeler + üst çubuk kartları örtmesin (klavye/atlama kaydırması) */
+.admin-layout .so-q[data-mobile="true"] .so-item {
+  scroll-margin-top: calc(var(--app-top, 52px) + 72px);
+}
+
+/* ── Yükleniyor ──────────────────────────────────────────────────── */
+.admin-layout .so-q-skeleton .so-q-lane-head {
+  gap: var(--ui-s2);
+}
+
+/* ── Duyarlı ─────────────────────────────────────────────────────── */
+@media (max-width: 760px) {
+  .admin-layout .so-q {
+    gap: var(--ui-s3);
+  }
+  .admin-layout .so-q .ui-btn--sm,
+  .admin-layout .so-q-unseen > button {
+    min-height: 40px;
+  }
+  .admin-layout .so-q-lane-head {
+    padding: 12px;
+  }
+  /* Mobil şerit başlığı ince bir şerittir: ad ve sayı hemen üstteki yapışkan sekmede zaten var (sayı yalnızca
+     filtreyle "3/8" iken kalır). Başlık (h2) bölgenin adı olarak (aria-labelledby) DOM'da kalır, yalnızca görünmez;
+     toplam tutar ve eylemler tek satırda sarar. */
+  .admin-layout .so-q[data-mobile="true"] .so-q-lane-head {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    padding: 0 2px;
+    border: 0;
+    background: transparent;
+  }
+  .admin-layout .so-q[data-mobile="true"] .so-q-lane-title {
+    flex: 0 0 auto;
+  }
+  .admin-layout .so-q[data-mobile="true"] .so-q-lane-icon,
+  .admin-layout .so-q[data-mobile="true"] .so-q-lane-count:not([data-filtered]) {
+    display: none;
+  }
+  .admin-layout .so-q[data-mobile="true"] .so-q-lane-title > h2 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    border: 0;
+    white-space: nowrap;
+  }
+  .admin-layout .so-q[data-mobile="true"] .so-q-lane-sum {
+    margin-left: 0;
+    color: var(--ui-text);
+  }
+  .admin-layout .so-q[data-mobile="true"] .so-q-lane-sum-label {
+    display: inline;
+  }
+  .admin-layout .so-q[data-mobile="true"] .so-q-lane-actions {
+    flex: 1 1 auto;
+  }
+  .admin-layout .so-q-card {
+    column-gap: 10px;
+    padding: 10px 12px 12px 4px;
+  }
+  .admin-layout .so-q-group-head {
+    padding-left: 5px;
+  }
+  .admin-layout .so-q-done-row {
+    min-height: 56px;
+  }
+}
