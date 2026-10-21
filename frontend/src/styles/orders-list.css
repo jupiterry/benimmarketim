@@ -1,0 +1,662 @@
+/*
+ * Siparişler — Liste görünümü (so-l-) ve toplu işlem çubuğu (so-bulk-). Sözleşme: CONTRACTS.md §7.6–7.8.
+ * Yalnızca --ui-* belirteçleri ve onların color-mix karışımları. Öğe durumları (seçili, imleç, bekleyen,
+ * yeni, SLA şeridi) orders.css'tedir; burada yeniden biçimlendirilmez.
+ * Kırılımlar: 1100 px (Teslimat sütunu meta satırına iner) · 760 px (satırlar kart olur, çubuk alta sabitlenir).
+ */
+
+/* ══ Liste paneli ═══════════════════════════════════════════════════ */
+.admin-layout .so-l {
+  --so-l-pad-l: var(--ui-s3);
+  --so-l-pad-r: var(--ui-s4);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  scroll-margin-top: 72px;
+  /* Sütunlar panelin gerçek genişliğine göre (kenar çubuğu açık/kapalı fark etmez) */
+  container: so-l / inline-size;
+}
+.admin-layout .so[data-selecting="true"] .so-l {
+  scroll-margin-top: 140px;
+}
+
+/* Başlık satırı ve satırlar aynı ızgarayı paylaşır */
+.admin-layout .so-l-head,
+.admin-layout .so-l-row {
+  /* seçim | müşteri | teslimat | durum · bekleme | tutar | sonraki adım ("Teslim et" + "Geri al" sığar) */
+  --so-l-cols: 32px minmax(0, 2fr) minmax(184px, 1fr) minmax(176px, 1fr) 104px 172px;
+  display: grid;
+  grid-template-columns: var(--so-l-cols);
+  align-items: center;
+  column-gap: var(--ui-s3);
+}
+.admin-layout .so-l-head {
+  min-height: 40px;
+  padding: 0 var(--so-l-pad-r) 0 var(--so-l-pad-l);
+  border-bottom: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg) var(--ui-radius-lg) 0 0;
+  background: var(--ui-surface-2);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+}
+.admin-layout .so-l-h {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+}
+.admin-layout .so-l-h-amount {
+  justify-content: flex-end;
+}
+.admin-layout .so-l-h-sep {
+  color: var(--ui-text-3);
+}
+.admin-layout .so-l-h-note {
+  overflow: hidden;
+  color: var(--ui-text-3);
+  font-weight: 500;
+  text-overflow: ellipsis;
+}
+/* Sıralama başlığı (ui-th görünümü + odak ve üzerine gelme) */
+.admin-layout .so-l-sort {
+  min-height: 28px;
+  padding: 0 6px;
+  margin: 0 -6px;
+  border-radius: var(--ui-radius);
+  transition: background-color var(--ui-ease), color var(--ui-ease);
+}
+.admin-layout .so-l-sort:hover {
+  background: var(--ui-surface-3);
+  color: var(--ui-text);
+}
+.admin-layout .so-l-sort:focus-visible {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: 1px;
+}
+.admin-layout .so-l-sort[aria-pressed="true"] {
+  color: var(--ui-brand-ink);
+}
+.admin-layout .so-l-h-amount .so-l-sort {
+  margin-right: -6px;
+}
+
+/* Gün ayırıcı: metin müşteri sütunuyla hizalı */
+.admin-layout .so-l-day {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--ui-s2);
+  padding: 10px var(--so-l-pad-r) 6px calc(var(--so-l-pad-l) + 32px + var(--ui-s3));
+  border-bottom: 1px solid var(--ui-line);
+  background: color-mix(in srgb, var(--ui-surface-2) 70%, var(--ui-surface));
+  color: var(--ui-text);
+  font-size: var(--ui-fs-xs);
+  font-weight: 700;
+  line-height: 1.35;
+}
+.admin-layout .so-l-day-date {
+  color: var(--ui-text-3);
+  font-weight: 500;
+}
+
+/* ── Satır ───────────────────────────────────────────────────────── */
+.admin-layout .so-l-rows {
+  display: flex;
+  flex-direction: column;
+}
+.admin-layout .so-l-row {
+  min-height: 64px;
+  padding: var(--ui-s2) var(--so-l-pad-r) var(--ui-s2) var(--so-l-pad-l);
+  border: 1px solid transparent;
+  border-bottom-color: var(--ui-line);
+  transition: background-color var(--ui-ease);
+}
+.admin-layout .so-l-row:hover {
+  background: var(--ui-surface-2);
+}
+/* İmleç / açık satırın çerçevesi komşu satırların altında kalmasın */
+.admin-layout .so-l-row[data-cursor="true"],
+.admin-layout .so-l-row[data-active="true"],
+.admin-layout .so-l-row:focus-within {
+  z-index: 1;
+}
+
+.admin-layout .so-l-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.admin-layout .so-l-who {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.admin-layout .so-l-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.admin-layout .so-l-name-text {
+  flex: 0 1 auto;
+  min-width: 2.5em;
+  overflow: hidden;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-md);
+  font-weight: 600;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-layout .so-l-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  min-width: 0;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  line-height: 1.35;
+}
+.admin-layout .so-l-count {
+  white-space: nowrap;
+}
+.admin-layout .so-l-count::before {
+  content: "·";
+  margin-right: 6px;
+  color: var(--ui-text-3);
+}
+.admin-layout .so-l-meta-dlv {
+  display: none;
+}
+.admin-layout .so-l-archive {
+  color: var(--ui-text-3);
+}
+
+/* Teslimat + durum hücreleri (geniş ekranda doğrudan ızgara hücresi) */
+.admin-layout .so-l-facts {
+  display: contents;
+}
+.admin-layout .so-l-dlv,
+.admin-layout .so-l-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  min-width: 0;
+}
+
+.admin-layout .so-l-amount {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+  text-align: right;
+}
+.admin-layout .so-l-total {
+  color: var(--ui-text);
+  font-size: var(--ui-fs-md);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.admin-layout .so-l-row[data-status="cancel"] .so-l-total {
+  color: var(--ui-text-3);
+  font-weight: 600;
+}
+.admin-layout .so-l-time {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.admin-layout .so-l-act {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+  grid-column: -2;
+}
+/* Dar sütunda bekleyen değişikliğin "Geri al"ı alt satıra iner (üst üste binmez) */
+.admin-layout .so-l-act > .so-next-wrap {
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 100%;
+}
+
+/* ── Alt bilgi ───────────────────────────────────────────────────── */
+.admin-layout .so-l-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-s2) var(--ui-s3);
+  padding: var(--ui-s3) var(--ui-s4);
+  background: var(--ui-surface-2);
+}
+.admin-layout .so-l-foot-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--ui-s2);
+  min-width: 0;
+}
+.admin-layout .so-l-foot-count {
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+  white-space: nowrap;
+}
+.admin-layout .so-l-foot-count strong {
+  color: var(--ui-text);
+}
+.admin-layout .so-l-foot-range {
+  color: var(--ui-text-3);
+}
+.admin-layout .so-l-foot-scope {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .so-l-foot-grow {
+  flex: 1 1 0;
+}
+.admin-layout .so-l-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.admin-layout .so-l-size > select {
+  min-width: 64px;
+}
+.admin-layout .so-l-pages {
+  flex-wrap: wrap;
+}
+.admin-layout .so-l-pages button:focus-visible {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: 1px;
+}
+.admin-layout .so-l-pages-now {
+  min-width: 56px;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+/* Koyu temada açık yeşil zeminde beyaz rakam okunmaz (sistem kuralı beyaz yazı verir) */
+.admin-layout[data-theme="dark"] .so-l-pages button[aria-current="page"] {
+  color: var(--ui-bg);
+}
+
+/* Sunucu araması şeridi (alt bilginin altında, boş durumda da) */
+.admin-layout .so-l-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-s2) var(--ui-s3);
+  padding: 10px var(--ui-s4);
+  border-top: 1px solid var(--ui-line);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+  line-height: 1.45;
+}
+.admin-layout .so-l-search > svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--ui-text-3);
+}
+.admin-layout .so-l-search-text {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.admin-layout .so-l-search-text strong {
+  color: var(--ui-text);
+  font-weight: 650;
+}
+.admin-layout .so-l-search[data-state="done"] > svg {
+  color: var(--ui-ok);
+}
+.admin-layout .so-l-search[data-state="error"] {
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+}
+.admin-layout .so-l-search[data-state="error"] > svg,
+.admin-layout .so-l-search[data-state="error"] strong {
+  color: var(--ui-danger-ink);
+}
+.admin-layout .so-l-search > .ui-btn {
+  flex-shrink: 0;
+}
+
+/* Panelin alt köşeleri: son parça (alt bilgi ya da arama şeridi) yuvarlanır */
+.admin-layout .so-l > :last-child {
+  border-bottom-right-radius: var(--ui-radius-lg);
+  border-bottom-left-radius: var(--ui-radius-lg);
+}
+
+/* Boş durum */
+.admin-layout .so-l-empty {
+  padding-block: 48px;
+}
+.admin-layout .so-l-empty .ui-empty-action {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--ui-s2);
+}
+
+/* ══ Toplu işlem çubuğu ═════════════════════════════════════════════ */
+.admin-layout .so-bulk {
+  gap: var(--ui-s2) var(--ui-s3);
+  padding: var(--ui-s2) var(--ui-s3);
+  animation: so-bulk-in 160ms ease-out;
+  container: so-bulk / inline-size;
+}
+.admin-layout .so-bulk-info,
+.admin-layout .so-bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-s2);
+  min-width: 0;
+}
+.admin-layout .so-bulk-total {
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .so-bulk-hidden svg,
+.admin-layout .so-bulk-over svg {
+  width: 13px;
+  height: 13px;
+}
+.admin-layout .so-bulk-keep {
+  color: var(--ui-brand-ink);
+}
+.admin-layout .so-bulk-btn > svg {
+  color: var(--ui-text-3);
+}
+.admin-layout .so-bulk-btn[data-kind="way"]:not(:disabled) > svg {
+  color: var(--ui-info);
+}
+.admin-layout .so-bulk-btn[data-kind="done"]:not(:disabled) > svg {
+  color: var(--ui-ok);
+}
+.admin-layout .so-bulk-n {
+  margin-left: -2px;
+  color: var(--ui-text-2);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .so-bulk-sep {
+  width: 1px;
+  height: 20px;
+  background: color-mix(in srgb, var(--ui-brand) 25%, var(--ui-line));
+}
+.admin-layout .so-bulk-clear {
+  margin-left: auto;
+}
+/* Yer daralınca "Seçimi bırak" yalnız X simgesine iner (erişilebilir adı aria-label'da) */
+@container so-bulk (max-width: 979px) {
+  .admin-layout .so-bulk-clear {
+    width: 32px;
+    padding: 0;
+  }
+  .admin-layout .so-bulk-clear-label {
+    display: none;
+  }
+}
+@container so-bulk (max-width: 1299px) {
+  .admin-layout .so-bulk[data-hidden="true"] .so-bulk-clear {
+    width: 32px;
+    padding: 0;
+  }
+  .admin-layout .so-bulk[data-hidden="true"] .so-bulk-clear-label {
+    display: none;
+  }
+}
+
+@keyframes so-bulk-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+@keyframes so-bulk-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* ══ Duyarlı ═════════════════════════════════════════════════════════ */
+@container so-l (max-width: 1099px) {
+  .admin-layout .so-l-head,
+  .admin-layout .so-l-row {
+    --so-l-cols: 32px minmax(0, 2fr) minmax(176px, 1fr) minmax(168px, 1fr) 100px 128px;
+  }
+}
+/* Teslimat sütunu düşer; nokta ve ödeme çipleri meta satırına iner (sözleşme: ≤1100 px görünüm alanı;
+   kenar çubuğu açıkken panel o genişliğe 1280 px civarında iner, bu yüzden panel genişliğine bakılır) */
+@container so-l (max-width: 999px) {
+  .admin-layout .so-l-head,
+  .admin-layout .so-l-row {
+    --so-l-cols: 32px minmax(0, 2fr) minmax(112px, 0.6fr) 88px 108px;
+  }
+  .admin-layout .so-l-h-dlv,
+  .admin-layout .so-l-dlv {
+    display: none;
+  }
+  .admin-layout .so-l-meta-dlv {
+    display: contents;
+  }
+  /* Durum rozeti ile süre alt alta: müşteri sütununa yer kalır */
+  .admin-layout .so-l-state {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+}
+@media (max-width: 1100px) {
+  .admin-layout .so-l-head,
+  .admin-layout .so-l-row {
+    --so-l-cols: 32px minmax(0, 2fr) minmax(112px, 0.6fr) 88px 108px;
+  }
+  .admin-layout .so-l-h-dlv,
+  .admin-layout .so-l-dlv {
+    display: none;
+  }
+  .admin-layout .so-l-meta-dlv {
+    display: contents;
+  }
+  /* Durum rozeti ile süre alt alta: müşteri sütununa yer kalır */
+  .admin-layout .so-l-state {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+}
+
+/* Mobil: satırlar kart olur; toplu işlem çubuğu alt sekme çubuğunun üstüne sabitlenir */
+@media (max-width: 760px) {
+  .admin-layout .so-l {
+    --so-l-pad-l: var(--ui-s2);
+    --so-l-pad-r: var(--ui-s3);
+    scroll-margin-top: 64px;
+  }
+  .admin-layout .so[data-selecting="true"] .so-l {
+    scroll-margin-top: 64px;
+  }
+  .admin-layout .so-l-head {
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    min-height: 48px;
+  }
+  .admin-layout .so-l-h-dlv,
+  .admin-layout .so-l-h-state,
+  .admin-layout .so-l-h-act {
+    display: none;
+  }
+  .admin-layout .so-l-sort {
+    min-height: 40px;
+    padding: 0 8px;
+    margin: 0 -8px;
+  }
+  .admin-layout .so-l-h-amount .so-l-sort {
+    margin-right: -8px;
+  }
+  .admin-layout .so-l-day {
+    padding: 8px var(--so-l-pad-r) 6px calc(var(--so-l-pad-l) + 40px + var(--ui-s2));
+  }
+  .admin-layout .so-l-row {
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "check main amount"
+      ".     facts facts"
+      ".     act   act";
+    align-items: start;
+    column-gap: var(--ui-s2);
+    row-gap: var(--ui-s2);
+    padding-top: var(--ui-s3);
+    padding-bottom: var(--ui-s3);
+  }
+  .admin-layout .so-l-row > .so-l-check { grid-area: check; margin-top: -2px; }
+  .admin-layout .so-l-row > .so-l-main { grid-area: main; align-items: flex-start; }
+  .admin-layout .so-l-row > .so-l-amount { grid-area: amount; padding-top: 1px; }
+  .admin-layout .so-l-row > .so-l-act { grid-area: act; justify-content: stretch; }
+  /* Önce durum + süre, sonra teslimat noktası + ödeme (iki grup, gerekirse alt alta) */
+  .admin-layout .so-l-facts {
+    grid-area: facts;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px var(--ui-s2);
+    min-width: 0;
+  }
+  .admin-layout .so-l-dlv,
+  .admin-layout .so-l-state {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+  }
+  .admin-layout .so-l-state {
+    order: -1;
+  }
+  .admin-layout .so-l-meta-dlv {
+    display: none;
+  }
+  .admin-layout .so-l-name-text {
+    font-size: var(--ui-fs-lg);
+  }
+  .admin-layout .so-l-total {
+    font-size: var(--ui-fs-lg);
+  }
+
+  .admin-layout .so-l-foot {
+    justify-content: space-between;
+    padding: var(--ui-s3);
+  }
+  .admin-layout .so-l-foot-grow {
+    display: none;
+  }
+  .admin-layout .so-l-foot-info {
+    flex: 1 1 100%;
+  }
+  .admin-layout .so-l-foot .so-older {
+    flex: 1 1 100%;
+    min-height: 40px;
+  }
+  .admin-layout .so-l-size > select {
+    min-height: 40px;
+  }
+  .admin-layout .so-l-pages {
+    margin-left: auto;
+  }
+  .admin-layout .so-l-pages button {
+    min-width: 40px;
+    height: 40px;
+  }
+  .admin-layout .so-l-search {
+    padding: var(--ui-s3);
+  }
+  .admin-layout .so-l-search > .ui-btn {
+    flex: 1 1 100%;
+    min-height: 40px;
+  }
+  .admin-layout .so-l-empty .ui-empty-action > .ui-btn {
+    min-height: 40px;
+  }
+
+  /* Toplu işlem çubuğu */
+  .admin-layout .so-bulk {
+    position: fixed;
+    top: auto;
+    right: 8px;
+    bottom: calc(56px + env(safe-area-inset-bottom) + 8px);
+    left: 8px;
+    z-index: 49;
+    flex-wrap: nowrap;
+    gap: var(--ui-s2);
+    padding: var(--ui-s2);
+    box-shadow: var(--ui-shadow-pop);
+    animation-name: so-bulk-up;
+  }
+  .admin-layout .so-bulk-count {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 44px;
+    padding: 0 var(--ui-s1);
+    color: var(--ui-brand-ink);
+    line-height: 1.15;
+    text-align: center;
+  }
+  .admin-layout .so-bulk-count > strong {
+    font-size: var(--ui-fs-lg);
+    font-weight: 700;
+  }
+  .admin-layout .so-bulk-count > small {
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .admin-layout .so-bulk[data-hidden="true"] .so-bulk-count > small {
+    color: var(--ui-warn-ink);
+  }
+  .admin-layout .so-bulk-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 40px;
+    padding: 0 8px;
+    gap: 4px;
+    font-size: var(--ui-fs-sm);
+  }
+  .admin-layout .so-bulk-btn > svg {
+    display: none;
+  }
+  .admin-layout .so-bulk-btn-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .admin-layout .so-bulk-more {
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--ui-line-strong);
+    background: var(--ui-surface);
+  }
+}
