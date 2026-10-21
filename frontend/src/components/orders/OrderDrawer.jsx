@@ -9,7 +9,7 @@ import {
   MessageCircle, MoreHorizontal, PackagePlus, PackageX, Phone, Printer, RotateCcw, Save, Smartphone, Square, Trash2, Wallet, X, XCircle,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { Drawer, formatDateTime, isTypingTarget, money } from "../admin/ui";
+import { Drawer, formatDateTime, isTypingTarget, money, useMediaQuery } from "../admin/ui";
 import { formatPhoneTR } from "../../lib/orderTools";
 import { useConfirm } from "../ConfirmModal";
 import {
@@ -91,6 +91,37 @@ function StatusSteps({ order, now }) {
   );
 }
 
+// ── Özet içi hızlı iletişim: "Ara" (tel:) ve WhatsApp, ürün listesini kaydırmadan ──
+// Şablon menüsü ve "Özeti kopyala" aşağıdaki İletişim bölümünde kalır.
+function HeroContact({ order }) {
+  const phone = formatPhoneTR(customerPhone(order));
+  const tel = telHref(order);
+  const whatsapp = buildWhatsAppLink(order, "status");
+  return (
+    <div className="so-d-hero-contact" role="group" aria-label="Hızlı iletişim">
+      {tel ? (
+        <a className="ui-icon-btn so-d-hero-act" href={tel} aria-label={`Müşteriyi ara: ${phone}`} title={`${phone} numarasını ara`}>
+          <Phone aria-hidden="true" />
+        </a>
+      ) : (
+        <button type="button" className="ui-icon-btn so-d-hero-act" disabled aria-label="Müşteriyi ara" title="Telefon numarası yok">
+          <Phone aria-hidden="true" />
+        </button>
+      )}
+      {whatsapp ? (
+        <a className="ui-icon-btn so-d-hero-act" href={whatsapp} target="_blank" rel="noopener noreferrer"
+          aria-label="WhatsApp ile yaz" title="Duruma göre WhatsApp mesajı (w)">
+          <MessageCircle aria-hidden="true" />
+        </a>
+      ) : (
+        <button type="button" className="ui-icon-btn so-d-hero-act" disabled aria-label="WhatsApp ile yaz" title="Telefon numarası tanınmadı">
+          <MessageCircle aria-hidden="true" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ── Özet (hero) ───────────────────────────────────────────────────────
 function Hero({ order, now, position, nextUp, printedAt, headingRef, onNavigate, onOpenOrder }) {
   const index = position?.index ?? -1;
@@ -106,9 +137,12 @@ function Hero({ order, now, position, nextUp, printedAt, headingRef, onNavigate,
             <StatusBadge status={order.status} />
             <SlaChip order={order} now={now} bar size="md" done />
           </div>
-          <h3 className="so-d-hero-total ui-num" ref={headingRef} tabIndex={-1}>
-            <SrOnly>Sipariş tutarı </SrOnly>{money(order.totalAmount)}
-          </h3>
+          <div className="so-d-hero-totalrow">
+            <h3 className="so-d-hero-total ui-num" ref={headingRef} tabIndex={-1}>
+              <SrOnly>Sipariş tutarı </SrOnly>{money(order.totalAmount)}
+            </h3>
+            <HeroContact order={order} />
+          </div>
           <div className="so-d-hero-chips">
             <PaymentChip order={order} />
             <PointChip order={order} />
@@ -293,6 +327,8 @@ export default function OrderDrawer({
   onSaveTracking, onUpdateQuantity, onRemoveItem, onAddProduct, onAddCustom, onMarkOutOfStock, onOpenProfile,
 }) {
   const { confirm } = useConfirm();
+  // ≥1280 px'te çekmece sayfayı kilitlemez (orders.css: şeffaf, tıklanabilir arka plan): modal değildir
+  const modal = !useMediaQuery("(min-width: 1280px)");
   const [mode, setMode] = useState("detail");
   const [unlocked, setUnlocked] = useState(() => unlockedOrders.has(order?.orderId));
   const [stock, setStock] = useState({});
@@ -428,8 +464,9 @@ export default function OrderDrawer({
       if (top && !top.querySelector(".so-d")) return;
       const run = (fn) => { e.preventDefault(); fn(); };
       switch (e.key) {
-        case "j": case "ArrowDown": run(() => k.navigate(1)); break;
-        case "k": case "ArrowUp": run(() => k.navigate(-1)); break;
+        // Ok tuşları çekmece gövdesini kaydırmak için tarayıcıda kalır; siparişler arasında yalnızca j / k
+        case "j": run(() => k.navigate(1)); break;
+        case "k": run(() => k.navigate(-1)); break;
         case "e": if (!e.repeat) run(k.advance); break;
         case "u": if (!e.repeat) run(k.undo); break;
         case "p": case "y": if (!e.repeat) run(k.print); break;
@@ -458,6 +495,7 @@ export default function OrderDrawer({
         width={520}
         className="so-d"
         bodyClassName="so-d-body"
+        modal={modal}
         onClose={() => setMode("detail")}
         footer={null}
       >
@@ -549,6 +587,7 @@ export default function OrderDrawer({
       width={520}
       className="so-d"
       bodyClassName="so-d-body"
+      modal={modal}
       onClose={onClose}
       footer={footer}
     >

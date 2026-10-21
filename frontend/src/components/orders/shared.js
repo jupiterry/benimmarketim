@@ -5,7 +5,7 @@
 import {
   Banknote, CheckCircle2, Circle, Clock, CreditCard, KanbanSquare, Landmark, LayoutList, Truck, XCircle, Zap,
 } from "lucide-react";
-import { formatDate, formatTime, isTypingTarget, money, readPref, writePref } from "../admin/ui";
+import { formatDate, formatTime, money, readPref, writePref } from "../admin/ui";
 import { getStatusTime, normalizeSearch, onlyDigits, shortOrderId, toWhatsAppNumber } from "../../lib/orderTools";
 
 // ── Zaman sabitleri ───────────────────────────────────────────────────────
@@ -130,7 +130,7 @@ export const isDoneStatus = (status) => status === "Teslim Edildi" || status ===
 /** Tek durum haritası: etiketler cümle düzeninde, ton yalnızca var olan ui-badge tonlarından */
 export const STATUS = {
   "Hazırlanıyor": {
-    key: "prep", label: "Hazırlanıyor", tab: "Hazırlık", lane: "Hazırlanacak", tone: "warn", icon: Clock,
+    key: "prep", label: "Hazırlanıyor", tab: "Hazırlık", lane: "Hazırlanıyor", tone: "warn", icon: Clock,
     verb: "hazırlanıyor’a alındı", timeline: "Hazırlanıyor’a alındı", waiting: "Yola çıkması bekleniyor",
   },
   "Yolda": {
@@ -532,10 +532,18 @@ export const countAdvanced = (filters, view = "list", { includeDate = false } = 
 /** Bu görünümde daraltan herhangi bir filtre (arama ve durum dahil) var mı */
 export const hasAnyFilter = (filters, view = "list") =>
   FILTER_KEYS.some((key) => filterApplies(key, view) && isFilterSet(filters, key));
-/** "12,5" ya da "12.5" → 12.5; boş/geçersiz → null */
+/**
+ * Türkçe tutar girdisi → sayı; boş/geçersiz → null.
+ * "12,5" | "12.5" | "1.250" | "1.250,50" | "₺1.250" | "1 250,50". Virgül varsa ondalık ayırıcıdır ve noktalar
+ * binliktir; yalnızca nokta varsa ve 3'lü gruplar halindeyse ("1.250", "12.500") binlik sayılır, aksi halde ondalıktır.
+ * Yazarken ara durumlar ("12,") geçerli kalır; "1e3", "0x10", "-5", "1,2,3" reddedilir.
+ */
 export const parseAmount = (value) => {
-  const text = String(value ?? "").trim().replace(/\s/g, "").replace(",", ".");
+  let text = String(value ?? "").replace(/[\s₺]/g, "");
   if (!text) return null;
+  if (text.includes(",")) text = text.replace(/\./g, "").replace(",", "."); // 1.250,50 → 1250.50 (ikinci virgül aşağıda düşer)
+  else if (/^[1-9]\d{0,2}(\.\d{3})+$/.test(text)) text = text.replace(/\./g, ""); // 1.250 / 12.500 → binlik
+  if (!/^(\d+(\.\d*)?|\.\d+)$/.test(text)) return null;
   const n = Number(text);
   return Number.isFinite(n) ? n : null;
 };
@@ -708,7 +716,8 @@ if (typeof window !== "undefined") {
       return;
     }
     const target = e.target instanceof Element ? e.target : null;
-    if (e.key === "g" && !isTypingTarget(target) && !target?.closest?.('[role="dialog"]')) gPressedAt = now;
+    // AdminPage.jsx'teki "g" kısayoluyla AYNI seçici olmalı (onay kutusu dahil hiçbir girdide akor başlamaz)
+    if (e.key === "g" && !target?.closest?.('input, textarea, select, [contenteditable="true"], [role="dialog"]')) gPressedAt = now;
   }, true);
 }
 /** Şu an işlenen tuş "g"nin kendisi ya da AdminPage "g + harf" kombinasyonunun ikinci tuşu mu */
@@ -761,11 +770,16 @@ export const buildStatusConfirm = (orders, to) => {
   const backward = list.filter((o) => isBackward(o.status, to));
   if (backward.length) {
     const one = backward.length === 1 && single;
+    // İptalden çıkan siparişin kuponu sunucuda yeniden kullanılmış sayılır (iptalde geri açılmıştı)
+    const coupons = backward.filter((o) => o.status === "İptal Edildi" && String(o.couponCode || "").trim());
+    const couponNote = !coupons.length ? ""
+      : one ? ` Kupon (${String(single.couponCode).trim()}) yeniden kullanılmış sayılacak.`
+        : ` ${coupons.length} siparişin kuponu yeniden kullanılmış sayılacak.`;
     return {
       title: "Durumu geri al",
       message: one
-        ? `${orderCode(single)} ${quoteStatus(single.status)} durumundan ${quoteStatus(to)} durumuna alınacak. Müşteriye yeni durum bildirimi gider.`
-        : `${list.length} siparişin durumu ${quoteStatus(to)} olarak geri alınacak${backward.length < list.length ? ` (${backward.length} tanesi geri yönde)` : ""}. Müşterilere yeni durum bildirimi gider.`,
+        ? `${orderCode(single)} ${quoteStatus(single.status)} durumundan ${quoteStatus(to)} durumuna alınacak. Müşteriye yeni durum bildirimi gider.${couponNote}`
+        : `${list.length} siparişin durumu ${quoteStatus(to)} olarak geri alınacak${backward.length < list.length ? ` (${backward.length} tanesi geri yönde)` : ""}. Müşterilere yeni durum bildirimi gider.${couponNote}`,
       confirmText: "Evet, geri al", cancelText: "Vazgeç", type: "warning",
     };
   }
@@ -1134,6 +1148,13 @@ const arrivalPlace = (order) => {
   const name = String(order?.deliveryPointName || "").trim();
   return name ? `${name} adresinde` : "teslimat noktanda";
 };
+/** Müşteriye giden metinde ödeme adı (panel etiketleri "Kapıda kart (POS)" / "Belirtilmedi" müşteriye gitmez) */
+const PAY_TO_CUSTOMER = { cash: "kapıda nakit", card: "kapıda kartla", bank_transfer: "havale / EFT" };
+/** "Tutar: ₺245,50, ödeme: kapıda nakit." — yöntem bilinmiyorsa ödeme kısmı yazılmaz */
+const amountLine = (o) => {
+  const pay = PAY_TO_CUSTOMER[o?.paymentMethod];
+  return `Tutar: ${money(o?.totalAmount)}${pay ? `, ödeme: ${pay}` : ""}.`;
+};
 /** Duruma göre müşteri metinleri (sen dili) — TEK kaynak */
 export const WHATSAPP_STATUS_TEXT = {
   "Hazırlanıyor": (o) => `${orderCode(o)} numaralı siparişini hazırlıyoruz.`,
@@ -1167,12 +1188,12 @@ export const WHATSAPP_TEMPLATES = [
   {
     id: "onway", label: "Yola çıktı",
     enabled: () => true,
-    build: (o) => `${greeting(o)} ${orderCode(o)} numaralı siparişin yola çıktı, birkaç dakika içinde ${arrivalPlace(o)} olacak. Tutar: ${money(o?.totalAmount)} (${paymentLong(o)}).`,
+    build: (o) => `${greeting(o)} ${orderCode(o)} numaralı siparişin yola çıktı, birkaç dakika içinde ${arrivalPlace(o)} olacak. ${amountLine(o)}`,
   },
   {
     id: "arrived", label: "Girişteyiz",
     enabled: () => true,
-    build: (o) => `${greeting(o)} ${orderCode(o)} numaralı siparişin ${arrivalPlace(o)}, kuryemiz seni bekliyor. Tutar: ${money(o?.totalAmount)} (${paymentLong(o)}).`,
+    build: (o) => `${greeting(o)} ${orderCode(o)} numaralı siparişin ${arrivalPlace(o)}, kuryemiz seni bekliyor. ${amountLine(o)}`,
   },
   {
     id: "changed", label: "Sipariş değişti", hint: "Bu oturumdaki ürün değişikliklerini yazar",

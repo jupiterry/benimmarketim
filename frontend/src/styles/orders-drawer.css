@@ -145,6 +145,30 @@
 .admin-layout .so-d-hero-total:focus {
   outline: none;
 }
+/* Tutar satırı: solda tutar, sağda hızlı iletişim (Ara / WhatsApp) */
+.admin-layout .so-d-hero-totalrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-s2);
+  min-width: 0;
+}
+.admin-layout .so-d-hero-contact {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+}
+.admin-layout .so-d-hero-act {
+  border: 1px solid var(--ui-line-strong);
+  background: var(--ui-surface);
+  color: var(--ui-text-2);
+}
+.admin-layout .so-d-hero-act:not(:disabled):hover {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+}
 .admin-layout .so-d-nav {
   display: flex;
   flex-shrink: 0;
@@ -1247,6 +1271,7 @@
     margin: -4px 0 0;
   }
   .admin-layout .so-d-nav > .ui-icon-btn,
+  .admin-layout .so-d-hero-act,
   .admin-layout .so-d-banner-close,
   .admin-layout .so-d-remove {
     width: 40px;
@@ -1286,6 +1311,9 @@
   }
   .admin-layout .so-d-split-caret {
     width: 40px;
+  }
+  .admin-layout .so-d-collapse {
+    min-height: 40px;
   }
   .admin-layout .so-d-other {
     min-height: 44px;

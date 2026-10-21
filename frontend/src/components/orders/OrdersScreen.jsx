@@ -23,7 +23,7 @@ import FilterDrawer from "./FilterDrawer";
 import PickingDrawer from "./PickingDrawer";
 import DayCloseDrawer from "./DayCloseDrawer";
 import {
-  BOARD_COLUMNS, BULK_MAX, COLUMN_IDS, DEFAULT_FILTERS, DEFAULT_PAGE_SIZE, LANE_IDS, PAGE_SIZES, SHORTCUT_ITEMS, SORTS, VIEWS,
+  BOARD_COLUMNS, BULK_MAX, CLICK_GUARD_MS, COLUMN_IDS, DEFAULT_FILTERS, DEFAULT_PAGE_SIZE, LANE_IDS, PAGE_SIZES, SHORTCUT_ITEMS, SORTS, VIEWS,
   applySavedFilter, buildCustomerIndex, buildPickedMap, classifyHandoff, completedAt, computeKpis, computeUnseenIds, copyText,
   countAdvanced, createOrderFilter, csvFilename, customerName, customerSummary, enterAction, findByCode, hasAnyFilter, inGChord,
   isActiveStatus, isDoneStatus, isLate, isUnseenCandidate, matchesQuery, nextAction, normalizeFilters, notificationPermission,
@@ -60,6 +60,8 @@ const countStatuses = (orders) => {
 };
 const reducedMotion = () => typeof window !== "undefined" && Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
 const itemSelector = (orderId) => `.so [data-nav="1"][data-order-id="${String(orderId).replace(/["\\]/g, "")}"]`;
+/** Olayın hedefi bir kartın / satırın içindeyse o siparişin kimliği */
+const itemIdOf = (target) => target?.closest?.('[data-nav="1"][data-order-id]')?.getAttribute("data-order-id") || null;
 /** Kartın / satırın açma düğmesine odaklanır ve görünür alana getirir; bulunamazsa false */
 const focusItem = (orderId, { scroll = true } = {}) => {
   if (!orderId) return false;
@@ -70,11 +72,15 @@ const focusItem = (orderId, { scroll = true } = {}) => {
   if (scroll) item.scrollIntoView({ block: "nearest", inline: "nearest" });
   return true;
 };
-/** Şerit / sütunu görünür alana kaydırıp kısa süre vurgular (data-flash, orders.css) */
+/**
+ * Şerit / sütunu görünür alana kaydırıp kısa süre vurgular (data-flash, orders.css); odak başlığına (tabIndex -1)
+ * taşınır, klavye kullanıcısı Tab ile oradan karta devam eder
+ */
 const flashElement = (id, { inline = "nearest" } = {}) => {
   const el = document.getElementById(id);
   if (!el) return false;
   el.scrollIntoView({ block: "nearest", inline, behavior: reducedMotion() ? "auto" : "smooth" });
+  document.getElementById(`${id}-title`)?.focus({ preventScroll: true });
   el.removeAttribute("data-flash");
   // Aynı öğe art arda vurgulanabilsin diye animasyon bir sonraki karede yeniden başlatılır
   requestAnimationFrame(() => {
@@ -245,6 +251,12 @@ export default function OrdersScreen() {
     if (liveOpen) snapshotRef.current = liveOpen;
   }, [liveOpen]);
   const openOrder = openId ? liveOpen || (snapshotRef.current?.orderId === openId ? snapshotRef.current : null) : null;
+  // ≥1440 px'te çekmece yer ayırır (orders.css) ve içerik daralıp yeniden dizilir: açık sipariş görünür alanda kalsın
+  useEffect(() => {
+    if (!openId || !window.matchMedia?.("(min-width: 1440px)").matches) return undefined;
+    const raf = requestAnimationFrame(() => document.querySelector(itemSelector(openId))?.scrollIntoView({ block: "nearest", inline: "nearest" }));
+    return () => cancelAnimationFrame(raf);
+  }, [openId]);
   const missing = Boolean(openId) && !liveOpen;
   const position = useMemo(() => ({ index: openId ? navOrders.findIndex((o) => o.orderId === openId) : -1, total: navOrders.length }), [navOrders, openId]);
   const nextUp = useMemo(() => lanes.prep.find((o) => o.orderId !== openId) || null, [lanes.prep, openId]);
@@ -316,23 +328,32 @@ export default function OrdersScreen() {
     setPicking((p) => ({ scope: scope || (selected.size ? "selected" : "preparing"), custom: scope === "custom" ? p.custom : null }));
     openLayer("picking");
   }, [selected.size, openLayer]);
-  const exportOrders = useCallback((orders, { scoped = true } = {}) => {
+  /**
+   * scoped: pencereye bağlı dışa aktarım (Liste / Pano) → "son 30 gün + aktif" notu; note: kapsamı açıkça söyleyen not;
+   * fileAt: dosya adındaki tarih (gün sonu: iş gününün başlangıcı — gece yarısından sonra da o günün adını taşır)
+   */
+  const exportOrders = useCallback((orders, { scoped = true, note = null, fileAt = null } = {}) => {
     if (!orders?.length) {
       toast.error("Dışa aktarılacak sipariş yok");
       return;
     }
     try {
-      downloadTextFile(buildOrdersCsv(orders), csvFilename(Date.now()));
+      downloadTextFile(buildOrdersCsv(orders), csvFilename(fileAt ?? Date.now()));
     } catch (e) {
       console.error("CSV oluşturulamadı:", e);
       toast.error("CSV dosyası oluşturulamadı");
       return;
     }
-    toast.success(`${orders.length} sipariş CSV olarak indirildi${scoped && data.hasOlder ? " · son 30 gün + aktif kapsamında" : ""}`);
+    const suffix = note ? ` · ${note}` : scoped && data.hasOlder ? " · son 30 gün + aktif kapsamında" : "";
+    toast.success(`${orders.length} sipariş CSV olarak indirildi${suffix}`);
   }, [data.hasOlder]);
+  // Şimdi'nin kapsamı (aktifler + bugün tamamlananlar) 30 günlük pencereye bağlı değildir; tüm pencere Liste / Pano'dan
   const exportCurrent = () => {
-    const source = view === "list" ? list : view === "board" ? boardBase : [...lanes.prep, ...lanes.road, ...done];
-    exportOrders(source);
+    if (view === "now") {
+      exportOrders([...lanes.prep, ...lanes.road, ...done], { scoped: false, note: "aktif + bugün tamamlananlar" });
+      return;
+    }
+    exportOrders(view === "list" ? list : boardBase);
   };
   const requestNotifications = async () => {
     if (typeof window === "undefined" || typeof window.Notification === "undefined") return;
@@ -714,6 +735,17 @@ export default function OrdersScreen() {
 
   // ── Klavye ──────────────────────────────────────────────────────────
   const cursorOrder = () => (cursorId ? ordersById.get(cursorId) || null : null);
+  /** Harf kısayollarının hedefi: odaktaki kart / satır, yoksa imleç (Enter'ın enterAction'ı gibi) */
+  const keyTarget = (e) => {
+    const id = itemIdOf(e?.target);
+    return (id && ordersById.get(id)) || cursorOrder();
+  };
+  // İmleç odağı izler (Tab / tıklama): tek "geçerli" kart olur, e/x/p/u odaktaki siparişe uygulanır
+  const onRootFocus = (e) => {
+    if (draggingRef.current) return;
+    const id = itemIdOf(e.target);
+    if (id && ordersById.has(id)) setCursorId(id);
+  };
   const moveCursor = (step) => {
     if (draggingRef.current || inGChord() || !navOrders.length) return;
     const index = cursorId ? navOrders.findIndex((o) => o.orderId === cursorId) : -1;
@@ -723,9 +755,38 @@ export default function OrdersScreen() {
     focusItem(target.orderId);
     setCursorId(target.orderId);
   };
+  // Basılı tutulan harf (otomatik tekrar) yalnızca bir kez çalışır; j/k/oklar move ile tekrarlamaya devam eder
   const letter = (fn) => (e) => {
-    if (draggingRef.current || inGChord(e)) return;
+    if (e?.repeat || draggingRef.current || inGChord(e)) return;
     fn(e);
+  };
+  // "e" çift basış / tıklamadan hemen sonra tuş aynı siparişi iki adım ilerletmesin (çekmece ve NextStepButton ile aynı 400 ms)
+  const keyStepRef = useRef({ id: null, at: 0 });
+  const advanceByKey = (e) => {
+    const order = keyTarget(e);
+    if (!order || !nextAction(order.status)) return;
+    const at = Date.now();
+    const last = keyStepRef.current;
+    if (last.id === order.orderId && at - last.at < CLICK_GUARD_MS) return;
+    if (order.pending && at - order.pending.at < CLICK_GUARD_MS) return;
+    keyStepRef.current = { id: order.orderId, at };
+    // Şimdi'de kart şerit değiştirince odaklı düğmesi DOM'dan kalkar: odak body'ye düştüyse kartın yeni yerine geçer
+    Promise.resolve(actions.advance(order)).then((ok) => {
+      if (!ok) return;
+      requestAnimationFrame(() => {
+        const current = document.activeElement;
+        if (current && current !== document.body && current.isConnected) return;
+        focusItem(order.orderId);
+      });
+    });
+  };
+  // Klavyeyle görünüm değişince odak sökülen karttaysa görünüm düğmesine taşınır (body'ye düşmesin)
+  const switchView = (next) => {
+    if (next === view) return;
+    const active = document.activeElement;
+    const lost = !active || active === document.body || Boolean(active.closest?.('.so [data-nav="1"]'));
+    changeView(next);
+    if (lost) requestAnimationFrame(() => document.querySelector('.so [aria-label="Görünüm"] [aria-pressed="true"]')?.focus({ preventScroll: true }));
   };
   const { helpOpen, setHelpOpen } = useListShortcuts({
     search: () => {
@@ -757,31 +818,38 @@ export default function OrdersScreen() {
     // Esc: önce seçim, sonra imleç — filtreler asla Esc ile temizlenmez
     escape: () => {
       if (draggingRef.current) return;
-      if (selected.size) clearSelection();
-      else if (cursorId) setCursorId(null);
+      if (selected.size) {
+        // Odak toplu işlem çubuğundaysa çubuk kalkınca odak imleçteki karta / başlık kutusuna / ilk karta döner
+        const inBar = Boolean(document.activeElement?.closest?.(".so-bulk"));
+        const cursor = cursorId;
+        clearSelection();
+        if (inBar) {
+          requestAnimationFrame(() => {
+            if (focusItem(cursor, { scroll: false })) return;
+            document.querySelector(".so .so-l-head .so-check input, .so .so-item .so-open")?.focus({ preventScroll: true });
+          });
+        }
+      } else if (cursorId) setCursorId(null);
     },
     extra: {
-      e: letter(() => {
-        const order = cursorOrder();
-        if (order && nextAction(order.status)) actions.advance(order);
-      }),
+      e: letter(advanceByKey),
       u: letter(undoLast),
-      x: letter(() => {
-        const order = cursorOrder();
+      x: letter((e) => {
+        const order = keyTarget(e);
         if (order) actions.toggleSelect(order.orderId);
       }),
-      p: letter(() => {
-        const order = cursorOrder();
+      p: letter((e) => {
+        const order = keyTarget(e);
         if (order) actions.print(order);
       }),
-      y: letter(() => {
-        const order = cursorOrder();
+      y: letter((e) => {
+        const order = keyTarget(e);
         if (order) actions.print(order);
       }),
-      1: letter(() => changeView("now")),
-      2: letter(() => changeView("list")),
-      3: letter(() => changeView("board")),
-      v: letter(() => changeView(VIEW_ORDER[(VIEW_ORDER.indexOf(view) + 1) % VIEW_ORDER.length])),
+      1: letter(() => switchView("now")),
+      2: letter(() => switchView("list")),
+      3: letter(() => switchView("board")),
+      v: letter(() => switchView(VIEW_ORDER[(VIEW_ORDER.indexOf(view) + 1) % VIEW_ORDER.length])),
       f: letter(() => openLayer("filters")),
       l: letter(() => openPicking()),
       r: letter(() => refresh()),
@@ -901,7 +969,8 @@ export default function OrdersScreen() {
   }
 
   return (
-    <div className="ui-page so" data-view={view} data-selecting={selected.size ? "true" : undefined} aria-busy={loading || undefined}>
+    <div className="ui-page so" data-view={view} data-selecting={selected.size ? "true" : undefined} aria-busy={loading || undefined}
+      onFocus={onRootFocus}>
       <OrdersHeader
         loading={loading}
         view={view}
@@ -916,7 +985,7 @@ export default function OrdersScreen() {
           lastSyncAt: data.lastSyncAt,
           stale: data.stale || failed,
           now,
-          onRetry: refresh,
+          onRetry: failed ? undefined : refresh, // ilk yükleme hatasında tek "Tekrar dene" hata şeridindedir
         }}
         onExportCsv={exportCurrent}
         onOpenDayClose={() => openLayer("dayclose")}
@@ -928,7 +997,7 @@ export default function OrdersScreen() {
 
       {ready && data.stale && <StaleBanner lastSyncAt={data.lastSyncAt} onRetry={refresh} syncing={refreshing || data.syncing} />}
 
-      {loading && <OrdersSkeleton />}
+      {loading && <OrdersSkeleton view={view} />}
       {failed && (
         <LoadErrorPanel onRetry={refresh} retrying={refreshing || data.syncing} message={data.error && data.error !== LOAD_FAILED ? data.error : undefined} />
       )}
@@ -940,8 +1009,9 @@ export default function OrdersScreen() {
             orders={windowOrders}
             now={now}
             active={{
-              prep: view === "list" && filters.status === PREP,
-              road: view === "list" && filters.status === ROAD,
+              // Şimdi / Pano'da bu kartlar şeride / sütuna gider (aç/kapa değil): aria-pressed yazılmaz
+              prep: view === "list" ? filters.status === PREP : undefined,
+              road: view === "list" ? filters.status === ROAD : undefined,
               late: filters.attention === "delayed",
               today: view === "list" && filters.date === "today",
             }}
@@ -979,6 +1049,8 @@ export default function OrdersScreen() {
                 resultCount={resultCount}
                 scopeNote={scopeNote}
               />
+              {content}
+              {/* İçeriğin altında (masaüstünde ekranın altına yapışık): ilk seçimde kartlar / satırlar kaymaz */}
               {selected.size > 0 && (
                 <BulkBar
                   orders={selectedOrders}
@@ -992,7 +1064,6 @@ export default function OrdersScreen() {
                   onClear={clearSelection}
                 />
               )}
-              {content}
               <KbdHint />
             </>
           )}
@@ -1093,7 +1164,7 @@ export default function OrdersScreen() {
           now={now}
           onClose={closeLayer}
           onOpenOrder={actions.open}
-          onExportCsv={(orders) => exportOrders(orders, { scoped: false })}
+          onExportCsv={(orders, opts) => exportOrders(orders, { scoped: false, fileAt: opts?.dayStart ?? null })}
         />
       )}
       <ShortcutHelp open={helpOpen} onClose={() => setHelpOpen(false)} items={SHORTCUT_ITEMS} />

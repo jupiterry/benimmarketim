@@ -1,21 +1,26 @@
-// Siparişler — "Gün sonu" çekmecesi (C16). Bugün = İstanbul günü. Sayılar ve ciro bugün verilen
-// siparişlerden; kasa sayımı son "Teslim Edildi" kaydı bugün olan nakit siparişlerden hesaplanır
-// (gece yarısını geçen teslimat doğru güne yazılır). Sayılan nakit yalnızca bu ekranda tutulur, kaydedilmez.
+// Siparişler — "Gün sonu" çekmecesi (C16). "Bugün" = İŞ GÜNÜ: İstanbul saatiyle 05:00'ten ertesi gün 05:00'e
+// (mağaza 10:00 – 01:00 açık; gece 01:20'de kapanış yapılınca dünkü vardiyanın tamamı görünür). Sayılar ve ciro
+// bu aralıkta verilen siparişlerden; kasa sayımı son "Teslim Edildi" kaydı bu aralıkta olan nakit siparişlerden
+// hesaplanır (gece yarısını geçen teslimat aynı vardiyaya yazılır). Sayılan nakit yalnızca bu ekranda tutulur, kaydedilmez.
 // Sözleşme: scratchpad/orders-design/CONTRACTS.md §7.15
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import {
-  AlertTriangle, Banknote, Calculator, ChevronRight, CreditCard, Download, Landmark, MapPin, Printer, Timer, Wallet,
+  AlertTriangle, Banknote, Calculator, ChevronDown, ChevronRight, CreditCard, Download, Landmark, MapPin, Printer, Timer, Wallet,
 } from "lucide-react";
 import { Drawer, EmptyState, formatTime, money } from "../admin/ui";
 import { buildDayCloseSummary, printDayClose } from "../../lib/orderTools";
 import { OrderCode, SlaChip, StatusBadge } from "./atoms";
-import { TZ, customerName, formatMinutes, parseAmount, startOfDay } from "./shared";
+import { HOUR, TZ, customerName, formatMinutes, parseAmount, startOfDay } from "./shared";
 import "../../styles/orders-tools.css";
 
 const POPUP_BLOCKED = "Yazdırma penceresi açılamadı. Tarayıcıda bu site için açılır pencerelere izin verin.";
 const OPEN_PREVIEW = 5;
 const PAYMENT_ICONS = { cash: Banknote, card: CreditCard, bank_transfer: Landmark, none: Wallet };
+// İş günü sınırı: mağaza 01:00 – 10:00 arası sipariş almaz; 05:00'ten önce açılan gün sonu önceki vardiyayı gösterir
+const BUSINESS_DAY_CUTOFF = 5 * HOUR;
+/** İş gününün başlangıcı (İstanbul 05:00) */
+const businessDayStart = (now) => startOfDay(now - BUSINESS_DAY_CUTOFF) + BUSINESS_DAY_CUTOFF;
 
 // Çekmece açılınca odak, sıradaki seçicilerden ilk eşleşene (hiçbiri yoksa çekmecenin Kapat düğmesine)
 // gider; kapanınca odak kaybolduysa çekmeceyi açan düğmeye döner
@@ -69,12 +74,15 @@ export default function DayCloseDrawer({ orders = [], now = Date.now(), onClose,
   const bodyRef = useRef(null);
   const [counted, setCounted] = useState("");
   const [showAllOpen, setShowAllOpen] = useState(false);
-  const summary = useMemo(() => buildDayCloseSummary(orders, now, { dayStart: startOfDay(now) }), [orders, now]);
+  const dayStart = businessDayStart(now);
+  const summary = useMemo(() => buildDayCloseSummary(orders, now, { dayStart }), [orders, now, dayStart]);
   useDrawerFocus(bodyRef, FOCUS_ORDER);
 
-  const weekday = new Date(now).toLocaleDateString("tr-TR", { timeZone: TZ, weekday: "long" });
-  const date = new Date(now).toLocaleDateString("tr-TR", { timeZone: TZ, day: "numeric", month: "long", year: "numeric" });
-  const subtitle = `${weekday}, ${date} · ${formatTime(now)} itibarıyla`;
+  // Başlıkta iş gününün tarihi; gece yarısından sonra açıldıysa saat "ertesi gün" olarak yazılır
+  const weekday = new Date(dayStart).toLocaleDateString("tr-TR", { timeZone: TZ, weekday: "long" });
+  const date = new Date(dayStart).toLocaleDateString("tr-TR", { timeZone: TZ, day: "numeric", month: "long", year: "numeric" });
+  const nextDay = startOfDay(now) > startOfDay(dayStart);
+  const subtitle = `${weekday}, ${date} · ${nextDay ? "ertesi gün " : ""}${formatTime(now)} itibarıyla`;
 
   const s = summary;
   const nothing = s.count === 0 && s.open.length === 0 && s.deliveredToday === 0;
@@ -100,8 +108,9 @@ export default function DayCloseDrawer({ orders = [], now = Date.now(), onClose,
 
   const footer = (
     <>
-      <button type="button" className="ui-btn so-t-foot-secondary" onClick={() => onExportCsv?.(s.todayOrders)} disabled={!s.count}
-        title={s.count ? "Bugün verilen siparişleri CSV olarak indir" : "Bugün verilen sipariş yok"}>
+      <button type="button" className="ui-btn so-t-foot-secondary" onClick={() => onExportCsv?.(s.todayOrders, { dayStart: s.dayStart })}
+        disabled={!s.count}
+        title={s.count ? "Bu iş gününde (05:00'ten beri) verilen siparişleri CSV olarak indir" : "Bu iş gününde verilen sipariş yok"}>
         <Download aria-hidden="true" />Bugünün CSV’si
       </button>
       <button type="button" className="ui-btn ui-btn--primary so-t-foot-primary" onClick={print} disabled={nothing}>
@@ -156,6 +165,7 @@ export default function DayCloseDrawer({ orders = [], now = Date.now(), onClose,
                   <button type="button" className="ui-btn ui-btn--sm ui-btn--ghost so-t-open-more" aria-expanded={showAllOpen}
                     onClick={() => setShowAllOpen((v) => !v)}>
                     {showAllOpen ? "Daha az göster" : `Tümünü göster (${s.open.length})`}
+                    <ChevronDown className="so-t-open-more-icon" data-open={showAllOpen} aria-hidden="true" />
                   </button>
                 )}
               </section>
@@ -230,7 +240,7 @@ export default function DayCloseDrawer({ orders = [], now = Date.now(), onClose,
                 <p className="so-t-cash-diff ui-num" id={`${uid}-diff`} role="status"
                   data-tone={countedInvalid ? "warn" : diff === null ? undefined : diff === 0 ? "ok" : diff > 0 ? "ok" : "danger"}>
                   {countedInvalid
-                    ? "Geçerli bir tutar girin (örn. 1250 ya da 1250,50)."
+                    ? "Geçerli bir tutar girin (örn. 1.250 ya da 1.250,50)."
                     : diff === null
                       ? "Kasadaki nakdi sayıp girin; fark burada hesaplanır."
                       : diff === 0

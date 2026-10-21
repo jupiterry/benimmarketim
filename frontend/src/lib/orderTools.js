@@ -6,8 +6,11 @@ const ORDER_PAYMENT_LABELS = { cash: "Kapıda nakit", card: "Kapıda kart (POS)"
 /** Siparişin ödeme yöntemi etiketi (eski siparişlerde "Belirtilmedi") */
 export const orderPaymentLabel = (order) => order?.paymentMethodLabel || ORDER_PAYMENT_LABELS[order?.paymentMethod] || "Belirtilmedi";
 
-// Hesabı silinmiş müşterinin siparişleri: fiş, özet, toplama listesi ve kurye fişinde ad yerine bu yazılır;
-// müşteriye giden metinlerde ad hiç kullanılmaz ("Merhaba,").
+// Tüm yazdırma / dışa aktarma saatleri İstanbul saatiyle (tarayıcının saat diliminden bağımsız; ekranla aynı)
+const TR_TZ = "Europe/Istanbul";
+
+// Hesabı silinmiş müşterinin siparişleri: fiş, özet, toplama listesi, kurye fişi ve CSV'de ad yerine bu yazılır
+// (CSV'de e-posta da boş bırakılır); müşteriye giden metinlerde ad hiç kullanılmaz ("Merhaba,").
 export const DELETED_CUSTOMER_LABEL = "Müşteri (hesap silinmiş)";
 const isDeletedAccount = (order) => Boolean(order?.user?.deleted || order?.userDeleted);
 /** Yazdırılan / kopyalanan metindeki müşteri adı (silinmiş hesapta DELETED_CUSTOMER_LABEL) */
@@ -187,7 +190,7 @@ export const buildReceiptBody = (order) => {
   const money = formatMoney;
 
   const createdAt = new Date(order.createdAt).toLocaleString("tr-TR", {
-    day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+    timeZone: TR_TZ, day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
   });
   const shortId = String(order.orderId || order._id || "").slice(-6).toUpperCase();
   const products = order.products || [];
@@ -294,7 +297,7 @@ export const buildReceiptDocument = (orders, { autoPrint = true } = {}) => {
     ? `Sipariş #${escapeHtml(shortOrderId(list[0].orderId || list[0]._id))}`
     : `${list.length} sipariş fişi`;
   return `
-        <html>
+        <html lang="tr">
           <head><meta charset="utf-8"/><title>${title}</title>${RECEIPT_CSS}${list.length > 1 ? MULTI_RECEIPT_CSS : ""}</head>
           <body>${list.map(buildReceiptBody).join("")}${autoPrint ? RECEIPT_FIT_SCRIPT : ""}
           </body>
@@ -411,7 +414,9 @@ const PICKING_CSS = `
 
 export const buildPickingDocument = (picking, { autoPrint = true } = {}) => {
   const esc = escapeHtml;
-  const now = new Date().toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  const now = new Date().toLocaleString("tr-TR", {
+    timeZone: TR_TZ, day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+  });
   const itemsHtml = picking.items.map((item) => `
           <div class="item">
             <div class="box"></div>
@@ -425,7 +430,7 @@ export const buildPickingDocument = (picking, { autoPrint = true } = {}) => {
             ${point.orders.map((o) => `<div class="order"><span>#${esc(o.shortId)} ${esc(o.customer)}</span><span>${esc(formatPhoneTR(o.phone) || "-")}</span></div>`).join("")}
           </div>`).join("");
   return `
-        <html>
+        <html lang="tr">
           <head><meta charset="utf-8"/><title>Toplama listesi</title>${PICKING_CSS}</head>
           <body>
             <h1>TOPLAMA LİSTESİ</h1>
@@ -464,13 +469,14 @@ export const buildOrdersCsv = (orders) => {
     const created = new Date(order.createdAt);
     const valid = !Number.isNaN(created.getTime());
     const products = order.products || [];
+    const deleted = isDeletedAccount(order);
     return [
       csvCell(`#${shortOrderId(order.orderId, 8)}`),
-      csvCell(valid ? created.toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" }) : ""),
-      csvCell(valid ? created.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }) : ""),
-      csvCell(order.user?.name || ""),
+      csvCell(valid ? created.toLocaleDateString("tr-TR", { timeZone: TR_TZ, day: "2-digit", month: "2-digit", year: "numeric" }) : ""),
+      csvCell(valid ? created.toLocaleTimeString("tr-TR", { timeZone: TR_TZ, hour: "2-digit", minute: "2-digit" }) : ""),
+      csvCell(deleted ? DELETED_CUSTOMER_LABEL : order.user?.name || ""),
       csvCell(formatPhoneTR(order.phone || order.user?.phone || "")),
-      csvCell(order.user?.email || ""),
+      csvCell(deleted ? "" : order.user?.email || ""),
       csvCell(order.deliveryPointName || order.city || ""),
       csvCell(orderPaymentLabel(order)),
       csvCell(order.status || ""),
@@ -534,7 +540,6 @@ export const buildWhatsAppMessage = (order) => {
 const MINUTE_MS = 60 * 1000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
 const TR_OFFSET_MS = 3 * 60 * MINUTE_MS;
-const TR_TZ = "Europe/Istanbul";
 const toTime = (value) => {
   if (value === null || value === undefined || value === "") return NaN;
   if (typeof value === "number") return value;
@@ -746,6 +751,11 @@ const AUTO_PRINT_SCRIPT = "<script>window.onload=function(){window.print();setTi
 const printStamp = (ms) => new Date(ms).toLocaleString("tr-TR", {
   timeZone: TR_TZ, day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
 });
+// "20.10 05:00" (İstanbul, sabit UTC+3): gün sonu raporunun kapsadığı aralık için
+const shortStamp = (ms) => {
+  const iso = new Date(ms + TR_OFFSET_MS).toISOString();
+  return `${iso.slice(8, 10)}.${iso.slice(5, 7)} ${iso.slice(11, 16)}`;
+};
 const formatMinutesShort = (minutes) => {
   if (minutes === null || minutes === undefined || !Number.isFinite(Number(minutes))) return "—";
   const value = Math.max(0, Math.round(Number(minutes)));
@@ -773,9 +783,14 @@ export const buildDayCloseDocument = (summary, { autoPrint = true, counted = nul
   const esc = escapeHtml;
   const money = formatMoney;
   const s = summary || buildDayCloseSummary([]);
-  const day = new Date(toTime(s.dayStart)).toLocaleDateString("tr-TR", {
+  const startMs = toTime(s.dayStart);
+  const generatedMs = toTime(s.generatedAt);
+  const day = new Date(startMs).toLocaleDateString("tr-TR", {
     timeZone: TR_TZ, day: "2-digit", month: "2-digit", year: "numeric", weekday: "long",
   });
+  // Kapsam: gün başlangıcından rapor anına (en çok 24 saat); iş günü gece yarısını geçebilir (20.10 05:00 – 21.10 01:20)
+  const rangeEnd = Number.isFinite(generatedMs) ? Math.min(generatedMs, startMs + DAY_MS) : startMs + DAY_MS;
+  const range = Number.isFinite(startMs) ? `${shortStamp(startMs)} – ${shortStamp(rangeEnd)}` : "";
   const row = (label, value, cls = "") => `<div class="row ${cls}"><span>${esc(label)}</span><span>${esc(value)}</span></div>`;
   const paymentRows = (s.byPayment || [])
     .filter((entry) => entry.method !== "none" || entry.count > 0)
@@ -797,12 +812,13 @@ export const buildDayCloseDocument = (summary, { autoPrint = true, counted = nul
             <h2>Açık siparişler (${openList.length})</h2>
             ${openList.map((order) => `<div class="open"><span>#${esc(shortOrderId(order.orderId))} ${esc(printableCustomer(order, "Müşteri"))}</span><span>${esc(STATUS_PRINT[order.status] || order.status || "")}</span></div>`).join("")}` : "";
   return `
-        <html>
+        <html lang="tr">
           <head><meta charset="utf-8"/><title>Gün sonu</title>${REPORT_CSS}</head>
           <body>
             <h1>GÜN SONU</h1>
             <div class="meta">${esc(day)}</div>
-            <div class="meta">Hazırlanma: ${esc(printStamp(toTime(s.generatedAt)))}</div>
+            ${range ? `<div class="meta">Kapsam: ${esc(range)}</div>` : ""}
+            <div class="meta">Hazırlanma: ${esc(printStamp(generatedMs))}</div>
             <div class="rule-solid"></div>
             <h2>Bugün verilen siparişler</h2>
             ${row("Sipariş", String(s.count || 0))}
@@ -884,7 +900,7 @@ export const buildRunSheetDocument = (orders, { title, autoPrint = true } = {}) 
     ...(unknownCount ? [`Belirtilmemiş ${unknownCount}`] : []),
   ].join(" · ");
   return `
-        <html>
+        <html lang="tr">
           <head><meta charset="utf-8"/><title>${esc(heading)}</title>${REPORT_CSS}</head>
           <body>
             <h1>${esc(heading)}</h1>

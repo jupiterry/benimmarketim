@@ -810,8 +810,13 @@
   .admin-layout .so-ov-views .ui-segmented {
     width: 100%;
   }
+  /* Dokunma hedefi ≥ 40 px (sözleşme); grup iç boşluğu 2 px'e iner ki satır yanındaki 40 px simge düğmeleriyle
+     neredeyse aynı boyda kalsın (44 px) */
+  .admin-layout .so-ov-views .ui-segmented {
+    padding: 2px;
+  }
   .admin-layout .so-ov-views .ui-segmented > button {
-    min-height: 34px;
+    min-height: 40px;
     padding: 0 6px;
   }
   .admin-layout .so-ov-head .ui-icon-btn {
@@ -846,9 +851,12 @@
   .admin-layout .so-ov-kpis-loading .ui-skeleton-cards > :nth-child(n + 4) {
     grid-column: auto;
   }
-  .admin-layout .so-ov-kpis-loading .ui-skeleton-cards > :nth-child(5),
   .admin-layout .so-ov-kpis .so-ov-kpi--avg {
     display: none;
+  }
+  /* Skeleton satır içi display: block taşır; 5. iskelet kart ("Ort. teslim") yalnızca !important ile gizlenir */
+  .admin-layout .so-ov-kpis-loading .ui-skeleton-cards > :nth-child(5) {
+    display: none !important;
   }
   .admin-layout .so-ov-kpis-loading .ui-skeleton {
     height: 62px !important;

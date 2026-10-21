@@ -491,7 +491,8 @@ export const updateOrderStatus = async (req, res) => {
 
 /**
  * Toplu durum değişikliği. Gövde: { orderIds (1–100), status, expectedStatus? }
- * Tekli güncellemeyle aynı yol (bildirim, görev + referral, kupon iadesi, soket, sipariş başına işlem kaydı).
+ * Tekli güncellemeyle aynı yol (bildirim, görev + referral, kupon iadesi / İptal'den çıkışta yeniden kullanım,
+ * soket, sipariş başına işlem kaydı).
  * Yanıt: { updated, skipped: [{ orderId, reason: 'missing'|'conflict'|'unchanged', status? }] }
  */
 export const bulkUpdateOrderStatus = async (req, res) => {

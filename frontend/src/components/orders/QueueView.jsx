@@ -1,4 +1,4 @@
-// Şimdi (operasyon kuyruğu): tüm aktif siparişler sayfalanmadan iki şeritte — Hazırlanacak ve Yolda.
+// Şimdi (operasyon kuyruğu): tüm aktif siparişler sayfalanmadan iki şeritte — Hazırlanıyor ve Yolda.
 // Şerit başlıkları özet + toplu eylemler; "Yurda göre grupla" açıkken şeritler yurt bölümlerine ayrılır;
 // altta katlanabilir "Bugün tamamlanan". Mobilde yapışkan şerit sekmeleri, bir seferde tek şerit.
 // Sözleşme: CONTRACTS.md §7.4 / §7.5. Stil: styles/orders-queue.css (önek so-q-).
@@ -10,8 +10,11 @@ import {
 import { EmptyState, Skeleton, formatDateTime, formatTime, money, useIsMobile } from "../admin/ui";
 import {
   CustomerFace, NewDot, NextStepButton, OrderCode, PaymentChip, PointChip, SelectCheck, SlaChip, StatePanel, StatusBadge,
+  useStepGuard,
 } from "./atoms";
-import { CLICK_GUARD_MS, LANE_IDS, completedAt, customerName, orderAriaLabel, pointGroups, summarizeOrders } from "./shared";
+import {
+  LANE_IDS, completedAt, customerName, orderAriaLabel, pointGroups, statusUi, summarizeOrders,
+} from "./shared";
 import QueueCard from "./QueueCard";
 import "../../styles/orders-queue.css";
 
@@ -19,7 +22,7 @@ const PREP = "Hazırlanıyor";
 const ROAD = "Yolda";
 const DONE = "done";
 const LANE_META = {
-  [PREP]: { key: "prep", title: "Hazırlanacak", icon: Clock, empty: "Hazırlanacak sipariş yok", emptyHint: "Yeni sipariş gelince burada görünür." },
+  [PREP]: { key: "prep", title: "Hazırlanıyor", icon: Clock, empty: "Hazırlanan sipariş yok", emptyHint: "Yeni sipariş gelince burada görünür." },
   [ROAD]: { key: "road", title: "Yolda", icon: Truck, empty: "Yolda sipariş yok", emptyHint: "Yola çıkan siparişler burada görünür." },
 };
 const EMPTY_SET = new Set();
@@ -29,10 +32,9 @@ const flag = (value) => (value ? "true" : undefined);
 const byOldest = (a, b) => (a.createdMs || 0) - (b.createdMs || 0);
 const prefersReducedMotion = () =>
   typeof window !== "undefined" && Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
-const cardSelector = (orderId) => {
-  const safe = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(String(orderId)) : String(orderId).replace(/"/g, "");
-  return `.so-q-card[data-order-id="${safe}"]`;
-};
+const safeId = (orderId) =>
+  typeof CSS !== "undefined" && CSS.escape ? CSS.escape(String(orderId)) : String(orderId).replace(/"/g, "");
+const cardSelector = (orderId) => `.so-q-card[data-order-id="${safeId(orderId)}"]`;
 
 /** "Nakit ₺245,30 · POS 2 · Havale 1 (kontrol)" — sıfır olan parçalar gösterilmez */
 const PaymentParts = ({ summary, cashLabel = "Nakit", check = false }) => {
@@ -155,12 +157,17 @@ const Lane = ({ status, orders, groups, total, headActions, ui, actions }) => {
       <header className="so-q-lane-head">
         <div className="so-q-lane-title">
           <span className="so-q-lane-icon" aria-hidden="true"><Icon /></span>
-          <h2 id={`${laneId}-title`}>{meta.title}</h2>
-          <span className="so-q-lane-count ui-num" title={filteredOut ? `Filtreye uyan ${count} · toplam ${total}` : `${count} sipariş`}>
+          <h2 id={`${laneId}-title`} tabIndex={-1}>{meta.title}</h2>
+          <span className="so-q-lane-count ui-num" data-filtered={flag(filteredOut)}
+            title={filteredOut ? `Filtreye uyan ${count} · toplam ${total}` : `${count} sipariş`}>
             {filteredOut ? `${count}/${total}` : count}
             <span className="so-sr"> sipariş</span>
           </span>
-          {count > 0 && <span className="so-q-lane-sum ui-num" title="Şeritteki siparişlerin toplam tutarı">{money(sum)}</span>}
+          {count > 0 && (
+            <span className="so-q-lane-sum ui-num" title="Şeritteki siparişlerin toplam tutarı">
+              <span className="so-q-lane-sum-label">Toplam </span>{money(sum)}
+            </span>
+          )}
         </div>
         {headActions}
       </header>
@@ -331,25 +338,8 @@ function QueueView({
   const pendingJumpRef = useRef(null);
   const timersRef = useRef(new Set());
 
-  // Görünüm genelinde tıklama koruması: ilerletilen kart şeritten çıkınca alttaki kart yerine kayar;
-  // çift tıklamanın ikinci tıklaması o BAŞKA siparişi ilerletmesin (NextStepButton koruması yalnızca kendi örneğindedir).
-  const actionsRef = useRef(actionsProp);
-  actionsRef.current = actionsProp;
-  const lastStepRef = useRef(0);
-  const actions = useMemo(() => {
-    if (!actionsProp) return actionsProp;
-    const guarded = (fn) => (order) => {
-      const now = Date.now();
-      if (now - lastStepRef.current < CLICK_GUARD_MS) return Promise.resolve(false);
-      lastStepRef.current = now;
-      return Promise.resolve(fn(order));
-    };
-    return {
-      ...actionsProp,
-      advance: guarded((order) => actionsRef.current?.advance?.(order)),
-      undo: guarded((order) => actionsRef.current?.undo?.(order)),
-    };
-  }, [actionsProp]);
+  // Görünüm genelinde tıklama koruması ve odak koruması (atoms.jsx useStepGuard)
+  const actions = useStepGuard(actionsProp, rootRef);
 
   const prep = lanes?.prep || EMPTY_LIST;
   const road = lanes?.road || EMPTY_LIST;
@@ -369,7 +359,7 @@ function QueueView({
   const prepGroups = useMemo(() => (groupByPoint ? pointGroups(prep) : null), [groupByPoint, prep]);
   const roadGroups = useMemo(() => (groupByPoint ? pointGroups(road) : null), [groupByPoint, road]);
 
-  // Hazırlanacak şeridi: görülmemişler (ekrandaki sırayla), yazdırılmamışlar (en eski önce), toplaması bitenler
+  // Hazırlanıyor şeridi: görülmemişler (ekrandaki sırayla), yazdırılmamışlar (en eski önce), toplaması bitenler
   const prepShown = useMemo(() => (prepGroups ? prepGroups.flatMap((g) => g.orders) : prep), [prepGroups, prep]);
   const unseen = useMemo(() => prepShown.filter((o) => ui.unseenIds.has(o.orderId)), [prepShown, ui.unseenIds]);
   const unprinted = useMemo(() => prep.filter((o) => !ui.printedAt.get(o.orderId)).sort(byOldest), [prep, ui.printedAt]);
@@ -410,7 +400,7 @@ function QueueView({
     revealCard(firstUnseenId);
   }, [firstUnseenId, isMobile, focus, onLaneFocus, revealCard]);
 
-  // Mobilde başka sekmedeyken atlama istendiyse Hazırlanacak sekmesi çizildikten sonra karta git
+  // Mobilde başka sekmedeyken atlama istendiyse Hazırlık sekmesi çizildikten sonra karta git
   useEffect(() => {
     if (!pendingJumpRef.current || (isMobile && focus !== PREP)) return;
     const id = pendingJumpRef.current;
@@ -516,9 +506,10 @@ function QueueView({
   );
 
   if (isMobile) {
+    // Pano sekmeleriyle aynı kısa adlar ve etkin sekme tonu (Hazırlık = uyarı, Yolda = bilgi)
     const tabs = [
-      { value: PREP, label: "Hazırlanacak", count: prep.length },
-      { value: ROAD, label: "Yolda", count: road.length },
+      { value: PREP, label: statusUi(PREP).tab, tone: statusUi(PREP).tone, count: prep.length },
+      { value: ROAD, label: statusUi(ROAD).tab, tone: statusUi(ROAD).tone, count: road.length },
       { value: DONE, label: "Biten", count: done.length },
     ];
     return (
@@ -526,7 +517,7 @@ function QueueView({
         <div className="so-q-tabs">
           <div className="ui-segmented so-q-seg" role="group" aria-label="Şerit">
             {tabs.map((tab) => (
-              <button key={tab.value} type="button" aria-pressed={focus === tab.value} onClick={() => onLaneFocus?.(tab.value)}>
+              <button key={tab.value} type="button" aria-pressed={focus === tab.value} data-tone={tab.tone} onClick={() => onLaneFocus?.(tab.value)}>
                 <span className="so-q-seg-label">{tab.label}</span>
                 <span className="ui-count">{tab.count}</span>
                 {tab.value === PREP && unseenCount > 0 && <NewDot label={`${unseenCount} yeni sipariş`} />}

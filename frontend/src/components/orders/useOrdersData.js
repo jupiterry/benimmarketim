@@ -29,6 +29,7 @@ const IDS_EVENT_DEBOUNCE_MS = 500; // orderUpdated olaylarının ?ids toplu iste
 const RECENT_TOUCH_MS = 2000; // kendi düzenlememizin yankısını tekrar çekme
 const NOTICE_MS = 300; // çakışma / hata bildirimleri bu süre içinde birleşir
 const CONFIRM_POLL_MS = 120;
+const BATCH_SLACK_MS = 50; // zamanlayıcı birkaç ms erken/geç tetiklenebilir; kayıt süresi dolmuş sayılır
 const OBJECT_ID = /^[0-9a-f]{24}$/i;
 const EMPTY_SET = new Set();
 const EMPTY_MAP = new Map();
@@ -190,6 +191,10 @@ function createOrdersController({ confirm }) {
   const removedLines = new Map(); // orderId → Map<lineKey, {name, timer, toastId, committing, prior}>
   const removedOrders = new Map(); // orderId → {timer, toastId, committing}
   let batch = null; // açık geri alma penceresi {id, toastId, items: Map<orderId, entry>, openedAt, timer}
+  // Bu oturumda durumu değiştirilen pencere içi siparişler: 30 günden eski bir aktif sipariş teslim / iptal edilince
+  // (bekleyen kaplama ya da kayıt sonrası) arşive düşüp görünümlerden kaybolmasın; bir sonraki TAM yüklemeye kadar
+  // pencerede kalır (eski ekranla aynı). ?ids / ?q ile gelen arşiv siparişleri buraya hiç girmez.
+  const keepInWindow = new Set();
 
   // Kilitler ve koruma
   const locks = new Map(); // orderId → sayaç (kaydedilmemiş / uçuştaki ürün düzenlemesi)
@@ -272,7 +277,7 @@ function createOrdersController({ confirm }) {
     let preparing = 0;
     for (const order of orders) {
       ordersById.set(order.orderId, order);
-      if (isOutsideWindow(order, windowStart)) {
+      if (!keepInWindow.has(order.orderId) && isOutsideWindow(order, windowStart)) {
         extraIds.add(order.orderId);
       } else {
         windowOrders.push(order);
@@ -317,10 +322,12 @@ function createOrdersController({ confirm }) {
   /**
    * Gelen müşteri grupları tabana işlenir. replace: tam yükleme (pencere verisi baştan) —
    * pencere dışı ek siparişler (ids / q ile gelenler), kilitli ve korunan siparişler korunur.
+   * since: tam yüklemenin İSTENDİĞİ andaki pencere başı; yanıt yalnızca since sonrasını (+ aktifleri) kapsar, daha
+   * eskiler (istek uçuştayken "daha eskileri yükle" ile gelenler dahil) budanmaz.
    * Kilitli ya da korunan siparişlerin gelen kopyası yok sayılır. user her zaman en yeni yanıttan.
    * → yanıtta gelen sipariş kimlikleri
    */
-  const ingest = (groups, { replace = false, seq = 0 } = {}) => {
+  const ingest = (groups, { replace = false, seq = 0, since = windowStart } = {}) => {
     const prev = base;
     const orders = replace ? new Map() : new Map(prev.orders);
     const userKey = replace ? new Map() : new Map(prev.userKey);
@@ -348,7 +355,7 @@ function createOrdersController({ confirm }) {
       }
     }
     if (replace) {
-      const windowMs = toMs(windowStart);
+      const windowMs = toMs(since ?? windowStart);
       for (const [id, raw] of prev.orders) {
         if (orders.has(id)) continue;
         const extra = toMs(raw.createdAt) < windowMs && !isActiveStatus(raw.status);
@@ -468,6 +475,7 @@ function createOrdersController({ confirm }) {
       stack.forEach((entry) => { entry.cancelled = true; });
       stacks.delete(id);
     }
+    keepInWindow.delete(id);
     if (batch?.items.has(id)) {
       batch.items.delete(id);
       syncBatchToast();
@@ -506,8 +514,10 @@ function createOrdersController({ confirm }) {
   // ── Yükleme ve eşitleme (C17) ──
   const runLoad = async (forceFull) => {
     const needFull = forceFull || !syncRef || Date.now() - lastFull > FULL_RELOAD_MS;
+    // İstek anındaki pencere: loadOlder bu arada pencereyi geri çekerse yanıt onu kapsamaz (budama / hasOlder buna göre)
+    const since = windowStart;
     const params = needFull
-      ? { since: windowStart, active: 1, include: INCLUDE }
+      ? { since, active: 1, include: INCLUDE }
       : { updatedSince: syncRef, include: INCLUDE };
     const seq = ++reqSeq;
     setUi({ syncing: true });
@@ -520,9 +530,12 @@ function createOrdersController({ confirm }) {
       const replace = needFull || !meta;
       if (replace) {
         lastFull = Date.now();
-        hasOlder = Boolean(meta?.hasMore);
+        // Pencere istek uçuştayken geri çekildiyse hasMore eski pencereye göredir; loadOlder'ın değeri korunur
+        if (windowStart === since) hasOlder = Boolean(meta?.hasMore);
+        // Tam yükleme: oturumda tutulan pencere içi siparişler bırakılır (bekleyen / kaydedilen değişikliği olanlar hariç)
+        for (const id of [...keepInWindow]) if (!stacks.has(id)) keepInWindow.delete(id);
       }
-      ingest(data.usersOrders, { replace, seq });
+      ingest(data.usersOrders, { replace, seq, since });
       markFresh();
       ui = { ...ui, status: "ready", error: null, lastSyncAt: Date.now(), syncing: false, stale: false };
       emit(true);
@@ -706,12 +719,44 @@ function createOrdersController({ confirm }) {
     }
     return batch;
   };
-  /** Her yeni değişiklik süreyi UNDO_MS'e sıfırlar; pencere açıldıktan en geç UNDO_MAX_MS sonra kaydedilir */
+  /**
+   * Her yeni değişiklik süreyi UNDO_MS'e sıfırlar; pencere açıldıktan en geç UNDO_MAX_MS sonra tetiklenir.
+   * Tetiklenince yalnızca kendi UNDO_MS'ini doldurmuş kayıtlar kaydedilir; geç katılanlar aynı pencerede (aynı
+   * bildirimde) kalır ve tam 5 sn geri alınabilir (iptal onayındaki "5 sn içinde geri alabilirsiniz" sözü tutar).
+   */
   const scheduleBatch = (now) => {
     if (!batch) return;
     clearTimeout(batch.timer);
     const delay = Math.max(0, Math.min(UNDO_MS, batch.openedAt + UNDO_MAX_MS - now));
-    batch.timer = setTimeout(() => commitBatch("normal"), delay);
+    batch.timer = setTimeout(fireBatch, delay);
+  };
+  const fireBatch = () => {
+    const current = batch;
+    if (!current) return;
+    const now = Date.now();
+    const due = [];
+    let earliest = Infinity;
+    let latest = -Infinity;
+    for (const [id, e] of current.items) {
+      if (e.at + UNDO_MS <= now + BATCH_SLACK_MS) {
+        due.push({ id, e });
+      } else {
+        earliest = Math.min(earliest, e.at);
+        latest = Math.max(latest, e.at);
+      }
+    }
+    if (due.length === current.items.size) {
+      commitBatch("normal");
+      return;
+    }
+    // Kısmi kayıt: süresi dolanlar gider, kalanlar için pencere en eski kalan kayıttan yeniden sayılır
+    due.forEach(({ id }) => current.items.delete(id));
+    current.openedAt = earliest;
+    current.timer = setTimeout(fireBatch, Math.max(0, latest + UNDO_MS - now));
+    if (!due.length) return;
+    commitEntries(due, "normal");
+    syncBatchToast();
+    emit(true);
   };
 
   const sendStatus = async (ids, to, expected, mode) => {
@@ -882,9 +927,12 @@ function createOrdersController({ confirm }) {
   const applyStatus = (changing, to, reverts) => {
     const now = Date.now();
     reverts.forEach(undoOne);
+    const windowMs = toMs(windowStart);
     for (const order of changing) {
       const id = order.orderId;
       flushPendingFor(id, { sync: false }); // flush-then-queue: öncekini hemen kaydet, yenisi onun arkasına
+      const raw = base.orders.get(id);
+      if (raw && !(toMs(raw.createdAt) < windowMs && !isActiveStatus(raw.status))) keepInWindow.add(id);
       const from = currentStatus(id);
       const entry = { token: ++tokenSeq, from, to, expected: from, at: now, state: "pending", cancelled: false };
       const stack = stacks.get(id) || [];

@@ -66,7 +66,11 @@ export default function OrdersHeader({
     isMobile && { id: "refresh", label: syncing ? "Yenileniyor…" : "Yenile", icon: RefreshCw, onSelect: () => onRefresh?.(), disabled: loading },
     isMobile && { type: "divider" },
     { id: "dayclose", label: "Gün sonu özeti", icon: Calculator, description: "Ciro, ödemeler ve kasa sayımı", onSelect: () => onOpenDayClose?.(), disabled: loading },
-    { id: "csv", label: "CSV indir (Excel)", icon: Download, description: "Bu görünümdeki siparişler", onSelect: () => onExportCsv?.(), disabled: loading },
+    {
+      id: "csv", label: "CSV indir (Excel)", icon: Download,
+      description: view === "now" ? "Aktif + bugün tamamlanan siparişler" : "Bu görünümdeki siparişler",
+      onSelect: () => onExportCsv?.(), disabled: loading,
+    },
     {
       id: "print", label: `Yazdırılmamış fişleri yazdır (${unprinted})`, icon: Printer,
       description: unprinted ? "Hazırlanan ve bu cihazda yazdırılmamış" : "Hazırlananların hepsi yazdırıldı",

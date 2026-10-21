@@ -553,6 +553,44 @@ test("update-status: delivered runs missions + referral check, cancelled release
   assert.deepEqual(fx.coupons[0].update.$inc, { usageCount: -1 });
 });
 
+test("update-status: moving out of 'İptal Edildi' counts the coupon as used again (idempotent, closes a full coupon)", async (t) => {
+  const fx = mockSideEffects(t);
+  const order = statusDoc({ status: "İptal Edildi", couponCode: " indirim10 " });
+  t.mock.method(Order, "findById", async () => order);
+  const closes = [];
+  t.mock.method(Coupon, "findOneAndUpdate", async (filter, update) => {
+    fx.coupons.push({ filter, update });
+    return { _id: "kupon-1", isActive: true, usageLimit: 1, usageCount: 1 };
+  });
+  t.mock.method(Coupon, "updateOne", async (filter, update) => { closes.push({ filter, update }); return {}; });
+  const revert = request({ orderId: ORDER(1), status: "Hazırlanıyor", expectedStatus: "İptal Edildi" });
+  const res = response();
+  await updateOrderStatus(revert.req, res);
+  await tick();
+  assert.equal(res.statusCode, 200);
+  assert.equal(order.status, "Hazırlanıyor", "geçiş engellenmez");
+  assert.equal(order.totalAmount, 120, "fiyat değişmez");
+  assert.equal(fx.coupons.length, 1);
+  assert.equal(fx.coupons[0].filter.code, "INDIRIM10");
+  assert.deepEqual(fx.coupons[0].filter["usedBy.orderId"], { $ne: order._id }, "aynı sipariş iki kez sayılmaz");
+  assert.deepEqual(fx.coupons[0].update.$inc, { usageCount: 1 });
+  assert.equal(fx.coupons[0].update.$push.usedBy.orderId, order._id);
+  assert.equal(fx.coupons[0].update.$push.usedBy.user, order.user);
+  assert.deepEqual(closes, [{ filter: { _id: "kupon-1" }, update: { $set: { isActive: false } } }], "limit dolunca kapanır");
+
+  // Önceden kayıtlı kullanım (eşleşme yok) ya da kuponsuz sipariş: başka yazım yapılmaz
+  t.mock.method(Coupon, "findOneAndUpdate", async (filter, update) => { fx.coupons.push({ filter, update }); return null; });
+  const again = statusDoc({ status: "İptal Edildi", couponCode: "INDIRIM10" });
+  const plain = statusDoc({ status: "İptal Edildi" });
+  for (const doc of [again, plain]) {
+    t.mock.method(Order, "findById", async () => doc);
+    await updateOrderStatus(request({ orderId: ORDER(1), status: "Teslim Edildi" }).req, response());
+  }
+  await tick();
+  assert.equal(fx.coupons.length, 2, "kuponsuz siparişte kupon sorgusu yok");
+  assert.equal(closes.length, 1);
+});
+
 test("update-status: status changed between read and save → 409 (or unchanged when already there)", async (t) => {
   mockSideEffects(t);
   const stale = statusDoc();
@@ -676,6 +714,24 @@ test("bulk-status: same side effects as a single update (coupon release, mission
   assert.equal(fx.missions, 2, "teslim edilen her sipariş görevleri değerlendirir");
   assert.equal(fx.referralChecks.length, 2);
   assert.equal(fx.audits.length, 4);
+});
+
+test("bulk-status: moving cancelled orders back re-commits their coupons like a single update", async (t) => {
+  const fx = mockSideEffects(t);
+  const withCoupon = statusDoc({ _id: new mongoose.Types.ObjectId(ORDER(1)), status: "İptal Edildi", couponCode: "yaz25" });
+  const plain = statusDoc({ _id: new mongoose.Types.ObjectId(ORDER(2)), status: "İptal Edildi" });
+  t.mock.method(Order, "find", async () => [withCoupon, plain]);
+  const revert = request({ orderIds: [ORDER(1), ORDER(2)], status: "Hazırlanıyor", expectedStatus: "İptal Edildi" });
+  const res = response();
+  await bulkUpdateOrderStatus(revert.req, res);
+  await tick();
+  assert.equal(res.body.updated, 2);
+  assert.deepEqual(res.body.skipped, []);
+  assert.equal(fx.coupons.length, 1);
+  assert.equal(fx.coupons[0].filter.code, "YAZ25");
+  assert.deepEqual(fx.coupons[0].filter["usedBy.orderId"], { $ne: withCoupon._id });
+  assert.deepEqual(fx.coupons[0].update.$inc, { usageCount: 1 });
+  assert.equal(fx.coupons[0].update.$push.usedBy.orderId, withCoupon._id);
 });
 
 test("bulk-status: a failing save returns 500 instead of crashing the process", async (t) => {

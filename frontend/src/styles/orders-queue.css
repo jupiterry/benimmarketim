@@ -112,6 +112,12 @@
   font-weight: 650;
   white-space: nowrap;
 }
+/* "Toplam" yalnızca mobil şerit şeridinde görünür (masaüstünde tutar şerit adı + sayının yanında) */
+.admin-layout .so-q-lane-sum-label {
+  display: none;
+  color: var(--ui-text-3);
+  font-weight: 600;
+}
 
 /* Şerit eylemleri */
 .admin-layout .so-q-lane-actions {
@@ -423,11 +429,12 @@
   white-space: nowrap;
 }
 
-/* 3. satır: müşteri notu (tek satır; tam metin title'da ve ekran okuyucuda) */
+/* 3. satır: müşteri notu (en çok iki satır; tam metin title'da, ekran okuyucuda ve detayda).
+   Teslimat talimatının sonu ("… arayın") genelde iki satıra sığar; tek satırda geniş şeritte bile kesiliyordu. */
 .admin-layout .so-q-note {
   display: flex;
   grid-area: note;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   min-width: 0;
   margin: 0;
@@ -440,12 +447,15 @@
   width: 13px;
   height: 13px;
   flex-shrink: 0;
+  margin-top: 2px;
 }
 .admin-layout .so-q-note-text {
+  display: -webkit-box;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
 }
 
 /* Sağ sütun: canlı SLA + sonraki adım */
@@ -479,18 +489,6 @@
       ".     note note"
       ".     side side";
   }
-  .admin-layout .so-q-note {
-    align-items: flex-start;
-  }
-  .admin-layout .so-q-note > svg {
-    margin-top: 2px;
-  }
-  .admin-layout .so-q-note-text {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    white-space: normal;
-  }
   .admin-layout .so-q-side {
     flex-direction: row;
     align-items: center;
@@ -498,8 +496,11 @@
     min-width: 0;
     margin-top: 2px;
   }
+  /* Sabit en küçük genişlik: "9 dk" ile "41 dk" kartlarında sonraki adım düğmesi aynı x'ten başlasın
+     (72 px = data-size="md" iki basamaklı "NN dk" çipi; 60 dk ve üstü zaten geciken kartlarda biraz daha geniştir) */
   .admin-layout .so-q-side > .so-sla {
     flex: 0 0 auto;
+    min-width: 72px;
   }
   .admin-layout .so-q-side > .so-next-wrap {
     flex: 1 1 auto;
@@ -779,6 +780,47 @@
   }
   .admin-layout .so-q-lane-head {
     padding: 12px;
+  }
+  /* Mobil şerit başlığı ince bir şerittir: ad ve sayı hemen üstteki yapışkan sekmede zaten var (sayı yalnızca
+     filtreyle "3/8" iken kalır). Başlık (h2) bölgenin adı olarak (aria-labelledby) DOM'da kalır, yalnızca görünmez;
+     toplam tutar ve eylemler tek satırda sarar. */
+  .admin-layout .so-q[data-mobile="true"] .so-q-lane-head {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    padding: 0 2px;
+    border: 0;
+    background: transparent;
+  }
+  .admin-layout .so-q[data-mobile="true"] .so-q-lane-title {
+    flex: 0 0 auto;
+  }
+  .admin-layout .so-q[data-mobile="true"] .so-q-lane-icon,
+  .admin-layout .so-q[data-mobile="true"] .so-q-lane-count:not([data-filtered]) {
+    display: none;
+  }
+  .admin-layout .so-q[data-mobile="true"] .so-q-lane-title > h2 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    border: 0;
+    white-space: nowrap;
+  }
+  .admin-layout .so-q[data-mobile="true"] .so-q-lane-sum {
+    margin-left: 0;
+    color: var(--ui-text);
+  }
+  .admin-layout .so-q[data-mobile="true"] .so-q-lane-sum-label {
+    display: inline;
+  }
+  .admin-layout .so-q[data-mobile="true"] .so-q-lane-actions {
+    flex: 1 1 auto;
   }
   .admin-layout .so-q-card {
     column-gap: 10px;

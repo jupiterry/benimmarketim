@@ -11,7 +11,7 @@ import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
 import { ListFilter } from "lucide-react";
 import { Segmented, formatDate, money, useIsMobile } from "../admin/ui";
 import BoardCard from "./BoardCard";
-import { LoadOlderButton } from "./atoms";
+import { LoadOlderButton, useStepGuard } from "./atoms";
 import { COLUMN_IDS, buildStatusConfirm, isDoneStatus, moveLabel, orderCode, startOfDay, statusUi } from "./shared";
 import "../../styles/orders-board.css";
 
@@ -115,12 +115,15 @@ const BoardColumn = ({ column, ui, actions, now, dayNow, dragFrom, dragDisabled,
 };
 
 export default function BoardView({
-  columns = [], ui, actions, onShowAll, mobileColumn, onMobileColumn,
+  columns = [], ui, actions: actionsProp, onShowAll, mobileColumn, onMobileColumn,
   hasOlder = false, loadingOlder = false, onLoadOlder, windowStart, onDragStateChange,
 }) {
   const isMobile = useIsMobile();
   // Yerleşim kipi panonun gerçek genişliğinden (kenar çubuğu açık/kapalı fark etmez); ilk boyamadan önce ölçülür
   const rootRef = useRef(null);
+
+  // Görünüm genelinde tıklama koruması ve odak koruması (atoms.jsx useStepGuard)
+  const actions = useStepGuard(actionsProp, rootRef);
   const [wide, setWide] = useState(() => typeof window !== "undefined" && window.innerWidth >= 1280);
   useLayoutEffect(() => {
     const el = rootRef.current;

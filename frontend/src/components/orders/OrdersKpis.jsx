@@ -16,11 +16,12 @@ const count = (n) => (Number(n) || 0).toLocaleString("tr-TR");
 
 /**
  * KPI kartı. admin/ui KpiCard ile aynı işaretleme (ui-kpi sınıfları); ek olarak title, kısa etiket (telefon)
- * ve aç/kapa olmayan (çekmece açan) kart için aria-haspopup desteği vardır.
+ * ve aç/kapa olmayan (çekmece açan) kart için aria-haspopup desteği vardır. `pressed` verilmezse (undefined)
+ * kart bir şey aç/kapamıyordur (ör. Şimdi/Pano'da şeride gitmek): aria-pressed yazılmaz, düz düğme olur.
  */
 const Kpi = ({ icon: Icon, label, short, value, note, tone, pressed, popup = false, onClick, title, className = "" }) => (
   <button type="button" className={`ui-kpi so-ov-kpi ${className}`} data-tone={tone} title={title} onClick={onClick}
-    aria-pressed={popup ? undefined : Boolean(pressed)} aria-haspopup={popup ? "dialog" : undefined}>
+    aria-pressed={popup || pressed === undefined ? undefined : Boolean(pressed)} aria-haspopup={popup ? "dialog" : undefined}>
     <span className="ui-kpi-top">
       <span className="ui-kpi-label">
         {short ? <><span className="so-ov-kpi-long">{label}</span><span className="so-ov-kpi-short">{short}</span></> : label}
@@ -176,7 +177,7 @@ export default function OrdersKpis({
   const on = active || {};
   const oldest = k.oldestPrepMinutes !== null && k.oldestPrepMinutes !== undefined ? formatMinutes(k.oldestPrepMinutes) : "";
 
-  // Hazırlanacak notu: "{u} yeni · en eski {m}" / "en eski {m}" / "Bekleyen yok"
+  // Hazırlanıyor notu: "{u} yeni · en eski {m}" / "en eski {m}" / "Bekleyen yok"
   let prepNote = "Bekleyen yok";
   if (k.prep > 0) {
     prepNote = k.unseen > 0
@@ -184,19 +185,22 @@ export default function OrdersKpis({
       : oldest ? `en eski ${oldest}` : `${count(k.prep)} sipariş`;
   }
 
-  // Yolda notu: kapıda tahsil edilecek nakit ve POS sayısı (kuryenin ihtiyacı)
+  // Yolda notu: kapıda tahsil edilecek nakit ve POS sayısı (kuryenin ihtiyacı). Notlar dar kartta iki satıra
+  // inebilir; kısa çiftler ve "·" öncesi bölünmez boşlukla (\u00a0) bağlıdır ki satır "2 / POS" gibi değil "·"
+  // ayırıcısından sonra kırılsın. "Kapıda nakit ₺X" bilerek bölünebilir kalır: tek parça olsa dört basamaklı tutar
+  // dar kartta (overflow: hidden) kırpılırdı.
   let roadNote = "—";
   if (k.road > 0) {
     const parts = [];
     if (k.roadCashCount > 0) parts.push(`Kapıda nakit ${money(k.roadCash)}`);
-    if (k.roadCard > 0) parts.push(`${count(k.roadCard)} POS`);
-    roadNote = parts.length ? parts.join(" · ") : k.roadTransfer > 0 ? "Kapıda tahsilat yok (havale)" : "Ödeme yöntemi belirtilmemiş";
+    if (k.roadCard > 0) parts.push(`${count(k.roadCard)}\u00a0POS`);
+    roadNote = parts.length ? parts.join("\u00a0· ") : k.roadTransfer > 0 ? "Kapıda tahsilat yok (havale)" : "Ödeme yöntemi belirtilmemiş";
   }
 
-  const lateNote = k.late > 0 ? `${count(k.latePrep)} hazırlıkta · ${count(k.lateRoad)} yolda` : "Hazırlıkta 20+, yolda 25+ dk";
+  const lateNote = k.late > 0 ? `${count(k.latePrep)}\u00a0hazırlıkta\u00a0· ${count(k.lateRoad)}\u00a0yolda` : "Hazırlıkta 20+, yolda 25+ dk";
 
   const todayNote = k.todayCount > 0
-    ? <span title="İptal edilen siparişler hariç">{money(k.todayRevenue)} ciro · ort. {money(k.todayAvgBasket)}</span>
+    ? <span title="İptal edilen siparişler hariç">{money(k.todayRevenue)} ciro{"\u00a0"}· ort.{"\u00a0"}{money(k.todayAvgBasket)}</span>
     : "Henüz sipariş yok";
 
   const avgValue = k.avgDeliveryMinutes !== null && k.avgDeliveryMinutes !== undefined ? formatMinutes(k.avgDeliveryMinutes) || "—" : "—";
@@ -204,9 +208,9 @@ export default function OrdersKpis({
   return (
     <>
       <KpiGrid className="so-ov-kpis">
-        <Kpi icon={Clock} label="Hazırlanacak" short="Hazırlık" value={count(k.prep)} note={prepNote}
+        <Kpi icon={Clock} label="Hazırlanıyor" short="Hazırlık" value={count(k.prep)} note={prepNote}
           tone={k.prep > 0 ? "warn" : undefined} pressed={on.prep} onClick={() => onPrep?.()}
-          title="Hazırlanacak siparişleri göster" className="so-ov-kpi--prep" />
+          title="Hazırlanıyor durumundaki siparişleri göster" className="so-ov-kpi--prep" />
         <Kpi icon={Truck} label="Yolda" value={count(k.road)} note={roadNote} tone="info" pressed={on.road} onClick={() => onRoad?.()}
           title="Yoldaki siparişleri göster" className="so-ov-kpi--road" />
         <Kpi icon={k.late > 0 ? AlertTriangle : CheckCircle2} label="Geciken" value={count(k.late)} note={lateNote}

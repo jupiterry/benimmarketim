@@ -16,9 +16,6 @@
   /* Sütunlar panelin gerçek genişliğine göre (kenar çubuğu açık/kapalı fark etmez) */
   container: so-l / inline-size;
 }
-.admin-layout .so[data-selecting="true"] .so-l {
-  scroll-margin-top: 140px;
-}
 
 /* Başlık satırı ve satırlar aynı ızgarayı paylaşır */
 .admin-layout .so-l-head,
@@ -361,6 +358,8 @@
 }
 
 /* ══ Toplu işlem çubuğu ═════════════════════════════════════════════ */
+/* Yerleşim: masaüstünde içeriğin altında, ekranın altına yapışık (orders.css · .so > .so-bulk);
+   ≤760 px'te alt sekme çubuğunun üstünde sabit (aşağıda). */
 .admin-layout .so-bulk {
   gap: var(--ui-s2) var(--ui-s3);
   padding: var(--ui-s2) var(--ui-s3);
@@ -496,9 +495,6 @@
     --so-l-pad-r: var(--ui-s3);
     scroll-margin-top: 64px;
   }
-  .admin-layout .so[data-selecting="true"] .so-l {
-    scroll-margin-top: 64px;
-  }
   .admin-layout .so-l-head {
     grid-template-columns: 40px minmax(0, 1fr) auto;
     min-height: 48px;
@@ -555,6 +551,12 @@
   }
   .admin-layout .so-l-meta-dlv {
     display: none;
+  }
+  /* Rozetler ("İlk sipariş", "N iptal", "Yeni", "Arşiv") sığmazsa adın altına iner: ad kırpılıp 2 harfe
+     düşmez ve küçülmeyen çipler tutar sütununun üstüne taşmaz */
+  .admin-layout .so-l-name {
+    flex-wrap: wrap;
+    row-gap: 4px;
   }
   .admin-layout .so-l-name-text {
     font-size: var(--ui-fs-lg);

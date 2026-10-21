@@ -596,6 +596,12 @@
 .admin-layout .so-t-open-more {
   align-self: flex-start;
 }
+.admin-layout .so-t-open-more-icon {
+  transition: transform var(--ui-ease);
+}
+.admin-layout .so-t-open-more-icon[data-open="true"] {
+  transform: rotate(180deg);
+}
 
 .admin-layout .so-t-hero {
   display: flex;
@@ -792,6 +798,16 @@
   font-weight: 600;
   line-height: 1.4;
 }
+/* Değer girilmeden önce yalnızca soluk bir ipucu: kutu görünümü (ikinci alan / düğme sanılmasın) tonla gelir.
+   Dikey ölçü korunur, yazmaya başlayınca düzen kaymaz. */
+.admin-layout .so-t-cash-diff:not([data-tone]) {
+  padding-inline: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  font-weight: 500;
+}
 .admin-layout .so-t-cash-diff[data-tone="ok"] {
   border-color: color-mix(in srgb, var(--ui-ok) 30%, var(--ui-line));
   background: var(--ui-ok-bg);
@@ -835,9 +851,8 @@
   font-weight: 600;
   text-align: right;
 }
-.admin-layout .so-t-cash-more > li[data-tone="info"],
-.admin-layout .so-t-cash-more > li[data-tone="info"] > svg,
-.admin-layout .so-t-cash-more > li[data-tone="info"] > span:last-child {
+/* Yolda tonu yalnızca ikonda; satır metni bağlantı sanılmasın */
+.admin-layout .so-t-cash-more > li[data-tone="info"] > svg {
   color: var(--ui-info-ink);
 }
 
@@ -845,6 +860,10 @@
 @media (max-width: 760px) {
   .admin-layout .so-t-drawer .ui-drawer-foot > .ui-btn {
     min-height: 44px;
+  }
+  .admin-layout .so-t-drawer .ui-drawer-head > .ui-icon-btn {
+    width: 40px;
+    height: 40px;
   }
   .admin-layout .so-t-drawer .ui-segmented > button,
   .admin-layout .so-t-drawer .ui-segmented--sm > button {

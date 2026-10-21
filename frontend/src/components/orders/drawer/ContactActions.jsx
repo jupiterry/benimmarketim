@@ -1,5 +1,6 @@
 // Detay çekmecesinin "İletişim" bölümü (C24): "Ara" (tel:), WhatsApp bölünmüş düğmesi (ana kısım duruma
-// göre mesaj, ok kısmı hazır şablonlar) ve "Özeti kopyala". Müşteri metinleri yalnızca shared.js'ten gelir;
+// göre mesaj, ok kısmı hazır şablonlar) ve "Özeti kopyala". Numara Teslimat bölümünde yazılı; başlıkta tekrarlanmaz
+// (özet kartında da kısa Ara / WhatsApp düğmeleri var). Müşteri metinleri yalnızca shared.js'ten gelir;
 // silinmiş hesaplarda selamlama adsızdır ("Merhaba,"). Numara geçerli bir TR numarası değilse WhatsApp pasiftir.
 import { useId } from "react";
 import { ChevronDown, Copy, MessageCircle, Phone } from "lucide-react";
@@ -42,7 +43,6 @@ export default function ContactActions({ order, changes = [], onCopySummary }) {
         <h3 id={headId} className="so-d-h">
           <Phone aria-hidden="true" />
           İletişim
-          {phone && <span className="so-d-h-meta ui-num">· {formatPhoneTR(phone)}</span>}
         </h3>
       </div>
       <div className="so-d-contact-row">

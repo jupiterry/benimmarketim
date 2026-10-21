@@ -21,12 +21,9 @@
   --so-b-col: var(--ui-surface);
   --so-b-card: var(--ui-surface-2);
 }
-/* Toplu işlem çubuğu (yapışkan, top 76 px, ~46 px yüksek, z 40) açıkken yapışkan başlıklar hemen altında durur */
-@media (min-width: 761px) {
-  .admin-layout .so[data-selecting="true"] .so-b {
-    --so-b-top: 121px;
-  }
-}
+/* Toplu işlem çubuğu masaüstünde ekranın ALTINA yapışır (orders.css · .so > .so-bulk): seçim varken de yapışkan
+   sütun başlıkları doğrudan üst çubuğun altında kalır (eskiden çubuk üstteydi ve başlıklar onun altına iniyordu;
+   çubuk aşağı taşınınca o kayma üst çubukla başlıklar arasında kartların göründüğü bir boşluk bırakıyordu). */
 
 .admin-layout .so-b-board {
   min-width: 0;
@@ -540,6 +537,10 @@
   }
   .admin-layout .so-b-col-more {
     min-height: 44px;
+  }
+  /* "Daha eski siparişleri yükle" parmakla basılabilir (Liste'deki .so-l-foot .so-older ile aynı) */
+  .admin-layout .so-b-footer .so-older {
+    min-height: 40px;
   }
 }
 

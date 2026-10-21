@@ -7,7 +7,7 @@ import {
   RefreshCw, Search, X,
 } from "lucide-react";
 import { EmptyState, useIsMobile } from "../admin/ui";
-import { LoadOlderButton, SelectCheck } from "./atoms";
+import { LoadOlderButton, SelectCheck, useStepGuard } from "./atoms";
 import { PAGE_SIZES, SEARCH_LIMIT, dayKey, dayLabel } from "./shared";
 import OrderRow from "./OrderRow";
 import "../../styles/orders-list.css";
@@ -101,31 +101,49 @@ const SearchAllStrip = ({ query, state, count, onSearchAll, scopeNote }) => {
   );
 };
 
-/** Masaüstü: « ‹ 1 2 3 4 5 › » · mobil: ‹ 2 / 5 › */
+/**
+ * Masaüstü: « ‹ 1 2 3 4 5 › » · mobil: ‹ 2 / 5 ›. İlk / son sayfaya geçiş, basılan ok düğmesini devre dışı bırakır;
+ * odak <body>'ye düşmesin diye geçerli sayfa düğmesine (mobilde karşı oka) taşınır.
+ */
 const Pagination = ({ page, pageCount, onPage, compact }) => {
-  const go = (n) => {
+  const navRef = useRef(null);
+  const go = (n, e) => {
     const next = Math.min(Math.max(1, n), pageCount);
-    if (next !== page) onPage?.(next);
+    if (next === page) return;
+    const button = e?.currentTarget;
+    const hadFocus = Boolean(button) && document.activeElement === button;
+    onPage?.(next);
+    const forward = next > page;
+    if (!hadFocus || !button.hasAttribute("data-edge") || (forward ? next < pageCount : next > 1)) return;
+    requestAnimationFrame(() => {
+      const nav = navRef.current;
+      const current = document.activeElement;
+      if (!nav?.isConnected || (current && current !== document.body && current.isConnected && !current.disabled)) return;
+      const target = compact
+        ? nav.querySelector(`[data-edge="${forward ? "prev" : "next"}"]:not(:disabled)`)
+        : nav.querySelector('[aria-current="page"]');
+      target?.focus({ preventScroll: true });
+    });
   };
   if (compact) {
     return (
-      <nav className="ui-pagination so-l-pages" data-compact="true" aria-label="Sayfalama">
-        <button type="button" onClick={() => go(page - 1)} disabled={page <= 1} aria-label="Önceki sayfa" title="Önceki sayfa">
+      <nav ref={navRef} className="ui-pagination so-l-pages" data-compact="true" aria-label="Sayfalama">
+        <button type="button" data-edge="prev" onClick={(e) => go(page - 1, e)} disabled={page <= 1} aria-label="Önceki sayfa" title="Önceki sayfa">
           <ChevronLeft aria-hidden="true" />
         </button>
         <span className="so-l-pages-now"><span className="so-sr">Sayfa </span>{page} / {pageCount}</span>
-        <button type="button" onClick={() => go(page + 1)} disabled={page >= pageCount} aria-label="Sonraki sayfa" title="Sonraki sayfa">
+        <button type="button" data-edge="next" onClick={(e) => go(page + 1, e)} disabled={page >= pageCount} aria-label="Sonraki sayfa" title="Sonraki sayfa">
           <ChevronRight aria-hidden="true" />
         </button>
       </nav>
     );
   }
   return (
-    <nav className="ui-pagination so-l-pages" aria-label="Sayfalama">
-      <button type="button" onClick={() => go(1)} disabled={page <= 1} aria-label="İlk sayfa" title="İlk sayfa">
+    <nav ref={navRef} className="ui-pagination so-l-pages" aria-label="Sayfalama">
+      <button type="button" data-edge="prev" onClick={(e) => go(1, e)} disabled={page <= 1} aria-label="İlk sayfa" title="İlk sayfa">
         <ChevronsLeft aria-hidden="true" />
       </button>
-      <button type="button" onClick={() => go(page - 1)} disabled={page <= 1} aria-label="Önceki sayfa" title="Önceki sayfa">
+      <button type="button" data-edge="prev" onClick={(e) => go(page - 1, e)} disabled={page <= 1} aria-label="Önceki sayfa" title="Önceki sayfa">
         <ChevronLeft aria-hidden="true" />
       </button>
       {pageWindow(page, pageCount).map((n) => (
@@ -133,10 +151,10 @@ const Pagination = ({ page, pageCount, onPage, compact }) => {
           {n}
         </button>
       ))}
-      <button type="button" onClick={() => go(page + 1)} disabled={page >= pageCount} aria-label="Sonraki sayfa" title="Sonraki sayfa">
+      <button type="button" data-edge="next" onClick={(e) => go(page + 1, e)} disabled={page >= pageCount} aria-label="Sonraki sayfa" title="Sonraki sayfa">
         <ChevronRight aria-hidden="true" />
       </button>
-      <button type="button" onClick={() => go(pageCount)} disabled={page >= pageCount} aria-label="Son sayfa" title="Son sayfa">
+      <button type="button" data-edge="next" onClick={(e) => go(pageCount, e)} disabled={page >= pageCount} aria-label="Son sayfa" title="Son sayfa">
         <ChevronsRight aria-hidden="true" />
       </button>
     </nav>
@@ -145,12 +163,15 @@ const Pagination = ({ page, pageCount, onPage, compact }) => {
 
 export default function ListView({
   orders = [], total = 0, page = 1, pageCount = 1, onPage, pageSize = PAGE_SIZES[0], onPageSize, sort = "newest", onSort,
-  ui, actions, hasFilter = false, onClearFilters, query = "", scopeNote = null,
+  ui, actions: actionsProp, hasFilter = false, onClearFilters, query = "", scopeNote = null,
   hasOlder = false, loadingOlder = false, onLoadOlder, windowStart,
   searchAll, onSearchAll,
 }) {
   const isMobile = useIsMobile();
   const rootRef = useRef(null);
+
+  // Görünüm genelinde tıklama koruması ve odak koruması (atoms.jsx useStepGuard)
+  const actions = useStepGuard(actionsProp, rootRef);
   const now = ui?.now ?? Date.now();
   const selectedIds = ui?.selectedIds || EMPTY_SET;
   const selecting = Boolean(ui?.selecting ?? selectedIds.size > 0);

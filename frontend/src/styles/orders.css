@@ -39,6 +39,14 @@
     pointer-events: auto;
   }
 }
+/* Yeterince genişte açık sipariş detayı (520 px) içeriği örtmez: şeritler / tablo kalan alana yeniden dizilir
+   (konteyner sorguları dar kartlara geçer, Liste'de Teslimat sütunu düşer). Yalnızca sipariş çekmecesi yer ayırır;
+   filtre, toplama ve gün sonu çekmeceleri modaldır. 1280–1439'da (kenar çubuğu açıkken) içerik çok daralacağı için örter. */
+@media (min-width: 1440px) {
+  .admin-layout .so:has(> .ui-drawer-backdrop > .so-d) {
+    padding-right: 520px;
+  }
+}
 
 /* Şeritler, sütunlar: konteyner focusStatus ile kısa süre data-flash="true" koyar */
 .admin-layout .so [data-flash="true"] {
@@ -65,12 +73,25 @@
   flex-direction: column;
   gap: var(--ui-s4);
 }
-.admin-layout .so-muted-body {
-  display: flex;
-  flex-direction: column;
+/* Yükleme iskeletinin gövdesi: Şimdi iki şerit, Pano dört sütun (dar ekranda tek sütun) */
+.admin-layout .so-skeleton-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--ui-s4);
-  opacity: 0.5;
-  pointer-events: none;
+  align-items: start;
+}
+@media (min-width: 1280px) {
+  .admin-layout .so-skeleton-cols[data-cols="4"] {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (max-width: 760px) {
+  .admin-layout .so-skeleton-cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-layout .so-skeleton-cols > :nth-child(n + 2) {
+    display: none;
+  }
 }
 .admin-layout .so-state .ui-empty-action {
   display: flex;
@@ -204,7 +225,8 @@
 .admin-layout .so-face[data-tone="2"] { background: var(--ui-warn-bg); color: var(--ui-warn-ink); }
 .admin-layout .so-face[data-tone="3"] { background: var(--ui-ok-bg); color: var(--ui-ok-ink); }
 .admin-layout .so-face[data-tone="4"] { background: var(--ui-danger-bg); color: var(--ui-danger-ink); }
-.admin-layout .so-face[data-tone="5"],
+/* Ton 5 baş harfleri metin-2 ile (≥4.5:1, customers.css ile aynı); silinmiş hesap simgesi bilerek sönük (simge 3:1 yeter) */
+.admin-layout .so-face[data-tone="5"] { background: var(--ui-surface-3); color: var(--ui-text-2); }
 .admin-layout .so-face[data-tone="muted"] { background: var(--ui-surface-3); color: var(--ui-text-3); }
 
 /* ── Sipariş kodu ────────────────────────────────────────────────── */
@@ -653,6 +675,17 @@
 .admin-layout[data-theme="dark"] .so-next[data-variant="solid"],
 .admin-layout[data-theme="dark"] .so .ui-count {
   color: var(--ui-bg);
+}
+
+/* ── Toplu işlem çubuğu yerleşimi ────────────────────────────────── */
+/* Masaüstünde çubuk içeriğin ALTINDA çizilir ve ekranın altına yapışır: ilk seçimde kartlar / satırlar aşağı
+   kaymaz (art arda onay kutusu tıklaması şaşmaz). ≤760 px'te orders-list.css'teki sabit alt çubuk geçerlidir. */
+@media (min-width: 761px) {
+  .admin-layout .so > .so-bulk {
+    top: auto;
+    bottom: var(--ui-s3);
+    box-shadow: var(--ui-shadow-pop);
+  }
 }
 
 /* ── Duyarlı ─────────────────────────────────────────────────────── */

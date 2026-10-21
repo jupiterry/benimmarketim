@@ -2,13 +2,15 @@
 // Siparişler ekranının küçük, ortak görünüm parçaları (avatar, durum rozeti, SLA çipi, ödeme/nokta
 // çipleri, sonraki adım düğmesi, erişilebilir açılır menü…). Stil: styles/orders.css (önek so-).
 // Sözleşme: scratchpad/orders-design/CONTRACTS.md
-import { memo, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import {
   AlertCircle, AlertTriangle, Check, ChevronDown, History, ListChecks, Loader2, MapPin, MoreHorizontal, PackageCheck,
   Printer, RefreshCw, RotateCcw, Sparkles, StickyNote, Timer, UserX, Wallet,
 } from "lucide-react";
-import { EmptyState, Skeleton, SkeletonCards, SkeletonRows, formatDate, formatDateTime, formatTime, initials, money } from "../admin/ui";
+import {
+  EmptyState, Skeleton, SkeletonCards, SkeletonRows, formatDate, formatDateTime, formatTime, initials, money,
+} from "../admin/ui";
 import {
   CLICK_GUARD_MS, KBD_HINT, NOW_TICK_MS, PAYMENT, customerName, durationMinutes, faceTone, formatMinutes, getSla,
   isDeletedCustomer, nextAction, orderCode, orderCodeTitle, paymentKey, paymentLong, pointKey, pointLabel, shortWhen, statusUi,
@@ -164,7 +166,11 @@ export const NoteChip = ({ order, className = "" }) => {
     </span>
   );
 };
-/** "İlk sipariş" (yalnızca kesin biliniyorsa) ve "{n} iptal" rozetleri; yoksa null */
+/**
+ * "İlk sipariş" (yalnızca kesin biliniyorsa) ve müşterinin iptal geçmişi ("{n} iptali var") rozetleri; yoksa null.
+ * İptal rozeti bu siparişin durumu gibi okunmasın diye kırmızı değil uyarı tonunda ve geçmiş simgesiyle çizilir
+ * (kırmızı yalnızca siparişin kendi durumu ve gecikme için). Sayı müşterinin ömür boyu iptalleridir (bu sipariş dahil).
+ */
 export const TrustBadges = ({ order, className = "" }) => {
   const first = order?.isFirstOrder === true;
   const cancels = Number(order?.cancelBadge) || 0;
@@ -172,7 +178,11 @@ export const TrustBadges = ({ order, className = "" }) => {
   return (
     <>
       {first && <span className={`so-chip so-trust ${className}`} data-tone="brand" title="Müşterinin ilk siparişi"><Sparkles aria-hidden="true" />İlk sipariş</span>}
-      {cancels > 0 && <span className={`so-chip so-trust ${className}`} data-tone="danger" title="Müşterinin toplam iptal sayısı">{cancels} iptal</span>}
+      {cancels > 0 && (
+        <span className={`so-chip so-trust ${className}`} data-tone="warn" data-kind="cancels" title="Müşterinin toplam iptal sayısı">
+          <History aria-hidden="true" />{cancels} iptali var<span className="so-sr"> (müşterinin toplam iptal sayısı)</span>
+        </span>
+      )}
     </>
   );
 };
@@ -226,7 +236,9 @@ export const SelectCheck = ({ checked, indeterminate = false, onChange, label, d
 /**
  * Tek büyük "Yola çıkar" / "Teslim et" düğmesi. Sonraki adım order.status'tan (bekleyen değişiklik varsa
  * HEDEF durumdan) hesaplanır; bekleyen değişiklik varken yanında küçük ayrı bir "Geri al" düğmesi çıkar.
- * Bir değişiklikten sonra 400 ms tıklama almaz (çift tıklama iki adım ilerletmesin / hemen geri almasın).
+ * Bir değişiklikten sonra 400 ms tıklama almaz (çift tıklama iki adım ilerletmesin / hemen geri almasın);
+ * çift tıklamanın ikinci tıklaması (event.detail > 1) süre ne olursa olsun yok sayılır.
+ * Odaktaki düğme değişiklikle kalkarsa ("Teslim et" → yalnızca "Geri al") odak diğer düğmeye geçer, <body>'ye düşmez.
  */
 export const NextStepButton = memo(function NextStepButton({
   order, onAdvance, onUndo, variant = "soft", size = "md", block = false, kbd, disabled = false, className = "",
@@ -236,32 +248,49 @@ export const NextStepButton = memo(function NextStepButton({
   const changeKey = `${order?.status}|${pending?.at || ""}`;
   const keyRef = useRef(changeKey);
   const guardRef = useRef(0);
+  const nextRef = useRef(null);
+  const undoRef = useRef(null);
+  const handoffRef = useRef(null); // { from: "next" | "undo", key } — basıldığında odak o düğmedeydi
   useEffect(() => {
     if (keyRef.current !== changeKey) {
       keyRef.current = changeKey;
       guardRef.current = Date.now();
     }
   }, [changeKey]);
+  useLayoutEffect(() => {
+    const handoff = handoffRef.current;
+    if (!handoff || handoff.key === changeKey) return;
+    handoffRef.current = null;
+    const gone = handoff.from === "next" ? !nextRef.current : !undoRef.current;
+    const active = document.activeElement;
+    if (!gone || (active && active !== document.body && active.isConnected)) return;
+    (handoff.from === "next" ? undoRef : nextRef).current?.focus({ preventScroll: true });
+  }, [changeKey]);
   if (!order || (!next && !pending)) return null;
   const guarded = () => Date.now() - guardRef.current < CLICK_GUARD_MS;
   const code = orderCode(order);
+  const remember = (e, from) => {
+    handoffRef.current = document.activeElement === e.currentTarget ? { from, key: changeKey } : null;
+  };
   const advance = (e) => {
     e.stopPropagation();
-    if (disabled || guarded()) return;
+    if (disabled || e.detail > 1 || guarded()) return;
     guardRef.current = Date.now();
+    remember(e, "next");
     onAdvance?.(order);
   };
   const undo = (e) => {
     e.stopPropagation();
-    if (guarded()) return;
+    if (e.detail > 1 || guarded()) return;
     guardRef.current = Date.now();
+    remember(e, "undo");
     onUndo?.(order);
   };
   const NextIcon = next?.icon;
   return (
     <span className={`so-next-wrap ${className}`} data-block={block ? "true" : undefined} data-size={size}>
       {next && (
-        <button type="button" className="so-next" data-variant={variant} data-kind={next.kind} data-size={size} disabled={disabled}
+        <button ref={nextRef} type="button" className="so-next" data-variant={variant} data-kind={next.kind} data-size={size} disabled={disabled}
           onClick={advance} aria-label={`${code} siparişini ${next.label.toLocaleLowerCase("tr-TR")}`}
           title={kbd ? `${next.label} (${kbd})` : next.label}>
           <NextIcon aria-hidden="true" />
@@ -270,7 +299,7 @@ export const NextStepButton = memo(function NextStepButton({
         </button>
       )}
       {pending && (
-        <button type="button" className="so-next-undo" data-alone={next ? undefined : "true"} data-size={size} onClick={undo}
+        <button ref={undoRef} type="button" className="so-next-undo" data-alone={next ? undefined : "true"} data-size={size} onClick={undo}
           aria-label={`${code} durum değişikliğini geri al`} title={`“${statusUi(pending.from).label}” durumuna geri al (u)`}>
           <RotateCcw aria-hidden="true" /><span>Geri al</span>
         </button>
@@ -278,6 +307,66 @@ export const NextStepButton = memo(function NextStepButton({
     </span>
   );
 });
+
+// ── Görünüm genelinde adım koruması ──────────────────────────────────────
+const cssId = (value) =>
+  typeof CSS !== "undefined" && CSS.escape ? CSS.escape(String(value)) : String(value).replace(/["\\]/g, "");
+const navItemSelector = (orderId) => `[data-nav="1"][data-order-id="${cssId(orderId)}"]`;
+const navItemsOf = (list) => [...list.children].filter((el) => el.matches('[data-nav="1"]'));
+/**
+ * Kartın / satırın kendi düğmesiyle (sonraki adım / Geri al) yapılan değişiklik öğeyi başka şeride / sütuna taşıyabilir
+ * ya da odaklı düğmeyi kaldırabilir. Odak <body>'ye düşmesin: öğe aynı listede kaldıysa yerine gelen adım düğmesine,
+ * başka listeye taşındıysa oradaki açma düğmesine, görünmüyorsa (mobilde tek şerit / sütun, katlanmış bölüm) eski
+ * listede aynı sıradaki öğeye gider. Odak o öğede değilse dokunulmaz. Dönen fonksiyon işlem bitince çağrılır.
+ */
+export const keepStepFocus = (root, orderId) => {
+  const item = orderId ? root?.querySelector(navItemSelector(orderId)) : null;
+  const active = typeof document !== "undefined" ? document.activeElement : null;
+  if (!item?.parentElement || !active || !item.contains(active)) return () => {};
+  let keyboard = false; // klavyeyle basıldıysa yeni odak görünür alana getirilir; fareyle sayfa kaymaz
+  try { keyboard = active.matches(":focus-visible"); } catch { /* eski tarayıcı */ }
+  const list = item.parentElement;
+  const index = navItemsOf(list).indexOf(item);
+  return (applied) => {
+    if (applied === false || typeof window === "undefined") return;
+    window.requestAnimationFrame(() => {
+      const current = document.activeElement;
+      if (current && current !== document.body && current.isConnected) return; // odak zaten bir yerde
+      const moved = root.isConnected ? root.querySelector(navItemSelector(orderId)) : null;
+      const siblings = list.isConnected ? navItemsOf(list) : [];
+      const stayed = moved?.parentElement === list ? moved.querySelector(".so-next, .so-next-undo") : null;
+      const target = moved
+        ? stayed || moved.querySelector(".so-open")
+        : (siblings[index] || siblings[index - 1])?.querySelector(".so-open");
+      if (!target) return;
+      target.focus({ preventScroll: true });
+      if (keyboard) target.closest('[data-nav="1"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    });
+  };
+};
+/**
+ * Görünüm genelinde tıklama koruması (Şimdi, Liste, Pano): ilerletilen öğe yerinden çıkınca alttaki öğe imlecin
+ * altına kayar; çift tıklamanın ikinci tıklaması o BAŞKA siparişi ilerletmesin / geri almasın (NextStepButton
+ * koruması yalnızca kendi örneğindedir). advance / undo sarılır, diğer eylemler aynen geçer; odak keepStepFocus ile korunur.
+ */
+export const useStepGuard = (actions, rootRef) => {
+  const actionsRef = useRef(actions);
+  actionsRef.current = actions;
+  const lastStepRef = useRef(0);
+  return useMemo(() => {
+    if (!actions) return actions;
+    const guarded = (name) => (order) => {
+      const now = Date.now();
+      if (now - lastStepRef.current < CLICK_GUARD_MS) return Promise.resolve(false);
+      lastStepRef.current = now;
+      const restore = keepStepFocus(rootRef?.current, order?.orderId);
+      const result = Promise.resolve(actionsRef.current?.[name]?.(order));
+      result.then(restore, () => {});
+      return result;
+    };
+    return { ...actions, advance: guarded("advance"), undo: guarded("undo") };
+  }, [actions, rootRef]);
+};
 
 // ── Açılır menü ──────────────────────────────────────────────────────────
 const cleanItems = (items) => {
@@ -292,7 +381,8 @@ const cleanItems = (items) => {
 };
 const clamp = (value, min, max) => Math.max(min, Math.min(value, Math.max(min, max)));
 /**
- * Erişilebilir açılır menü (ARIA menu kalıbı). Açılır kutu .admin-layout köküne portal ile çizilir,
+ * Erişilebilir açılır menü (ARIA menu kalıbı). Açılır kutu, düğme bir diyaloğun (çekmece, aria-modal) içindeyse
+ * o diyaloğa, değilse .admin-layout köküne portal ile çizilir (modal dışında kalıp ekran okuyucuda gizlenmesin);
  * position: fixed; altta yer yoksa yukarı açılır, ekran kenarlarına 8 px yaklaşır. Dışarı tıklama,
  * kaydırma ve yeniden boyutlandırma kapatır. Klavye: ↑ ↓ Home End Enter Boşluk Esc (+ harfle atlama);
  * işlediği her tuşun yayılmasını durdurur (Esc çekmeceyi kapatmaz). Seçimden sonra odak düğmeye döner.
@@ -324,7 +414,7 @@ export const MenuButton = ({
   const openMenu = (focus = "first") => {
     if (disabled || !list.length) return;
     focusRef.current = focus;
-    setHost(btnRef.current?.closest(".admin-layout") || document.body);
+    setHost(btnRef.current?.closest('[role="dialog"]') || btnRef.current?.closest(".admin-layout") || document.body);
     setOpen(true);
   };
 
@@ -545,7 +635,7 @@ export const StaleBanner = ({ lastSyncAt, onRetry, syncing = false, className = 
     </button>
   </div>
 );
-/** İlk yükleme hatası: tehlike şeridi + "Tekrar dene", altında sönük iskelet */
+/** İlk yükleme hatası: tehlike şeridi + tek "Tekrar dene" (altında iskelet yok; yükleniyor gibi görünmesin) */
 export const LoadErrorPanel = ({ onRetry, retrying = false, message, className = "" }) => (
   <div className={`so-load-error ${className}`}>
     <div className="ui-banner ui-banner--danger so-banner" role="alert">
@@ -557,10 +647,6 @@ export const LoadErrorPanel = ({ onRetry, retrying = false, message, className =
         <RefreshCw className={retrying ? "ui-spin" : undefined} aria-hidden="true" />Tekrar dene
       </button>
     </div>
-    <div className="so-muted-body" aria-hidden="true">
-      <SkeletonCards count={5} />
-      <div className="ui-panel"><SkeletonRows rows={6} /></div>
-    </div>
   </div>
 );
 /** Panel içinde boş durum (EmptyState sarmalı) */
@@ -569,11 +655,23 @@ export const StatePanel = ({ icon, title, description, action, compact = false, 
     <EmptyState icon={icon} title={title} description={description} action={action} compact={compact} />
   </div>
 );
-/** İlk yükleme iskeleti: 5 KPI kartı, 40 px araç çubuğu, 8 satır */
-export const OrdersSkeleton = () => (
-  <div className="so-skeleton" aria-busy="true" aria-label="Siparişler yükleniyor">
-    <SkeletonCards count={5} />
-    <Skeleton height={40} radius={8} />
-    <div className="ui-panel"><SkeletonRows rows={8} /></div>
-  </div>
-);
+const SKELETON_COLS = { now: 2, board: 4 };
+/**
+ * İlk yükleme iskeleti: KPI kartları (yüklenmiş KPI satırıyla aynı kırılımlar: so-ov-kpis-loading), 40 px araç
+ * çubuğu ve görünüme göre gövde (Şimdi: iki şerit · Pano: dört sütun · Liste: satırlar; dar ekranda tek sütun).
+ */
+export const OrdersSkeleton = ({ view = "list" }) => {
+  const cols = SKELETON_COLS[view] || 1;
+  return (
+    <div className="so-skeleton" aria-busy="true" aria-label="Siparişler yükleniyor">
+      {/* Telefonda yüklenmiş KPI satırı 4 kompakt karttır ("Ort. teslim" gizli): 5. kart orders-overview.css'te gizlenir */}
+      <div className="so-ov-kpis-loading"><SkeletonCards count={5} /></div>
+      <Skeleton height={40} radius={8} />
+      {cols > 1 ? (
+        <div className="so-skeleton-cols" data-cols={cols}>
+          {Array.from({ length: cols }, (_, i) => <div key={i} className="ui-panel"><SkeletonRows rows={view === "board" ? 4 : 5} /></div>)}
+        </div>
+      ) : <div className="ui-panel"><SkeletonRows rows={8} /></div>}
+    </div>
+  );
+};

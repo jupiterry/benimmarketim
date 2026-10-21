@@ -195,6 +195,28 @@ export const releaseCouponForOrder = async (order) => {
   }
 };
 
+// İptalden geri alınan (Hazırlanıyor/Yolda/Teslim'e taşınan) siparişin kuponunu yeniden kullanılmış sayar.
+// releaseCouponForOrder'ın tersidir ve onun gibi en iyi çabadır: sipariş kuponu verildiği anda hak etmişti,
+// bu yüzden aktiflik/süre/limit denetlenmez, geçiş engellenmez, fiyat değiştirilmez. "usedBy.orderId" $ne
+// koşulu çift saymayı önler (ör. kuponu hiç geri açılmamış eski toplu iptaller).
+export const restoreCouponForOrder = async (order) => {
+  try {
+    if (!order?.couponCode) return;
+    const updated = await Coupon.findOneAndUpdate(
+      { code: String(order.couponCode).toUpperCase().trim(), "usedBy.orderId": { $ne: order._id } },
+      { $inc: { usageCount: 1 }, $push: { usedBy: { user: order.user, orderId: order._id, usedAt: new Date() } } },
+      { new: true }
+    );
+    if (!updated) return;
+    // Limit yeniden dolduysa kupon commitCouponUsage'daki gibi kapatılır
+    if (updated.isActive && updated.usageLimit !== null && updated.usageCount >= updated.usageLimit) {
+      await Coupon.updateOne({ _id: updated._id }, { $set: { isActive: false } });
+    }
+  } catch (error) {
+    console.error("Kupon kullanımı yeniden işlenirken hata:", error.message);
+  }
+};
+
 /** Müşteri odası + yönetici odası; yük (payload) mobil/web müşteri sözleşmesidir, değiştirilmez. */
 export const emitOrderStatusUpdated = (io, order, status) => {
   try {
@@ -209,7 +231,8 @@ export const emitOrderStatusUpdated = (io, order, status) => {
 
 /**
  * Durumu değiştirir ve kaydeder; ardından yan etkileri yanıtı bekletmeden başlatır:
- * müşteri bildirimi, Teslim'de görevler + referral ödülü, İptal'de kupon iadesi, orderStatusUpdated.
+ * müşteri bildirimi, Teslim'de görevler + referral ödülü, İptal'de kupon iadesi (İptal'den çıkışta
+ * kupon yeniden kullanılmış sayılır), orderStatusUpdated.
  * Kayıt, okunduğu andaki duruma koşullanır: bu arada durum başka yerde değiştiyse save
  * VersionError/DocumentNotFoundError fırlatır (çağıran 409'a çevirir). Aynı duruma geçiş çağıranda engellenir.
  *
@@ -236,6 +259,7 @@ export async function applyOrderStatusChange(order, status, { actorId = null, io
       grantReferralRewardIfDelivered(order, previousStatus);
     }
     if (status === CANCELLED_STATUS) releaseCouponForOrder(order);
+    else if (previousStatus === CANCELLED_STATUS) restoreCouponForOrder(order);
   }
   emitOrderStatusUpdated(io, order, status);
   return previousStatus;
