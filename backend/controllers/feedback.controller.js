@@ -3,6 +3,8 @@ import Feedback from "../models/feedback.model.js";
 import User from "../models/user.model.js";
 import Order from "../models/order.model.js";
 import { recordAdminAction } from "../services/adminAudit.service.js";
+import { sendPushToUser } from "../services/push.service.js";
+import { createCompensationCoupon, suggestCompensation, validateCompensation } from "../services/feedbackFollowUp.service.js";
 
 const MAX_REPLY = 1000;
 const FEEDBACK_STATUSES = ["Yeni", "İnceleniyor", "Çözüldü", "Kapatıldı"];
@@ -154,7 +156,7 @@ export const replyToFeedback = async (req, res) => {
     const { text, error } = validateAdminReply(req.body);
     if (error) return res.status(400).json({ message: error });
 
-    const current = await Feedback.findById(id).select("status adminReply title").lean();
+    const current = await Feedback.findById(id).select("status adminReply title user").lean();
     if (!current) return res.status(404).json({ message: "Geri bildirim bulunamadı" });
 
     const update = text
@@ -177,6 +179,12 @@ export const replyToFeedback = async (req, res) => {
       targetName: feedback.user?.name || current.title || "Geri bildirim",
       changes,
     });
+    // Müşteriye haber ver: yalnızca yeni ya da değişen yanıtta (aynı metni tekrar kaydetmek bildirim göndermez)
+    const customerId = current.user || feedback.user?._id;
+    if (text && text !== (current.adminReply?.text || "") && customerId) {
+      sendPushToUser(customerId, { title: "Geri bildiriminize yanıt verdik", body: text.length > 120 ? `${text.slice(0, 117)}...` : text },
+        { type: "feedback_reply", feedbackId: id, route: "/feedback" }, { category: "messages", collapseId: `feedback-${id}` }).catch(() => {});
+    }
     res.json(feedback);
   } catch (error) {
     console.error("Geri bildirim yanıtlanırken hata:", error);
@@ -210,10 +218,41 @@ export const getFeedbackOrder = async (req, res) => {
     if (!feedback.order) return res.status(404).json({ message: "Bu geri bildirime bağlı sipariş yok" });
     const order = await Order.findById(feedback.order).select("products totalAmount status createdAt deliveryPoint deliveryPointName").lean();
     if (!order) return res.status(404).json({ message: "Bağlı sipariş bulunamadı" });
-    res.json(summarizeOrder(order));
+    res.json({ ...summarizeOrder(order), suggestedCompensation: suggestCompensation(order.totalAmount) });
   } catch (error) {
     console.error("Geri bildirim siparişi getirilirken hata:", error);
     res.status(500).json({ message: "Sipariş özeti getirilemedi", error: error.message });
+  }
+};
+
+// POST /api/feedback/:id/compensate { amount } — müşteriye özel tek kullanımlık telafi kuponu
+export const compensateFeedback = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: "Geçersiz geri bildirim" });
+    const { amount, error } = validateCompensation(req.body);
+    if (error) return res.status(400).json({ message: error });
+    const current = await Feedback.findById(id).select("user status compensation title").lean();
+    if (!current) return res.status(404).json({ message: "Geri bildirim bulunamadı" });
+    if (current.compensation?.coupon) return res.status(409).json({ message: `Bu geri bildirim için zaten ${current.compensation.amount} TL kupon verildi (${current.compensation.code})` });
+
+    const { coupon } = await createCompensationCoupon({ userId: current.user, amount, feedbackId: id });
+    const update = { compensation: { coupon: coupon._id, code: coupon.code, amount, at: new Date(), by: req.user._id } };
+    if (current.status === "Yeni") update.status = "İnceleniyor";
+    const feedback = await Feedback.findByIdAndUpdate(id, update, { new: true })
+      .populate("user", "name email avatar")
+      .populate("adminReply.by", "name");
+    recordAdminAction(req, {
+      action: "Telafi kuponu verildi",
+      category: "customer",
+      target: id,
+      targetName: feedback?.user?.name || current.title || "Geri bildirim",
+      changes: [{ label: "Kupon", from: "", to: `${coupon.code} · ${amount} TL` }],
+    });
+    res.status(201).json(feedback);
+  } catch (error) {
+    console.error("Telafi kuponu oluşturulamadı:", error);
+    res.status(500).json({ message: "Telafi kuponu oluşturulamadı", error: error.message });
   }
 };
 

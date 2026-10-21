@@ -398,6 +398,9 @@ const OrderDetail = ({ order, customer, onClose, onStatusUpdate, onDeliveryTrack
             <div><dt><Phone /> Telefon</dt><dd>{(order.phone || order.user?.phone) ? <a className="ui-link ui-num" href={`tel:${order.phone || order.user?.phone}`}>{formatPhoneTR(order.phone || order.user?.phone)}</a> : '-'}</dd></div>
             <div><dt><MapPin /> Teslimat</dt><dd>{order.deliveryPointName || order.deliveryPoint || order.city || 'Belirtilmemiş'}</dd></div>
             <div><dt><Wallet /> Ödeme</dt><dd data-method={order.paymentMethod || undefined}>{paymentLabel(order)}</dd></div>
+            {order.cancelReasonLabel && (
+              <div><dt><X /> İptal nedeni</dt><dd>{order.cancelReasonLabel}{order.cancelReasonNote ? ` — ${order.cancelReasonNote}` : ""}</dd></div>
+            )}
             <div><dt><Calendar /> Sipariş zamanı</dt><dd>{formatOrderDate(order.createdAt)}</dd></div>
           </dl>
           <label className="ui-label" htmlFor="delivery-tracking-input">Kargo / teslimat takibi</label>

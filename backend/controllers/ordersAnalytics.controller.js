@@ -1,5 +1,6 @@
 import Order from "../models/order.model.js";
 import { paymentMethodLabel } from "../lib/paymentMethods.js";
+import { CANCEL_REASONS } from "../lib/feedbackOptions.js";
 import Coupon from "../models/coupon.model.js";
 import { processReferralFirstOrder } from "./referral.controller.js";
 import User from "../models/user.model.js";
@@ -55,7 +56,7 @@ export const releaseCouponForOrder = async (order) => {
 
 export const ACTIVE_ORDER_STATUSES = ["Hazırlanıyor", "Yolda"];
 const ORDER_LIST_FIELDS =
-  "user products totalAmount subtotalAmount couponCode couponDiscount discountPercentage status deliveryTracking statusHistory note phone city deliveryPoint deliveryPointName paymentMethod createdAt updatedAt device";
+  "user products totalAmount subtotalAmount couponCode couponDiscount discountPercentage status deliveryTracking statusHistory note phone city deliveryPoint deliveryPointName paymentMethod cancelReason createdAt updatedAt device";
 
 const listQuery = (filter) =>
   Order.find(filter)
@@ -112,6 +113,8 @@ export const groupOrdersByUser = (orders) => {
       deliveryPointName: order.deliveryPointName,
       paymentMethod: order.paymentMethod || null,
       paymentMethodLabel: paymentMethodLabel(order.paymentMethod),
+      cancelReasonLabel: order.cancelReason?.code ? CANCEL_REASONS[order.cancelReason.code] || "" : "",
+      cancelReasonNote: order.cancelReason?.note || "",
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
       // Cihaz bilgisi
@@ -347,6 +350,13 @@ export const getUserOrders = async (req, res) => {
 };
 
 // Sipariş iptal etme fonksiyonu
+/** { reason: "gec", note: "..." } → { code, note } ya da bilinmeyen nedende null */
+export const normalizeCancelReason = (body = {}) => {
+  const code = String(body?.reason || "");
+  if (!CANCEL_REASONS[code]) return null;
+  return { code, note: String(body?.note || "").trim().slice(0, 300) };
+};
+
 export const cancelOrder = async (req, res) => {
   try {
     const { orderId } = req.body;
@@ -369,7 +379,10 @@ export const cancelOrder = async (req, res) => {
 
     order.status = "İptal Edildi";
     order.statusHistory.push({ status: "İptal Edildi", changedAt: new Date(), changedBy: req.user._id });
-    await order.save();
+    // Müşterinin seçtiği iptal nedeni (eski uygulama sürümleri göndermez)
+    const cancelReason = normalizeCancelReason(req.body);
+    if (cancelReason) order.cancelReason = cancelReason;
+    await order.save({ validateModifiedOnly: true });
     await releaseCouponForOrder(order);
 
     // Yönetim paneli müşterinin iptalini 30 sn'lik yenilemeyi beklemeden görsün
@@ -377,7 +390,7 @@ export const cancelOrder = async (req, res) => {
       req.app.get("io")?.to("adminRoom").emit("orderStatusUpdated", {
         orderId: order._id,
         newStatus: order.status,
-        message: "Müşteri siparişi iptal etti",
+        message: cancelReason ? `Müşteri siparişi iptal etti: ${CANCEL_REASONS[cancelReason.code]}` : "Müşteri siparişi iptal etti",
       });
     } catch (socketError) {
       console.error("Socket.IO iptal bildirimi gönderilirken hata:", socketError);

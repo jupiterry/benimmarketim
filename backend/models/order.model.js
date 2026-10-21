@@ -71,6 +71,11 @@ const orderSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    // Müşteri iptal ederken seçtiği neden (lib/feedbackOptions.js CANCEL_REASONS); eski iptallerde boş
+    cancelReason: {
+      code: { type: String, default: "" },
+      note: { type: String, default: "", maxlength: 300 },
+    },
     // Ödeme yöntemi (lib/paymentMethods.js). Bu alan eklenmeden önceki siparişlerde null.
     paymentMethod: {
       type: String,
