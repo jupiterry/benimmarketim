@@ -407,11 +407,14 @@ export const takeHandoff = (key) => {
     return null;
   }
 };
+/** Aktarımı yazar ve "admin-handoff" olayı yayar; hedef ekran zaten açıksa olayı dinleyip hemen okur. */
 export const setHandoff = (key, value) => {
   try {
     sessionStorage.setItem(key, String(value));
   } catch {
     /* depolama kapalı olabilir */
   }
+  // Dinleyici sekme değişiminden sonra çalışsın diye bir sonraki işlem adımında yayılır
+  setTimeout(() => window.dispatchEvent(new CustomEvent("admin-handoff", { detail: { key } })), 0);
 };
 export const HANDOFF = { product: "admin-product-open", order: "admin-order-search", user: "admin-user-open", orderPreset: "admin-order-preset" };
