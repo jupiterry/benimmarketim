@@ -1,12 +1,15 @@
 // Geri bildirimler ekranı: sipariş sonrası anketler ve müşteri mesajları.
 // Akış: KPI → puan dağılımı → araç çubuğu (arama, durum çipleri, kategori, sıralama) → liste → sağ çekmece
 // (tam metin, alt puanlar, bağlı sipariş özeti, durum, yönetici yanıtı, silme).
-// Uç noktalar: GET /feedback, PATCH /feedback/:id/status, PATCH /feedback/:id/reply, GET /feedback/:id/order, DELETE /feedback/:id
+// Uç noktalar: GET /feedback, PATCH /feedback/:id/status, PATCH /feedback/:id/reply, GET /feedback/:id/order, DELETE /feedback/:id,
+// POST /feedback/:id/compensate (telafi kuponu). "Rapor" görünümü: feedback/SatisfactionReport.jsx
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Star, MessageSquare, Search, X, CheckCircle2, Trash2, RefreshCw, Download, Clock, Eye,
   ShoppingBag, ExternalLink, CornerDownRight, Inbox, CalendarDays, Tag, Reply, RotateCcw, SlidersHorizontal,
+  ThumbsUp, ThumbsDown, Gift, PackageX, Headphones, Truck, BarChart3, List,
 } from "lucide-react";
+import SatisfactionReport from "./feedback/SatisfactionReport";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
 import socketService from "../lib/socket";
@@ -30,8 +33,22 @@ const RATING_LABELS = { usability: "Kullanım kolaylığı", expectations: "Bekl
 const TAG_LABELS = {
   hizli: "Hızlı geldi", taze: "Ürünler tazeydi", kurye: "Kurye nazikti", fiyat: "Fiyatlar uygundu", kolay: "Uygulama kolaydı",
   gec: "Geç geldi", eksik: "Eksik ürün vardı", yanlis: "Yanlış ürün geldi", bozuk: "Ürün bozuk/ezikti", pahali: "Fiyatlar yüksekti", uygulama: "Uygulamada sorun yaşadım",
+  kurye_kotu: "Kurye ilgisizdi", paket: "Paketleme kötüydü",
 };
-const NEGATIVE_TAGS = new Set(["gec", "eksik", "yanlis", "bozuk", "pahali", "uygulama"]);
+const NEGATIVE_TAGS = new Set(["gec", "eksik", "yanlis", "bozuk", "pahali", "uygulama", "kurye_kotu", "paket"]);
+// Backend lib/feedbackOptions.js ile aynı
+const ISSUE_LABELS = { bozuk: "Bozuk / ezik", eksik: "Eksik geldi", yanlis: "Yanlış ürün" };
+const ABANDON_LABELS = { fiyat: "Fiyatlar yüksek", teslimat: "Teslimat süresi uzun", urun_yok: "Aradığım ürün yok", minimum: "Minimum sepet tutarı yüksek", sonra: "Sonra sipariş vereceğim", diger: "Diğer" };
+const KINDS = [
+  { value: "", label: "Tüm türler" },
+  { value: "order", label: "Sipariş anketi (1-3-5)" },
+  { value: "quick", label: "Hızlı soru (👍/👎)" },
+  { value: "nps", label: "Tavsiye puanı (NPS)" },
+  { value: "abandon", label: "Sepetten vazgeçme" },
+  { value: "general", label: "Uygulama mesajı" },
+];
+const kindOf = (f) => (f?.kind && f.kind !== "general" ? f.kind : f?.milestone ? "order" : "general");
+const COMP_PRESETS = [25, 50, 75];
 const DEFAULT_TITLE = "Genel Değerlendirme";
 const DEFAULT_MESSAGE = "Puan bazlı değerlendirme";
 const MAX_REPLY = 1000;
@@ -51,7 +68,11 @@ const ratingOf = (f) => {
   return values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
 };
 const hasReply = (f) => Boolean(f?.adminReply?.text);
-const isPending = (f) => !hasReply(f) && (f?.status === "Yeni" || f?.status === "İnceleniyor");
+const hasCompensation = (f) => Boolean(f?.compensation?.code);
+const needsAction = (f) => f?.thumb === "down" || (Number(f?.rating) > 0 && Number(f.rating) <= 2) || (f?.problemItems?.length || 0) > 0;
+// 👍, olumlu tavsiye puanı ve vazgeçme yanıtları yanıt beklemez; listede bilgi olarak durur
+const isInformational = (f) => f?.thumb === "up" || (f?.kind === "nps" && Number(f?.npsScore) >= 7) || f?.kind === "abandon";
+const isPending = (f) => !hasReply(f) && !isInformational(f) && (f?.status === "Yeni" || f?.status === "İnceleniyor");
 const customerName = (f) => f?.user?.name || "Müşteri";
 const messageOf = (f) => (f?.message && f.message !== DEFAULT_MESSAGE ? f.message : "");
 const titleOf = (f) => (f?.title && f.title !== DEFAULT_TITLE ? f.title : "");
@@ -71,6 +92,36 @@ const StatusBadge = ({ status }) => {
   return <span className={`ui-badge ${ui.tone ? `ui-badge--${ui.tone}` : ""}`}><Icon aria-hidden="true" />{status}</span>;
 };
 
+const CustomerAvatar = ({ f }) => {
+  const [broken, setBroken] = useState(false);
+  const src = f?.user?.avatar;
+  return (
+    <span className="ui-avatar fbk-avatar" aria-hidden="true">
+      {src && !broken ? <img src={src} alt="" loading="lazy" onError={() => setBroken(true)} /> : initials(customerName(f))}
+    </span>
+  );
+};
+
+/** Puan sütunu: yıldız, 👍/👎, NPS (0-10) ya da vazgeçme nedeni */
+const ScoreCell = ({ f, rating }) => {
+  if (f.thumb) {
+    const up = f.thumb === "up";
+    const Icon = up ? ThumbsUp : ThumbsDown;
+    return <span className="fbk-thumb" data-tone={up ? "ok" : "danger"}><Icon aria-hidden="true" />{up ? "Memnun" : "Memnun değil"}</span>;
+  }
+  if (f.kind === "nps" && f.npsScore != null) {
+    const tone = f.npsScore >= 9 ? "ok" : f.npsScore <= 6 ? "danger" : "warn";
+    return <span className={`ui-badge ui-badge--${tone}`} title="Bizi bir arkadaşına önerir misin? (0-10)">Tavsiye {f.npsScore}/10</span>;
+  }
+  if (f.kind === "abandon") return <span className="ui-muted ui-text-xs">{ABANDON_LABELS[f.reason] || "—"}</span>;
+  return (
+    <>
+      <Stars value={rating} />
+      <span className="ui-num fbk-score">{fmtScore(rating)}</span>
+    </>
+  );
+};
+
 // ── Liste satırı ──────────────────────────────────────────────────────────
 const FeedbackRow = ({ f, now, active, selected, onOpen, onReply, onResolve, onDelete, rowRef }) => {
   const rating = ratingOf(f);
@@ -84,17 +135,20 @@ const FeedbackRow = ({ f, now, active, selected, onOpen, onReply, onResolve, onD
       tabIndex={0}
       data-active={active || undefined}
       data-selected={selected || undefined}
-      data-tone={rating > 0 && rating <= 2 ? "danger" : undefined}
+      data-tone={needsAction(f) ? "danger" : undefined}
       data-pending={isPending(f) || undefined}
       aria-label={`${customerName(f)}, ${fmtScore(rating)} puan, ${f.status}`}
       onClick={() => onOpen(f)}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(f); } }}
     >
-      <span className="ui-avatar fbk-avatar" aria-hidden="true">{initials(customerName(f))}</span>
+      <CustomerAvatar f={f} />
       <div className="fbk-main">
         <div className="fbk-main-top">
           <strong className="ui-list-title ui-truncate">{customerName(f)}</strong>
           {f.milestone && <span className="ui-badge ui-badge--brand">{f.milestone}. sipariş</span>}
+          {f.kind === "abandon" && <span className="ui-badge ui-badge--warn">Sepetten vazgeçti</span>}
+          {f.problemItems?.length > 0 && <span className="ui-badge ui-badge--danger"><PackageX />{f.problemItems.length} ürün sorunu</span>}
+          {hasCompensation(f) && <span className="ui-badge ui-badge--ok"><Gift />{f.compensation.amount} TL kupon</span>}
           {f.category && f.category !== "Genel" && <span className={`ui-badge ${f.category === "Şikayet" || f.category === "Hata Bildirimi" ? "ui-badge--danger" : ""}`}>{f.category}</span>}
         </div>
         <p className="fbk-text">
@@ -107,10 +161,7 @@ const FeedbackRow = ({ f, now, active, selected, onOpen, onReply, onResolve, onD
           </div>
         )}
       </div>
-      <div className="fbk-rating">
-        <Stars value={rating} />
-        <span className="ui-num fbk-score">{fmtScore(rating)}</span>
-      </div>
+      <div className="fbk-rating"><ScoreCell f={f} rating={rating} /></div>
       <div className="fbk-date">
         <time dateTime={f.createdAt} title={formatDateTime(f.createdAt)}>{timeAgo(f.createdAt, now)}</time>
         {f.order && <span className="fbk-order-flag" title="Bağlı sipariş var"><ShoppingBag aria-hidden="true" />Sipariş</span>}
@@ -131,11 +182,14 @@ const FeedbackRow = ({ f, now, active, selected, onOpen, onReply, onResolve, onD
 };
 
 // ── Çekmece ───────────────────────────────────────────────────────────────
-const FeedbackDrawer = ({ f, order, onClose, onStatus, onReply, onDelete, onOpenOrder, focusReply, busy }) => {
+const FeedbackDrawer = ({ f, order, onClose, onStatus, onReply, onDelete, onOpenOrder, onOpenChat, onCompensate, focusReply, busy }) => {
   const confirm = useConfirm();
   const saved = f.adminReply?.text || "";
   const [draft, setDraft] = useState(saved);
+  const [compAmount, setCompAmount] = useState("");
   const textareaRef = useRef(null);
+  const suggested = order?.data?.suggestedCompensation;
+  useEffect(() => { setCompAmount(""); }, [f._id]);
   useEffect(() => { setDraft(f.adminReply?.text || ""); }, [f._id, f.adminReply?.text]);
   useEffect(() => {
     if (focusReply) textareaRef.current?.focus();
@@ -182,14 +236,26 @@ const FeedbackDrawer = ({ f, order, onClose, onStatus, onReply, onDelete, onOpen
     >
       <div className="ui-stack fbk-drawer-body">
         {/* Puan ve rozetler */}
-        <section className="fbk-hero" data-tone={rating <= 2 ? "danger" : rating >= 4 ? "ok" : "warn"}>
+        <section className="fbk-hero" data-tone={needsAction(f) || (rating > 0 && rating <= 2) ? "danger" : rating >= 4 || f.thumb === "up" || f.npsScore >= 9 ? "ok" : "warn"}>
           <div className="fbk-hero-score">
-            <span className="fbk-hero-num ui-num">{fmtScore(rating)}</span>
-            <Stars value={rating} size="lg" />
+            {rating > 0 ? (
+              <>
+                <span className="fbk-hero-num ui-num">{fmtScore(rating)}</span>
+                <Stars value={rating} size="lg" />
+              </>
+            ) : <ScoreCell f={f} rating={rating} />}
           </div>
+          {Number(f.deliveryRating) > 0 && (
+            <dl className="fbk-subratings">
+              <div><dt><Truck aria-hidden="true" /> Teslimat / kurye</dt><dd><Stars value={f.deliveryRating} /><span className="ui-num">{f.deliveryRating}</span></dd></div>
+            </dl>
+          )}
           <div className="ui-cluster fbk-hero-badges">
             <StatusBadge status={f.status} />
             {f.milestone && <span className="ui-badge ui-badge--brand">{f.milestone}. sipariş anketi</span>}
+            {f.kind === "quick" && <span className="ui-badge ui-badge--brand">Sipariş sonrası hızlı soru</span>}
+            {f.kind === "nps" && <span className="ui-badge ui-badge--brand">Aylık tavsiye sorusu</span>}
+            {f.kind === "abandon" && <span className="ui-badge ui-badge--warn">Sepetten vazgeçti: {ABANDON_LABELS[f.reason] || f.reason}</span>}
             {f.category && <span className="ui-badge">{f.category}</span>}
             {f.visibility === "private" && <span className="ui-badge" title="Yalnızca yönetici görür">Gizli</span>}
           </div>
@@ -213,6 +279,49 @@ const FeedbackDrawer = ({ f, order, onClose, onStatus, onReply, onDelete, onOpen
             </div>
           )}
         </section>
+
+        {/* Ürün bazında sorunlar */}
+        {f.problemItems?.length > 0 && (
+          <section className="fbk-section">
+            <h3 className="ui-overline">Sorun bildirilen ürünler</h3>
+            <ul className="fbk-problems">
+              {f.problemItems.map((item, i) => (
+                <li key={`${item.name}-${item.issue}-${i}`}><span className="ui-truncate"><PackageX aria-hidden="true" /> {item.name}</span><strong>{ISSUE_LABELS[item.issue] || item.issue}</strong></li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* Otomatik çözüm: destek görüşmesi ve telafi kuponu */}
+        {(f.supportChat || needsAction(f) || hasCompensation(f)) && (
+          <section className="fbk-section">
+            <h3 className="ui-overline">Çözüm</h3>
+            {f.supportChat && (
+              <div className="ui-between">
+                <span className="ui-text-sm">Destek kuyruğunda kayıt açıldı; müşteriye görüşmeden yazabilirsiniz.</span>
+                <button type="button" className="ui-btn ui-btn--sm" onClick={() => onOpenChat(f)}><Headphones />Görüşmeyi aç</button>
+              </div>
+            )}
+            {hasCompensation(f) ? (
+              <p className="ui-text-sm"><Gift aria-hidden="true" /> <strong>{f.compensation.amount} TL</strong> telafi kuponu verildi: <span className="ui-mono">{f.compensation.code}</span> · {formatDateTime(f.compensation.at)}. Müşteriye bildirim gönderildi.</p>
+            ) : (
+              <div className="ui-stack ui-stack--sm">
+                <span className="ui-text-sm">Telafi kuponu (müşteriye özel, tek kullanımlık, 30 gün geçerli):</span>
+                <div className="fbk-comp-row">
+                  {[...new Set([suggested, ...COMP_PRESETS].filter(Boolean))].map((amount) => (
+                    <button key={amount} type="button" className={`ui-btn ui-btn--sm ${amount === suggested ? "ui-btn--primary" : ""}`} disabled={busy}
+                      title={amount === suggested ? "Sipariş tutarına göre önerilen" : undefined} onClick={() => onCompensate(f, amount)}>
+                      <Gift />{amount} TL{amount === suggested ? " · önerilen" : ""}
+                    </button>
+                  ))}
+                  <input type="number" min={10} max={500} inputMode="numeric" className="ui-field fbk-comp-input" placeholder="Tutar" aria-label="Telafi tutarı (TL)"
+                    value={compAmount} onChange={(e) => setCompAmount(e.target.value)} />
+                  <button type="button" className="ui-btn ui-btn--sm" disabled={busy || !(Number(compAmount) >= 10)} onClick={() => onCompensate(f, Number(compAmount))}>Ver</button>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
 
         {/* Bağlı sipariş */}
         {f.order && (
@@ -305,6 +414,8 @@ const FeedbackList = () => {
   const [ratingFilter, setRatingFilter] = useState(0);
   const [tagFilter, setTagFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [kindFilter, setKindFilter] = useState("");
+  const [view, setView] = usePref("fbk-view", "list");
   const [sort, setSort] = usePref("fbk-sort", "newest");
   const [visible, setVisible] = useState(PAGE);
   const [cursor, setCursor] = useState(-1);
@@ -383,6 +494,7 @@ const FeedbackList = () => {
       if (ratingFilter && Math.round(ratingOf(f)) !== ratingFilter) return false;
       if (tagFilter && !(f.tags || []).includes(tagFilter)) return false;
       if (categoryFilter && (f.category || "Genel") !== categoryFilter) return false;
+      if (kindFilter && kindOf(f) !== kindFilter) return false;
       if (q) {
         const hay = fold([customerName(f), f.user?.email, f.title, f.message, f.adminReply?.text, ...(f.tags || []).map(tagLabel)].filter(Boolean).join(" "));
         if (!hay.includes(q)) return false;
@@ -397,11 +509,11 @@ const FeedbackList = () => {
       return time(b) - time(a);
     });
     return list;
-  }, [items, query, statusFilter, ratingFilter, tagFilter, categoryFilter, sort]);
+  }, [items, query, statusFilter, ratingFilter, tagFilter, categoryFilter, kindFilter, sort]);
   const shown = filtered.slice(0, visible);
-  const hasFilter = Boolean(query || statusFilter !== "all" || ratingFilter || tagFilter || categoryFilter);
-  const clearFilters = () => { setSearch(""); setStatusFilter("all"); setRatingFilter(0); setTagFilter(""); setCategoryFilter(""); };
-  useEffect(() => { setVisible(PAGE); setCursor(-1); }, [query, statusFilter, ratingFilter, tagFilter, categoryFilter, sort]);
+  const hasFilter = Boolean(query || statusFilter !== "all" || ratingFilter || tagFilter || categoryFilter || kindFilter);
+  const clearFilters = () => { setSearch(""); setStatusFilter("all"); setRatingFilter(0); setTagFilter(""); setCategoryFilter(""); setKindFilter(""); };
+  useEffect(() => { setVisible(PAGE); setCursor(-1); }, [query, statusFilter, ratingFilter, tagFilter, categoryFilter, kindFilter, sort]);
 
   const selected = selectedId ? items.find((f) => f._id === selectedId) : null;
   useEffect(() => { if (selectedId && !selected) setSelectedId(null); }, [selectedId, selected]);
@@ -469,6 +581,27 @@ const FeedbackList = () => {
     });
   };
 
+  const compensate = async (f, amount) => {
+    setBusy(true);
+    try {
+      const { data } = await axios.post(`/feedback/${f._id}/compensate`, { amount });
+      patchItem(f._id, { compensation: data?.compensation, status: data?.status || f.status });
+      toast.success(`${amount} TL telafi kuponu tanımlandı, müşteriye bildirildi`);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Kupon oluşturulamadı");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openChat = (f) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", "chat");
+    url.searchParams.set("chatId", String(f.supportChat));
+    window.history.replaceState({}, "", url);
+    window.dispatchEvent(new CustomEvent("admin-navigate", { detail: "chat" }));
+  };
+
   const openOrder = (f) => {
     const orderId = orders[f._id]?.data?.orderId || String(f.order);
     setHandoff(HANDOFF.order, orderId.slice(-6));
@@ -477,10 +610,13 @@ const FeedbackList = () => {
 
   const exportCsv = () => {
     if (!filtered.length) return;
-    const head = ["Tarih", "Müşteri", "E-posta", "Puan", "Kategori", "Anket", "Başlık", "Mesaj", "Etiketler", "Durum", "Yanıt", "Yanıt tarihi", "Sipariş"];
+    const head = ["Tarih", "Müşteri", "E-posta", "Tür", "Puan", "Teslimat puanı", "👍/👎", "Tavsiye (0-10)", "Kategori", "Anket", "Başlık", "Mesaj", "Etiketler", "Sorunlu ürünler", "Telafi", "Durum", "Yanıt", "Yanıt tarihi", "Sipariş"];
     const rows = filtered.map((f) => [
-      formatDateTime(f.createdAt), customerName(f), f.user?.email || "", fmtScore(ratingOf(f)), f.category || "", f.milestone ? `${f.milestone}. sipariş` : "",
-      titleOf(f), messageOf(f), (f.tags || []).map(tagLabel).join(", "), f.status, f.adminReply?.text || "", f.adminReply?.at ? formatDateTime(f.adminReply.at) : "", f.order ? String(f.order) : "",
+      formatDateTime(f.createdAt), customerName(f), f.user?.email || "", KINDS.find((k) => k.value === kindOf(f))?.label || "", ratingOf(f) ? fmtScore(ratingOf(f)) : "",
+      f.deliveryRating || "", f.thumb === "up" ? "👍" : f.thumb === "down" ? "👎" : "", f.npsScore ?? "", f.category || "", f.milestone ? `${f.milestone}. sipariş` : "",
+      titleOf(f), messageOf(f), (f.tags || []).map(tagLabel).join(", "),
+      (f.problemItems || []).map((item) => `${item.name} (${ISSUE_LABELS[item.issue] || item.issue})`).join(", "),
+      hasCompensation(f) ? `${f.compensation.amount} TL ${f.compensation.code}` : "", f.status, f.adminReply?.text || "", f.adminReply?.at ? formatDateTime(f.adminReply.at) : "", f.order ? String(f.order) : "",
     ]);
     const csv = `\uFEFF${[head, ...rows].map((r) => r.map(csvCell).join(";")).join("\r\n")}`;
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
@@ -527,7 +663,7 @@ const FeedbackList = () => {
     <div className="ui-page fbk">
       <PageHeader
         title="Geri bildirimler"
-        description="Sipariş anketleri ve müşteri mesajları. Okuyun, yanıtlayın, çözüldü işaretleyin."
+        description="Sipariş anketleri, 👍/👎 yanıtları, tavsiye puanları ve müşteri mesajları. Okuyun, yanıtlayın, telafi edin."
         meta={stats.pending > 0 ? `${stats.pending} yanıt bekliyor` : undefined}
         actions={(
           <>
@@ -537,6 +673,12 @@ const FeedbackList = () => {
         )}
       />
 
+      <div className="fbk-view-switch">
+        <Segmented ariaLabel="Görünüm" value={view} onChange={setView}
+          options={[{ value: "list", label: "Liste", icon: List }, { value: "report", label: "Memnuniyet raporu", icon: BarChart3 }]} />
+      </div>
+
+      {view === "report" ? <SatisfactionReport /> : (<>
       {error && (
         <div className="ui-banner ui-banner--danger" role="alert">
           <span>{error}</span>
@@ -545,7 +687,7 @@ const FeedbackList = () => {
       )}
       {fresh > 0 && !loading && (
         <div className="ui-banner ui-banner--info">
-          <span>{fresh} yeni düşük puanlı anket geldi.</span>
+          <span>{fresh} yeni olumsuz geri bildirim geldi.</span>
           <button type="button" className="ui-btn ui-btn--sm" onClick={() => load({ silent: true })}><RefreshCw />Listeyi yenile</button>
         </div>
       )}
@@ -560,7 +702,7 @@ const FeedbackList = () => {
           <EmptyState
             icon={Inbox}
             title="Henüz geri bildirim yok"
-            description="Müşteriler 1., 5. ve 15. teslim edilen siparişlerinden sonra anketi yanıtladığında ya da uygulamadan mesaj gönderdiğinde burada görünür."
+            description="Müşteriler siparişten sonra 👍/👎 verdiğinde, 1., 3. ve 5. siparişteki anketi ya da aylık tavsiye sorusunu yanıtladığında burada görünür."
             action={<button type="button" className="ui-btn" onClick={() => load()}><RefreshCw />Yenile</button>}
           />
         </div>
@@ -633,6 +775,9 @@ const FeedbackList = () => {
               ))}
             </div>
             <div className="fbk-toolbar-right">
+              <select className="ui-field ui-field--auto" value={kindFilter} aria-label="Tür" onChange={(e) => setKindFilter(e.target.value)}>
+                {KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
+              </select>
               <select className="ui-field ui-field--auto" value={categoryFilter} aria-label="Kategori" onChange={(e) => setCategoryFilter(e.target.value)}>
                 <option value="">Tüm kategoriler</option>
                 {Object.entries(stats.categories).map(([c, n]) => <option key={c} value={c}>{c} ({n})</option>)}
@@ -685,8 +830,9 @@ const FeedbackList = () => {
           </section>
         </>
       )}
+      </>)}
 
-      {selected && (
+      {selected && view !== "report" && (
         <FeedbackDrawer
           f={selected}
           order={orders[selected._id]}
@@ -697,6 +843,8 @@ const FeedbackList = () => {
           onReply={saveReply}
           onDelete={remove}
           onOpenOrder={openOrder}
+          onOpenChat={openChat}
+          onCompensate={compensate}
         />
       )}
       <ShortcutHelp open={helpOpen} onClose={() => setHelpOpen(false)} items={[[["r"], "Seçili kaydı yanıtla"], [["c"], "Seçili kaydı çözüldü işaretle"], [["e"], "Görünen listeyi CSV indir"]]} />

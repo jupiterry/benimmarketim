@@ -65,7 +65,7 @@ function StatusSteps({ order, now }) {
     return (
       <div className="so-d-cancelled">
         <XCircle aria-hidden="true" />
-        <strong>{cancelledByCustomer(order) ? "Müşteri iptal etti" : "Sipariş iptal edildi"}</strong>
+        <strong>{cancelledByCustomer(order) ? "Müşteri iptal etti" : "Sipariş iptal edildi"}{order.cancelReasonLabel ? `: ${order.cancelReasonLabel}` : ""}</strong>
         {at && <span className="so-d-cancelled-time ui-num">· {shortWhen(at, now)}</span>}
       </div>
     );
@@ -304,6 +304,12 @@ function DeliveryFacts({ order, missing, onSaveTracking }) {
           <dt><Wallet aria-hidden="true" />Ödeme</dt>
           <dd data-method={paymentKey(order)}>{paymentLong(order)}</dd>
         </div>
+        {order.cancelReasonLabel && (
+          <div>
+            <dt><XCircle aria-hidden="true" />İptal nedeni</dt>
+            <dd>{order.cancelReasonLabel}{order.cancelReasonNote ? ` — ${order.cancelReasonNote}` : ""}</dd>
+          </div>
+        )}
         <div>
           <dt><Calendar aria-hidden="true" />Sipariş zamanı</dt>
           <dd className="ui-num">{fullDateTime(order.createdAt)}</dd>
