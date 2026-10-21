@@ -52,6 +52,16 @@ test("ready-made lists cover the common requests", () => {
   assert.equal(pickTemplate("Kahvaltılık hazırla", null).id, "kahvalti");
   assert.equal(pickTemplate("Akşam yemeği için alışveriş", null).id, "aksam");
   assert.equal(pickTemplate("Misafir geliyor, ikramlık lazım", null).id, "misafir");
+  // Etkinlik anlatan istekler: ilgisiz temel ihtiyaç sepeti yerine duruma uygun liste
+  assert.equal(pickTemplate("arkadaşlarımız ile maç izleyeceğiz", 300).id, "mac");
+  assert.equal(pickTemplate("akşam derbi var", null).id, "mac");
+  assert.equal(pickTemplate("dizi izlerken yiyecek bir şeyler", null).id, "atistirmalik");
+  assert.equal(pickTemplate("yarın doğum günü partisi", 500).id, "parti");
+  assert.equal(pickTemplate("hafta sonu mangal yapacağız", null).id, "mangal");
+  assert.equal(pickTemplate("4 kişilik makarna yapacağım", 300).id, "makarna");
+  // Bütçe yalnızca bütçe yazıldığında temel listeye götürür
+  assert.equal(pickTemplate("600 TL bütçem var", 600).id, "temel");
+  assert.equal(pickTemplate("kardeşime sürpriz yapacağım", 300), null);
 });
 
 test("the AI plan is resolved against the catalogue and kept within the budget", async (t) => {
