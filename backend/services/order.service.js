@@ -13,6 +13,9 @@ import Order from "../models/order.model.js";
 import { notifyAdmins } from "./adminFeed.service.js";
 import { paymentMethodLabel } from "../lib/paymentMethods.js";
 import { signalOrderAlarm } from "./orderAlarm.service.js";
+import { notifyOrderStatusChange } from "./orderStatusNotifier.js";
+import { evaluateMissionsForUser } from "./mission.service.js";
+import { processReferralFirstOrder } from "../controllers/referral.controller.js";
 import {
   commitCouponAtomically,
   evaluateCoupon,
@@ -110,6 +113,132 @@ export async function buildOrderProducts(cartProducts, { checkAvailability = tru
   });
 
   return { orderProducts, totalAmount };
+}
+
+const OBJECT_ID_PATTERN = /^[0-9a-f]{24}$/i;
+
+/**
+ * Yönetici siparişe katalog ürünü eklerken birim fiyat: ödeme adımıyla aynı kural
+ * (haftalık fırsat > geçerli ürün indirimi > liste fiyatı). Gizli/stoksuz ürün de eklenebilir.
+ *
+ * @param {string} productId
+ * @returns {Promise<{ product: { _id, name: string, category?: string }, price: number }>}
+ * @throws {Error} statusCode 400 (geçersiz kimlik) ya da 404 (ürün yok)
+ */
+export async function resolveEffectiveUnitPrice(productId) {
+  const id = typeof productId === "string" ? productId.trim() : productId ? String(productId) : "";
+  if (!OBJECT_ID_PATTERN.test(id)) {
+    throw Object.assign(new Error("Geçersiz ürün kimliği"), { statusCode: 400 });
+  }
+  let line;
+  try {
+    ({ orderProducts: [line] } = await buildOrderProducts([{ product: id, quantity: 1 }], { checkAvailability: false }));
+  } catch (error) {
+    // buildOrderProducts eksik ürün için durum kodu taşımayan bir hata fırlatır
+    if (!error.statusCode && String(error.message).startsWith("Ürün bulunamadı")) {
+      throw Object.assign(new Error("Ürün bulunamadı!"), { statusCode: 404 });
+    }
+    throw error;
+  }
+  return { product: { _id: line.product, name: line.name, category: line.category }, price: line.price };
+}
+
+// ─────────────────────────────────────────────
+// Sipariş Durumu (yönetici: tekli ve toplu güncelleme aynı yoldan geçer)
+// ─────────────────────────────────────────────
+
+export const ORDER_STATUSES = ["Hazırlanıyor", "Yolda", "Teslim Edildi", "İptal Edildi"];
+const DELIVERED_STATUS = "Teslim Edildi";
+const CANCELLED_STATUS = "İptal Edildi";
+
+// Referral ödülü: davet edilen kullanıcının İLK siparişi teslim edildiğinde bir kez verilir.
+// (Referral belgesinde ilgili kaydın status alanı "pending" ise verilir; sonrasında "rewarded" olur.)
+export const grantReferralRewardIfDelivered = async (order, previousStatus) => {
+  try {
+    if (!order || order.status !== DELIVERED_STATUS || previousStatus === DELIVERED_STATUS) return null;
+    const deliveredBefore = await Order.countDocuments({
+      user: order.user,
+      status: DELIVERED_STATUS,
+      _id: { $ne: order._id },
+    });
+    if (deliveredBefore > 0) return null; // ilk teslim edilen sipariş değil
+    const result = await processReferralFirstOrder(order.user);
+    if (result?.success) console.log("Referral ödülü verildi. Referrer:", result.referrerId);
+    return result;
+  } catch (error) {
+    console.error("Referral ödülü işlenirken hata:", error.message);
+    return null;
+  }
+};
+
+// İptal edilen (ya da silinen aktif) siparişin kuponunu geri açar: usedBy kaydı çıkarılır, usageCount azaltılır
+export const releaseCouponForOrder = async (order) => {
+  try {
+    if (!order?.couponCode) return;
+    const updated = await Coupon.findOneAndUpdate(
+      { code: String(order.couponCode).toUpperCase().trim(), "usedBy.orderId": order._id },
+      { $pull: { usedBy: { orderId: order._id } }, $inc: { usageCount: -1 } },
+      { new: true }
+    );
+    if (!updated) return;
+    // Limit dolduğu için kapatılmış bir kupon tekrar kullanılabilir hale gelir (süresi geçmemişse)
+    if (
+      !updated.isActive &&
+      updated.usageLimit !== null &&
+      updated.usageCount < updated.usageLimit &&
+      updated.expirationDate > new Date()
+    ) {
+      await Coupon.updateOne({ _id: updated._id }, { $set: { isActive: true } });
+    }
+  } catch (error) {
+    console.error("Kupon kullanımı geri alınırken hata:", error.message);
+  }
+};
+
+/** Müşteri odası + yönetici odası; yük (payload) mobil/web müşteri sözleşmesidir, değiştirilmez. */
+export const emitOrderStatusUpdated = (io, order, status) => {
+  try {
+    if (!io) return;
+    const payload = { orderId: order._id, newStatus: status, message: `Sipariş durumu güncellendi: ${status}` };
+    const target = order.user ? io.to(`user_${order.user.toString()}`).to("adminRoom") : io.to("adminRoom");
+    target.emit("orderStatusUpdated", payload);
+  } catch (socketError) {
+    console.error("Socket.IO bildirimi gönderilirken hata:", socketError);
+  }
+};
+
+/**
+ * Durumu değiştirir ve kaydeder; ardından yan etkileri yanıtı bekletmeden başlatır:
+ * müşteri bildirimi, Teslim'de görevler + referral ödülü, İptal'de kupon iadesi, orderStatusUpdated.
+ * Kayıt, okunduğu andaki duruma koşullanır: bu arada durum başka yerde değiştiyse save
+ * VersionError/DocumentNotFoundError fırlatır (çağıran 409'a çevirir). Aynı duruma geçiş çağıranda engellenir.
+ *
+ * @returns {Promise<string>} önceki durum
+ */
+export async function applyOrderStatusChange(order, status, { actorId = null, io = null } = {}) {
+  const previousStatus = order.status;
+  order.status = status;
+  if (!Array.isArray(order.statusHistory)) order.statusHistory = [];
+  order.statusHistory.push({ status, changedAt: new Date(), changedBy: actorId });
+  const customWhere = order.$where;
+  order.$where = { ...(customWhere || {}), status: previousStatus };
+  try {
+    await order.save({ validateModifiedOnly: true });
+  } finally {
+    order.$where = customWhere; // koşul yalnızca bu kayıt için
+  }
+
+  if (previousStatus !== status) {
+    Promise.resolve(notifyOrderStatusChange(order, previousStatus)).catch((error) =>
+      console.error("Sipariş durumu bildirimi gönderilemedi:", error.message));
+    if (status === DELIVERED_STATUS) {
+      evaluateMissionsForUser(order.user, new Date(), { deliveredOrder: order });
+      grantReferralRewardIfDelivered(order, previousStatus);
+    }
+    if (status === CANCELLED_STATUS) releaseCouponForOrder(order);
+  }
+  emitOrderStatusUpdated(io, order, status);
+  return previousStatus;
 }
 
 // ─────────────────────────────────────────────

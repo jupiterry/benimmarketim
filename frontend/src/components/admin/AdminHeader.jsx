@@ -103,12 +103,14 @@ export default function AdminHeader({
         <button
           className="ui-btn ui-btn--primary ui-btn--sm app-quick"
           onClick={() => onNavigate?.("create")}
+          aria-label="Yeni ürün"
+          title="Yeni ürün"
         >
           <Plus /> <span>Yeni ürün</span>
         </button>
         <span className="app-top-sep" />
         <button
-          className="app-icon-btn"
+          className="app-icon-btn app-theme-btn"
           onClick={onToggleTheme}
           aria-label={theme === "dark" ? "Açık temaya geç" : "Koyu temaya geç"}
           title={theme === "dark" ? "Açık temaya geç" : "Koyu temaya geç"}

@@ -1,6 +1,6 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, Trash2, X, CheckCircle, AlertCircle, Info } from 'lucide-react';
+import { AlertTriangle, Trash2, X, CheckCircle, Info } from 'lucide-react';
 
 // Context
 const ConfirmContext = createContext(null);
@@ -152,8 +152,18 @@ export const ConfirmProvider = ({ children }) => {
     onConfirm: () => {},
   });
 
+  // Açık pencerenin sözü: onayda true, vazgeç/arka plan/çarpı ile kapanınca false döner
+  const resolver = useRef(null);
+  const settle = useCallback((value) => {
+    const resolve = resolver.current;
+    resolver.current = null;
+    resolve?.(value);
+  }, []);
+
   const confirm = useCallback(({ title, message, confirmText = 'Onayla', cancelText = 'İptal', type = 'warning' }) => {
+    settle(false); // Önceki pencere yanıtsız kaldıysa vazgeçilmiş sayılır
     return new Promise((resolve) => {
+      resolver.current = resolve;
       setConfirmState({
         isOpen: true,
         title,
@@ -161,14 +171,15 @@ export const ConfirmProvider = ({ children }) => {
         confirmText,
         cancelText,
         type,
-        onConfirm: () => resolve(true),
+        onConfirm: () => settle(true),
       });
     });
-  }, []);
+  }, [settle]);
 
   const handleClose = useCallback(() => {
+    settle(false);
     setConfirmState((prev) => ({ ...prev, isOpen: false }));
-  }, []);
+  }, [settle]);
 
   return (
     <ConfirmContext.Provider value={{ confirm }}>

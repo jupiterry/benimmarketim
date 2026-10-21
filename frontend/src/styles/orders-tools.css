@@ -1,0 +1,912 @@
+/*
+ * Siparişler — araç çekmeceleri: Filtreler (FilterDrawer), Toplama listesi (PickingDrawer), Gün sonu (DayCloseDrawer).
+ * Önek: so-t-. Yalnızca admin-system.css belirteçleri (--ui-*) ve onların color-mix karışımları kullanılır.
+ * .ui-drawer-body dolgusu (var(--ui-s4)) değiştirilmez; yapışkan toplama ilerlemesi buna göre negatif payla oturur.
+ * Kırılımlar: 1280 / 1100 / 760 px. ≤760 px'te her dokunma hedefi en az 40 px.
+ */
+
+/* ── Çekmece kabuğu ──────────────────────────────────────────────── */
+.admin-layout .so-t-drawer .ui-drawer-head,
+.admin-layout .so-t-drawer .ui-drawer-tabs,
+.admin-layout .so-t-drawer .ui-drawer-foot {
+  flex-shrink: 0;
+}
+.admin-layout .so-t-drawer .ui-drawer-title-text p {
+  line-height: 1.5;
+}
+.admin-layout .so-t-body {
+  overscroll-behavior: contain;
+}
+/* Alt çubuk: ikincil düğme içerik kadar, birincil kalan alanı alır (sistem kuralı eşit genişlik verir) */
+.admin-layout .so-t-drawer .ui-drawer-foot {
+  align-items: center;
+  padding-bottom: calc(var(--ui-s3) + env(safe-area-inset-bottom, 0px));
+}
+.admin-layout .so-t-drawer .ui-drawer-foot > .ui-btn {
+  justify-content: center;
+  min-height: 40px;
+}
+.admin-layout .so-t-drawer .ui-drawer-foot > .so-t-foot-secondary {
+  flex: 0 1 auto;
+}
+.admin-layout .so-t-drawer .ui-drawer-foot > .so-t-foot-primary {
+  flex: 1 1 auto;
+}
+.admin-layout .so-t-drawer .ui-field[aria-invalid="true"] {
+  border-color: var(--ui-danger);
+}
+.admin-layout .so-t-drawer ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ── Bölümler ────────────────────────────────────────────────────── */
+.admin-layout .so-t-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s4);
+  min-width: 0;
+}
+.admin-layout .so-t-stack--tight {
+  gap: var(--ui-s3);
+}
+.admin-layout .so-t-sec {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s3);
+  min-width: 0;
+}
+.admin-layout .so-t-stack > .so-t-sec + .so-t-sec,
+.admin-layout .so-t-stack--tight > .so-t-sec,
+.admin-layout .so-t-day .so-t-hero + .so-t-sec {
+  padding-top: var(--ui-s4);
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .so-t-h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+  line-height: 1.35;
+}
+.admin-layout .so-t-h > svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--ui-text-3);
+}
+.admin-layout .so-t-h-meta {
+  margin-left: auto;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .so-t-hint {
+  margin: 0;
+}
+.admin-layout .so-t-hint[data-tone="warn"] {
+  color: var(--ui-warn-ink);
+  font-weight: 550;
+}
+.admin-layout .so-t-field {
+  min-width: 0;
+}
+.admin-layout .so-t-field > .ui-label {
+  margin-bottom: 4px;
+  font-size: var(--ui-fs-xs);
+}
+
+/* ── Filtreler: bölümlü seçimler, tarih çipleri, sıralama, tutar ─── */
+.admin-layout .so-t-seg > .ui-segmented {
+  width: 100%;
+}
+.admin-layout .so-t-seg > .ui-segmented > button {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.admin-layout .so-t-seg--wrap > .ui-segmented {
+  flex-wrap: wrap;
+}
+.admin-layout .so-t-seg--wrap > .ui-segmented > button {
+  flex: 1 1 auto;
+}
+.admin-layout .so-t-drawer .ui-segmented > button[aria-pressed="true"] {
+  box-shadow: 0 0 0 1px var(--ui-line);
+}
+.admin-layout[data-theme="dark"] .so-t-drawer .ui-segmented > button:hover {
+  background: color-mix(in srgb, var(--ui-surface) 70%, transparent);
+}
+.admin-layout .so-t-chips {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+/* Koyu temada açık yeşil seçili çip zemininde beyaz yazı zayıf kalır */
+.admin-layout[data-theme="dark"] .so-t-chips > button[aria-pressed="true"] {
+  color: var(--ui-bg);
+}
+.admin-layout .so-t-select {
+  max-width: 100%;
+}
+.admin-layout .so-t-range {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ui-s3);
+}
+
+/* Hazır filtreler: birbirini dışlayan seçenekler (radyo benzeri halka şekil olarak da durumu gösterir) */
+.admin-layout .so-t-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s2);
+}
+.admin-layout .so-t-option {
+  min-height: 52px;
+  cursor: pointer;
+}
+.admin-layout .so-t-option::after {
+  content: "";
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-left: auto;
+  border: 1.5px solid var(--ui-line-strong);
+  border-radius: 50%;
+  background: var(--ui-surface);
+  transition: border-width var(--ui-ease), border-color var(--ui-ease);
+}
+.admin-layout .so-t-option[aria-pressed="true"]::after {
+  border: 5px solid var(--ui-brand);
+}
+.admin-layout .so-t-option > svg {
+  color: var(--ui-text-3);
+}
+.admin-layout .so-t-option[aria-pressed="true"] > svg {
+  color: currentColor;
+}
+.admin-layout .so-t-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.admin-layout .so-t-option-text > span {
+  color: var(--ui-text);
+}
+.admin-layout .so-t-option-text > small {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  font-weight: 500;
+  line-height: 1.4;
+}
+.admin-layout .so-t-option[aria-pressed="true"] .so-t-option-text > span,
+.admin-layout .so-t-option[aria-pressed="true"] .so-t-option-text > small {
+  color: var(--ui-brand-ink);
+}
+
+/* Kayıtlı filtreler */
+.admin-layout .so-t-empty-note {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px dashed var(--ui-line-strong);
+  border-radius: var(--ui-radius);
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .so-t-saved {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s2);
+}
+.admin-layout .so-t-saved-item {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-s1);
+  min-width: 0;
+}
+.admin-layout .so-t-saved-apply {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 7px 12px;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--ui-ease),
+    border-color var(--ui-ease);
+}
+.admin-layout .so-t-saved-apply:hover {
+  background: var(--ui-surface-2);
+}
+.admin-layout .so-t-saved-apply[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--ui-brand) 35%, var(--ui-line));
+  background: var(--ui-brand-soft);
+}
+.admin-layout .so-t-saved-apply > svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--ui-text-3);
+}
+.admin-layout .so-t-saved-apply[aria-pressed="true"] > svg {
+  color: var(--ui-brand-ink);
+}
+.admin-layout .so-t-saved-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.admin-layout .so-t-saved-name {
+  overflow: hidden;
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-layout .so-t-saved-text > small {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.admin-layout .so-t-saved-na {
+  color: var(--ui-warn-ink);
+}
+.admin-layout .so-t-saved-del {
+  flex-shrink: 0;
+}
+.admin-layout .so-t-save {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-s2);
+}
+.admin-layout .so-t-save > .ui-field {
+  flex: 1 1 180px;
+  width: auto;
+  min-width: 0;
+}
+.admin-layout .so-t-save-btn {
+  flex: 0 0 auto;
+}
+
+/* ── Toplama listesi ─────────────────────────────────────────────── */
+.admin-layout .so-t-scope > .ui-segmented {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.admin-layout .so-t-scope > .ui-segmented::-webkit-scrollbar {
+  display: none;
+}
+.admin-layout .so-t-scope > .ui-segmented > button {
+  flex: 1 0 auto;
+}
+
+/* İlerleme bandı gövdenin en üstüne yapışır; liste ayrı bir kaydırıcı değildir (tek kaydırma alanı) */
+.admin-layout .so-t-progress {
+  position: sticky;
+  top: calc(-1 * var(--ui-s4));
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s2);
+  margin: calc(-1 * var(--ui-s4)) calc(-1 * var(--ui-s4)) 0;
+  padding: var(--ui-s3) var(--ui-s4);
+  border-bottom: 1px solid var(--ui-line);
+  background: var(--ui-surface);
+}
+.admin-layout .so-t-progress-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--ui-s3);
+  min-height: 28px;
+}
+.admin-layout .so-t-progress-top > strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+}
+.admin-layout .so-t-progress-top > strong > svg {
+  width: 16px;
+  height: 16px;
+}
+.admin-layout .so-t-progress-meta {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  font-weight: 550;
+}
+.admin-layout .so-t-progress-reset {
+  margin-left: auto;
+}
+.admin-layout .so-t-progress > .ui-progress > div {
+  transition: width var(--ui-ease);
+}
+.admin-layout .so-t-progress[data-complete="true"] .so-t-progress-top > strong {
+  color: var(--ui-ok-ink);
+}
+.admin-layout .so-t-progress[data-complete="true"] > .ui-progress > div {
+  background: var(--ui-ok);
+}
+
+.admin-layout .so-t-pick-list {
+  display: flex;
+  flex-direction: column;
+}
+.admin-layout .so-t-pick-row + .so-t-pick-row {
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .so-t-pick-label {
+  display: grid;
+  grid-template-columns: auto 40px minmax(32px, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--ui-s3);
+  min-height: 52px;
+  padding: 6px var(--ui-s2);
+  border-radius: var(--ui-radius);
+  cursor: pointer;
+  transition: background-color var(--ui-ease);
+}
+.admin-layout .so-t-pick-label:hover {
+  background: var(--ui-surface-2);
+}
+.admin-layout .so-t-pick-label:has(:focus-visible) {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: -2px;
+}
+.admin-layout .so-t-pick-check {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+}
+/* Satırın halkası odağı gösterir; kutunun kendi halkası ikinci bir çerçeve çizmesin */
+.admin-layout .so-t-pick-label:has(:focus-visible) > .so-t-pick-check {
+  outline: none;
+}
+.admin-layout .so-t-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  color: var(--ui-text-3);
+}
+.admin-layout .so-t-thumb > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.admin-layout .so-t-thumb > svg {
+  width: 18px;
+  height: 18px;
+}
+.admin-layout .so-t-pick-qty {
+  color: var(--ui-text);
+  font-size: var(--ui-fs-lg);
+  font-weight: 750;
+  text-align: right;
+  white-space: nowrap;
+}
+.admin-layout .so-t-pick-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.admin-layout .so-t-pick-name {
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.admin-layout .so-t-pick-refs {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.admin-layout .so-t-pick-partial {
+  color: var(--ui-warn-ink);
+  font-weight: 600;
+}
+.admin-layout .so-t-pick-row[data-done="true"] .so-t-pick-label {
+  background: color-mix(in srgb, var(--ui-ok-bg) 55%, transparent);
+}
+.admin-layout .so-t-pick-row[data-done="true"] .so-t-pick-label:hover {
+  background: var(--ui-ok-bg);
+}
+.admin-layout .so-t-pick-row[data-done="true"] .so-t-pick-name {
+  color: var(--ui-text-3);
+  text-decoration: line-through;
+}
+.admin-layout .so-t-pick-row[data-done="true"] .so-t-pick-qty {
+  color: var(--ui-text-3);
+}
+.admin-layout .so-t-pick-row[data-done="true"] .so-t-thumb {
+  opacity: 0.55;
+}
+
+/* Teslimat noktaları */
+.admin-layout .so-t-points {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s3);
+}
+.admin-layout .so-t-point {
+  overflow: hidden;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+}
+.admin-layout .so-t-point-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-s3);
+  min-height: 40px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ui-line);
+  background: var(--ui-surface-2);
+}
+.admin-layout .so-t-point-head > strong {
+  min-width: 0;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+}
+.admin-layout .so-t-point-head > span {
+  flex-shrink: 0;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+}
+/* Ad tam görünsün diye telefon adın altında; çipler sağda iki satırı kaplar */
+.admin-layout .so-t-point-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "code name tags"
+    "code phone tags";
+  align-items: center;
+  gap: 0 var(--ui-s3);
+  min-height: 52px;
+  padding: 6px 12px;
+}
+.admin-layout .so-t-point-row + .so-t-point-row {
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .so-t-point-row > .so-code {
+  grid-area: code;
+}
+.admin-layout .so-t-point-name {
+  grid-area: name;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+  font-weight: 550;
+}
+.admin-layout .so-t-point-phone {
+  display: inline-flex;
+  grid-area: phone;
+  align-items: center;
+  justify-self: start;
+  gap: 5px;
+  min-height: 20px;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.admin-layout a.so-t-point-phone:hover {
+  color: var(--ui-brand-ink);
+  text-decoration: underline;
+}
+.admin-layout .so-t-point-phone > svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+.admin-layout .so-t-point-phone[data-empty="true"] {
+  color: var(--ui-text-3);
+  font-weight: 500;
+}
+.admin-layout .so-t-point-tags {
+  display: inline-flex;
+  grid-area: tags;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* ── Gün sonu ────────────────────────────────────────────────────── */
+.admin-layout .so-t-open {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s2);
+}
+.admin-layout .so-t-open-list {
+  overflow: hidden;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+}
+.admin-layout .so-t-open-list > li + li {
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .so-t-open-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-s2);
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 10px 6px 12px;
+  border: 0;
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--ui-ease);
+}
+.admin-layout .so-t-open-row:hover {
+  background: var(--ui-surface-2);
+}
+.admin-layout .so-t-open-row:focus-visible {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: -2px;
+}
+.admin-layout .so-t-open-row > .ui-badge {
+  flex-shrink: 0;
+}
+.admin-layout .so-t-open-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+}
+.admin-layout .so-t-open-go {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--ui-text-3);
+}
+.admin-layout .so-t-open-more {
+  align-self: flex-start;
+}
+
+.admin-layout .so-t-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 16px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-2);
+}
+.admin-layout .so-t-hero-label {
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+}
+.admin-layout .so-t-hero-value {
+  color: var(--ui-text);
+  font-size: calc(var(--ui-fs-xl) * 1.4);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+.admin-layout .so-t-hero-note {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
+
+/* Sayı ızgarası: hücre aralarındaki 1 px çizgi zemin renginden gelir */
+.admin-layout .so-t-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-line);
+}
+.admin-layout .so-t-stats > div {
+  min-width: 0;
+  padding: 10px 12px;
+  background: var(--ui-surface);
+}
+.admin-layout .so-t-stats dt {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .so-t-stats dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  margin: 2px 0 0;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-lg);
+  font-weight: 650;
+}
+.admin-layout .so-t-stats dd > small {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  font-weight: 500;
+}
+.admin-layout .so-t-stats > div[data-tone="danger"] dd {
+  color: var(--ui-danger-ink);
+}
+
+/* Ödeme / teslimat noktası dağılımı */
+.admin-layout .so-t-rows {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+}
+.admin-layout .so-t-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(84px, auto);
+  grid-template-areas:
+    "label count total"
+    "bar bar bar";
+  align-items: center;
+  gap: 6px var(--ui-s3);
+  padding: 10px 12px;
+}
+.admin-layout .so-t-row + .so-t-row {
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .so-t-row-label {
+  display: flex;
+  grid-area: label;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+}
+.admin-layout .so-t-row-label > svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--ui-text-3);
+}
+.admin-layout .so-t-row-count {
+  grid-area: count;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  white-space: nowrap;
+}
+.admin-layout .so-t-row-total {
+  grid-area: total;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+  text-align: right;
+  white-space: nowrap;
+}
+.admin-layout .so-t-row-bar {
+  display: block;
+  grid-area: bar;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--ui-surface-3);
+}
+.admin-layout .so-t-row-bar > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ui-brand);
+}
+.admin-layout .so-t-row[data-empty="true"] .so-t-row-label,
+.admin-layout .so-t-row[data-empty="true"] .so-t-row-total {
+  color: var(--ui-text-3);
+  font-weight: 500;
+}
+
+/* Kasa sayımı */
+.admin-layout .so-t-cash-box {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 190px);
+  grid-template-areas:
+    "exp field"
+    "diff diff";
+  align-items: end;
+  gap: var(--ui-s3);
+  padding: 14px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-2);
+}
+.admin-layout .so-t-cash-expected {
+  display: flex;
+  flex-direction: column;
+  grid-area: exp;
+  gap: 2px;
+  min-width: 0;
+}
+.admin-layout .so-t-cash-expected > span {
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+}
+.admin-layout .so-t-cash-expected > strong {
+  color: var(--ui-text);
+  font-size: var(--ui-fs-xl);
+  font-weight: 700;
+  line-height: 1.2;
+}
+.admin-layout .so-t-cash-expected > small {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  line-height: 1.4;
+}
+.admin-layout .so-t-cash-box > .so-t-field {
+  grid-area: field;
+}
+.admin-layout .so-t-cash-input {
+  min-height: 40px;
+  background: var(--ui-surface);
+  font-size: var(--ui-fs-lg);
+  font-weight: 650;
+  text-align: right;
+}
+.admin-layout .so-t-cash-diff {
+  grid-area: diff;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  line-height: 1.4;
+}
+.admin-layout .so-t-cash-diff[data-tone="ok"] {
+  border-color: color-mix(in srgb, var(--ui-ok) 30%, var(--ui-line));
+  background: var(--ui-ok-bg);
+  color: var(--ui-ok-ink);
+}
+.admin-layout .so-t-cash-diff[data-tone="danger"] {
+  border-color: color-mix(in srgb, var(--ui-danger) 30%, var(--ui-line));
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+}
+.admin-layout .so-t-cash-diff[data-tone="warn"] {
+  border-color: color-mix(in srgb, var(--ui-warn) 35%, var(--ui-line));
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+.admin-layout .so-t-cash-more {
+  display: flex;
+  flex-direction: column;
+}
+.admin-layout .so-t-cash-more > li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 6px 2px;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .so-t-cash-more > li + li {
+  border-top: 1px dashed var(--ui-line);
+}
+.admin-layout .so-t-cash-more > li > svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--ui-text-3);
+}
+.admin-layout .so-t-cash-more > li > span:last-child {
+  margin-left: auto;
+  color: var(--ui-text);
+  font-weight: 600;
+  text-align: right;
+}
+.admin-layout .so-t-cash-more > li[data-tone="info"],
+.admin-layout .so-t-cash-more > li[data-tone="info"] > svg,
+.admin-layout .so-t-cash-more > li[data-tone="info"] > span:last-child {
+  color: var(--ui-info-ink);
+}
+
+/* ── Duyarlı ─────────────────────────────────────────────────────── */
+@media (max-width: 760px) {
+  .admin-layout .so-t-drawer .ui-drawer-foot > .ui-btn {
+    min-height: 44px;
+  }
+  .admin-layout .so-t-drawer .ui-segmented > button,
+  .admin-layout .so-t-drawer .ui-segmented--sm > button {
+    min-height: 40px;
+  }
+  .admin-layout .so-t-chips > button {
+    height: 40px;
+    padding: 0 12px;
+  }
+  .admin-layout .so-t-drawer .ui-field {
+    min-height: 40px;
+  }
+  .admin-layout .so-t-drawer .ui-btn--sm {
+    min-height: 40px;
+  }
+  .admin-layout .so-t-saved-del {
+    width: 40px;
+    height: 40px;
+  }
+  .admin-layout .so-t-save-btn {
+    flex: 1 1 100%;
+    justify-content: center;
+    min-height: 40px;
+  }
+  .admin-layout .so-t-pick-label {
+    gap: var(--ui-s2) 10px;
+    padding-inline: 4px;
+  }
+  .admin-layout .so-t-pick-check {
+    width: 22px;
+    height: 22px;
+  }
+  /* 1. satır: kod + ad, 2. satır: telefon (40 px dokunma alanı) + çipler sağda */
+  .admin-layout .so-t-point-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 10px;
+    padding-block: 8px 2px;
+  }
+  .admin-layout .so-t-point-name {
+    flex: 1 1 calc(100% - 96px);
+    min-width: 0;
+  }
+  .admin-layout .so-t-point-phone {
+    min-height: 40px;
+  }
+  .admin-layout .so-t-point-tags {
+    margin-left: auto;
+  }
+  .admin-layout .so-t-stats:not(.so-t-stats--3) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .admin-layout .so-t-cash-box {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "exp"
+      "field"
+      "diff";
+  }
+  .admin-layout .so-t-open-more {
+    align-self: stretch;
+    justify-content: center;
+  }
+}
