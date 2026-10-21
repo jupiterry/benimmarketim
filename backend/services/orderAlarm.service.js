@@ -10,6 +10,7 @@
 //   hemen, değilse en çok 30 sn sonra yanıt döner. Aynı süreçte verilen sipariş anında,
 //   PM2 küme modunda başka süreçte verilen sipariş en geç RECHECK_MS içinde fark edilir.
 import crypto from "node:crypto";
+import { PAYMENT_METHODS } from "../lib/paymentMethods.js";
 import mongoose from "mongoose";
 
 export const DEVICES_COLLECTION = "order_alarm_devices";
@@ -52,17 +53,18 @@ export const orderNumber = (id) => `#${String(id).slice(-8).toUpperCase()}`;
 
 const DELIVERY_POINT_NAMES = { girlsDorm: "Kız KYK Yurdu", boysDorm: "Erkek KYK Yurdu" };
 const PAYMENT_LABELS = {
-  cash: "Kapıda nakit",
-  nakit: "Kapıda nakit",
-  card: "Kapıda kart",
-  kart: "Kapıda kart",
-  pos: "Kapıda kart",
+  ...PAYMENT_METHODS,
+  nakit: PAYMENT_METHODS.cash,
+  kart: PAYMENT_METHODS.card,
+  pos: PAYMENT_METHODS.card,
+  havale: PAYMENT_METHODS.bank_transfer,
+  eft: PAYMENT_METHODS.bank_transfer,
   online: "Online ödendi",
 };
 
 /**
- * Sipariş kayıtlarında ödeme yöntemi alanı yoktur (site ve uygulama ödemeyi teslimatta alır).
- * İleride siparişe `paymentMethod` eklenirse o gösterilir; yoksa ORDER_ALARM_PAYMENT_LABEL ya da "Teslimatta ödeme".
+ * Siparişin ödeme yöntemi (lib/paymentMethods.js) gösterilir. Bu alan eklenmeden önce verilen
+ * siparişlerde yoktur; o durumda ORDER_ALARM_PAYMENT_LABEL ya da "Teslimatta ödeme".
  */
 export const paymentLabel = (order) => {
   const raw = text(order?.paymentMethod, 40);

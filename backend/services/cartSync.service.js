@@ -28,6 +28,6 @@ export const applyCartSync = async (user, items, now = new Date()) => {
   if (cartSignature(current) === cartSignature(items)) return false;
   user.cartItems = items.map((item) => ({ product: item.productId, quantity: item.quantity, addedAt: now }));
   user.cartLastUpdated = now;
-  await user.save();
+  await user.save({ validateModifiedOnly: true });
   return true;
 };

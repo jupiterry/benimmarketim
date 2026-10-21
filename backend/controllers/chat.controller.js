@@ -89,7 +89,7 @@ export const getChats = async (req, res) => {
     }
 
     const chats = await Chat.find(query)
-      .populate("user", "name email phone")
+      .populate("user", "name email phone avatar")
       .populate("order", "_id totalAmount status createdAt")
       .populate("assignedAgent", "name email")
       .sort({ lastMessageAt: -1 });
@@ -416,7 +416,7 @@ export const getChatContext = async (req, res) => {
       return res.status(404).json({ message: "Sohbet bulunamadı!" });
     }
     const [customer, orderCount, lastOrder, supportRequest] = await Promise.all([
-      User.findById(chat.user).select("name email phone createdAt lastActive").lean(),
+      User.findById(chat.user).select("name email phone avatar createdAt lastActive").lean(),
       Order.countDocuments({ user: chat.user }),
       Order.findOne({ user: chat.user }).sort({ createdAt: -1 }).select("_id totalAmount status createdAt products deliveryPoint").lean(),
       SupportRequest.findOne({ conversation: chatId }).sort({ createdAt: -1 }).populate("assignedTo", "name").lean(),

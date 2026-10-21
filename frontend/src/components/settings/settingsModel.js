@@ -16,9 +16,10 @@ export const AI_PROVIDERS = [
 export const SECTIONS = [
   { id: "orders", label: "Sipariş", short: "Saatler, minimum tutar", prefixes: ["orderStartHour", "orderStartMinute", "orderEndHour", "orderEndMinute", "minimumOrderAmount"] },
   { id: "delivery", label: "Teslimat", short: "Yurtlar ve noktalar", prefixes: ["deliveryPoints"] },
+  { id: "payment", label: "Ödeme", short: "Havale/EFT hesap bilgisi", prefixes: ["bankTransfer"] },
   { id: "ai", label: "Yapay zekâ", short: "Sağlayıcı ve model", prefixes: ["ai"] },
   { id: "app", label: "Uygulama", short: "Sürüm ve mağazalar", prefixes: ["appVersion"] },
-  { id: "integrations", label: "Entegrasyonlar", short: "Telegram, bildirim servisi", prefixes: [] },
+  { id: "integrations", label: "Entegrasyonlar", short: "Bildirim servisi", prefixes: [] },
 ];
 
 const pointDefaults = (key) => ({
@@ -45,7 +46,13 @@ export const DEFAULT_SETTINGS = {
     iosStoreUrl: "https://apps.apple.com/tr/app/benim-marketim/id6755792336?l=tr",
   },
   ai: { enabled: true, provider: "openrouter", model: "google/gemma-4-26b-a4b-it:free", maxHistoryMessages: 12 },
+  bankTransfer: { bankName: "", accountName: "", iban: "" },
 };
+
+/** IBAN'ı boşluksuz büyük harfe çevirir: "tr12 0006 …" → "TR120006…" */
+export const normalizeIban = (value) => String(value || "").replace(/\s+/g, "").toUpperCase();
+/** Okunur IBAN: dörtlü gruplar ("TR12 0006 2000 …") */
+export const formatIban = (value) => normalizeIban(value).replace(/(.{4})(?=.)/g, "$1 ");
 
 const num = (value, fallback) => (Number.isFinite(Number(value)) && value !== null && value !== "" ? Number(value) : fallback);
 
@@ -67,6 +74,7 @@ export const normalizeSettings = (raw = {}) => {
   }
   const v = raw.appVersion || {};
   const ai = raw.ai || {};
+  const bank = raw.bankTransfer || {};
   return {
     orderStartHour: num(raw.orderStartHour, d.orderStartHour),
     orderStartMinute: num(raw.orderStartMinute, d.orderStartMinute),
@@ -87,6 +95,11 @@ export const normalizeSettings = (raw = {}) => {
       model: typeof ai.model === "string" ? ai.model : d.ai.model,
       maxHistoryMessages: num(ai.maxHistoryMessages, d.ai.maxHistoryMessages),
     },
+    bankTransfer: {
+      bankName: typeof bank.bankName === "string" ? bank.bankName : "",
+      accountName: typeof bank.accountName === "string" ? bank.accountName : "",
+      iban: typeof bank.iban === "string" ? formatIban(bank.iban) : "",
+    },
     updatedAt: raw.updatedAt || null,
   };
 };
@@ -95,6 +108,7 @@ export const normalizeSettings = (raw = {}) => {
 export const toPayload = (settings) => {
   const rest = { ...settings };
   delete rest.updatedAt;
+  if (rest.bankTransfer) rest.bankTransfer = { ...rest.bankTransfer, iban: normalizeIban(rest.bankTransfer.iban) };
   return rest;
 };
 
@@ -219,6 +233,8 @@ export const validateSettings = (s) => {
   if (!isHttpsUrl(v.iosStoreUrl)) errors["appVersion.iosStoreUrl"] = "https:// ile başlayan geçerli bir bağlantı girin";
   if (!String(s.ai.model || "").trim()) errors["ai.model"] = "Model adı zorunlu";
   if (!Number.isInteger(s.ai.maxHistoryMessages) || s.ai.maxHistoryMessages < 2 || s.ai.maxHistoryMessages > 30) errors["ai.maxHistoryMessages"] = "2 ile 30 arasında bir sayı girin";
+  const iban = normalizeIban(s.bankTransfer?.iban);
+  if (iban && !/^TR\d{24}$/.test(iban)) errors["bankTransfer.iban"] = "IBAN TR ile başlamalı ve 26 karakter olmalı";
   return errors;
 };
 
@@ -242,6 +258,9 @@ export const FIELD_LABELS = {
   "ai.provider": "Sağlayıcı",
   "ai.model": "Model",
   "ai.maxHistoryMessages": "Geçmiş sınırı",
+  "bankTransfer.bankName": "Banka adı",
+  "bankTransfer.accountName": "Hesap sahibi",
+  "bankTransfer.iban": "IBAN",
 };
 
 /** Taslak değer için okunur metin (eski değer ipuçları) */

@@ -1,10 +1,9 @@
-// Entegrasyonlar bölümü: Telegram botu ve OneSignal bildirim servisi — yalnızca yapılandırılmış mı
+// Entegrasyonlar bölümü: OneSignal bildirim servisi — yalnızca yapılandırılmış mı
 // ve çalışıyor mu gösterilir; anahtar değerleri hiçbir zaman sunucudan çekilmez ya da gösterilmez.
 import { useCallback, useEffect, useState } from "react";
-import { BellRing, Lock, MessageCircle, Plug, RefreshCw, Send } from "lucide-react";
-import toast from "react-hot-toast";
+import { BellRing, Lock, Plug, RefreshCw } from "lucide-react";
 import axios from "../../lib/axios";
-import { Skeleton, timeAgo, useNow } from "../admin/ui";
+import { Skeleton } from "../admin/ui";
 import { Row, SectionHead, StatusPill } from "./fields";
 
 const useStatus = (loader) => {
@@ -21,7 +20,6 @@ const useStatus = (loader) => {
   return [state, load];
 };
 
-const loadTelegram = async () => (await axios.get("/telegram/status")).data;
 const loadPush = async () => {
   const { data } = await axios.get("/notifications/broadcasts");
   return { configured: Boolean(data?.configured) };
@@ -57,58 +55,13 @@ const Card = ({ icon: Icon, title, description, state, onReload, pill, children,
 );
 
 export default function IntegrationsSection() {
-  const now = useNow(30000);
-  const [telegram, reloadTelegram] = useStatus(loadTelegram);
   const [push, reloadPush] = useStatus(loadPush);
-  const [testing, setTesting] = useState(false);
-
-  const sendTest = async () => {
-    try {
-      setTesting(true);
-      const { data } = await axios.post("/telegram/test");
-      toast.success(data?.message || "Test bildirimi sıraya alındı");
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Test bildirimi gönderilemedi");
-    } finally {
-      setTesting(false);
-    }
-  };
-
-  const t = telegram.data;
-  const telegramTone = !t ? "muted" : !t.paired ? "warn" : t.online ? "ok" : "danger";
-  const telegramText = !t ? "—" : !t.paired ? "Bot bağlı değil" : t.online ? "Çalışıyor" : "Çevrimdışı";
-  const pending = t?.counts?.pending || 0;
-  const failed = t?.counts?.failed || 0;
 
   return (
     <div className="stg-section">
       <section className="ui-panel">
         <SectionHead icon={Plug} title="Entegrasyonlar" description="Dış servislerin durumu. Anahtarlar sunucuda tanımlıdır; burada yalnızca bağlı olup olmadığı görünür." />
         <div className="ui-panel-body stg-stack">
-          <Card
-            icon={MessageCircle}
-            title="Telegram bildirimleri"
-            description="Yeni sipariş ve müşteri mesajlarını Telegram'a iletir."
-            state={telegram}
-            onReload={reloadTelegram}
-            pill={<StatusPill tone={telegramTone}>{telegramText}</StatusPill>}
-            actions={
-              <button type="button" className="ui-btn ui-btn--sm" onClick={sendTest} disabled={testing || !t?.paired}>
-                <Send />{testing ? "Gönderiliyor…" : "Test bildirimi gönder"}
-              </button>
-            }
-          >
-            {t && (
-              <dl className="stg-live-grid">
-                <div><dt>Abone</dt><dd>{t.subscriberCount || 0} kişi</dd></div>
-                <div><dt>Son gönderim</dt><dd>{t.lastSentAt ? timeAgo(t.lastSentAt, now) : "Henüz yok"}</dd></div>
-                <div><dt>Kuyruk</dt><dd>{pending ? `${pending} bekliyor` : "Boş"}{failed ? ` · ${failed} hatalı` : ""}</dd></div>
-                {t.lastError && <div className="stg-live-wide"><dt>Son hata</dt><dd className="stg-live-error">{String(t.lastError)}</dd></div>}
-              </dl>
-            )}
-            {t && !t.paired && <p className="ui-hint">Botu bağlamak için Genel bakış ekranındaki Telegram kartından eşleştirme kodunu kullanın.</p>}
-          </Card>
-
           <Card
             icon={BellRing}
             title="Uygulama bildirimleri (OneSignal)"

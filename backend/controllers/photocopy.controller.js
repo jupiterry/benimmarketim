@@ -100,7 +100,7 @@ export const adminListAll = async (req, res) => {
 				query.createdAt.$lte = end;
 			}
 		}
-		const files = await PhotocopyFile.find(query).populate("user", "name email").sort({ createdAt: -1 });
+		const files = await PhotocopyFile.find(query).populate("user", "name email avatar").sort({ createdAt: -1 });
 		res.json({ success: true, data: files });
 	} catch (error) {
 		console.error("adminListAll error", error);

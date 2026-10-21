@@ -53,7 +53,7 @@ export const updateFCMToken = async (req, res) => {
     }
 
     user.fcmToken = fcmToken;
-    await user.save();
+    await user.save({ validateModifiedOnly: true });
 
     res.status(200).json({
       success: true,
@@ -77,7 +77,7 @@ export const togglePushNotifications = async (req, res) => {
   try {
     const user = req.user;
     user.pushNotificationsEnabled = !user.pushNotificationsEnabled;
-    await user.save();
+    await user.save({ validateModifiedOnly: true });
 
     res.status(200).json({
       success: true,

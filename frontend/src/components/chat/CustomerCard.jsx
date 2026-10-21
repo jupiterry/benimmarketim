@@ -39,7 +39,7 @@ export default function CustomerCard({ chat, context, loading, error, onRetry, o
       </div>
       <div className="cht-customer-body">
         <div className="cht-customer-id">
-          <ChatAvatar name={user.name} online={online?.isOnline} size="lg" />
+          <ChatAvatar name={user.name} src={user.avatar} online={online?.isOnline} size="lg" />
           <h3>{user.name || "Misafir"}</h3>
           {user.createdAt && <span className="ui-muted">Üye: {formatDate(user.createdAt, { year: "numeric" })}</span>}
           {online?.isOnline ? <span className="ui-badge ui-badge--ok">Şu an uygulamada</span>

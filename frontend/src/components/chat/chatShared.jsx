@@ -45,9 +45,11 @@ export const QUICK_REPLIES_PREF = "chat.quickReplies";
 export const MAX_MESSAGE_LENGTH = 2000;
 
 /** Baş harfli yuvarlak avatar; müşteri uygulamadaysa yeşil nokta */
-export const ChatAvatar = ({ name, online = false, size = "md" }) => (
+export const ChatAvatar = ({ name, src, online = false, size = "md" }) => (
   <span className={`cht-avatar ${size === "lg" ? "cht-avatar--lg" : ""}`}>
-    <span className="ui-avatar" aria-hidden="true">{initials(name)}</span>
+    <span className="ui-avatar" aria-hidden="true">
+      {src ? <img src={src} alt="" loading="lazy" onError={(e) => { e.currentTarget.remove(); }} /> : initials(name)}
+    </span>
     {online && <span className="cht-online" title="Şu an uygulamada" />}
   </span>
 );

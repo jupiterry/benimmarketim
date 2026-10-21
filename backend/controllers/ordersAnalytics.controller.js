@@ -1,4 +1,5 @@
 import Order from "../models/order.model.js";
+import { paymentMethodLabel } from "../lib/paymentMethods.js";
 import Coupon from "../models/coupon.model.js";
 import { processReferralFirstOrder } from "./referral.controller.js";
 import User from "../models/user.model.js";
@@ -54,12 +55,12 @@ export const releaseCouponForOrder = async (order) => {
 
 export const ACTIVE_ORDER_STATUSES = ["Hazırlanıyor", "Yolda"];
 const ORDER_LIST_FIELDS =
-  "user products totalAmount subtotalAmount couponCode couponDiscount discountPercentage status deliveryTracking statusHistory note phone city deliveryPoint deliveryPointName createdAt updatedAt device";
+  "user products totalAmount subtotalAmount couponCode couponDiscount discountPercentage status deliveryTracking statusHistory note phone city deliveryPoint deliveryPointName paymentMethod createdAt updatedAt device";
 
 const listQuery = (filter) =>
   Order.find(filter)
     .select(ORDER_LIST_FIELDS)
-    .populate("user", "name email")
+    .populate("user", "name email avatar")
     .populate("products.product", "name price image")
     .sort({ createdAt: -1 });
 
@@ -78,6 +79,7 @@ export const groupOrdersByUser = (orders) => {
           id: order.user._id,
           name: order.user.name || "Bilinmeyen Kullanıcı",
           email: order.user.email,
+          avatar: order.user.avatar || null,
           phone: order.phone,
           address: `${order.city}`,
         },
@@ -108,6 +110,8 @@ export const groupOrdersByUser = (orders) => {
       city: order.city,
       deliveryPoint: order.deliveryPoint,
       deliveryPointName: order.deliveryPointName,
+      paymentMethod: order.paymentMethod || null,
+      paymentMethodLabel: paymentMethodLabel(order.paymentMethod),
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
       // Cihaz bilgisi
@@ -329,6 +333,8 @@ export const getUserOrders = async (req, res) => {
       city: order.city,
       deliveryPoint: order.deliveryPoint,
       deliveryPointName: order.deliveryPointName,
+      paymentMethod: order.paymentMethod || null,
+      paymentMethodLabel: paymentMethodLabel(order.paymentMethod),
       phone: order.phone,
       createdAt: order.createdAt,
     }));
@@ -858,7 +864,7 @@ export const computeDashboardSummary = async (query = {}, now = new Date()) => {
     safeCount(SupportRequest, { status: "waiting" }),
     safeCount(User, {}),
     range.start ? safeCount(User, rangeMatch(range)) : Promise.resolve(null),
-    Order.find({}).select("user totalAmount status createdAt deliveryPoint deliveryPointName products").populate("user", "name").sort({ createdAt: -1 }).limit(8).lean(),
+    Order.find({}).select("user totalAmount status createdAt deliveryPoint deliveryPointName paymentMethod products").populate("user", "name avatar").sort({ createdAt: -1 }).limit(8).lean(),
   ]);
 
   const statusCounts = Object.fromEntries((facet?.byStatus || []).map((row) => [row._id, row.count]));
@@ -884,6 +890,9 @@ export const computeDashboardSummary = async (query = {}, now = new Date()) => {
     recentOrders: recentRows.map((order) => ({
       orderId: String(order._id),
       customerName: order.user?.name || "Müşteri",
+      customerAvatar: order.user?.avatar || null,
+      paymentMethod: order.paymentMethod || null,
+      paymentMethodLabel: paymentMethodLabel(order.paymentMethod),
       totalAmount: order.totalAmount,
       status: order.status,
       itemCount: Array.isArray(order.products) ? order.products.reduce((sum, item) => sum + (item.quantity || 0), 0) : 0,

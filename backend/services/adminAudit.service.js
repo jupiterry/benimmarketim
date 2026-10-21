@@ -46,7 +46,7 @@ export const diffFields = (before = {}, after = {}, fields = []) =>
 // Yönetici işlemi sayılmayan ya da gürültülü yollar
 const SKIP_PREFIXES = [
   "/api/auth", "/api/cart", "/api/chat", "/api/saved-carts", "/api/cart-assistant", "/api/admin-notifications",
-  "/api/product-assist", "/api/telegram", "/api/n8n", "/api/order-alarm/heartbeat", "/api/order-alarm/ack",
+  "/api/product-assist", "/api/order-alarm/heartbeat", "/api/order-alarm/ack",
   "/api/orders/", "/api/products/home-feed",
 ];
 const SECTIONS = [

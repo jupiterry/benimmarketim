@@ -109,6 +109,12 @@ const settingsSchema = new mongoose.Schema(
         }
       }
     },
+    // Havale / EFT ile ödeme için müşteriye gösterilen hesap bilgileri
+    bankTransfer: {
+      bankName: { type: String, default: "", trim: true, maxlength: 80 },
+      accountName: { type: String, default: "", trim: true, maxlength: 120 },
+      iban: { type: String, default: "", trim: true, maxlength: 40 },
+    },
     // Uygulama Versiyon Ayarları (Tek versiyon hem Android hem iOS için)
     appVersion: {
       latestVersion: {

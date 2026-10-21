@@ -11,6 +11,7 @@ import WeeklyProduct from "../models/weeklyProduct.model.js";
 import Coupon from "../models/coupon.model.js";
 import Order from "../models/order.model.js";
 import { notifyAdmins } from "./adminFeed.service.js";
+import { paymentMethodLabel } from "../lib/paymentMethods.js";
 import { signalOrderAlarm } from "./orderAlarm.service.js";
 import {
   commitCouponAtomically,
@@ -238,6 +239,8 @@ export function dispatchOrderNotifications(io, newOrder, requestUser) {
           phone: newOrder.phone,
           deliveryPoint: newOrder.deliveryPoint,
           deliveryPointName: newOrder.deliveryPointName,
+          paymentMethod: newOrder.paymentMethod || null,
+          paymentMethodLabel: paymentMethodLabel(newOrder.paymentMethod),
           products: newOrder.products?.map((product) => ({
             name: product.name,
             quantity: product.quantity,

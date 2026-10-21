@@ -1,4 +1,5 @@
 import Product from "../models/product.model.js";
+import { normalizePaymentMethod } from "../lib/paymentMethods.js";
 import Order from "../models/order.model.js";
 import Settings from "../models/settings.model.js";
 import { redis } from "../lib/redis.js";
@@ -168,7 +169,7 @@ export const addToCart = async (req, res) => {
     }
 
     user.cartLastUpdated = new Date();
-    await user.save();
+    await user.save({ validateModifiedOnly: true });
     res.status(200).json(user.cartItems);
   } catch (error) {
     console.error("Sepete ürün eklerken hata:", error.message);
@@ -246,7 +247,7 @@ export const clearCart = async (req, res) => {
     const user = req.user;
     user.cartItems = [];
     user.cartLastUpdated = new Date();
-    await user.save();
+    await user.save({ validateModifiedOnly: true });
     res.json(user.cartItems);
   } catch (error) {
     console.error("clearCart hatası:", error.message);
@@ -270,7 +271,7 @@ export const removeFromCart = async (req, res) => {
       (item) => item.product && item.product.toString() !== productId
     );
     user.cartLastUpdated = new Date();
-    await user.save();
+    await user.save({ validateModifiedOnly: true });
     res.json(user.cartItems);
   } catch (error) {
     console.error("removeFromCart hatası:", error.message);
@@ -309,7 +310,7 @@ export const updateQuantity = async (req, res) => {
     }
 
     user.cartLastUpdated = new Date();
-    await user.save();
+    await user.save({ validateModifiedOnly: true });
     res.json(user.cartItems);
   } catch (error) {
     console.error("updateQuantity hatası:", error.message);
@@ -329,6 +330,14 @@ export const placeOrder = async (req, res) => {
     }
 
     const { products, city, phone, note, deliveryPoint, deliveryPointName, couponCode } = req.body;
+
+    // Ödeme yöntemi: uygulama seçimi zorunlu tutar. Alanı hiç göndermeyen eski
+    // uygulama sürümleri için sipariş "Belirtilmedi" olarak kaydedilir.
+    const rawPaymentMethod = req.body.paymentMethod;
+    const paymentMethod = normalizePaymentMethod(rawPaymentMethod);
+    if (rawPaymentMethod !== undefined && rawPaymentMethod !== null && rawPaymentMethod !== "" && !paymentMethod) {
+      return res.status(400).json({ error: "Geçersiz ödeme yöntemi! Kapıda nakit, kapıda kart ya da havale/EFT seçin." });
+    }
 
     // Zorunlu alan kontrolleri
     if (!products || products.length === 0) {
@@ -396,6 +405,7 @@ export const placeOrder = async (req, res) => {
       deliveryPointName: deliveryPointName || "",
       couponCode: appliedCoupon?.code || null,
       couponDiscount,
+      paymentMethod,
     });
 
     // Kupon kullanımını atomik olarak kaydet (order.service)
@@ -412,7 +422,7 @@ export const placeOrder = async (req, res) => {
     if (orderPhone && orderPhone !== (req.user.phone || "")) {
       req.user.phone = orderPhone;
     }
-    await req.user.save();
+    await req.user.save({ validateModifiedOnly: true });
 
     // Referral ödülü artık sipariş oluşturulduğunda değil, ilk sipariş "Teslim Edildi"
     // olduğunda verilir (ordersAnalytics.controller.js → grantReferralRewardIfDelivered).

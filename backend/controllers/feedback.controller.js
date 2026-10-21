@@ -36,7 +36,7 @@ export const createFeedback = async (req, res) => {
 export const getAllFeedbacks = async (req, res) => {
   try {
     const feedbacks = await Feedback.find()
-      .populate("user", "name email")
+      .populate("user", "name email avatar")
       .sort("-createdAt");
 
     res.json(feedbacks);
@@ -56,7 +56,7 @@ export const updateFeedbackStatus = async (req, res) => {
       id,
       { status },
       { new: true }
-    ).populate("user", "name email");
+    ).populate("user", "name email avatar");
 
     if (!feedback) {
       return res.status(404).json({ message: "Geri bildirim bulunamadı" });
@@ -164,7 +164,7 @@ export const replyToFeedback = async (req, res) => {
     if (text && current.status === "Yeni") update.status = "İnceleniyor";
 
     const feedback = await Feedback.findByIdAndUpdate(id, update, { new: true })
-      .populate("user", "name email")
+      .populate("user", "name email avatar")
       .populate("adminReply.by", "name");
     if (!feedback) return res.status(404).json({ message: "Geri bildirim bulunamadı" });
 

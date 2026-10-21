@@ -71,6 +71,12 @@ const orderSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    // Ödeme yöntemi (lib/paymentMethods.js). Bu alan eklenmeden önceki siparişlerde null.
+    paymentMethod: {
+      type: String,
+      enum: ["cash", "card", "bank_transfer", null],
+      default: null,
+    },
     status: {
       type: String,
       enum: ["Hazırlanıyor", "Yolda", "Teslim Edildi", "İptal Edildi"],

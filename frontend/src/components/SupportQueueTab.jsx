@@ -53,7 +53,7 @@ const Ticket = ({ request, now, cursor, mine, onOpen, onAccept, onClose, busy })
   const assignedToOther = request.assignedTo && !mine;
   return (
     <article ref={ref} className="cht-ticket" data-status={request.status} data-late={late === "true"} data-cursor={cursor} aria-label={`${request.user?.name || "Müşteri"} destek talebi`}>
-      <span className="cht-ticket-avatar"><ChatAvatar name={request.user?.name} /></span>
+      <span className="cht-ticket-avatar"><ChatAvatar name={request.user?.name} src={request.user?.avatar} /></span>
       <div className="cht-ticket-main">
         <div className="cht-ticket-top">
           <h3 className="cht-ticket-name">{request.user?.name || "Müşteri"}</h3>

@@ -5,7 +5,7 @@ import {
   Clock, Truck, CheckCircle2, XCircle, MapPin, Phone, Mail, Calendar,
   AlertTriangle, Trash2, Plus, Minus, Timer, AlertCircle, Tag, Bookmark,
   LayoutList, KanbanSquare, ClipboardList, Download, Keyboard, MessageCircle, Copy,
-  History, UserRound, ListChecks, StickyNote
+  History, UserRound, ListChecks, StickyNote, Wallet
 } from "lucide-react";
 import toast from "react-hot-toast";
 import socketService from "../lib/socket.js";
@@ -17,6 +17,17 @@ import {
   printReceipts, buildPickingList, printPickingList, buildOrdersCsv, downloadTextFile,
   buildOrderSummaryText, buildWhatsAppMessage,
 } from "../lib/orderTools";
+
+const PAYMENT_LABELS = { cash: "Kapıda nakit", card: "Kapıda kart (POS)", bank_transfer: "Havale / EFT" };
+/** Siparişin ödeme yöntemi; alan eklenmeden önce verilen siparişlerde "Belirtilmedi". */
+const paymentLabel = (order) => order?.paymentMethodLabel || PAYMENT_LABELS[order?.paymentMethod] || "Belirtilmedi";
+
+/** Müşterinin profil fotoğrafı; yoksa ya da yüklenemezse baş harfler. */
+const CustomerFace = ({ user }) => {
+  const [failed, setFailed] = useState(false);
+  if (user?.avatar && !failed) return <img src={user.avatar} alt="" loading="lazy" onError={() => setFailed(true)} />;
+  return getInitials(user?.name);
+};
 
 // Helper: Sipariş süresini hesapla
 const getOrderDuration = (createdAt, updatedAt, status) => {
@@ -211,7 +222,7 @@ const OrderRow = ({ order, active, selected, fresh, onSelectChange, onOpen, onAd
         aria-label={`${order.user?.name || "Müşteri"} siparişinin detayını aç`}
         aria-current={active ? "true" : undefined}
       >
-        <span className="ord-avatar" aria-hidden="true">{getInitials(order.user?.name)}</span>
+        <span className="ord-avatar" aria-hidden="true"><CustomerFace user={order.user} /></span>
         <span className="ord-c-customer">
           <strong>
             <span>{order.user?.name}</span>
@@ -221,6 +232,9 @@ const OrderRow = ({ order, active, selected, fresh, onSelectChange, onOpen, onAd
             <span className="ui-mono">#{order.orderId.slice(-6).toUpperCase()}</span>
             <span>{order.products?.length || 0} ürün</span>
             <span className="ord-c-point"><MapPin />{order.deliveryPointName || order.city || "Belirtilmemiş"}</span>
+            {order.paymentMethod && (
+              <span className="ord-c-pay" data-method={order.paymentMethod} title="Ödeme yöntemi"><Wallet />{paymentLabel(order)}</span>
+            )}
             {order.note && String(order.note).trim() && (
               <span className="ord-c-note" title={`Müşteri notu: ${order.note}`}><StickyNote />Not</span>
             )}
@@ -265,7 +279,7 @@ const OrderDetail = ({ order, customer, onClose, onStatusUpdate, onDeliveryTrack
   return (
     <>
       <div className="ord-d-head">
-        <span className="ord-avatar ord-avatar--lg" aria-hidden="true">{getInitials(order.user?.name)}</span>
+        <span className="ord-avatar ord-avatar--lg" aria-hidden="true"><CustomerFace user={order.user} /></span>
         <div className="ord-d-title">
           <h2>
             {order.user?.name}
@@ -383,6 +397,7 @@ const OrderDetail = ({ order, customer, onClose, onStatusUpdate, onDeliveryTrack
             <div><dt><Mail /> E-posta</dt><dd>{order.user?.email ? <a className="ui-link" href={`mailto:${order.user.email}`}>{order.user.email}</a> : "E-posta yok"}</dd></div>
             <div><dt><Phone /> Telefon</dt><dd>{(order.phone || order.user?.phone) ? <a className="ui-link ui-num" href={`tel:${order.phone || order.user?.phone}`}>{formatPhoneTR(order.phone || order.user?.phone)}</a> : '-'}</dd></div>
             <div><dt><MapPin /> Teslimat</dt><dd>{order.deliveryPointName || order.deliveryPoint || order.city || 'Belirtilmemiş'}</dd></div>
+            <div><dt><Wallet /> Ödeme</dt><dd data-method={order.paymentMethod || undefined}>{paymentLabel(order)}</dd></div>
             <div><dt><Calendar /> Sipariş zamanı</dt><dd>{formatOrderDate(order.createdAt)}</dd></div>
           </dl>
           <label className="ui-label" htmlFor="delivery-tracking-input">Kargo / teslimat takibi</label>
@@ -535,7 +550,7 @@ const BoardCard = ({ order, active, fresh, dragging, onOpen, onAdvance, onDragSt
     >
       <button type="button" className="ord-card-open" onClick={() => onOpen(order)} aria-label={`${order.user?.name || "Müşteri"} siparişinin detayını aç`}>
         <span className="ord-card-top">
-          <span className="ord-avatar" aria-hidden="true">{getInitials(order.user?.name)}</span>
+          <span className="ord-avatar" aria-hidden="true"><CustomerFace user={order.user} /></span>
           <span className="ord-card-name">
             <strong>{order.user?.name || "Müşteri"}</strong>
             <small>
@@ -550,6 +565,9 @@ const BoardCard = ({ order, active, fresh, dragging, onOpen, onAdvance, onDragSt
             {warningLevel ? <AlertCircle /> : <Timer />}{getOrderDuration(order.createdAt, order.updatedAt, order.status)}
           </span>
           <span className="ord-chip"><MapPin />{order.deliveryPointName || order.city || "Belirtilmemiş"}</span>
+          {order.paymentMethod && (
+            <span className="ord-chip" data-tone={order.paymentMethod === "bank_transfer" ? "warn" : undefined} title="Ödeme yöntemi"><Wallet />{paymentLabel(order)}</span>
+          )}
           {hasNote && <span className="ord-chip" data-tone="warn" title={`Müşteri notu: ${order.note}`}><StickyNote />Not</span>}
           {order.isFirstOrder && <span className="ord-chip" data-tone="brand">İlk sipariş</span>}
         </span>
@@ -1737,7 +1755,7 @@ const OrdersList = () => {
               <div key={`priority-${order.orderId}`} className="ord-next-item" data-attention={needsAttention} data-tone={STATUS_UI[order.status]?.tone}>
                 <button className="ord-next-open" onClick={() => setDetailModalOrder(order)} title="Detay">
                   <span className="ord-next-top">
-                    <span className="ord-avatar" aria-hidden="true">{getInitials(order.user?.name)}</span>
+                    <span className="ord-avatar" aria-hidden="true"><CustomerFace user={order.user} /></span>
                     <span className="ord-next-name">
                       <strong>{order.user?.name || "Müşteri"}</strong>
                       <small>

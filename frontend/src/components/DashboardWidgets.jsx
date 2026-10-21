@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import axios from "../lib/axios";
 import socketService from "../lib/socket";
-import TelegramNotificationsCard from "./TelegramNotificationsCard";
 import OrderAlarmDevicesCard from "./OrderAlarmDevicesCard";
 import ShelfPerformanceCard from "./ShelfPerformanceCard";
 import { REVENUE_PERIODS } from "../lib/revenuePeriods";
@@ -59,10 +58,10 @@ const shortId = (id) => `#${String(id || "").slice(-6).toUpperCase()}`;
 const preparingMinutes = (order, now) => (order.status === "Hazırlanıyor" ? Math.floor((now - new Date(order.createdAt).getTime()) / 60000) : 0);
 
 // ── Kart düzeni ──────────────────────────────────────────────────────────
-const DEFAULT_LAYOUT = { main: ["sales", "recent", "shelf", "telegram"], side: ["status", "top", "quick", "profit", "alarm"] };
+const DEFAULT_LAYOUT = { main: ["sales", "recent", "shelf"], side: ["status", "top", "quick", "profit", "alarm"] };
 const CARD_IDS = [...DEFAULT_LAYOUT.main, ...DEFAULT_LAYOUT.side];
 const CARD_TITLES = {
-  sales: "Satış", recent: "Son siparişler", shelf: "Raf performansı", telegram: "Telegram bildirimleri",
+  sales: "Satış", recent: "Son siparişler", shelf: "Raf performansı",
   status: "Sipariş dağılımı", top: "Çok satanlar", quick: "Hızlı eylemler", profit: "Kâr tahmini", alarm: "Sipariş alarmı telefonları",
 };
 /** Saklanan düzeni doğrular: bilinmeyen kartları atar, eksikleri varsayılan yerine ekler */
@@ -329,11 +328,14 @@ const DashboardWidgets = ({ onNavigate }) => {
               return (
                 <li key={order.orderId}>
                   <button type="button" className="dsh-row dsh-row--order" onClick={() => openOrder(order)} aria-label={`${order.customerName} siparişini aç`}>
-                    <span className="ui-avatar dsh-avatar">{initials(order.customerName)}</span>
+                    <span className="ui-avatar dsh-avatar">
+                      {order.customerAvatar ? <img src={order.customerAvatar} alt="" loading="lazy" /> : initials(order.customerName)}
+                    </span>
                     <span className="dsh-row-main">
                       <strong className="ui-truncate">{order.customerName}</strong>
                       <small className="ui-truncate">
                         {shortId(order.orderId)} · {number(order.itemCount)} ürün · {order.deliveryPointName || DORM_NAMES[order.deliveryPoint] || "—"}
+                        {order.paymentMethod ? ` · ${order.paymentMethodLabel}` : ""}
                       </small>
                     </span>
                     <span className="dsh-row-amount">{money(order.totalAmount)}</span>
@@ -445,7 +447,6 @@ const DashboardWidgets = ({ onNavigate }) => {
       </section>
     ),
     profit: () => <ProfitCard summary={summary} period={period} unavailable={unavailable} />,
-    telegram: () => <TelegramNotificationsCard />,
     alarm: () => <OrderAlarmDevicesCard />,
     shelf: () => <ShelfPerformanceCard />,
   };

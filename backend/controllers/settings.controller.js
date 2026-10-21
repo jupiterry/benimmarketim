@@ -9,6 +9,9 @@ const DELIVERY_POINTS = [
   ["boysDorm", "Erkek KYK Yurdu"],
 ];
 
+/** IBAN'ı boşluksuz ve büyük harfle saklar: "tr12 3456 ..." → "TR123456..." */
+export const normalizeIban = (value) => String(value || "").replace(/\s+/g, "").toUpperCase();
+
 const isInt = (value, min, max) => Number.isInteger(value) && value >= min && value <= max;
 const clock = (hour, minute) => `${String(hour ?? 0).padStart(2, "0")}:${String(minute ?? 0).padStart(2, "0")}`;
 const onOff = (value) => yesNo(value, "Açık", "Kapalı");
@@ -32,6 +35,9 @@ export const flattenSettings = (settings = {}) => {
     aiProvider: settings.ai?.provider,
     aiModel: settings.ai?.model,
     aiMaxHistoryMessages: settings.ai?.maxHistoryMessages,
+    bankName: settings.bankTransfer?.bankName,
+    bankAccountName: settings.bankTransfer?.accountName,
+    bankIban: settings.bankTransfer?.iban,
   };
   for (const [key] of DELIVERY_POINTS) {
     const point = settings.deliveryPoints?.[key] || {};
@@ -47,6 +53,9 @@ export const SETTINGS_AUDIT_FIELDS = [
   { key: "orderStart", label: "Sipariş başlangıç saati" },
   { key: "orderEnd", label: "Sipariş bitiş saati" },
   { key: "minimumOrderAmount", label: "Minimum sipariş tutarı", format: money },
+  { key: "bankName", label: "Havale/EFT banka adı" },
+  { key: "bankAccountName", label: "Havale/EFT hesap sahibi" },
+  { key: "bankIban", label: "Havale/EFT IBAN" },
   ...DELIVERY_POINTS.flatMap(([key, label]) => [
     { key: `${key}Enabled`, label: `${label} teslimatı`, format: onOff },
     { key: `${key}Name`, label: `${label} adı` },
@@ -68,7 +77,7 @@ export const describeSettingsChanges = (before, after) => diffFields(flattenSett
 
 /** Gönderilen alanları doğrular; ilk hatanın mesajını döndürür (hata yoksa null). */
 export const validateSettingsInput = (body = {}) => {
-  const { orderStartHour, orderStartMinute, orderEndHour, orderEndMinute, minimumOrderAmount, deliveryPoints, appVersion, ai } = body;
+  const { orderStartHour, orderStartMinute, orderEndHour, orderEndMinute, minimumOrderAmount, deliveryPoints, appVersion, ai, bankTransfer } = body;
   const checks = [
     [orderStartHour, 0, 23, "Sipariş başlangıç saati 0–23 arasında olmalı"],
     [orderStartMinute, 0, 59, "Sipariş başlangıç dakikası 0–59 arasında olmalı"],
@@ -87,6 +96,16 @@ export const validateSettingsInput = (body = {}) => {
       for (const [field, max] of [["startHour", 23], ["startMinute", 59], ["endHour", 23], ["endMinute", 59]]) {
         if (point[field] !== undefined && !isInt(point[field], 0, max)) return `${label} saatleri geçersiz`;
       }
+    }
+  }
+  if (bankTransfer !== undefined) {
+    if (!bankTransfer || typeof bankTransfer !== "object" || Array.isArray(bankTransfer)) return "Geçersiz havale/EFT bilgileri";
+    for (const field of ["bankName", "accountName", "iban"]) {
+      if (bankTransfer[field] !== undefined && typeof bankTransfer[field] !== "string") return "Havale/EFT bilgileri metin olmalı";
+    }
+    if (bankTransfer.iban) {
+      const iban = normalizeIban(bankTransfer.iban);
+      if (!/^TR\d{24}$/.test(iban)) return "IBAN TR ile başlamalı ve 26 karakter olmalı (ör. TR00 0000 0000 0000 0000 0000 00)";
     }
   }
   if (appVersion !== undefined && (!appVersion || typeof appVersion !== "object" || Array.isArray(appVersion))) return "Geçersiz uygulama versiyon ayarları";
@@ -113,7 +132,7 @@ export const getSettings = async (req, res) => {
 // Ayarları güncelle (yalnızca gönderilen alanlar değişir; her değişiklik işlem kaydına yazılır)
 export const updateSettings = async (req, res) => {
   try {
-    const { orderStartHour, orderStartMinute, orderEndHour, orderEndMinute, minimumOrderAmount, deliveryPoints, appVersion, ai } = req.body || {};
+    const { orderStartHour, orderStartMinute, orderEndHour, orderEndMinute, minimumOrderAmount, deliveryPoints, appVersion, ai, bankTransfer } = req.body || {};
 
     const invalid = validateSettingsInput(req.body || {});
     if (invalid) return res.status(400).json({ message: invalid });
@@ -133,6 +152,13 @@ export const updateSettings = async (req, res) => {
       if (ai.provider !== undefined) settings.ai.provider = ai.provider;
       if (ai.model !== undefined) settings.ai.model = String(ai.model).trim() || DEFAULT_AI_MODEL;
       if (ai.maxHistoryMessages !== undefined) settings.ai.maxHistoryMessages = Math.max(2, Math.min(Number(ai.maxHistoryMessages), 30));
+    }
+
+    if (bankTransfer !== undefined) {
+      if (!settings.bankTransfer) settings.bankTransfer = {};
+      if (bankTransfer.bankName !== undefined) settings.bankTransfer.bankName = bankTransfer.bankName.trim();
+      if (bankTransfer.accountName !== undefined) settings.bankTransfer.accountName = bankTransfer.accountName.trim();
+      if (bankTransfer.iban !== undefined) settings.bankTransfer.iban = normalizeIban(bankTransfer.iban);
     }
 
     // Sadece gönderilen alanları güncelle

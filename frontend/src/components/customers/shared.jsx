@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 // Müşteriler ekranının ortak yardımcıları ve küçük parçaları (segment kuralları, etiketler, avatar).
+import { useState } from "react";
 import { Crown, Monitor, Smartphone, Tablet } from "lucide-react";
 import { avatarTone, initials, lastSeenAt, registeredAt } from "../../lib/customers";
 
@@ -65,11 +66,16 @@ export const TagBadges = ({ tags, max = 2 }) => (
   </>
 );
 
-export const Avatar = ({ name, size }) => (
-  <span className={`ui-avatar cus-avatar${size === "lg" ? " cus-avatar--lg" : ""}`} data-tone={avatarTone(name)} aria-hidden="true">
-    {initials(name)}
-  </span>
-);
+/** Müşteri avatarı: profil fotoğrafı varsa o, yoksa (ya da yüklenemezse) baş harfler. */
+export const Avatar = ({ name, src, size }) => {
+  const [failed, setFailed] = useState(false);
+  const showImage = Boolean(src) && !failed;
+  return (
+    <span className={`ui-avatar cus-avatar${size === "lg" ? " cus-avatar--lg" : ""}`} data-tone={showImage ? undefined : avatarTone(name)} aria-hidden="true">
+      {showImage ? <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} /> : initials(name)}
+    </span>
+  );
+};
 
 // ── Cihaz ────────────────────────────────────────────────────────────
 const DEVICE = { desktop: ["Bilgisayar", Monitor], mobile: ["Telefon", Smartphone], tablet: ["Tablet", Tablet] };

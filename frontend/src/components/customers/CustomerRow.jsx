@@ -19,7 +19,7 @@ const CustomerRow = memo(function CustomerRow({ user, orderMap, ordersLoaded, no
         <input type="checkbox" className="ui-checkbox" checked={selected} onChange={() => onSelect(user._id)} aria-label={`${name} seç`} />
       </label>
       <button type="button" className="cus-person" onClick={() => onOpen(user)} title="Profili aç">
-        <Avatar name={user.name} />
+        <Avatar name={user.name} src={user.avatar} />
         <span className="cus-person-text">
           <span className="cus-person-name">
             <span className="ui-truncate">{name}</span>

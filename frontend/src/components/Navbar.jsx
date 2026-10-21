@@ -41,7 +41,12 @@ const Navbar = () => {
           {user ? (
             <>
               <NavLink to="/profile" className={navClass}>
-                <User className="h-4 w-4" /> Hesabım
+                {user.avatar ? (
+                  <img src={user.avatar} alt="" className="h-6 w-6 rounded-full object-cover ring-1 ring-white/20" />
+                ) : (
+                  <User className="h-4 w-4" />
+                )}
+                Hesabım
               </NavLink>
               <button
                 type="button"

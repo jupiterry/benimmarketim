@@ -204,7 +204,7 @@ export default function ChatThread({
       <header className="cht-thread-head">
         <button type="button" className="ui-icon-btn cht-back" onClick={onBack} aria-label="Sohbet listesine dön"><ChevronLeft /></button>
         <div className="cht-thread-who">
-          <ChatAvatar name={user.name} online={online?.isOnline} />
+          <ChatAvatar name={user.name} src={user.avatar} online={online?.isOnline} />
           <div className="cht-thread-title">
             <h2>{user.name || "Misafir"}</h2>
             <div className="cht-thread-sub">

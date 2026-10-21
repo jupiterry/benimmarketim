@@ -47,7 +47,7 @@ export const RegistrationsPanel = ({ customers, now, onOpen }) => {
           {latest.length === 0 && <p className="ui-muted ui-text-sm">Henüz kayıt yok</p>}
           {latest.map((user) => (
             <button key={user._id} type="button" className="cus-latest-row" onClick={() => onOpen(user)} title="Profili aç">
-              <Avatar name={user.name} />
+              <Avatar name={user.name} src={user.avatar} />
               <span className="cus-latest-text">
                 <span className="ui-truncate">{user.name || "İsimsiz"}</span>
                 <span className="cus-when-sub ui-truncate">{user.phone || user.email}</span>

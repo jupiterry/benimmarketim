@@ -367,7 +367,7 @@ const CustomerDrawer = ({ user, orderMap, now, initialTab = "orders", focusPassw
       )}
     >
       <div className="cus-profile-head">
-        <Avatar name={user.name} size="lg" />
+        <Avatar name={user.name} src={user.avatar} size="lg" />
         <div className="cus-profile-id">
           <div className="cus-profile-tags"><TagBadges tags={tags} max={3} />{tags.length === 0 && <span className="ui-muted ui-text-xs">Etiket yok</span>}</div>
           <div className="cus-contact">

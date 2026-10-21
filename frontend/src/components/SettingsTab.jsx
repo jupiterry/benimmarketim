@@ -2,7 +2,7 @@
 // Taslak ile kayıtlı hal karşılaştırılır; değişen alanlar vurgulanır, altta yapışkan kaydet çubuğu
 // çıkar, bölüm değişiminde ve sayfa kapanışında kaydedilmemiş değişiklik için uyarılır.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Bot, Check, AlertCircle, MapPin, Plug, RefreshCw, RotateCcw, Save, ShoppingBag, Smartphone } from "lucide-react";
+import { AlertTriangle, Bot, Check, AlertCircle, CreditCard, MapPin, Plug, RefreshCw, RotateCcw, Save, ShoppingBag, Smartphone } from "lucide-react";
 import toast from "react-hot-toast";
 import axios from "../lib/axios";
 import { useSettingsStore } from "../stores/useSettingsStore";
@@ -14,13 +14,14 @@ import {
 } from "./settings/settingsModel";
 import OrderSection from "./settings/OrderSection";
 import DeliverySection from "./settings/DeliverySection";
+import PaymentSection from "./settings/PaymentSection";
 import AiSection from "./settings/AiSection";
 import AppSection from "./settings/AppSection";
 import IntegrationsSection from "./settings/IntegrationsSection";
 import "../styles/settings.css";
 
-const ICONS = { orders: ShoppingBag, delivery: MapPin, ai: Bot, app: Smartphone, integrations: Plug };
-const VIEWS = { orders: OrderSection, delivery: DeliverySection, ai: AiSection, app: AppSection, integrations: IntegrationsSection };
+const ICONS = { orders: ShoppingBag, delivery: MapPin, payment: CreditCard, ai: Bot, app: Smartphone, integrations: Plug };
+const VIEWS = { orders: OrderSection, delivery: DeliverySection, payment: PaymentSection, ai: AiSection, app: AppSection, integrations: IntegrationsSection };
 
 const SettingsTab = () => {
   const { confirm } = useConfirm();

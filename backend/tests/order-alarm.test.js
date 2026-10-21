@@ -114,7 +114,9 @@ test("sipariş özeti: numara, adres, ödeme, ürünler ve tutarlar", () => {
 
 test("ödeme yöntemi: alan varsa o, yoksa ortam ayarı ya da varsayılan", () => {
   assert.equal(paymentLabel({ paymentMethod: "cash" }), "Kapıda nakit");
-  assert.equal(paymentLabel({ paymentMethod: "Kart" }), "Kapıda kart");
+  assert.equal(paymentLabel({ paymentMethod: "Kart" }), "Kapıda kart (POS)");
+  assert.equal(paymentLabel({ paymentMethod: "card" }), "Kapıda kart (POS)");
+  assert.equal(paymentLabel({ paymentMethod: "bank_transfer" }), "Havale / EFT");
   assert.equal(paymentLabel({ paymentMethod: "Yemek kartı" }), "Yemek kartı");
   process.env.ORDER_ALARM_PAYMENT_LABEL = "Kapıda nakit / kart";
   try {

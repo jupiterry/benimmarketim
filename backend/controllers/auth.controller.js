@@ -136,7 +136,9 @@ export const login = async (req, res) => {
 			}
 			user.lastLoginAt = new Date();
 			user.lastActive = new Date();
-			await user.save();
+			// Yalnızca değişen alanlar doğrulanır: kuraldan önce açılmış (ör. tek kelimelik
+			// isimli) hesaplar giriş yaparken ya da profil güncellerken takılmasın.
+			await user.save({ validateModifiedOnly: true });
 			
 			const { accessToken, refreshToken } = generateTokens(user._id);
 			await storeRefreshToken(user._id, refreshToken);
@@ -294,7 +296,7 @@ export const updatePhone = async (req, res) => {
 			return res.status(400).json({ message: "Geçerli bir telefon numarası girin (örn. 05XXXXXXXXX)" });
 		}
 		req.user.phone = phone;
-		await req.user.save();
+		await req.user.save({ validateModifiedOnly: true });
 		res.json({ message: "Telefon numarası güncellendi", phone });
 	} catch (error) {
 		console.error("Telefon güncelleme hatası:", error.message);
@@ -321,8 +323,15 @@ export const updateProfilePhoto = async (req, res) => {
 				transformation: { width: 512, height: 512, crop: "fill", gravity: "face" },
 			});
 		} catch (uploadError) {
-			console.error("Cloudinary avatar yükleme hatası:", uploadError.message);
-			return res.status(500).json({ message: "Fotoğraf yüklenemedi, lütfen tekrar deneyin" });
+			// Cloudinary hataları bazen { error: { message, http_code } } biçiminde gelir
+			const reason = uploadError?.message || uploadError?.error?.message || String(uploadError);
+			const code = uploadError?.http_code || uploadError?.error?.http_code;
+			console.error(
+				`Cloudinary avatar yükleme hatası (kullanıcı ${req.user._id}${code ? `, http ${code}` : ""}):`,
+				reason,
+				process.env.CLOUDINARY_CLOUD_NAME ? "" : "— CLOUDINARY_CLOUD_NAME tanımlı değil"
+			);
+			return res.status(502).json({ message: "Fotoğraf görsel sunucusuna yüklenemedi, lütfen tekrar deneyin" });
 		}
 
 		// Eski fotoğrafı Cloudinary'den kaldır (hata yeni fotoğrafı etkilemez)
@@ -334,11 +343,11 @@ export const updateProfilePhoto = async (req, res) => {
 		}
 
 		req.user.avatar = uploaded.secure_url;
-		await req.user.save();
+		await req.user.save({ validateModifiedOnly: true });
 		res.json({ message: "Profil fotoğrafı güncellendi", avatar: req.user.avatar });
 	} catch (error) {
-		console.error("Profil fotoğrafı güncelleme hatası:", error.message);
-		res.status(500).json({ message: "Profil fotoğrafı güncellenemedi", error: error.message });
+		console.error(`Profil fotoğrafı kaydedilemedi (kullanıcı ${req.user?._id}):`, error.message);
+		res.status(500).json({ message: "Profil fotoğrafı kaydedilemedi, lütfen tekrar deneyin", error: error.message });
 	}
 };
 
@@ -354,7 +363,7 @@ export const deleteProfilePhoto = async (req, res) => {
 			}
 		}
 		req.user.avatar = null;
-		await req.user.save();
+		await req.user.save({ validateModifiedOnly: true });
 		res.json({ message: "Profil fotoğrafı kaldırıldı", avatar: null });
 	} catch (error) {
 		console.error("Profil fotoğrafı silme hatası:", error.message);

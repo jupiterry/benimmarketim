@@ -406,7 +406,7 @@
   .admin-layout .anl-facts > div:last-child {
     border-bottom: 0;
   }
-  .admin-layout .anl-shelf .dash-telegram-body {
+  .admin-layout .anl-shelf .dash-sidecard-body {
     overflow-x: auto;
   }
   .admin-layout .anl-foot-bar .ui-btn {

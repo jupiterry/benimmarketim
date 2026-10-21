@@ -7,7 +7,7 @@ import { sendPushToUser } from "../services/push.service.js";
 export const listSupportRequests = async (req, res) => {
   const statuses = req.query.status ? String(req.query.status).split(",") : ["waiting", "accepted", "in_progress"];
   const requests = await SupportRequest.find({ status: { $in: statuses } })
-    .populate("user", "name email phone").populate("assignedTo", "name email")
+    .populate("user", "name email phone avatar").populate("assignedTo", "name email")
     .populate("conversation", "lastMessage lastMessageAt mode type order").sort({ priority: -1, createdAt: 1 }).lean();
   res.json({ success: true, supportRequests: requests });
 };
@@ -18,7 +18,7 @@ export const acceptSupportRequest = async (req, res) => {
     supportAcceptanceFilter(req.params.id),
     { $set: { status: "in_progress", assignedTo: req.user._id, acceptedAt: now } },
     { new: true },
-  ).populate("assignedTo", "name email").populate("user", "name email phone");
+  ).populate("assignedTo", "name email").populate("user", "name email phone avatar");
   if (!request) return res.status(409).json({ success: false, message: "Bu destek talebi başka bir görevli tarafından alınmış veya artık beklemiyor." });
   const chat = await Chat.findOneAndUpdate(
     { _id: request.conversation, mode: "WAITING_FOR_AGENT", status: "active" },

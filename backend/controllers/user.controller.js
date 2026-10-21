@@ -371,7 +371,7 @@ export const updateUserRole = async (req, res) => {
     const previous = user.role;
     if (previous !== role) {
       user.role = role;
-      await user.save();
+      await user.save({ validateModifiedOnly: true });
       recordAdminAction(req, {
         action: role === "admin" ? "Müşteri yönetici yapıldı" : "Yönetici yetkisi kaldırıldı",
         category: "customer",

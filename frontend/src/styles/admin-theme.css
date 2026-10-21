@@ -5443,3 +5443,11 @@ button.ord-point:hover {
 .admin-layout .ui-error-boundary > svg {
   color: var(--ui-danger);
 }
+
+/* Sipariş: müşteri fotoğrafı ve ödeme yöntemi */
+.ord-avatar { overflow: hidden; }
+.ord-avatar > img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
+.ord-c-pay { display: inline-flex; align-items: center; gap: 4px; }
+.ord-c-pay svg { width: 12px; height: 12px; }
+.ord-c-pay[data-method="bank_transfer"] { color: var(--ui-warn-ink, var(--ui-warn)); font-weight: 600; }
+.ord-d-facts dd[data-method="bank_transfer"] { color: var(--ui-warn-ink, var(--ui-warn)); font-weight: 600; }

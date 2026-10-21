@@ -621,6 +621,14 @@ body:has(.admin-layout[data-theme="dark"]) {
   color: var(--ui-brand-ink);
   font-size: var(--ui-fs-md);
   font-weight: 650;
+  overflow: hidden;
+}
+/* Müşterinin yüklediği profil fotoğrafı (yoksa baş harfler görünür) */
+.admin-layout .ui-avatar > img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
 }
 .admin-layout .ui-note {
   display: flex;

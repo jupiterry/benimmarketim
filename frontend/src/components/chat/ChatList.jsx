@@ -24,7 +24,7 @@ const ChatRow = ({ chat, selected, cursor, typing, online, now, onSelect }) => {
       onClick={() => onSelect(chat)}
       aria-current={selected ? "true" : undefined}
     >
-      <ChatAvatar name={chat.user?.name} online={online?.isOnline} />
+      <ChatAvatar name={chat.user?.name} src={chat.user?.avatar} online={online?.isOnline} />
       <span className="cht-row-main">
         <span className="cht-row-top">
           <span className="cht-row-name">{chat.user?.name || "Misafir"}</span>

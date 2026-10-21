@@ -1040,3 +1040,38 @@
     justify-content: flex-end;
   }
 }
+
+/* Ödeme bölümü */
+.admin-layout .stg-pay-methods {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-layout .stg-pay-methods li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+}
+.admin-layout .stg-pay-methods strong { display: block; font-size: var(--ui-fs-md); color: var(--ui-text); }
+.admin-layout .stg-pay-methods small { display: block; margin-top: 2px; font-size: var(--ui-fs-xs); color: var(--ui-text-3); }
+.admin-layout .stg-pay-icon {
+  display: inline-flex;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--ui-radius);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+}
+.admin-layout .stg-pay-icon svg { width: 16px; height: 16px; }
+@media (max-width: 760px) {
+  .admin-layout .stg-pay-methods { grid-template-columns: 1fr; }
+}

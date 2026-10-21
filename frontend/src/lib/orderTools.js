@@ -2,6 +2,10 @@
 // aktarma, telefon biçimleme ve Türkçe uyumlu arama. Ağ isteği yapmaz, durum tutmaz.
 
 // ── Metin ve sayı ─────────────────────────────────────────────────────────────
+const ORDER_PAYMENT_LABELS = { cash: "Kapıda nakit", card: "Kapıda kart (POS)", bank_transfer: "Havale / EFT" };
+/** Siparişin ödeme yöntemi etiketi (eski siparişlerde "Belirtilmedi") */
+export const orderPaymentLabel = (order) => order?.paymentMethodLabel || ORDER_PAYMENT_LABELS[order?.paymentMethod] || "Belirtilmedi";
+
 
 // HTML'e yazılan müşteri notu, ürün adı vb. kod olarak çalışmasın diye kaçırılır
 export const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (ch) => (
@@ -229,6 +233,7 @@ export const buildReceiptBody = (order) => {
               ${discountHtml}
               <div class="rule-solid"></div>
               <div class="total"><div>TOPLAM</div><div>${money(order.totalAmount)}</div></div>
+              ${order.paymentMethod ? `<div class="row strong"><div>Ödeme</div><div>${esc(orderPaymentLabel(order))}</div></div>` : ""}
               <div class="rule-solid"></div>
               <div class="footer">
                 <div>Bizi tercih ettiğiniz için teşekkür ederiz!</div>
@@ -413,7 +418,7 @@ const csvCell = (value) => {
 const csvNumber = (value) => (Number(value) || 0).toFixed(2).replace(".", ",");
 
 export const ORDER_CSV_COLUMNS = [
-  "Sipariş No", "Tarih", "Saat", "Müşteri", "Telefon", "E-posta", "Teslimat Noktası", "Durum",
+  "Sipariş No", "Tarih", "Saat", "Müşteri", "Telefon", "E-posta", "Teslimat Noktası", "Ödeme", "Durum",
   "Çeşit", "Adet", "Ara Toplam", "Kupon", "İndirim", "Toplam", "Teslim Süresi (dk)", "Müşteri Notu", "Teslimat Takibi", "Ürünler",
 ];
 
@@ -430,6 +435,7 @@ export const buildOrdersCsv = (orders) => {
       csvCell(formatPhoneTR(order.phone || order.user?.phone || "")),
       csvCell(order.user?.email || ""),
       csvCell(order.deliveryPointName || order.city || ""),
+      csvCell(orderPaymentLabel(order)),
       csvCell(order.status || ""),
       products.length,
       products.reduce((sum, p) => sum + (Number(p.quantity) || 0), 0),
@@ -464,6 +470,7 @@ export const buildOrderSummaryText = (order) => {
     `${order.user?.name || "Müşteri"} · ${formatPhoneTR(order.phone || order.user?.phone || "") || "-"}`,
     ...(order.products || []).map((p) => `- ${p.quantity} x ${p.name}`),
     `Toplam: ${formatMoney(order.totalAmount)}`,
+    ...(order.paymentMethod ? [`Ödeme: ${orderPaymentLabel(order)}`] : []),
   ];
   if (order.note && String(order.note).trim()) lines.push(`Not: ${String(order.note).trim()}`);
   return lines.join("\n");
