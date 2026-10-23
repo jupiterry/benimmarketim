@@ -13,6 +13,7 @@ import { buildDayCloseSummary, printDayClose } from "../../lib/orderTools";
 import { OrderCode, SlaChip, StatusBadge } from "./atoms";
 import { HOUR, TZ, customerName, formatMinutes, parseAmount, startOfDay } from "./shared";
 import "../../styles/orders-tools.css";
+import "../../styles/orders-ops.css";
 
 const POPUP_BLOCKED = "Yazdırma penceresi açılamadı. Tarayıcıda bu site için açılır pencerelere izin verin.";
 const OPEN_PREVIEW = 5;
@@ -273,6 +274,38 @@ export default function DayCloseDrawer({ orders = [], now = Date.now(), onClose,
               </ul>
               <p className="ui-hint so-t-hint">Sayım kaydedilmez; yalnızca bu ekranda hesaplanır ve yazdırılan rapora eklenir.</p>
             </section>
+
+            {s.byCourier?.length > 0 && (
+              <section className="so-t-sec" aria-labelledby={`${uid}-courier`}>
+                <h3 className="so-t-h" id={`${uid}-courier`}><Bike aria-hidden="true" />Kurye bazında tahsilat</h3>
+                <ul className="so-ops-couriers" aria-label="Kurye bazında bugün teslim edilenler">
+                  {s.byCourier.map((c) => (
+                    <li key={c.id} className="so-ops-courier-row" data-none={c.id === "none" ? "true" : undefined}>
+                      <span className="so-ops-courier-name">
+                        <span className="ui-truncate">{c.name}</span>
+                        <small className="ui-num">{c.count} teslim · {money(c.total)}</small>
+                      </span>
+                      <span className="so-ops-courier-pay ui-num" title="Kapıda nakit">
+                        <Banknote aria-hidden="true" /><span className="so-sr">Nakit </span>{money(c.cash)}
+                        <small>({c.cashCount})</small>
+                      </span>
+                      <span className="so-ops-courier-pay ui-num" title="Kapıda kart (POS)">
+                        <CreditCard aria-hidden="true" /><span className="so-sr">Kart </span>{money(c.card)}
+                        <small>({c.cardCount})</small>
+                      </span>
+                      {(c.transferCount > 0 || c.otherCount > 0) && (
+                        <span className="so-ops-courier-extra ui-num">
+                          {c.transferCount > 0 && <>Havale {money(c.transfer)} ({c.transferCount})</>}
+                          {c.transferCount > 0 && c.otherCount > 0 && " · "}
+                          {c.otherCount > 0 && <>Belirtilmemiş {money(c.other)} ({c.otherCount})</>}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <p className="ui-hint so-t-hint">Bugün teslim edilen siparişlerin toplamı (teslim saatine göre), atanan kuryeye göre.</p>
+              </section>
+            )}
           </>
         )}
       </div>

@@ -3,13 +3,14 @@
 // Stil: styles/orders-overview.css (önek so-ov-). Sözleşme: scratchpad/orders-design/CONTRACTS.md §7.2
 import { useId, useMemo } from "react";
 import {
-  AlertTriangle, Bike, CheckCircle2, ChevronDown, Clock, Home, MapPin, ShoppingBag, Timer, Truck, Wallet,
+  AlertTriangle, Bike, CheckCircle2, ChevronDown, Clock, Home, MapPin, PhoneCall, ShoppingBag, Timer, Truck, Wallet,
 } from "lucide-react";
 import { KpiGrid, SkeletonCards, money } from "../admin/ui";
 import {
   DELAY_HINT, PAYMENT, STATUS, activeByPoint, formatMinutes, hasZoneOrders, hourlyToday, startOfDay, statusDistribution, summarizeOrders,
 } from "./shared";
 import "../../styles/orders-overview.css";
+import "../../styles/orders-ops.css";
 
 const pad2 = (n) => String(n).padStart(2, "0");
 const count = (n) => (Number(n) || 0).toLocaleString("tr-TR");
@@ -170,7 +171,7 @@ const PointsPanel = ({ orders, now, pointFilter, onPointFilter }) => {
 
 // ── Bileşen ──────────────────────────────────────────────────────────────
 export default function OrdersKpis({
-  loading = false, kpis, orders, now, active, onPrep, onRoad, onLate, onToday, onDayClose,
+  loading = false, kpis, orders, now, active, onPrep, onRoad, onLate, onToday, onDayClose, onCallbacks,
   insightsOpen = false, onToggleInsights, pointFilter = "all", onPointFilter,
 }) {
   const panelId = `so-ov-insights-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
@@ -240,6 +241,20 @@ export default function OrdersKpis({
           note={`${count(k.todayDelivered)} teslim · ${count(k.todayCancelled)} iptal`}
           popup onClick={() => onDayClose?.()} title="Sipariş anından teslime ortalama süre (bugün) · Gün sonu özetini aç" className="so-ov-kpi--avg" />
       </KpiGrid>
+
+      {(k.callbacks > 0 || on.callbacks) && (
+        <div className="ui-banner ui-banner--danger so-ops-kpi-banner" role="status">
+          <PhoneCall aria-hidden="true" />
+          <span className="ui-grow">
+            {k.callbacks > 0
+              ? <><strong className="ui-num">{count(k.callbacks)} sipariş teyit için aranmayı bekliyor.</strong> Müşterinin ilk siparişi; hazırlamadan önce arayıp teyit edin.</>
+              : "Teyit bekleyen sipariş kalmadı."}
+          </span>
+          <button type="button" className="ui-btn ui-btn--sm" aria-pressed={Boolean(on.callbacks)} onClick={() => onCallbacks?.()}>
+            {on.callbacks ? "Tüm siparişleri göster" : "Yalnızca bunları göster"}
+          </button>
+        </div>
+      )}
 
       <section className="so-ov-insights" data-open={insightsOpen ? "true" : "false"}>
         <h2 className="so-ov-insights-title">

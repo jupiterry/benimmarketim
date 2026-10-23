@@ -17,6 +17,9 @@ import {
   addProductToOrder,
   toggleManualFlag,
   getDashboardSummary,
+  confirmCallback,
+  markDeliveryFailed,
+  assignCourier,
   normalizeOrderSearch,
   hasSearchableTerm,
   INVALID_ORDER_ID_MESSAGE,
@@ -172,6 +175,10 @@ router.get("/audit", protectRoute, adminRoute, async (req, res) => {
 router.put("/update-status", protectRoute, adminRoute, auditAdminAction("Sipariş durumu", req => String(req.body.orderId)), updateOrderStatus);
 router.put("/bulk-status", protectRoute, adminRoute, auditAdminAction("Toplu sipariş durumu", req => `${req.body.orderIds?.length || 0} sipariş`), bulkUpdateOrderStatus);
 router.put("/delivery-tracking", protectRoute, adminRoute, auditAdminAction("Teslimat takibi", req => String(req.body.orderId)), updateDeliveryTracking);
+// Teslimat operasyonu: ilk sipariş teyidi, teslim edilemedi (durum İptal Edildi olur), kurye ataması (tekli/toplu)
+router.put("/confirm-callback", protectRoute, adminRoute, auditAdminAction("Telefon teyidi", req => String(req.body.orderId)), confirmCallback);
+router.put("/delivery-failed", protectRoute, adminRoute, auditAdminAction("Teslim edilemedi", req => String(req.body.orderId)), markDeliveryFailed);
+router.put("/assign-courier", protectRoute, adminRoute, auditAdminAction("Kurye ataması", req => `${req.body.orderIds?.length || 0} sipariş`), assignCourier);
 
 // Kullanıcının kendi siparişlerini alması için endpoint
 router.get("/user-orders", protectRoute, getUserOrders);

@@ -5,8 +5,8 @@
 import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import {
-  AlertCircle, AlertTriangle, Check, ChevronDown, History, Home, ListChecks, Loader2, MapPin, MoreHorizontal, PackageCheck,
-  Printer, RefreshCw, RotateCcw, Sparkles, StickyNote, Timer, UserX, Wallet,
+  AlertCircle, AlertTriangle, Bike, Check, ChevronDown, History, Home, ListChecks, Loader2, MapPin, MoreHorizontal, PackageCheck,
+  PackageX, PhoneCall, Printer, RefreshCw, RotateCcw, Sparkles, StickyNote, Timer, UserX, Wallet,
 } from "lucide-react";
 import {
   EmptyState, Skeleton, SkeletonCards, SkeletonRows, formatDate, formatDateTime, formatTime, initials, money,
@@ -14,7 +14,7 @@ import {
 import {
   CLICK_GUARD_MS, KBD_HINT, NOW_TICK_MS, PAYMENT, customerName, durationMinutes, faceTone, formatMinutes, getSla,
   isDeletedCustomer, nextAction, orderCode, orderCodeTitle, paymentKey, paymentLong, pointKey, pointLabel, shortWhen, statusUi,
-  isAddressOrder, orderAddressLines,
+  isAddressOrder, orderAddressLines, needsCallbackPending, courierName, deliveryOutcomeLabel,
 } from "./shared";
 import "../../styles/orders.css";
 
@@ -208,6 +208,35 @@ export const TrustBadges = ({ order, className = "" }) => {
   );
 };
 export const TrustBadge = TrustBadges;
+/** "Teyit için ara": ilk sipariş telefonla teyit edilmemiş aktif sipariş; değilse null */
+export const CallbackBadge = ({ order, className = "" }) => {
+  if (!needsCallbackPending(order)) return null;
+  return (
+    <span className={`so-chip so-callback ${className}`} data-tone="danger" title="İlk sipariş: hazırlamadan önce müşteriyi arayıp teyit edin">
+      <PhoneCall aria-hidden="true" />Teyit için ara
+    </span>
+  );
+};
+/** Atanan kurye adı; atanmamışsa null */
+export const CourierChip = ({ order, className = "" }) => {
+  const name = courierName(order);
+  if (!name) return null;
+  return (
+    <span className={`so-chip so-courier ${className}`} data-tone="info" title={`Kurye: ${name}`}>
+      <Bike aria-hidden="true" /><span className="so-chip-text">{name}</span>
+    </span>
+  );
+};
+/** İptal edilmiş siparişte "Teslim edilemedi: neden"; yoksa null */
+export const OutcomeChip = ({ order, className = "" }) => {
+  const label = order?.status === "İptal Edildi" ? deliveryOutcomeLabel(order) : "";
+  if (!label) return null;
+  return (
+    <span className={`so-chip so-outcome ${className}`} data-tone="danger" title={`Teslim edilemedi: ${label}${order.deliveryOutcome?.note ? ` — ${order.deliveryOutcome.note}` : ""}`}>
+      <PackageX aria-hidden="true" /><span className="so-chip-text">Teslim edilemedi</span>
+    </span>
+  );
+};
 /** "Yeni" (bu cihazda henüz görülmedi), hafif nabız animasyonlu */
 export const UnseenBadge = ({ className = "" }) => (
   <span className={`so-chip so-new ${className}`} data-tone="brand" title="Henüz görülmedi (bu cihaz)">Yeni</span>

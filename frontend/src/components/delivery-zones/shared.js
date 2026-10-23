@@ -61,6 +61,7 @@ export const normalizeZone = (z = {}) => ({
   freeDeliveryThreshold: isSet(z.freeDeliveryThreshold) && Number.isFinite(Number(z.freeDeliveryThreshold)) ? Number(z.freeDeliveryThreshold) : null,
   minimumOrderAmount: isSet(z.minimumOrderAmount) && Number.isFinite(Number(z.minimumOrderAmount)) ? Number(z.minimumOrderAmount) : null,
   etaText: String(z.etaText || ""),
+  requireFirstOrderCallback: Boolean(z.requireFirstOrderCallback ?? z.requiresFirstOrderCallback),
   sortOrder: Number.isFinite(Number(z.sortOrder)) ? Number(z.sortOrder) : 0,
   ordersThisMonth: Number(z.ordersThisMonth) || 0,
   ordersTotal: Number(z.ordersTotal) || 0,
@@ -102,13 +103,13 @@ export const sortZones = (list, key, dir) => {
 // ── Form ──────────────────────────────────────────────────────────────────
 export const emptyForm = (nextSort = 0) => ({
   name: "", type: "mahalle", enabled: false, closedReason: "",
-  feeMode: "free", fee: "", threshold: "", minimum: "", etaText: "", sortOrder: String(nextSort),
+  feeMode: "free", fee: "", threshold: "", minimum: "", etaText: "", sortOrder: String(nextSort), callback: false,
 });
 export const formFromZone = (z) => ({
   name: z.name, type: z.type, enabled: z.enabled, closedReason: z.closedReason,
   feeMode: z.deliveryFee > 0 ? "paid" : "free", fee: z.deliveryFee > 0 ? moneyText(z.deliveryFee) : "",
   threshold: moneyText(z.freeDeliveryThreshold), minimum: moneyText(z.minimumOrderAmount),
-  etaText: z.etaText, sortOrder: String(z.sortOrder),
+  etaText: z.etaText, sortOrder: String(z.sortOrder), callback: Boolean(z.requireFirstOrderCallback),
 });
 export const sameForm = (a, b) => Object.keys(a).every((k) => String(a[k]) === String(b[k]));
 
@@ -160,6 +161,7 @@ export const validateForm = (form, { zones = [], editingId = null, isYurt = fals
     minimumOrderAmount: Number.isNaN(minimum) ? null : minimum,
     etaText,
     sortOrder: Number.isInteger(sortOrder) ? sortOrder : 0,
+    requireFirstOrderCallback: Boolean(form.callback),
   };
   if (!isYurt) payload.type = form.type;
   return { errors, payload };

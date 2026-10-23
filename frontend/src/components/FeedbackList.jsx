@@ -187,7 +187,7 @@ const FeedbackRow = ({ f, now, active, selected, onOpen, onReply, onResolve, onD
 
 // ── Çekmece ───────────────────────────────────────────────────────────────
 const FeedbackDrawer = ({ f, order, onClose, onStatus, onReply, onDelete, onOpenOrder, onOpenChat, onCompensate, focusReply, busy }) => {
-  const confirm = useConfirm();
+  const { confirm } = useConfirm();
   const saved = f.adminReply?.text || "";
   const [draft, setDraft] = useState(saved);
   const [compAmount, setCompAmount] = useState("");

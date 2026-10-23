@@ -1,7 +1,7 @@
 // Seçili bölgeler için yapışkan toplu işlem çubuğu. Değer isteyen işlemler (ücret, eşik, minimum) çubuğun içinde
 // küçük bir giriş satırı açar; Enter uygular, Esc vazgeçer.
 import { useEffect, useRef, useState } from "react";
-import { BadgePercent, Check, CheckSquare, Gift, Loader2, Lock, ShoppingBasket, Tag, Unlock, X } from "lucide-react";
+import { BadgePercent, Check, CheckSquare, Gift, Loader2, Lock, PhoneCall, PhoneOff, ShoppingBasket, Tag, Unlock, X } from "lucide-react";
 import { num, parseMoney } from "./shared";
 
 const PROMPTS = {
@@ -61,6 +61,11 @@ const BulkBar = ({ count, busy, onAction, onClear, generalMinimum }) => {
           <span className="dz-bulk-sep" aria-hidden="true" />
           <button type="button" className="ui-btn ui-btn--sm" onClick={() => onAction("open")} disabled={busy}><Unlock />Aç</button>
           <button type="button" className="ui-btn ui-btn--sm" onClick={() => onAction("close")} disabled={busy}><Lock />Kapat</button>
+          <span className="dz-bulk-sep" aria-hidden="true" />
+          <button type="button" className="ui-btn ui-btn--sm" onClick={() => onAction("callbackOn")} disabled={busy}
+            title="Seçili bölgelerde ilk siparişi telefonla teyit et"><PhoneCall />Teyit iste</button>
+          <button type="button" className="ui-btn ui-btn--sm" onClick={() => onAction("callbackOff")} disabled={busy}
+            title="Seçili bölgelerde ilk sipariş teyidini kapat"><PhoneOff />Teyidi kaldır</button>
           {busy && <Loader2 className="ui-spin dz-busy" aria-label="Uygulanıyor" />}
         </div>
       )}

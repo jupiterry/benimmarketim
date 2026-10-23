@@ -14,6 +14,7 @@
 
 import mongoose from "mongoose";
 import DeliveryZone, { LEGACY_POINTS, ZONE_TYPES } from "../models/deliveryZone.model.js";
+import Order from "../models/order.model.js";
 import Settings from "../models/settings.model.js";
 
 export { LEGACY_POINTS, ZONE_TYPES };
@@ -245,7 +246,85 @@ export const serializePublicZone = (zone, settings) => {
     freeDeliveryThreshold: zone.freeDeliveryThreshold ?? null,
     minimumOrderAmount: resolveMinimumOrderAmount(zone, settings),
     etaText: zone.etaText || "",
+    requiresFirstOrderCallback: zone.requireFirstOrderCallback === true,
   };
+};
+
+// ─────────────────────────────────────────────
+// İlk sipariş telefon teyidi
+// ─────────────────────────────────────────────
+
+/**
+ * Bölgede "ilk siparişte telefonla teyit" açıksa ve müşterinin daha önce teslim edilmiş siparişi yoksa true.
+ * Sipariş verme akışını asla bozmaz: sorgu hatasında false döner (sipariş teyitsiz alınır).
+ */
+export const needsFirstOrderCallback = async (zone, userId) => {
+  if (zone?.requireFirstOrderCallback !== true || !userId) return false;
+  try {
+    return !(await Order.exists({ user: userId, status: "Teslim Edildi" }));
+  } catch (error) {
+    console.warn("İlk sipariş teyidi denetlenemedi:", error.message);
+    return false;
+  }
+};
+
+/** Yurt (eski) akışı: yurt bölgesinin bayrağı. Bölge okunamazsa false. */
+export const legacyZoneNeedsCallback = async (legacyPoint, userId) => {
+  try {
+    const zone = await DeliveryZone.findById(legacyPoint).select("requireFirstOrderCallback").lean();
+    return await needsFirstOrderCallback(zone, userId);
+  } catch (error) {
+    console.warn("Yurt bölgesi teyit ayarı okunamadı:", error.message);
+    return false;
+  }
+};
+
+// ─────────────────────────────────────────────
+// Kuryeler (settings.delivery.couriers)
+// ─────────────────────────────────────────────
+
+export const MAX_COURIERS = 30;
+export const COURIER_LIMITS = { name: 40, phone: 20 };
+
+/** Yönetici yanıtı biçimi */
+export const serializeCourier = (courier) => ({
+  _id: String(courier?._id ?? ""),
+  name: String(courier?.name || ""),
+  phone: String(courier?.phone || ""),
+  active: courier?.active !== false,
+});
+
+export const listCouriers = (settings) => (plain(settings?.delivery)?.couriers || []).map(serializeCourier);
+
+/**
+ * Kurye listesi girdisini doğrular (tüm liste gönderilir). Var olan kimlik korunur; yeni kayda kimlik üretilir.
+ * @returns {{ value?: Array<{ _id, name, phone, active }>, error?: string }}
+ */
+export const normalizeCouriersInput = (input) => {
+  if (!Array.isArray(input)) return { error: "Kurye listesi geçersiz" };
+  if (input.length > MAX_COURIERS) return { error: `En fazla ${MAX_COURIERS} kurye eklenebilir` };
+  const value = [];
+  const names = new Set();
+  const ids = new Set();
+  for (const raw of input) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { error: "Kurye bilgisi geçersiz" };
+    if (typeof raw.name !== "string" || !cleanText(raw.name)) return { error: "Kurye adı zorunludur" };
+    const name = cleanText(raw.name);
+    if (name.length > COURIER_LIMITS.name) return { error: `Kurye adı en fazla ${COURIER_LIMITS.name} karakter olabilir` };
+    const key = name.toLocaleLowerCase("tr");
+    if (names.has(key)) return { error: `"${name}" adlı iki kurye var; adları ayırt edin` };
+    names.add(key);
+    if (raw.phone !== undefined && raw.phone !== null && typeof raw.phone !== "string") return { error: `${name}: telefon geçersiz` };
+    const phone = cleanText(raw.phone ?? "");
+    if (phone.length > COURIER_LIMITS.phone || (phone && !/^[0-9+()\s-]{7,20}$/.test(phone))) return { error: `${name}: telefon geçersiz` };
+    if (raw.active !== undefined && typeof raw.active !== "boolean") return { error: `${name}: aktiflik değeri geçersiz` };
+    const id = typeof raw._id === "string" && isValidObjectId(raw._id) && !ids.has(raw._id.toLowerCase())
+      ? raw._id.toLowerCase()
+      : new mongoose.Types.ObjectId().toString();
+    ids.add(id);
+    value.push({ _id: id, name, phone, active: raw.active !== false });
+  }
+  return { value };
 };
 
 export const zoneClosedMessage = (zone) =>
@@ -419,6 +498,10 @@ export const normalizeZoneInput = (input, { partial = false } = {}) => {
     const eta = cleanText(input.etaText ?? "");
     if (eta.length > 40) return { error: "Teslimat süresi metni en fazla 40 karakter olabilir" };
     value.etaText = eta;
+  }
+  if (input.requireFirstOrderCallback !== undefined) {
+    if (typeof input.requireFirstOrderCallback !== "boolean") return { error: "İlk sipariş teyidi değeri geçersiz" };
+    value.requireFirstOrderCallback = input.requireFirstOrderCallback;
   }
   if (input.sortOrder !== undefined) {
     const order = Number(input.sortOrder);

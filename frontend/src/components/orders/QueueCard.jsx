@@ -6,10 +6,10 @@ import { memo } from "react";
 import { StickyNote } from "lucide-react";
 import { money } from "../admin/ui";
 import {
-  AddressLine, CustomerFace, NextStepButton, OrderCode, PaymentChip, PickProgress, PointChip, PrintedMark, SelectCheck, SlaChip,
-  TrustBadges, UnseenBadge,
+  AddressLine, CallbackBadge, CourierChip, CustomerFace, NextStepButton, OrderCode, PaymentChip, PickProgress, PointChip, PrintedMark,
+  SelectCheck, SlaChip, TrustBadges, UnseenBadge,
 } from "./atoms";
-import { customerName, getSla, isAddressOrder, orderAriaLabel, orderCode } from "./shared";
+import { customerName, getSla, isAddressOrder, needsCallbackPending, orderAriaLabel, orderCode } from "./shared";
 import "../../styles/orders-queue.css";
 
 const flag = (value) => (value ? "true" : undefined);
@@ -37,6 +37,7 @@ function QueueCard({
       data-pending={flag(order.pending)}
       data-note={note ? "true" : undefined}
       data-addr={isAddressOrder(order) ? "true" : undefined}
+      data-callback={needsCallbackPending(order) ? "true" : undefined}
     >
       <SelectCheck
         className="so-q-check"
@@ -57,6 +58,7 @@ function QueueCard({
           >
             {customerName(order)}
           </button>
+          <CallbackBadge order={order} />
           <TrustBadges order={order} />
           {unseen && <UnseenBadge />}
         </div>
@@ -68,6 +70,7 @@ function QueueCard({
         <span className="so-q-count">{itemCount} ürün · {unitCount} adet</span>
         <PointChip order={order} />
         <PaymentChip order={order} />
+        <CourierChip order={order} />
         <PrintedMark at={printedAt} />
         <PickProgress info={picked} />
       </div>

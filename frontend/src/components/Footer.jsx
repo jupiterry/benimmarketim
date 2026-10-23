@@ -8,6 +8,7 @@ const linkGroups = [
     title: "Kurumsal",
     links: [
       { to: "/about", label: "Hakkımızda" },
+      { to: "/teslimat-bolgeleri", label: "Teslimat bölgeleri" },
       { to: "/contact", label: "İletişim" },
       { to: "/faq", label: "SSS" },
     ],

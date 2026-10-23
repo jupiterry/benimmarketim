@@ -7,7 +7,8 @@
  *   POST /api/delivery/quote   (oturum)     sepet + bölge → teslimat ücreti, eşik, minimum
  * Yönetici (protectRoute + adminRoute, her değişiklik recordAdminAction ile kaydedilir):
  *   GET/POST /api/delivery/admin/zones, PUT/DELETE /api/delivery/admin/zones/:id,
- *   PATCH /api/delivery/admin/zones/bulk, GET/PUT /api/delivery/admin/settings
+ *   PATCH /api/delivery/admin/zones/bulk, GET/PUT /api/delivery/admin/settings,
+ *   GET/PUT /api/delivery/admin/couriers (kurye listesi; telefonlar yalnızca burada görünür)
  */
 
 import mongoose from "mongoose";
@@ -27,7 +28,9 @@ import {
   getAddressOrderingMode,
   getZone,
   isValidObjectId,
+  listCouriers,
   listZones,
+  normalizeCouriersInput,
   normalizeZoneInput,
   serializePublicZone,
   slugifyZoneName,
@@ -55,6 +58,7 @@ export const ZONE_AUDIT_FIELDS = [
   { key: "freeDeliveryThreshold", label: "Ücretsiz teslimat eşiği", format: amountOrDash },
   { key: "minimumOrderAmount", label: "Minimum sepet", format: (v) => (v === null || v === undefined ? "Genel minimum" : money(v)) },
   { key: "etaText", label: "Teslimat süresi" },
+  { key: "requireFirstOrderCallback", label: "İlk siparişte telefonla teyit", format: (v) => yesNo(v === true, "Açık", "Kapalı") },
   { key: "sortOrder", label: "Sıralama" },
 ];
 
@@ -90,6 +94,8 @@ const adminZone = (zone, counts) => {
   return {
     ...zone,
     id: zone._id,
+    requireFirstOrderCallback: zone.requireFirstOrderCallback === true,
+    requiresFirstOrderCallback: zone.requireFirstOrderCallback === true,
     ordersThisMonth: row?.ordersThisMonth || 0,
     ordersTotal: row?.ordersTotal || 0,
   };
@@ -233,7 +239,9 @@ export const adminUpdateZone = async (req, res) => {
       if (changed) invalidateSettingsCache();
     }
 
-    const changes = diffFields(before, updated, ZONE_AUDIT_FIELDS);
+    // Alanı hiç olmayan eski bölge belgesi false sayılır (sahte "Kapalı → Kapalı" kaydı yazılmasın)
+    const auditView = (zone) => ({ ...zone, requireFirstOrderCallback: zone?.requireFirstOrderCallback === true });
+    const changes = diffFields(auditView(before), auditView(updated), ZONE_AUDIT_FIELDS);
     if (changes.length) {
       recordAdminAction(req, {
         action: changes.length === 1 ? `Teslimat bölgesi değiştirildi: ${updated.name} (${changes[0].label})` : `Teslimat bölgesi değiştirildi: ${updated.name}`,
@@ -278,7 +286,7 @@ export const adminDeleteZone = async (req, res) => {
   }
 };
 
-const BULK_FIELDS = ["deliveryFee", "freeDeliveryThreshold", "minimumOrderAmount", "enabled", "etaText", "closedReason"];
+const BULK_FIELDS = ["deliveryFee", "freeDeliveryThreshold", "minimumOrderAmount", "enabled", "etaText", "closedReason", "requireFirstOrderCallback"];
 const MAX_BULK_IDS = 500;
 
 export const adminBulkUpdateZones = async (req, res) => {
@@ -414,5 +422,67 @@ export const adminUpdateDeliverySettings = async (req, res) => {
     res.json({ ...(await deliverySettingsResponse(settings)), changes });
   } catch (error) {
     return serverError(res, "Teslimat ayarları kaydedilemedi", error);
+  }
+};
+
+// ─────────────────────────────────────────────
+// Yönetici: kuryeler
+// ─────────────────────────────────────────────
+
+export const adminGetCouriers = async (req, res) => {
+  try {
+    const settings = await Settings.getSettings();
+    res.json({ couriers: listCouriers(settings) });
+  } catch (error) {
+    return serverError(res, "Kuryeler getirilemedi", error);
+  }
+};
+
+/**
+ * PUT /api/delivery/admin/couriers { couriers: [{ _id?, name, phone, active }] } — listenin tamamı gönderilir.
+ * Kimliği verilen kayıt korunur (eski siparişlerdeki kurye kimliği geçerli kalır). Yanıt: { couriers, changes }
+ */
+export const adminUpdateCouriers = async (req, res) => {
+  try {
+    const { value, error } = normalizeCouriersInput(req.body?.couriers);
+    if (error) return fail(res, 400, error);
+
+    const settings = await Settings.getSettings();
+    if (!settings.delivery) settings.delivery = {};
+    const before = listCouriers(settings);
+    settings.delivery.couriers = value;
+    settings.markModified?.("delivery.couriers");
+    await settings.save();
+    invalidateSettingsCache();
+    const after = listCouriers(settings);
+
+    const beforeById = new Map(before.map((c) => [c._id, c]));
+    const afterIds = new Set(after.map((c) => c._id));
+    const changes = [];
+    for (const courier of after) {
+      const old = beforeById.get(courier._id);
+      if (!old) changes.push({ label: "Kurye eklendi", from: "—", to: courier.name });
+      else {
+        if (old.name !== courier.name) changes.push({ label: "Kurye adı", from: old.name, to: courier.name });
+        if (old.phone !== courier.phone) changes.push({ label: `${courier.name}: telefon`, from: old.phone || "—", to: courier.phone || "—" });
+        if (old.active !== courier.active) changes.push({ label: courier.name, from: old.active ? "Aktif" : "Pasif", to: courier.active ? "Aktif" : "Pasif" });
+      }
+    }
+    for (const old of before) if (!afterIds.has(old._id)) changes.push({ label: "Kurye silindi", from: old.name, to: "—" });
+
+    if (changes.length) {
+      recordAdminAction(req, {
+        action: changes.length === 1 ? `Kuryeler değiştirildi: ${changes[0].label}` : "Kuryeler değiştirildi",
+        category: "settings",
+        target: "delivery-couriers",
+        targetName: "Kuryeler",
+        changes,
+      });
+    } else {
+      req.auditRecorded = true;
+    }
+    res.json({ couriers: after, changes });
+  } catch (error) {
+    return serverError(res, "Kuryeler kaydedilemedi", error);
   }
 };

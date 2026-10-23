@@ -989,3 +989,198 @@
     transition: none;
   }
 }
+
+/* ── İlk sipariş telefon teyidi (satır rozeti, çekmece anahtarı) ───────── */
+.admin-layout .dz-callback {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.admin-layout .dz-callback svg {
+  width: 11px;
+  height: 11px;
+}
+.admin-layout .dz-toggle-title .dz-toggle-icon {
+  width: 15px;
+  height: 15px;
+  margin-right: 6px;
+  vertical-align: -2px;
+  color: var(--ui-text-3);
+}
+
+/* ── Kuryeler kartı ────────────────────────────────────────────────── */
+.admin-layout .dz-couriers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s3);
+  padding: var(--ui-s4);
+}
+.admin-layout .dz-couriers-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ui-s3);
+}
+.admin-layout .dz-couriers-title {
+  display: flex;
+  flex: 1 1 260px;
+  align-items: flex-start;
+  gap: var(--ui-s3);
+  min-width: 0;
+}
+.admin-layout .dz-couriers-title .ui-hint {
+  margin: 2px 0 0;
+}
+.admin-layout .dz-couriers-icon {
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-info-bg);
+  color: var(--ui-info-ink);
+}
+.admin-layout .dz-couriers-icon svg {
+  width: 18px;
+  height: 18px;
+}
+.admin-layout .dz-couriers-skel {
+  display: grid;
+  gap: var(--ui-s2);
+}
+.admin-layout .dz-couriers-empty {
+  margin: 0;
+  padding: var(--ui-s3);
+  border: 1px dashed var(--ui-line-strong);
+  border-radius: var(--ui-radius);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .dz-courier-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: var(--ui-s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-layout .dz-courier {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-s2);
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+}
+.admin-layout .dz-courier[data-inactive="true"] {
+  background: var(--ui-surface-2);
+}
+.admin-layout .dz-courier[data-inactive="true"] .dz-courier-main strong {
+  color: var(--ui-text-3);
+}
+.admin-layout .dz-courier-main {
+  display: flex;
+  flex: 1 1 140px;
+  flex-direction: column;
+  min-width: 0;
+}
+.admin-layout .dz-courier-main strong {
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+}
+.admin-layout .dz-courier-phone {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  text-decoration: none;
+}
+.admin-layout a.dz-courier-phone:hover {
+  color: var(--ui-brand-strong);
+  text-decoration: underline;
+}
+.admin-layout .dz-courier-phone svg {
+  width: 12px;
+  height: 12px;
+}
+.admin-layout .dz-courier-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+.admin-layout .dz-courier-form {
+  display: flex;
+  flex: 1 1 100%;
+  flex-direction: column;
+  gap: var(--ui-s2);
+  min-width: 0;
+  padding: var(--ui-s3);
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-2);
+}
+.admin-layout .dz-courier-inputs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: var(--ui-s2);
+}
+.admin-layout .dz-courier-input {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.admin-layout .dz-courier-input .ui-field {
+  width: 100%;
+}
+.admin-layout .dz-courier-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ui-s2);
+}
+.admin-layout .dz-couriers-foot {
+  margin: 0;
+}
+.admin-layout .dz-couriers-err {
+  color: var(--ui-danger-ink);
+}
+.admin-layout .dz-couriers-err svg {
+  width: 12px;
+  height: 12px;
+  vertical-align: -1px;
+}
+@media (max-width: 760px) {
+  .admin-layout .dz-couriers {
+    padding: var(--ui-s3);
+  }
+  .admin-layout .dz-couriers-head > .ui-btn {
+    flex: 1 1 100%;
+    justify-content: center;
+    min-height: 40px;
+  }
+  .admin-layout .dz-courier-actions .ui-icon-btn {
+    min-width: 36px;
+    min-height: 36px;
+  }
+  .admin-layout .dz-courier-form-actions .ui-btn {
+    flex: 1 1 0;
+    justify-content: center;
+    min-height: 40px;
+  }
+}

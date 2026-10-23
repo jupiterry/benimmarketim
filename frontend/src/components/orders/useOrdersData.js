@@ -1183,6 +1183,73 @@ function createOrdersController({ confirm }) {
     return ok;
   };
 
+  // ── Teslimat operasyonu: telefon teyidi, kurye ataması, teslim edilemedi ──
+  const confirmCallback = async (order) => {
+    const id = idOf(order);
+    if (!base.orders.has(id) || removedOrders.has(id)) return false;
+    lock(id);
+    let ok = false;
+    try {
+      const res = await enqueue([id], () => http("put", "/orders-analytics/confirm-callback", { orderId: id }));
+      const at = res?.data?.order?.callbackConfirmedAt || new Date().toISOString();
+      patchBase(id, (raw) => ({ ...raw, callbackConfirmedAt: at }));
+      ok = true;
+    } catch (error) {
+      toast.error(errorMessage(error, "Teyit kaydedilemedi"));
+    }
+    unlock(id, { refetch: !ok });
+    emit(true);
+    return ok;
+  };
+
+  /** courier: { _id, name } ya da null (atamayı kaldır) */
+  const assignCourier = async (orders, courier) => {
+    const ids = [...new Set((Array.isArray(orders) ? orders : [orders]).map(idOf))]
+      .filter((id) => base.orders.has(id) && !removedOrders.has(id));
+    if (!ids.length) return false;
+    ids.forEach(lock);
+    let ok = false;
+    try {
+      await enqueue(ids, () => http("put", "/orders-analytics/assign-courier", { orderIds: ids, courierId: courier?._id || null }));
+      const value = courier ? { id: String(courier._id), name: courier.name } : null;
+      ids.forEach((id) => patchBase(id, (raw) => ({ ...raw, courier: value })));
+      ok = true;
+    } catch (error) {
+      toast.error(errorMessage(error, "Kurye atanamadı"));
+    }
+    ids.forEach((id) => unlock(id, { refetch: !ok }));
+    emit(true);
+    return ok;
+  };
+
+  const markDeliveryFailed = async (order, code, note) => {
+    const id = idOf(order);
+    if (!base.orders.has(id) || removedOrders.has(id)) return false;
+    if (pendingEntry(id)) {
+      toast.error("Önce bekleyen durum değişikliğinin kaydedilmesini bekleyin ya da geri alın");
+      return false;
+    }
+    lock(id);
+    let ok = false;
+    try {
+      const res = await enqueue([id], () => http("put", "/orders-analytics/delivery-failed", { orderId: id, code, note }));
+      const outcome = res?.data?.deliveryOutcome || { code, note };
+      const at = new Date().toISOString();
+      patchBase(id, (raw) => ({
+        ...raw,
+        status: "İptal Edildi",
+        deliveryOutcome: outcome,
+        statusHistory: [...(Array.isArray(raw.statusHistory) ? raw.statusHistory : []), { status: "İptal Edildi", changedAt: at }],
+      }));
+      ok = true;
+    } catch (error) {
+      toast.error(errorMessage(error, "Kaydedilemedi"));
+    }
+    emit(true);
+    await unlock(id).catch(() => {});
+    return ok;
+  };
+
   // ── Silme (geri alınabilir) ──
   const commitDelete = (id, mode = "normal") => {
     const entry = removedOrders.get(id);
@@ -1390,7 +1457,7 @@ function createOrdersController({ confirm }) {
     refresh, loadOlder, fetchByIds: (ids) => fetchByIds(ids), searchServer,
     changeStatus, advance, advanceMany, undo, undoLast,
     updateQuantity, removeItem, addProduct, addCustomItem, saveTracking, deleteOrder, markOutOfStock,
-    dismissChanges,
+    dismissChanges, confirmCallback, assignCourier, markDeliveryFailed,
   };
 }
 
@@ -1487,6 +1554,9 @@ export default function useOrdersData({ accessToken } = {}) {
     addProduct: ctl.addProduct,
     addCustomItem: ctl.addCustomItem,
     saveTracking: ctl.saveTracking,
+    confirmCallback: ctl.confirmCallback,
+    assignCourier: ctl.assignCourier,
+    markDeliveryFailed: ctl.markDeliveryFailed,
     deleteOrder: ctl.deleteOrder,
     markOutOfStock: ctl.markOutOfStock,
     changeLog: snap.changeLog,

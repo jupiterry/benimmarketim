@@ -4,7 +4,8 @@
 // Sözleşme: scratchpad/orders-design/CONTRACTS.md §7.13
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
-  AlertTriangle, Banknote, Bookmark, BookmarkCheck, CalendarDays, Clock, MapPin, Plus, RotateCcw, SlidersHorizontal, SortDesc, Sparkles, Wallet, X,
+  AlertTriangle, Banknote, Bike, Bookmark, BookmarkCheck, CalendarDays, Clock, MapPin, PhoneCall, Plus, RotateCcw, SlidersHorizontal, SortDesc, Sparkles,
+  Wallet, X,
 } from "lucide-react";
 import { Drawer, Segmented } from "../admin/ui";
 import {
@@ -13,7 +14,7 @@ import {
 } from "./shared";
 import "../../styles/orders-tools.css";
 
-const ATTENTION_ICONS = { delayed: Clock, problem: AlertTriangle };
+const ATTENTION_ICONS = { delayed: Clock, problem: AlertTriangle, callback: PhoneCall };
 
 // Çekmece açılınca odak, sıradaki seçicilerden ilk eşleşene (hiçbiri yoksa çekmecenin Kapat düğmesine)
 // gider; kapanınca odak kaybolduysa çekmeceyi açan düğmeye döner
@@ -73,7 +74,7 @@ const Section = ({ icon: Icon, title, meta, children, id }) => (
 
 export default function FilterDrawer({
   filters, onChange, onClear, resultCount = 0, view = "list", sort = "newest", onSort, onClose,
-  saved = [], onSave, onApplySaved, onDeleteSaved, pointOptions,
+  saved = [], onSave, onApplySaved, onDeleteSaved, pointOptions, courierOptions,
 }) {
   const uid = useId();
   const zoneChoices = pointOptions?.length ? pointOptions : POINT_FILTERS;
@@ -149,6 +150,19 @@ export default function FilterDrawer({
             )}
           </div>
         </Section>
+
+        {(courierOptions?.length > 2 || f.courier !== "all") && (
+          <Section icon={Bike} title="Kurye" id={`${uid}-courier`}>
+            <div className="ui-chips so-t-chips" role="group" aria-labelledby={`${uid}-courier`}>
+              {(courierOptions || []).map((opt) => (
+                <button key={opt.value} type="button" aria-pressed={f.courier === opt.value}
+                  onClick={() => onChange?.({ courier: f.courier === opt.value && opt.value !== "all" ? "all" : opt.value })}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </Section>
+        )}
 
         <Section icon={Wallet} title="Ödeme yöntemi" id={`${uid}-pay`}>
           <div className="so-t-seg so-t-seg--wrap">

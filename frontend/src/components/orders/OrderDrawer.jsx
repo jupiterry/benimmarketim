@@ -13,17 +13,20 @@ import { Drawer, formatDateTime, isTypingTarget, money, useMediaQuery } from "..
 import { formatPhoneTR } from "../../lib/orderTools";
 import { useConfirm } from "../ConfirmModal";
 import {
-  CustomerFace, MenuButton, NextStepButton, PaymentChip, PointChip, PrintedMark, SlaChip, SrOnly, StatusBadge, TrustBadges,
+  CallbackBadge, CourierChip, CustomerFace, MenuButton, NextStepButton, PaymentChip, PointChip, PrintedMark, SlaChip, SrOnly, StatusBadge,
+  TrustBadges,
 } from "./atoms";
 import {
   CLICK_GUARD_MS, TZ, buildWhatsAppLink, customerName, customerPhone, describeChanges, getSla, inGChord, isActiveStatus,
   isDeletedCustomer, isDoneStatus, lastStatusTime, moveTargets, nextAction, orderCode, orderCodeTitle, paymentKey, paymentLong,
   platformLabel, pointLabel, shortWhen, statusUi, telHref, toMs, deliveryFeeLabel, hasDeliveryFeeLine, isAddressOrder, orderDeliveryFee,
+  deliveryOutcomeLabel,
 } from "./shared";
 import AddItemPanel from "./AddItemPanel";
 import ContactActions from "./drawer/ContactActions";
 import CustomerPanel from "./drawer/CustomerPanel";
 import DeliveryAddress from "./drawer/DeliveryAddress";
+import DeliveryOpsSection, { CallbackPanel, OutcomeNote } from "./drawer/DeliveryOps";
 import OrderItems from "./drawer/OrderItems";
 import OrderTimeline from "./drawer/OrderTimeline";
 import "../../styles/orders-drawer.css";
@@ -66,7 +69,11 @@ function StatusSteps({ order, now }) {
     return (
       <div className="so-d-cancelled">
         <XCircle aria-hidden="true" />
-        <strong>{cancelledByCustomer(order) ? "Müşteri iptal etti" : "Sipariş iptal edildi"}{order.cancelReasonLabel ? `: ${order.cancelReasonLabel}` : ""}</strong>
+        <strong>
+          {deliveryOutcomeLabel(order)
+            ? `Teslim edilemedi: ${deliveryOutcomeLabel(order)}`
+            : <>{cancelledByCustomer(order) ? "Müşteri iptal etti" : "Sipariş iptal edildi"}{order.cancelReasonLabel ? `: ${order.cancelReasonLabel}` : ""}</>}
+        </strong>
         {at && <span className="so-d-cancelled-time ui-num">· {shortWhen(at, now)}</span>}
       </div>
     );
@@ -145,8 +152,10 @@ function Hero({ order, now, position, nextUp, printedAt, headingRef, onNavigate,
             <HeroContact order={order} />
           </div>
           <div className="so-d-hero-chips">
+            <CallbackBadge order={order} />
             <PaymentChip order={order} />
             <PointChip order={order} />
+            <CourierChip order={order} />
             <TrustBadges order={order} />
             <PrintedMark at={printedAt} />
           </div>
@@ -338,6 +347,7 @@ export default function OrderDrawer({
   products = EMPTY_PRODUCTS, productsLoading = false, productsError = null, onLoadProducts,
   onClose, onNavigate, onOpenOrder, onUndoLast, onAdvance, onUndo, onMove, onPrint, onDelete, onCopySummary, onToggleSelect,
   onSaveTracking, onUpdateQuantity, onRemoveItem, onAddProduct, onAddCustom, onMarkOutOfStock, onOpenProfile,
+  couriers, couriersStatus, onConfirmCallback, onAssignCourier, onDeliveryFailed,
 }) {
   const { confirm } = useConfirm();
   // ≥1280 px'te çekmece sayfayı kilitlemez (orders.css: şeffaf, tıklanabilir arka plan): modal değildir
@@ -667,6 +677,9 @@ export default function OrderDrawer({
         </div>
       )}
 
+      <CallbackPanel order={order} disabled={missing} onConfirm={onConfirmCallback} />
+      <OutcomeNote order={order} />
+
       {order.hasNote && (
         <div className="ui-note so-d-note">
           <AlertTriangle aria-hidden="true" />
@@ -678,6 +691,9 @@ export default function OrderDrawer({
       )}
 
       <DeliveryAddress order={order} />
+
+      <DeliveryOpsSection order={order} missing={missing} couriers={couriers} couriersStatus={couriersStatus}
+        onAssignCourier={onAssignCourier} onDeliveryFailed={onDeliveryFailed} />
 
       <OrderItems
         order={order}

@@ -1,7 +1,7 @@
 // Siparişler ekranının sayfa başlığı (C2): canlı durum satırı + "Otomatik yenile" anahtarı, görünüm seçici,
 // Toplama listesi, Yenile, "Diğer işlemler" menüsü ve kısayol düğmesi.
 // Stil: styles/orders-overview.css (önek so-ov-). Sözleşme: scratchpad/orders-design/CONTRACTS.md §7.1
-import { Bell, Calculator, ClipboardList, Download, Keyboard, Printer, RefreshCw } from "lucide-react";
+import { Bell, Bike, Calculator, ClipboardList, Download, Keyboard, Printer, RefreshCw } from "lucide-react";
 import { PageHeader, Segmented, formatTime, timeAgo, useIsMobile } from "../admin/ui";
 import { MenuButton } from "./atoms";
 import { VIEWS, formatTimeSeconds, toMs } from "./shared";
@@ -54,7 +54,7 @@ const LiveStatus = ({ loading, live }) => {
 
 export default function OrdersHeader({
   loading = false, view, onView, prepCount = 0, onOpenPicking, onRefresh, syncing = false, live,
-  onExportCsv, onOpenDayClose, unprintedCount = 0, onPrintUnprinted, onHelp, notify,
+  onExportCsv, onOpenDayClose, unprintedCount = 0, onPrintUnprinted, onHelp, notify, courierSheets = [], onCourierSheet,
 }) {
   const isMobile = useIsMobile();
   const prep = Math.max(0, Number(prepCount) || 0);
@@ -76,6 +76,13 @@ export default function OrdersHeader({
       description: unprinted ? "Hazırlanan ve bu cihazda yazdırılmamış" : "Hazırlananların hepsi yazdırıldı",
       onSelect: () => onPrintUnprinted?.(), disabled: loading || unprinted === 0,
     },
+    // Kurye fişleri: aktif (hazırlanan + yoldaki) siparişi olan her kurye için
+    courierSheets.length > 0 && { type: "divider" },
+    courierSheets.length > 0 && { type: "label", label: "Kurye fişi" },
+    ...courierSheets.map((c) => ({
+      id: `runsheet-${c.id}`, label: `${c.name} (${c.count})`, icon: Bike,
+      description: "Kuryenin hazırlanan ve yoldaki siparişleri", onSelect: () => onCourierSheet?.(c.id), disabled: loading,
+    })),
     { type: "divider" },
     notify?.permission === "default" && {
       id: "notify", label: "Tarayıcı bildirimlerini aç", icon: Bell, description: "Yeni sipariş gelince bildirim gösterilir", onSelect: () => notify.onRequest?.(),

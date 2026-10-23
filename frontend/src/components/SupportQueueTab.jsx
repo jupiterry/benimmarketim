@@ -90,7 +90,7 @@ const Ticket = ({ request, now, cursor, mine, onOpen, onAccept, onClose, busy })
 
 export default function SupportQueueTab({ onOpenChat }) {
   const { user } = useUserStore();
-  const confirm = useConfirm();
+  const { confirm } = useConfirm();
   const now = useNow(15000);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);

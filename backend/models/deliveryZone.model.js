@@ -22,6 +22,8 @@ const deliveryZoneSchema = new mongoose.Schema(
     // null = genel settings.minimumOrderAmount
     minimumOrderAmount: nullableAmount,
     etaText: { type: String, default: "", trim: true, maxlength: 40 },
+    // Açıksa bu bölgede teslim edilmiş siparişi olmayan müşterinin siparişi telefonla teyit edilir (Order.needsCallback)
+    requireFirstOrderCallback: { type: Boolean, default: false },
     sortOrder: { type: Number, default: 0 },
     legacyPoint: { type: String, enum: [...LEGACY_POINTS, null], default: null },
   },

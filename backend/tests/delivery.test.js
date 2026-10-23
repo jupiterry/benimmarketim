@@ -531,8 +531,8 @@ test("GET /api/delivery/zones: yalnızca açık bölgeler, sıralı; yurt açık
   await getPublicZones({}, res);
   assert.deepEqual(res.body, {
     zones: [
-      { id: "girlsDorm", name: "Kız KYK Yurdu", type: "yurt", deliveryFee: 0, isFree: true, freeDeliveryThreshold: null, minimumOrderAmount: 150, etaText: "" },
-      { id: "mah-cumhuriyet", name: "Cumhuriyet Mahallesi", type: "mahalle", deliveryFee: 40, isFree: false, freeDeliveryThreshold: 500, minimumOrderAmount: 150, etaText: "30-60 dk" },
+      { id: "girlsDorm", name: "Kız KYK Yurdu", type: "yurt", deliveryFee: 0, isFree: true, freeDeliveryThreshold: null, minimumOrderAmount: 150, etaText: "", requiresFirstOrderCallback: false },
+      { id: "mah-cumhuriyet", name: "Cumhuriyet Mahallesi", type: "mahalle", deliveryFee: 40, isFree: false, freeDeliveryThreshold: 500, minimumOrderAmount: 150, etaText: "30-60 dk", requiresFirstOrderCallback: false },
     ],
     freeDeliveryEverywhere: false,
   });

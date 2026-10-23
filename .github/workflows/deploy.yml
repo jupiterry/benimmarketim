@@ -35,7 +35,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends build-essential pkg-config libpng-dev autoconf automake libtool nasm
       - run: npm ci --no-audit --no-fund
-      - run: npm run test:ai-support
+      - run: node --test backend/tests/*.test.js
       - run: npm ci --prefix frontend --no-audit --no-fund
       - run: npm run build --prefix frontend
       - run: node frontend/scripts/check-seo.mjs

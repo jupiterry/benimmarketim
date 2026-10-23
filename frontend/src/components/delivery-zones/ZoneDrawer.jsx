@@ -1,6 +1,6 @@
 // Bölge ekleme / düzenleme çekmecesi. Yurtların türü sabittir ve silinemez; siparişi olan bölge silinemez.
 import { useMemo, useRef, useState } from "react";
-import { Info, Loader2, Lock, MapPin, Save, ToggleLeft, ToggleRight, Trash2 } from "lucide-react";
+import { Info, Loader2, Lock, MapPin, PhoneCall, Save, ToggleLeft, ToggleRight, Trash2 } from "lucide-react";
 import { Drawer, Segmented } from "../admin/ui";
 import { useConfirm } from "../ConfirmModal";
 import {
@@ -10,7 +10,7 @@ import {
 const FieldError = ({ id, children }) => (children ? <p className="dz-error" id={id} role="alert">{children}</p> : null);
 
 const ZoneDrawer = ({ zone, zones, nextSort, generalMinimum, campaign, onClose, onSave, onDelete }) => {
-  const confirm = useConfirm();
+  const { confirm } = useConfirm();
   const isNew = !zone;
   const isYurt = zone?.type === "yurt";
   const initial = useMemo(() => (zone ? formFromZone(zone) : emptyForm(nextSort)), [zone, nextSort]);
@@ -188,6 +188,23 @@ const ZoneDrawer = ({ zone, zones, nextSort, generalMinimum, campaign, onClose, 
           {!shown.minimum && <p className="ui-hint dz-hint" id="dz-h-minimum">Boş bırakırsanız Mağaza ayarlarındaki genel minimum geçerli olur. 0 yazarsanız minimum aranmaz.</p>}
         </div>
 
+        <div className="dz-fieldset dz-box">
+          <div className="dz-toggle-row">
+            <div>
+              <span className="dz-toggle-title" id="dz-l-callback"><PhoneCall aria-hidden="true" className="dz-toggle-icon" />İlk siparişte telefonla teyit</span>
+              <p className="ui-hint" id="dz-h-callback">
+                {form.callback
+                  ? "Bu bölgede daha önce teslim edilmiş siparişi olmayan müşterinin siparişi “Teyit için ara” olarak işaretlenir."
+                  : "Uzak köyler için önerilir: ilk siparişte müşteriyi arayıp adresi teyit edersiniz."}
+              </p>
+            </div>
+            <button type="button" id="dz-f-callback" className="ui-icon-btn ui-switch" role="switch" aria-checked={form.callback} data-on={form.callback}
+              aria-labelledby="dz-l-callback" aria-describedby="dz-h-callback" onClick={() => set("callback")(!form.callback)}>
+              {form.callback ? <ToggleRight /> : <ToggleLeft />}
+            </button>
+          </div>
+        </div>
+
         <div className="dz-grid-2">
           <div className="dz-fieldset">
             <label className="ui-label" htmlFor="dz-f-etaText">Tahmini süre</label>
@@ -213,6 +230,7 @@ const ZoneDrawer = ({ zone, zones, nextSort, generalMinimum, campaign, onClose, 
           </span>
           {campaign && preview.deliveryFee > 0 && <span className="dz-preview-note">“Her yerde ücretsiz teslimat” açık olduğu için şu an ücret alınmaz.</span>}
           {!form.enabled && <span className="dz-preview-note">Kapalı bölgeler müşteriye gösterilmez.</span>}
+          {form.callback && <span className="dz-preview-note">İlk siparişte: “İlk siparişin için seni arayıp teyit edeceğiz.”</span>}
         </div>
 
         {!isNew && (

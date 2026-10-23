@@ -272,6 +272,54 @@ export const zoneFilterOptions = (orders, { include = [] } = {}) => {
   return [...POINT_FILTERS, ...zones];
 };
 
+// ── Teslimat operasyonu: ilk sipariş teyidi, teslim edilemedi, kurye ─────────
+/** Teyit için aranmayı bekliyor mu (yalnızca aktif siparişte; iptal / teslim edilende rozet çıkmaz) */
+export const needsCallbackPending = (order) =>
+  order?.needsCallback === true && !order?.callbackConfirmedAt && isActiveStatus(order?.status);
+/** "Teslim edilemedi" nedenleri (sunucu: backend/lib/feedbackOptions.js DELIVERY_OUTCOMES ile aynı) */
+export const DELIVERY_OUTCOMES = [
+  { value: "adres_bulunamadi", label: "Adres bulunamadı" },
+  { value: "cevap_yok", label: "Müşteriye ulaşılamadı" },
+  { value: "reddetti", label: "Müşteri teslim almadı" },
+  { value: "diger", label: "Diğer" },
+];
+export const DELIVERY_OUTCOME_NOTE_MAX = 200;
+export const deliveryOutcomeLabel = (order) => {
+  const code = order?.deliveryOutcome?.code;
+  if (!code) return "";
+  return order.deliveryOutcome.label || DELIVERY_OUTCOMES.find((o) => o.value === code)?.label || "";
+};
+/** Kurye anahtarı: kurye kimliği ya da 'none' (atanmamış) */
+export const courierKey = (order) => (order?.courier?.id ? String(order.courier.id) : "none");
+export const courierName = (order) => String(order?.courier?.name || "").trim();
+// Bilinen kurye adları (kimlik → ad): ayarlardaki liste + siparişlerde görülenler (filtre etiketi için)
+const COURIER_NAMES = new Map();
+export const rememberCouriers = (couriers) => {
+  for (const c of couriers || []) if (c?._id && c.name) COURIER_NAMES.set(String(c._id), String(c.name));
+};
+export const courierLabel = (key) => (key === "none" ? "Kurye atanmamış" : COURIER_NAMES.get(String(key)) || "Kurye");
+/**
+ * Kurye filtresi seçenekleri: Tümü, ayarlardaki kuryeler (pasifler yalnızca siparişi varsa), siparişte görülen
+ * eski kuryeler ve "Atanmamış". counts: { [key]: n } (isteğe bağlı)
+ */
+export const courierFilterOptions = (couriers, orders, { include = [] } = {}) => {
+  const out = new Map();
+  const seen = new Set((orders || []).map(courierKey));
+  for (const c of couriers || []) {
+    const id = String(c._id);
+    if (c.active !== false || seen.has(id) || include.includes(id)) out.set(id, c.name);
+  }
+  for (const o of orders || []) {
+    const key = courierKey(o);
+    if (key !== "none" && !out.has(key)) out.set(key, courierName(o) || courierLabel(key));
+  }
+  return [
+    { value: "all", label: "Tümü" },
+    ...[...out.entries()].map(([value, label]) => ({ value, label })),
+    { value: "none", label: "Atanmamış" },
+  ];
+};
+
 export const PAYMENT = {
   cash: { label: "Nakit", long: "Kapıda nakit", icon: Banknote },
   card: { label: "Kart", long: "Kapıda kart (POS)", icon: CreditCard },
@@ -424,7 +472,7 @@ export const lineKey = (product) =>
 const buildSearchText = (order) => normalizeSearch([
   order.orderId, order.user?.name, order.user?.email, order.deliveryPointName, pointLabel(order), pointLabel(order, { short: true }),
   orderAddressLines(order)?.oneLine,
-  order.note, order.couponCode, order.deliveryTracking, paymentShort(order), paymentLong(order),
+  order.note, order.couponCode, order.deliveryTracking, paymentShort(order), paymentLong(order), order.courier?.name,
   ...order.products.map((p) => p.name),
 ].filter(Boolean).join(" | "));
 
@@ -458,6 +506,7 @@ const enrichOne = (raw, user) => {
   };
   order.customerKey = customerKey(order);
   rememberZone(order);
+  if (order.courier?.id && order.courier?.name && !COURIER_NAMES.has(String(order.courier.id))) COURIER_NAMES.set(String(order.courier.id), order.courier.name);
   order.searchText = buildSearchText(order);
   order.phoneDigits = [onlyDigits(raw.phone), onlyDigits(user.phone)].filter(Boolean).join(" ");
   return order;
@@ -530,20 +579,21 @@ export const isOutsideWindow = (order, windowStart) => {
 
 // ── Filtreler ─────────────────────────────────────────────────────────────
 export const DEFAULT_FILTERS = Object.freeze({
-  q: "", status: "all", date: "all", point: "all", payment: "all", min: "", max: "", attention: "none",
+  q: "", status: "all", date: "all", point: "all", payment: "all", min: "", max: "", attention: "none", courier: "all",
 });
 export const FILTER_KEYS = Object.keys(DEFAULT_FILTERS);
 /** Her görünümde geçerli filtre anahtarları: Şimdi durum ve tarihi, Pano durumu yok sayar */
 export const VIEW_FILTER_KEYS = {
-  now: ["q", "point", "payment", "min", "max", "attention"],
+  now: ["q", "point", "payment", "min", "max", "attention", "courier"],
   list: [...FILTER_KEYS],
-  board: ["q", "date", "point", "payment", "min", "max", "attention"],
+  board: ["q", "date", "point", "payment", "min", "max", "attention", "courier"],
 };
-export const ADVANCED_FILTER_KEYS = ["point", "payment", "min", "max", "attention"];
+export const ADVANCED_FILTER_KEYS = ["point", "payment", "min", "max", "attention", "courier"];
 export const filterApplies = (key, view = "list") => (VIEW_FILTER_KEYS[view] || VIEW_FILTER_KEYS.list).includes(key);
 export const ATTENTION_OPTIONS = [
   { value: "delayed", label: "Geciken siparişler", hint: DELAY_HINT },
   { value: "problem", label: "Sorunlu siparişler", hint: "Gecikenler ve iptal edilenler" },
+  { value: "callback", label: "Teyit bekleyenler", hint: "İlk siparişi telefonla teyit edilmemiş aktif siparişler" },
 ];
 export const DATE_OPTIONS = [
   { value: "all", label: "Tüm tarihler" },
@@ -562,7 +612,7 @@ const ENUMS = {
   status: ["all", "active", ...ORDER_STATUSES],
   date: DATE_OPTIONS.map((o) => o.value),
   payment: PAYMENT_FILTERS.map((o) => o.value),
-  attention: ["none", "delayed", "problem"],
+  attention: ["none", "delayed", "problem", "callback"],
 };
 const LEGACY_DATE = { lastWeek: "7d", lastMonth: "30d" };
 /** Eksik/eski/geçersiz değerleri düzelterek tam bir Filters nesnesi döndürür */
@@ -575,6 +625,8 @@ export const normalizeFilters = (partial = {}) => {
     if (ENUMS[key]) out[key] = ENUMS[key].includes(value) ? value : DEFAULT_FILTERS[key];
     // Bölge: yurt anahtarı ya da bölge kimliği (slug); geçersiz değer "Tümü" olur
     else if (key === "point") out.point = /^[A-Za-z0-9_-]{1,60}$/.test(String(value)) ? String(value) : DEFAULT_FILTERS.point;
+    // Kurye: kurye kimliği (24 hane) ya da 'none' (atanmamış)
+    else if (key === "courier") out.courier = /^([0-9a-f]{24}|none|all)$/i.test(String(value)) ? String(value).toLowerCase() : DEFAULT_FILTERS.courier;
     else out[key] = String(value);
   }
   return out;
@@ -637,15 +689,19 @@ export const createOrderFilter = (filters, { now = Date.now(), view = "list", ig
   const point = use("point") ? f.point : null;
   const payment = use("payment") ? f.payment : null;
   const attention = use("attention") ? f.attention : null;
+  const courier = use("courier") ? f.courier : null;
   return (order) => {
     if (!order) return false;
     if (status && (status === "active" ? !isActiveStatus(order.status) : order.status !== status)) return false;
     if (point && pointKey(order) !== point) return false;
     if (payment && paymentKey(order) !== payment) return false;
+    if (courier && courierKey(order).toLowerCase() !== courier) return false;
     if (min !== null && !(Number(order.totalAmount) >= min)) return false;
     if (max !== null && !(Number(order.totalAmount) <= max)) return false;
     if (range && !(order.createdMs >= range.from && (range.to === null || order.createdMs < range.to))) return false;
-    if (attention) {
+    if (attention === "callback") {
+      if (!needsCallbackPending(order)) return false;
+    } else if (attention) {
       const late = isLate(order, now);
       if (attention === "delayed" ? !late : !(late || order.status === "İptal Edildi")) return false;
     }
@@ -662,6 +718,7 @@ export const filterTags = (filters, { view = "list" } = {}) => {
   const on = (key) => filterApplies(key, view) && isFilterSet(f, key);
   if (on("date")) tags.push({ key: "date", label: DATE_OPTIONS.find((o) => o.value === f.date)?.label || f.date, patch: { date: "all" } });
   if (on("point")) tags.push({ key: "point", label: zoneLabel(f.point), patch: { point: "all" } });
+  if (on("courier")) tags.push({ key: "courier", label: f.courier === "none" ? "Kurye atanmamış" : `Kurye: ${courierLabel(f.courier)}`, patch: { courier: "all" } });
   if (on("payment")) tags.push({ key: "payment", label: `Ödeme: ${PAYMENT_FILTERS.find((o) => o.value === f.payment)?.label || f.payment}`, patch: { payment: "all" } });
   const min = parseAmount(f.min);
   const max = parseAmount(f.max);
@@ -922,13 +979,14 @@ export const computeKpis = (orders, now = Date.now(), { unseenIds } = {}) => {
     prep: 0, road: 0, active: 0, late: 0, latePrep: 0, lateRoad: 0, unseen: 0, oldestPrepMinutes: null,
     roadCash: 0, roadCashCount: 0, roadCard: 0, roadTransfer: 0,
     todayCount: 0, todayValid: 0, todayRevenue: 0, todayAvgBasket: 0, todayDelivered: 0, todayCancelled: 0,
-    todayDeliveryFee: 0, todayPaidDelivery: 0, todayAddress: 0,
+    todayDeliveryFee: 0, todayPaidDelivery: 0, todayAddress: 0, callbacks: 0,
     avgDeliveryMinutes: null, avgPrepMinutes: null,
   };
   const deliveries = [];
   const preps = [];
   for (const o of orders || []) {
     const amount = Number(o.totalAmount) || 0;
+    if (needsCallbackPending(o)) k.callbacks += 1;
     if (o.status === "Hazırlanıyor") {
       k.prep += 1;
       const sla = getSla(o, now);
