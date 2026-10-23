@@ -1,24 +1,34 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { HelpCircle, ChevronDown, ShoppingCart, Truck, CreditCard, RotateCcw, Shield, Clock } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import LegalLayout from '../components/LegalLayout';
+import { useSettingsStore } from '../stores/useSettingsStore';
+import { company, isPlaceholder, orderHoursText, DELIVERY_ZONES_PATH } from '../data/company';
 
-const faqData = [
+const zonesLink = <Link className="legal-link" to={DELIVERY_ZONES_PATH}>Teslimat bölgeleri</Link>;
+
+// hours: sipariş saatleri metni (ayarlardan)
+const buildFaqData = (hours) => [
   {
     category: "Sipariş",
     icon: ShoppingCart,
     questions: [
       {
         question: "Sipariş nasıl verilir?",
-        answer: "Ürünleri sepete ekleyin, ödeme bilgilerinizi girin ve siparişinizi onaylayın. Siparişiniz otomatik olarak işleme alınacaktır."
+        answer: "Siparişler yalnızca Benim Marketim mobil uygulamasından verilir. Ürünleri sepete ekleyin, teslimat bölgenizi ve ödeme yönteminizi seçin, sepet özetini kontrol edip siparişi onaylayın. Web sitesinden sipariş alınmaz."
+      },
+      {
+        question: "Sipariş saatleriniz nedir?",
+        answer: `Her gün ${hours} saatleri arasında sipariş alıyoruz. Güncel saatler uygulamada da görünür.`
       },
       {
         question: "Siparişimi iptal edebilir miyim?",
-        answer: "Evet, sipariş teslim edilmeden önce iptal edebilirsiniz. İptal işlemi için müşteri hizmetleri ile iletişime geçin."
+        answer: "Evet, sipariş teslim edilmeden önce iptal edebilirsiniz. İptal için uygulamadaki sipariş ekranını ya da canlı desteği kullanın."
       },
       {
         question: "Sipariş durumunu nasıl takip ederim?",
-        answer: "Hesabınızdan 'Siparişlerim' bölümünden sipariş durumunuzu takip edebilirsiniz."
+        answer: "Uygulamadaki 'Siparişlerim' bölümünden sipariş durumunuzu takip edebilirsiniz."
       }
     ]
   },
@@ -27,16 +37,20 @@ const faqData = [
     icon: Truck,
     questions: [
       {
-        question: "Teslimat süresi ne kadar?",
-        answer: "Teslimat süremiz 45 dakika ile 2 saat arasındadır. Yoğunluk durumuna göre bu süre değişebilir."
+        question: "Hangi bölgelere teslimat yapıyorsunuz?",
+        answer: <>Teslimat yaptığımız bölgeler {zonesLink} sayfasında listelenir; tamamı Zonguldak’ın Devrek ilçesindedir. Bölgeniz listede yoksa şu an oraya teslimat yapamıyoruz.</>
       },
       {
         question: "Teslimat ücreti var mı?",
-        answer: "150₺ üzeri siparişlerde teslimat ücretsizdir. 150₺ altı siparişlerde teslimat ücreti 15₺'dir."
+        answer: <>Teslimat ücreti bölgeye göre değişebilir: bazı bölgelerde teslimat ücretsizdir, bazılarında belirli bir sepet tutarının üstünde ücretsiz olur. Her bölgenin ücreti {zonesLink} sayfasında yazar; ücret varsa siparişi onaylamadan önce uygulamada sepet özetinde gösterilir.</>
       },
       {
-        question: "Hangi bölgelere teslimat yapıyorsunuz?",
-        answer: "Şu anda Devrek bölgesine teslimat yapmaktayız. Teslimat bölgelerimiz sürekli genişlemektedir."
+        question: "Teslimat süresi ne kadar?",
+        answer: "Teslimat süresi bölgeye ve yoğunluğa göre değişir. Bölgenin tahmini teslimat süresi girilmişse Teslimat bölgeleri sayfasında ve uygulamada görünür; hava ve yol durumu süreyi uzatabilir."
+      },
+      {
+        question: "Minimum sipariş tutarı var mı?",
+        answer: "Evet. Genel minimum sepet tutarı uygulamada gösterilir; bazı bölgelerde farklı bir minimum geçerli olabilir. Bölgenin minimumu Teslimat bölgeleri sayfasında yazar."
       }
     ]
   },
@@ -46,7 +60,7 @@ const faqData = [
     questions: [
       {
         question: "Hangi ödeme yöntemlerini kabul ediyorsunuz?",
-        answer: "Kredi kartı, banka kartı, nakit ödeme ve dijital cüzdan ödemelerini kabul ediyoruz."
+        answer: "Uygulamada sipariş verirken kapıda nakit, kapıda kart ya da havale/EFT seçeneklerinden birini seçebilirsiniz."
       },
       {
         question: "Ödeme güvenli mi?",
@@ -96,7 +110,7 @@ const faqData = [
     questions: [
       {
         question: "Müşteri hizmetlerine nasıl ulaşabilirim?",
-        answer: "Telefon, e-posta veya canlı destek ile 7/24 müşteri hizmetlerimize ulaşabilirsiniz."
+        answer: `Uygulamadaki canlı destekten, ${company.email} adresinden ya da iletişim sayfasındaki formdan bize ulaşabilirsiniz. Sipariş saatlerimiz (${hours}) içinde daha hızlı dönüş yaparız.`
       },
       {
         question: "Ürün kalitesi nasıl garanti ediliyor?",
@@ -110,10 +124,11 @@ const faqData = [
   }
 ];
 
-const sections = faqData.map((category, index) => ({ id: `sss-${index + 1}`, label: category.category }));
-
 const FAQPage = () => {
   const [openIndex, setOpenIndex] = useState(null);
+  const settings = useSettingsStore((state) => state.settings);
+  const faqData = buildFaqData(orderHoursText(settings));
+  const sections = faqData.map((category, index) => ({ id: `sss-${index + 1}`, label: category.category }));
 
   const toggleQuestion = (index) => {
     setOpenIndex(openIndex === index ? null : index);
@@ -167,14 +182,16 @@ const FAQPage = () => {
         <div className="legal-help">
           <div>
             <strong>Aradığınız Cevabı Bulamadınız mı?</strong>
-            <p>Müşteri hizmetlerimiz 7/24 hizmetinizdedir. Sorularınız için bizimle iletişime geçin.</p>
+            <p>Sorularınız için bize yazın; sipariş saatlerimizde ({orderHoursText(settings)}) daha hızlı dönüş yaparız.</p>
           </div>
           <div className="legal-help-actions">
-            <a href="tel:+90XXXXXXXXX">
-              <Clock aria-hidden="true" />
-              Hemen Ara
-            </a>
-            <a className="is-ghost" href="mailto:info@benimmarketim.com">
+            {!isPlaceholder(company.phone) && (
+              <a href={company.phoneHref}>
+                <Clock aria-hidden="true" />
+                Hemen Ara
+              </a>
+            )}
+            <a className="is-ghost" href={`mailto:${company.email}`}>
               <HelpCircle aria-hidden="true" />
               E-posta Gönder
             </a>

@@ -10,6 +10,22 @@ import {
   dispatchOrderNotifications,
 } from "../services/order.service.js";
 import { applyCartSync, normalizeSyncedCart } from "../services/cartSync.service.js";
+import UserAddress from "../models/userAddress.model.js";
+import {
+  DEVREK_CITY,
+  LEGACY_POINTS,
+  buildAddressPointName,
+  buildOrderAddress,
+  canOrderToAddress,
+  computeDeliveryQuote,
+  getZone,
+  isValidObjectId,
+  normalizeAddressInput,
+  resolveMinimumOrderAmount,
+  roundMoney,
+  zoneClosedMessage,
+  zoneSnapshot,
+} from "../services/delivery.service.js";
 
 // ─────────────────────────────────────────────────────────────────
 // #12 — Sipariş saatleri: Redis-based cache (PM2 cluster uyumlu)
@@ -92,23 +108,17 @@ const isWithinOrderHours = async () => {
   return currentTimeInMinutes >= startTimeInMinutes || currentTimeInMinutes <= endTimeInMinutes;
 };
 
-/** Sipariş saati hata mesajı oluşturur. */
+const clockText = (hour, minute) => `${String(Number(hour) || 0).padStart(2, "0")}:${String(Number(minute) || 0).padStart(2, "0")}`;
+
+/** Sipariş saati hata mesajı: "Siparişler yalnızca 10:00 ile 01:00 saatleri arasında verilebilir." */
+export const formatOrderHoursMessage = (hours) =>
+  `Siparişler yalnızca ${clockText(hours.startHour, hours.startMinute)} ile ${clockText(hours.endHour, hours.endMinute)} saatleri arasında verilebilir.`;
+
 const getOrderHoursMessage = async () => {
   try {
-    const hours = await getOrderHoursSettings();
-
-    const formatHour = (hour) => {
-      if (hour === 0) return "00:00";
-      if (hour < 12) return `sabah ${hour}`;
-      if (hour === 12) return "öğlen 12";
-      if (hour < 17) return `öğleden sonra ${hour}`;
-      if (hour < 21) return `akşam ${hour}`;
-      return `gece ${hour}`;
-    };
-
-    return `Siparişler sadece ${formatHour(hours.startHour)}:${String(hours.startMinute).padStart(2, "0")} ile ${formatHour(hours.endHour)}:${String(hours.endMinute).padStart(2, "0")} arasında verilebilir.`;
+    return formatOrderHoursMessage(await getOrderHoursSettings());
   } catch {
-    return "Siparişler sadece belirlenen saatler arasında verilebilir.";
+    return "Siparişler yalnızca belirlenen saatler arasında verilebilir.";
   }
 };
 
@@ -321,61 +331,202 @@ export const updateQuantity = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────
 // #2 — Sipariş oluşturma: Ortak order.service.js kullanılıyor
 // Fiyat hesaplama, kupon doğrulama ve bildirimler tek bir serviste.
+//
+// İki akış:
+//  - Yurt (eski) akışı: deliveryPoint = girlsDorm | boysDorm, adres alanı yok. Bugünkü davranış;
+//    teslimat ücreti HER ZAMAN 0. (Yeni istemci zoneId = girlsDorm | boysDorm da gönderebilir.)
+//  - Adres akışı: gövdede addressId ya da deliveryAddress (+ zoneId) varsa. Yalnızca
+//    settings.delivery.addressOrdering izin veriyorsa; ücret ve minimum sunucuda hesaplanıp kilitlenir.
+// Her 4xx yanıtı hem `error` (web) hem `message` (mobil) taşır.
 // ─────────────────────────────────────────────────────────────────
+const fail = (res, status, message, extra = {}) => res.status(status).json({ error: message, message, ...extra });
+
+const hasValue = (value) => value !== undefined && value !== null && value !== "";
+
+/** Gövde adrese teslimat mı istiyor? */
+export const isAddressOrderRequest = (body = {}) => {
+  if (hasValue(body.addressId)) return true;
+  if (body.deliveryAddress && typeof body.deliveryAddress === "object") return true;
+  if (body.deliveryPoint === "address") return true;
+  // zoneId tek başına: yurt bölgesi eski akışa gider, diğerleri adres ister
+  return hasValue(body.zoneId) && !LEGACY_POINTS.includes(body.zoneId);
+};
+
+const orderChannel = (body) => body.channel || body.device?.platform || "web";
+
+/** Kupon kaydı, sepet temizliği, telefon güncellemesi, bildirimler ve 201 yanıtı (iki akış için ortak). */
+const finalizeOrder = async (req, res, newOrder, appliedCoupon, phone) => {
+  // Kupon kullanımını atomik olarak kaydet (order.service)
+  if (appliedCoupon) {
+    await commitCouponUsage(appliedCoupon, req.user._id, newOrder._id);
+    // commitCouponUsage hata atarsa sipariş otomatik silinir
+  }
+
+  // Sepeti temizle
+  req.user.cartItems = [];
+  // Siparişte girilen numara profildekinden farklıysa profil güncellenir;
+  // böylece uygulama bir sonraki siparişte doğru numarayı önerir.
+  const orderPhone = String(phone).trim();
+  if (orderPhone && orderPhone !== (req.user.phone || "")) {
+    req.user.phone = orderPhone;
+  }
+  await req.user.save({ validateModifiedOnly: true });
+
+  // Referral ödülü artık sipariş oluşturulduğunda değil, ilk sipariş "Teslim Edildi"
+  // olduğunda verilir (ordersAnalytics.controller.js → grantReferralRewardIfDelivered).
+
+  // Sipariş alarmı + Socket.IO admin bildirimi (order.service — arka planda)
+  const io = req.app?.get?.("io");
+  dispatchOrderNotifications(io, newOrder, req.user);
+
+  return res.status(201).json({
+    success: true,
+    message: "Sipariş başarıyla oluşturuldu.",
+    orderId: newOrder._id,
+    order: newOrder,
+  });
+};
+
+/** Adrese teslimat akışı (placeOrder ortak kontrollerden sonra çağırır). */
+const placeAddressOrder = async (req, res, { products, phone, note, couponCode, paymentMethod }) => {
+  const body = req.body || {};
+  if (!phone) return fail(res, 400, "Telefon numarası zorunludur!");
+
+  const settings = await Settings.getSettings();
+  if (!canOrderToAddress(settings, req.user._id)) {
+    return fail(res, 400, "Adrese teslimat henüz açık değil", { code: "ADDRESS_ORDERING_DISABLED" });
+  }
+
+  // Adres: kayıtlı adres (addressId) ya da gövdedeki adres (zoneId + deliveryAddress)
+  let address;
+  if (hasValue(body.addressId)) {
+    const addressId = String(body.addressId);
+    const saved = isValidObjectId(addressId)
+      ? await UserAddress.findOne({ _id: addressId, user: req.user._id }).lean()
+      : null;
+    if (!saved) return fail(res, 404, "Kayıtlı adres bulunamadı. Lütfen adresinizi yeniden seçin.");
+    address = saved;
+  } else {
+    if (!body.deliveryAddress || typeof body.deliveryAddress !== "object") {
+      return fail(res, 400, "Lütfen teslimat adresinizi girin.");
+    }
+    const { value, error } = normalizeAddressInput({
+      ...body.deliveryAddress,
+      zoneId: hasValue(body.zoneId) ? body.zoneId : body.deliveryAddress.zoneId,
+    });
+    if (error) return fail(res, 400, error);
+    address = value;
+  }
+
+  const zone = await getZone(address.zoneId, { settings });
+  if (!zone) return fail(res, 400, "Teslimat bölgesi bulunamadı. Lütfen adresinizi güncelleyin.", { code: "ZONE_NOT_FOUND" });
+  if (!zone.enabled) return fail(res, 400, zoneClosedMessage(zone), { code: "ZONE_CLOSED", closedReason: zone.closedReason || "" });
+
+  // Fiyat hesaplama (order.service) ve teslimat ücreti (delivery.service) — istemci değerleri kullanılmaz
+  const { orderProducts, totalAmount: subtotal } = await buildOrderProducts(products);
+  const quote = computeDeliveryQuote({ zone, subtotal, settings });
+  if (!quote.meetsMinimum) {
+    return fail(res, 400, `${zone.name} için sipariş tutarı minimum ${quote.minimumOrderAmount} TL olmalıdır!`, {
+      code: "BELOW_MINIMUM",
+      minimumOrderAmount: quote.minimumOrderAmount,
+    });
+  }
+
+  const { appliedCoupon, couponDiscount } = await validateAndCalculateCoupon(couponCode, req.user._id, subtotal, {
+    orderProducts,
+    deliveryPoint: zone.legacyPoint || "address",
+    deliveryZone: zone._id,
+    canOrderToAddress: true,
+    channel: orderChannel(body),
+  });
+
+  const productTotal = roundMoney(Math.max(0, subtotal - couponDiscount));
+  const deliveryFee = quote.deliveryFee;
+
+  const newOrder = await Order.create({
+    user: req.user._id,
+    products: orderProducts,
+    totalAmount: roundMoney(productTotal + deliveryFee),
+    subtotalAmount: subtotal,
+    productTotal,
+    deliveryFee,
+    city: DEVREK_CITY,
+    phone,
+    note: note || "",
+    deliveryPoint: "address",
+    deliveryPointName: buildAddressPointName(zone, address),
+    deliveryType: "address",
+    deliveryZone: zoneSnapshot(zone),
+    deliveryAddress: buildOrderAddress(zone, address),
+    couponCode: appliedCoupon?.code || null,
+    couponDiscount,
+    paymentMethod,
+  });
+
+  return finalizeOrder(req, res, newOrder, appliedCoupon, phone);
+};
+
 export const placeOrder = async (req, res) => {
   try {
     // Sipariş saati kontrolü (sadece sipariş verirken)
     if (!(await isWithinOrderHours())) {
-      return res.status(400).json({ error: await getOrderHoursMessage() });
+      return fail(res, 400, await getOrderHoursMessage());
     }
 
-    const { products, city, phone, note, deliveryPoint, deliveryPointName, couponCode } = req.body;
+    const body = req.body || {};
+    const { products, city, phone, note, deliveryPointName, couponCode } = body;
+    // Yeni istemci yurdu bölge olarak (zoneId) gönderebilir; eski istemci deliveryPoint gönderir
+    const deliveryPoint = body.deliveryPoint || (LEGACY_POINTS.includes(body.zoneId) ? body.zoneId : body.deliveryPoint);
 
     // Ödeme yöntemi: uygulama seçimi zorunlu tutar. Alanı hiç göndermeyen eski
     // uygulama sürümleri için sipariş "Belirtilmedi" olarak kaydedilir.
-    const rawPaymentMethod = req.body.paymentMethod;
+    const rawPaymentMethod = body.paymentMethod;
     const paymentMethod = normalizePaymentMethod(rawPaymentMethod);
     if (rawPaymentMethod !== undefined && rawPaymentMethod !== null && rawPaymentMethod !== "" && !paymentMethod) {
-      return res.status(400).json({ error: "Geçersiz ödeme yöntemi! Kapıda nakit, kapıda kart ya da havale/EFT seçin." });
+      return fail(res, 400, "Geçersiz ödeme yöntemi! Kapıda nakit, kapıda kart ya da havale/EFT seçin.");
     }
 
     // Zorunlu alan kontrolleri
     if (!products || products.length === 0) {
-      return res.status(400).json({ error: "Sepet boş!" });
+      return fail(res, 400, "Sepet boş!");
     }
+
+    if (isAddressOrderRequest(body)) {
+      return await placeAddressOrder(req, res, { products, phone, note, couponCode, paymentMethod });
+    }
+
     if (!city || !phone) {
-      return res.status(400).json({ error: "Şehir ve telefon numarası zorunludur!" });
+      return fail(res, 400, "Şehir ve telefon numarası zorunludur!");
     }
     if (!deliveryPoint) {
-      return res.status(400).json({ error: "Lütfen teslimat noktası seçiniz!" });
+      return fail(res, 400, "Lütfen teslimat noktası seçiniz!");
+    }
+    if (!LEGACY_POINTS.includes(deliveryPoint)) {
+      return fail(res, 400, "Geçersiz teslimat noktası! Lütfen teslimat noktanızı yeniden seçin.");
     }
 
     // Minimum tutar ve teslimat noktası ayarlarını tek sorguda al
     const settings = await Settings.getSettings();
-    const minimumOrderAmount = settings.minimumOrderAmount || 250;
+    // `??` anlamı: panelde 0 = minimum yok (yalnızca tanımsızsa varsayılan 250)
+    const minimumOrderAmount = resolveMinimumOrderAmount(null, settings);
 
     // Teslimat noktası kontrolü
     const deliveryPointsStatus = settings.deliveryPoints;
     if (!deliveryPointsStatus) {
-      return res.status(400).json({ error: "Teslimat noktaları ayarları bulunamadı!" });
+      return fail(res, 400, "Teslimat noktaları ayarları bulunamadı!");
     }
 
-    const selectedPoint =
-      deliveryPoint === "girlsDorm"
-        ? deliveryPointsStatus.girlsDorm
-        : deliveryPointsStatus.boysDorm;
+    const selectedPoint = deliveryPointsStatus[deliveryPoint];
 
     if (!selectedPoint?.enabled) {
-      return res.status(400).json({ error: "Seçilen teslimat noktası şu anda aktif değil!" });
+      return fail(res, 400, "Seçilen teslimat noktası şu anda aktif değil!");
     }
 
     // Fiyat hesaplama (order.service)
     const { orderProducts, totalAmount } = await buildOrderProducts(products);
 
     if (totalAmount < minimumOrderAmount) {
-      return res.status(400).json({
-        error: `Sipariş tutarı minimum ${minimumOrderAmount} TL olmalıdır!`,
-      });
+      return fail(res, 400, `Sipariş tutarı minimum ${minimumOrderAmount} TL olmalıdır!`);
     }
 
     // Kupon doğrulama (order.service)
@@ -386,58 +537,41 @@ export const placeOrder = async (req, res) => {
       {
         orderProducts,
         deliveryPoint,
-        channel: req.body.channel || req.body.device?.platform || "web",
+        deliveryZone: deliveryPoint,
+        channel: orderChannel(body),
       }
     );
 
     const finalTotalAmount = Math.max(0, totalAmount - couponDiscount);
 
-    // Sipariş kaydet
+    // Sipariş kaydet (yurt siparişi: teslimat ücreti yok, productTotal = ödenecek tutar)
     const newOrder = await Order.create({
       user: req.user._id,
       products: orderProducts,
       totalAmount: finalTotalAmount,
       subtotalAmount: totalAmount,
+      productTotal: finalTotalAmount,
+      deliveryFee: 0,
       city,
       phone,
       note: note || "",
       deliveryPoint,
       deliveryPointName: deliveryPointName || "",
+      deliveryType: "point",
+      deliveryZone: { id: deliveryPoint, name: selectedPoint.name || "", type: "yurt" },
       couponCode: appliedCoupon?.code || null,
       couponDiscount,
       paymentMethod,
     });
 
-    // Kupon kullanımını atomik olarak kaydet (order.service)
-    if (appliedCoupon) {
-      await commitCouponUsage(appliedCoupon, req.user._id, newOrder._id);
-      // commitCouponUsage hata atarsa sipariş otomatik silinir
-    }
-
-    // Sepeti temizle
-    req.user.cartItems = [];
-    // Siparişte girilen numara profildekinden farklıysa profil güncellenir;
-    // böylece uygulama bir sonraki siparişte doğru numarayı önerir.
-    const orderPhone = String(phone).trim();
-    if (orderPhone && orderPhone !== (req.user.phone || "")) {
-      req.user.phone = orderPhone;
-    }
-    await req.user.save({ validateModifiedOnly: true });
-
-    // Referral ödülü artık sipariş oluşturulduğunda değil, ilk sipariş "Teslim Edildi"
-    // olduğunda verilir (ordersAnalytics.controller.js → grantReferralRewardIfDelivered).
-
-    // Sipariş alarmı + Socket.IO admin bildirimi (order.service — arka planda)
-    const io = req.app.get("io");
-    dispatchOrderNotifications(io, newOrder, req.user);
-
-    res.status(201).json({
-      success: true,
-      message: "Sipariş başarıyla oluşturuldu.",
-      orderId: newOrder._id,
-      order: newOrder,
-    });
+    return await finalizeOrder(req, res, newOrder, appliedCoupon, phone);
   } catch (error) {
+    // Şema doğrulaması (ör. geçersiz telefon) istemci hatasıdır: ilk alanın okunur mesajıyla 400
+    if (error?.name === "ValidationError" && error._message === "Order validation failed" && error.errors) {
+      const first = Object.values(error.errors)[0];
+      const message = first?.message || "Sipariş bilgileri geçersiz";
+      return res.status(400).json({ message, error: message, details: error.errors });
+    }
     // commitCouponUsage'dan gelen 409 hatası
     const statusCode = error.statusCode || 500;
     console.error("Sipariş oluşturulurken hata:", error.message);

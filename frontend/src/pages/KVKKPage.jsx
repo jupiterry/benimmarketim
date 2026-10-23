@@ -1,14 +1,15 @@
-import React from 'react';
 import { Helmet } from 'react-helmet-async';
-import { Shield, Database, Eye, Lock, UserCheck, AlertTriangle, FileText, Scale } from 'lucide-react';
+import { Shield, Database, Eye, Lock, UserCheck, AlertTriangle, FileText, Scale, Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import LegalLayout from '../components/LegalLayout';
+import { company } from '../data/company';
 
 const sections = [
   { id: "veri-sorumlusu", label: "Veri Sorumlusu" },
   { id: "toplanan-kisisel-veriler", label: "Toplanan Kişisel Veriler" },
   { id: "veri-isleme-amaclari", label: "Veri İşleme Amaçları" },
   { id: "veri-isleme-hukuki-sebepleri", label: "Veri İşleme Hukuki Sebepleri" },
+  { id: "saklama-sureleri", label: "Saklama Süreleri" },
   { id: "veri-guvenligi", label: "Veri Güvenliği" },
   { id: "veri-sahibinin-haklari", label: "Veri Sahibinin Hakları" },
   { id: "basvuru-yontemleri", label: "Başvuru Yöntemleri" },
@@ -38,16 +39,20 @@ const KVKKPage = () => {
           <div className="legal-stack">
             <div className="legal-card">
               <h3 className="legal-card-title">Şirket Unvanı</h3>
-              <p className="legal-text">Benim Marketim Ticaret Limited Şirketi</p>
+              <p className="legal-text">{company.legalName}</p>
+            </div>
+            <div className="legal-card">
+              <h3 className="legal-card-title">MERSİS No</h3>
+              <p className="legal-text">{company.mersisNumber}</p>
             </div>
             <div className="legal-card">
               <h3 className="legal-card-title">Adres</h3>
-              <p className="legal-text">[Şirket Adresi]</p>
+              <p className="legal-text">{company.address}</p>
             </div>
             <div className="legal-card">
               <h3 className="legal-card-title">İletişim</h3>
-              <p className="legal-text">E-posta: kvkk@benimmarketim.com</p>
-              <p className="legal-text">Telefon: +90 (XXX) XXX XX XX</p>
+              <p className="legal-text">E-posta: {company.kvkkEmail}</p>
+              <p className="legal-text">Telefon: {company.phone}</p>
             </div>
           </div>
         </section>
@@ -65,7 +70,15 @@ const KVKKPage = () => {
             </div>
             <div className="legal-card">
               <h3 className="legal-card-title">İletişim Bilgileri</h3>
-              <p className="legal-text legal-text--sm">E-posta, telefon, adres bilgileri</p>
+              <p className="legal-text legal-text--sm">E-posta, telefon</p>
+            </div>
+            <div className="legal-card">
+              <h3 className="legal-card-title">Adres ve Teslimat Bilgileri</h3>
+              <p className="legal-text legal-text--sm">Teslimat bölgesi; kaydettiğiniz adresler (etiket, sokak/cadde, bina no ve adı, kat, daire, adres tarifi); siparişteki teslimat adresi</p>
+            </div>
+            <div className="legal-card">
+              <h3 className="legal-card-title">Konum Bilgisi (isteğe bağlı)</h3>
+              <p className="legal-text legal-text--sm">Adresinizi haritada işaretlediğinizde o noktanın enlem ve boylamı. İşaretleme zorunlu değildir; arka planda ya da sürekli konum takibi yapılmaz.</p>
             </div>
             <div className="legal-card">
               <h3 className="legal-card-title">Müşteri İşlem Bilgileri</h3>
@@ -88,6 +101,10 @@ const KVKKPage = () => {
             <div className="legal-card">
               <h3 className="legal-card-title">Hizmet Sunumu</h3>
               <p className="legal-text">Sipariş işleme, teslimat, müşteri hizmetleri</p>
+            </div>
+            <div className="legal-card">
+              <h3 className="legal-card-title">Teslimat (adres ve konum)</h3>
+              <p className="legal-text">Siparişi doğru adrese ulaştırmak, adresin hangi teslimat bölgesinde olduğunu ve o bölgenin teslimat ücretini ve minimum sepet tutarını belirlemek, kuryenin adresi bulmasını kolaylaştırmak. Adres ve konum yalnızca siparişi hazırlayan ve teslim eden ekibimizce görülür.</p>
             </div>
             <div className="legal-card">
               <h3 className="legal-card-title">Yasal Yükümlülükler</h3>
@@ -126,6 +143,27 @@ const KVKKPage = () => {
             <div className="legal-item">
               <div className="legal-dot"></div>
               <p className="legal-text">Meşru menfaat (KVKK md. 5/2-f)</p>
+            </div>
+          </div>
+          <p className="legal-text legal-text--top">
+            Teslimat adresi ve isteğe bağlı olarak işaretlediğiniz konum, mesafeli satış sözleşmesinin kurulması ve ifası (md. 5/2-c) kapsamında işlenir. Konum işaretlemek isteğe bağlıdır; işaretlemeden de sipariş verebilirsiniz.
+          </p>
+        </section>
+
+        {/* Saklama Süreleri */}
+        <section id="saklama-sureleri" className="legal-section">
+          <div className="legal-section-head">
+            <Clock className="legal-icon" />
+            <h2>Saklama Süreleri</h2>
+          </div>
+          <div className="legal-stack">
+            <div className="legal-card">
+              <h3 className="legal-card-title">Kayıtlı adresler ve konum</h3>
+              <p className="legal-text">Siz silene ya da hesabınızı silene kadar saklanır. Hesap silindiğinde ve uzun süre kullanılmayan hesaplar temizlenirken kayıtlı adresler de silinir.</p>
+            </div>
+            <div className="legal-card">
+              <h3 className="legal-card-title">Sipariş kayıtlarındaki adres</h3>
+              <p className="legal-text">Siparişe yazılan teslimat adresi, sipariş ve fatura kayıtlarıyla birlikte ilgili mevzuatta (Türk Ticaret Kanunu, Vergi Usul Kanunu) öngörülen süre boyunca saklanır; süre dolunca silinir ya da anonim hâle getirilir.</p>
             </div>
           </div>
         </section>
@@ -196,10 +234,10 @@ const KVKKPage = () => {
             KVKK kapsamındaki haklarınızı kullanmak için aşağıdaki yöntemlerle başvurabilirsiniz:
           </p>
           <div className="legal-stack legal-stack--tight">
-            <p className="legal-strong">📧 E-posta: kvkk@benimmarketim.com</p>
-            <p className="legal-strong">📞 Telefon: +90 (XXX) XXX XX XX</p>
-            <p className="legal-strong">📍 Posta: [Şirket Adresi]</p>
-            <p className="legal-strong">🌐 Web: <Link className="legal-link" to="/kvkk-basvuru">devrekbenimmarketim.com/kvkk-basvuru</Link></p>
+            <p className="legal-strong">📧 E-posta: {company.kvkkEmail}</p>
+            <p className="legal-strong">📞 Telefon: {company.phone}</p>
+            <p className="legal-strong">📍 Posta: {company.address}</p>
+            <p className="legal-strong">🌐 Web: <Link className="legal-link" to="/kvkk-basvuru">{company.website}/kvkk-basvuru</Link></p>
           </div>
           <div className="legal-card legal-card--gap">
             <p className="legal-strong legal-text--sm">

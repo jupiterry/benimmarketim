@@ -20,7 +20,7 @@ const IconSelect = ({ icon: Icon, label, value, options, onChange, active = fals
 );
 
 export default function OrdersToolbar({
-  view = "now", filters, onFilters, onClear, searchRef, statusCounts, pointCounts, lateCount = 0,
+  view = "now", filters, onFilters, onClear, searchRef, statusCounts, pointCounts, pointOptions, zonesPresent = false, lateCount = 0,
   groupByPoint = false, onGroupByPoint, sort = "newest", onSort, advancedCount = 0, filtersOpen = false, onOpenFilters,
   resultCount = 0, scopeNote = null,
 }) {
@@ -32,6 +32,8 @@ export default function OrdersToolbar({
   const late = Math.max(0, Number(lateCount) || 0);
   const lateOn = f.attention === "delayed";
   const dateTitle = f.date === "all" && scopeNote ? scopeNote : undefined;
+  // Veride yalnızca yurt siparişi varsa bugünkü metin; adresli bölge siparişi varsa "Bölgeye göre"
+  const groupLabel = zonesPresent ? "Bölgeye göre grupla" : "Yurda göre grupla";
 
   const clearSearch = () => {
     patch({ q: "" });
@@ -63,8 +65,8 @@ export default function OrdersToolbar({
 
         {view === "now" && (
           <div className="so-ov-chips-area">
-            <div className="ui-chips so-ov-chips" role="group" aria-label="Teslimat noktası">
-              {POINT_FILTERS.map((p) => {
+            <div className="ui-chips so-ov-chips" role="group" aria-label={zonesPresent ? "Teslimat bölgesi" : "Teslimat noktası"}>
+              {(pointOptions?.length ? pointOptions : POINT_FILTERS).map((p) => {
                 const pressed = f.point === p.value;
                 return (
                   <button key={p.value} type="button" aria-pressed={pressed}
@@ -100,9 +102,9 @@ export default function OrdersToolbar({
 
         <div className="so-ov-end">
           {view === "now" && (
-            <button type="button" className="ui-btn so-ov-group" aria-pressed={Boolean(groupByPoint)} aria-label="Yurda göre grupla"
-              title="Şeritleri teslimat noktasına göre böl" onClick={() => onGroupByPoint?.(!groupByPoint)}>
-              <Layers aria-hidden="true" /><span className="so-ov-group-label">Yurda göre grupla</span>
+            <button type="button" className="ui-btn so-ov-group" aria-pressed={Boolean(groupByPoint)} aria-label={groupLabel}
+              title={zonesPresent ? "Şeritleri teslimat bölgesine göre böl" : "Şeritleri teslimat noktasına göre böl"} onClick={() => onGroupByPoint?.(!groupByPoint)}>
+              <Layers aria-hidden="true" /><span className="so-ov-group-label">{groupLabel}</span>
             </button>
           )}
           {(view === "list" || view === "board") && dateSelect}

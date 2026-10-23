@@ -38,7 +38,8 @@ test("only delivered orders above the minimum inside the mission window count", 
   assert.deepEqual(await evaluateMissionsForUser(USER, NOW), []);
   assert.equal(filter.user, USER);
   assert.equal(filter.status, "Teslim Edildi");
-  assert.deepEqual(filter.totalAmount, { $gte: 300 });
+  // Alt tutar ürün tutarına uygulanır; eski siparişlerde productTotal yok → totalAmount
+  assert.deepEqual(filter.$or, [{ productTotal: { $gte: 300 } }, { productTotal: null, totalAmount: { $gte: 300 } }]);
   assert.equal(filter.createdAt.$gte.toISOString(), "2026-10-01T00:00:00.000Z");
   assert.equal(update.mock.callCount(), 0);
 });

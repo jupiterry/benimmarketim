@@ -130,6 +130,8 @@ const ProfitCard = ({ summary, period, unavailable }) => {
   const manual = summary?.manualRevenue || 0;
   const base = Math.max(0, revenue - manual);
   const rate = Math.max(0, Math.min(100, Number(margin) || 0));
+  // Ciro ürün tutarıdır; teslimat ücreti kâr hesabına girmez, ayrı gösterilir
+  const fee = Number(summary?.totals?.deliveryFeeRevenue) || 0;
   return (
     <section className="ui-panel dsh-panel" aria-label="Kâr tahmini">
       <div className="ui-panel-head">
@@ -152,6 +154,7 @@ const ProfitCard = ({ summary, period, unavailable }) => {
         <div><dt>Dönem cirosu</dt><dd>{money(revenue)}</dd></div>
         <div><dt>Kâr hesabına esas</dt><dd>{money(base)}</dd></div>
         <div><dt>Manuel eklemeler</dt><dd>{money(manual)}</dd></div>
+        {fee > 0 && <div><dt>Teslimat ücreti (ayrı)</dt><dd>{money(fee)}</dd></div>}
       </dl>}
     </section>
   );
@@ -247,7 +250,13 @@ const DashboardWidgets = ({ onNavigate }) => {
   const customers = summary?.customers || {};
   const statusRows = (summary?.statusDistribution || []).filter((row) => row.count > 0);
   const statusTotal = statusRows.reduce((sum, row) => sum + row.count, 0);
-  const dormRows = summary?.dormDistribution || [];
+  // Bölge dağılımı: sunucu zoneDistribution verir ve veride yurt dışı bölge varsa; aksi halde bugünkü yurt dağılımı
+  const zoneRows = Array.isArray(summary?.zoneDistribution) ? summary.zoneDistribution : [];
+  const useZones = zoneRows.some((row) => row.zoneId !== "girlsDorm" && row.zoneId !== "boysDorm" && row.zoneId !== "unknown");
+  const dormRows = useZones
+    ? zoneRows.map((row) => ({ key: row.zoneId, label: row.name || DORM_NAMES[row.zoneId] || row.zoneId, orders: row.orders, revenue: row.revenue, fee: Number(row.deliveryFeeRevenue) || 0 }))
+    : (summary?.dormDistribution || []).map((row) => ({ key: row.deliveryPoint, label: DORM_NAMES[row.deliveryPoint] || row.deliveryPoint, orders: row.orders, revenue: row.revenue, fee: 0 }));
+  const feeRevenue = Number(totals.deliveryFeeRevenue) || 0;
   const dormMax = Math.max(1, ...dormRows.map((row) => row.orders));
   const topProducts = summary?.topProducts || [];
   const topMax = Math.max(1, ...topProducts.map((product) => product.quantity));
@@ -382,14 +391,16 @@ const DashboardWidgets = ({ onNavigate }) => {
           ) : (
             <p className="ui-muted ui-text-sm dsh-note">Bu dönemde sipariş yok.</p>
           )}
-          <h3 className="dsh-subhead">Yurda göre</h3>
+          <h3 className="dsh-subhead">{useZones ? "Bölgeye göre" : "Yurda göre"}</h3>
           {dormRows.length > 0 ? (
             <ul className="dsh-meters">
               {dormRows.map((row) => (
-                <li key={row.deliveryPoint}>
-                  <span className="dsh-meter-label">{DORM_NAMES[row.deliveryPoint] || row.deliveryPoint}</span>
+                <li key={row.key}>
+                  <span className="dsh-meter-label" title={row.label}>{row.label}</span>
                   <span className="dsh-meter"><i style={{ width: `${(row.orders / dormMax) * 100}%` }} /></span>
-                  <span className="dsh-meter-value">{number(row.orders)} sipariş · {compactMoney(row.revenue)}</span>
+                  <span className="dsh-meter-value" title={useZones ? `Teslimat ücreti ${money(row.fee)}` : undefined}>
+                    {number(row.orders)} sipariş · {compactMoney(row.revenue)}{row.fee > 0 ? ` + ${compactMoney(row.fee)}` : ""}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -535,8 +546,11 @@ const DashboardWidgets = ({ onNavigate }) => {
           </section>
 
           <KpiGrid columns={5} className="dsh-kpis">
-            <KpiCard icon={TrendingUp} tone="brand" label="Ciro" value={money(totals.revenue)}
-              delta={delta?.revenue ?? undefined} note={compareNote(delta?.revenue, previous && money(previous.revenue), "iptaller hariç")} />
+            <KpiCard icon={TrendingUp} tone="brand" label={feeRevenue > 0 ? "Ciro (ürün)" : "Ciro"} value={money(totals.revenue)}
+              delta={delta?.revenue ?? undefined}
+              note={feeRevenue > 0
+                ? <span title="Teslimat ücreti cirodan ayrı raporlanır">+{money(feeRevenue)} teslimat · {compareNote(delta?.revenue, previous && money(previous.revenue), "iptaller hariç")}</span>
+                : compareNote(delta?.revenue, previous && money(previous.revenue), "iptaller hariç")} />
             <KpiCard icon={ShoppingBag} label="Sipariş" value={number(totals.orders)}
               delta={delta?.orders ?? undefined} note={totals.cancelled ? `${number(totals.cancelled)} iptal` : compareNote(delta?.orders, previous && number(previous.orders), "tüm siparişler")} />
             <KpiCard icon={LayoutGrid} label="Ortalama sepet" value={money(totals.averageBasket)}

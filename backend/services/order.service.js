@@ -303,6 +303,8 @@ export async function validateAndCalculateCoupon(
     totalAmount,
     orderProducts: context.orderProducts || [],
     deliveryPoint: context.deliveryPoint,
+    deliveryZone: context.deliveryZone,
+    canOrderToAddress: context.canOrderToAddress,
     channel: context.channel,
   });
   if (!validation.valid) {
@@ -392,6 +394,11 @@ export function dispatchOrderNotifications(io, newOrder, requestUser) {
           phone: newOrder.phone,
           deliveryPoint: newOrder.deliveryPoint,
           deliveryPointName: newOrder.deliveryPointName,
+          // Teslimat (Devrek genişlemesi): yalnızca ekleme
+          deliveryType: newOrder.deliveryType || "point",
+          deliveryZoneName: newOrder.deliveryZone?.name || "",
+          deliveryFee: Number(newOrder.deliveryFee) || 0,
+          productTotal: newOrder.productTotal ?? newOrder.totalAmount,
           paymentMethod: newOrder.paymentMethod || null,
           paymentMethodLabel: paymentMethodLabel(newOrder.paymentMethod),
           products: newOrder.products?.map((product) => ({

@@ -833,3 +833,38 @@
     min-height: 56px;
   }
 }
+
+/* ── Adrese teslim: kısa adres satırı (yurt kartı bugünkü gibi) ──── */
+.admin-layout .so-q-card[data-addr="true"] {
+  grid-template-areas:
+    "check face head side"
+    "check face meta side"
+    ".     .    addr side";
+}
+.admin-layout .so-q-card[data-addr="true"][data-note="true"] {
+  grid-template-areas:
+    "check face head side"
+    "check face meta side"
+    ".     .    addr side"
+    ".     .    note side";
+}
+.admin-layout .so-q-addr {
+  grid-area: addr;
+}
+@container so-q-lane (max-width: 479px) {
+  .admin-layout .so-q-card[data-addr="true"] {
+    grid-template-areas:
+      "check face head"
+      "check face meta"
+      ".     addr addr"
+      ".     side side";
+  }
+  .admin-layout .so-q-card[data-addr="true"][data-note="true"] {
+    grid-template-areas:
+      "check face head"
+      "check face meta"
+      ".     addr addr"
+      ".     note note"
+      ".     side side";
+  }
+}

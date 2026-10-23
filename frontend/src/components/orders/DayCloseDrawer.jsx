@@ -6,7 +6,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import {
-  AlertTriangle, Banknote, Calculator, ChevronDown, ChevronRight, CreditCard, Download, Landmark, MapPin, Printer, Timer, Wallet,
+  AlertTriangle, Banknote, Bike, Calculator, ChevronDown, ChevronRight, CreditCard, Download, Home, Landmark, MapPin, Printer, Timer, Wallet,
 } from "lucide-react";
 import { Drawer, EmptyState, formatTime, money } from "../admin/ui";
 import { buildDayCloseSummary, printDayClose } from "../../lib/orderTools";
@@ -95,7 +95,12 @@ export default function DayCloseDrawer({ orders = [], now = Date.now(), onClose,
   const paymentRows = s.byPayment
     .filter((row) => row.method !== "none" || row.count > 0)
     .map((row) => ({ key: row.method, label: row.label, count: row.count, total: row.total, icon: PAYMENT_ICONS[row.method] }));
-  const pointRows = s.byPoint.map((row) => ({ key: row.name, label: row.name, count: row.count, total: row.total, icon: MapPin }));
+  // Teslimat ücreti yalnızca adresli/ücretli sipariş varken ayrı gösterilir (yalnızca yurt siparişli gün bugünkü gibi)
+  const hasFees = Number(s.deliveryFeeTotal) > 0 || Number(s.addressCount) > 0;
+  const DORM_NAMES = new Set(["Kız KYK Yurdu", "Erkek KYK Yurdu"]);
+  const pointRows = s.byPoint.map((row) => ({
+    key: row.name, label: row.name, count: row.count, total: row.total, icon: hasFees && !DORM_NAMES.has(row.name) ? Home : MapPin,
+  }));
 
   const print = () => {
     try {
@@ -176,12 +181,21 @@ export default function DayCloseDrawer({ orders = [], now = Date.now(), onClose,
                 description="Açık siparişler ve bugün teslim edilenlerin kasası aşağıda." />
             ) : (
               <>
-                <div className="so-t-hero" title="İptal edilen siparişler hariç">
-                  <span className="so-t-hero-label">Bugünkü ciro</span>
+                <div className="so-t-hero" title={hasFees ? "Ürün tutarı; teslimat ücreti ayrı · iptaller hariç" : "İptal edilen siparişler hariç"}>
+                  <span className="so-t-hero-label">{hasFees ? "Bugünkü ciro (ürün)" : "Bugünkü ciro"}</span>
                   <strong className="so-t-hero-value ui-num">{money(s.revenue)}</strong>
                   <span className="so-t-hero-note ui-num">
                     {s.valid} geçerli sipariş{s.pendingToday > 0 ? ` · ${s.pendingToday} henüz tamamlanmadı` : ""} · iptaller hariç
                   </span>
+                  {hasFees && (
+                    <span className="so-t-hero-fee ui-num">
+                      <Bike aria-hidden="true" />
+                      <span>Teslimat ücreti <strong>{money(s.deliveryFeeTotal)}</strong></span>
+                      <span className="so-t-hero-fee-meta">
+                        {s.paidDeliveryCount} ücretli{s.freeAddressCount ? ` · ${s.freeAddressCount} ücretsiz` : ""} · toplam tahsilat {money(s.grossTotal)}
+                      </span>
+                    </span>
+                  )}
                 </div>
 
                 <section className="so-t-sec" aria-labelledby={`${uid}-today`}>
@@ -201,13 +215,15 @@ export default function DayCloseDrawer({ orders = [], now = Date.now(), onClose,
 
                 <section className="so-t-sec" aria-labelledby={`${uid}-pay`}>
                   <h3 className="so-t-h" id={`${uid}-pay`}>Ödeme yöntemine göre</h3>
-                  <ShareRows rows={paymentRows} total={s.revenue} label="Ödeme yöntemine göre ciro" />
+                  <ShareRows rows={paymentRows} total={hasFees ? s.grossTotal : s.revenue}
+                    label={hasFees ? "Ödeme yöntemine göre tahsilat (teslimat ücreti dahil)" : "Ödeme yöntemine göre ciro"} />
+                  {hasFees && <p className="ui-hint so-t-hint">Tutarlar müşterinin ödediği toplamdır (teslimat ücreti dahil).</p>}
                 </section>
 
                 {pointRows.length > 0 && (
                   <section className="so-t-sec" aria-labelledby={`${uid}-point`}>
-                    <h3 className="so-t-h" id={`${uid}-point`}>Teslimat noktasına göre</h3>
-                    <ShareRows rows={pointRows} total={s.revenue} label="Teslimat noktasına göre ciro" />
+                    <h3 className="so-t-h" id={`${uid}-point`}>{hasFees ? "Bölgeye göre" : "Teslimat noktasına göre"}</h3>
+                    <ShareRows rows={pointRows} total={s.revenue} label={hasFees ? "Bölgeye göre ürün cirosu" : "Teslimat noktasına göre ciro"} />
                   </section>
                 )}
 

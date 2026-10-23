@@ -189,7 +189,7 @@ const questions = [
   {
     title: "Hangi bölgelere teslimat yapıyorsunuz?",
     answer:
-      "Hizmet bölgemiz yalnızca Zonguldak ilinin Devrek ilçesidir. Market siparişini Benim Marketim mobil uygulamasından verebilirsin.",
+      "Teslimat yaptığımız bölgeler, bölge bazındaki teslimat ücretleriyle birlikte Teslimat bölgeleri sayfasında listelenir; hepsi Zonguldak’ın Devrek ilçesindedir. Market siparişini Benim Marketim mobil uygulamasından verebilirsin.",
   },
   {
     title: "Web sitesinden sipariş verebilir miyim?",
@@ -526,8 +526,11 @@ const HomePage = () => {
             <article className="landing-map-card landing-coverage-card">
               <div className="landing-map-copy">
                 <span className="landing-map-label"><ShoppingBag size={16} aria-hidden="true" /> HİZMET BÖLGEMİZ</span>
-                <h3>Yalnızca Devrek, Zonguldak.</h3>
-                <p>Market siparişlerini Devrek’te adresine getiriyoruz. Hizmet kapsamımız Zonguldak’ın Devrek ilçesiyle sınırlıdır.</p>
+                <h3>Devrek’teki teslimat bölgelerimiz.</h3>
+                <p>Siparişlerini teslimat bölgelerimizde kapına kadar getiriyoruz. Açık bölgeler, teslimat ücretleri ve minimum sepet tutarları Teslimat bölgeleri sayfasında; hizmet kapsamımız Zonguldak’ın Devrek ilçesiyle sınırlıdır.</p>
+                <Link className="landing-primary-link" to="/teslimat-bolgeleri">
+                  Teslimat bölgelerini gör <ArrowRight size={16} aria-hidden="true" />
+                </Link>
                 <a className="landing-secondary-link" href={`https://www.google.com/maps/search/?api=1&query=${coverageQuery}`} target="_blank" rel="noopener noreferrer">
                   Devrek’i haritada incele <ArrowUpRight size={16} aria-hidden="true" />
                 </a>

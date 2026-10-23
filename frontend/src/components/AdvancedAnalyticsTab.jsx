@@ -1,6 +1,7 @@
 // Satış analizi: seçili dönem (bugün / bu hafta / bu ay / bu yıl) önceki dönemin aynı noktasına
 // kadarki kısmıyla karşılaştırılır. Veri kaynakları:
-//   GET /analytics/compare?period=   → KPI'lar, delta, günlük seri, saat, yurt, kategori, ürün, hazırlama süresi
+//   GET /analytics/compare?period=   → KPI'lar, delta, günlük seri, saat, yurt/bölge, kategori, ürün, hazırlama süresi
+//   Ciro ürün tutarıdır; teslimat ücreti (deliveryFeeRevenue) ayrı gösterilir. byZone yoksa (eski sunucu) byDorm kullanılır.
 //   GET /analytics?timeRange=        → genel göstergeler (dönüşüm, sadakat, toplamlar) ve sipariş durumu dağılımı
 //   GET /products/shelf-performance  → ShelfPerformanceCard (raf performansı)
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -226,6 +227,16 @@ const AdvancedAnalyticsTab = () => {
 
   const { current, previous, deltas } = compare;
   const metricIsMoney = metric === "revenue";
+  // Teslimat ücreti: yalnızca dönemde ücretli teslimat varsa görünür (eski veride her şey bugünkü gibi)
+  const feeNow = Number(current.deliveryFeeRevenue) || 0;
+  const feePrev = Number(previous.deliveryFeeRevenue) || 0;
+  const showFee = feeNow > 0 || feePrev > 0;
+  // Bölge kırılımı: sunucu byZone verirse ve veride yurt dışı bölge varsa; aksi halde bugünkü yurt kırılımı
+  const zoneRows = Array.isArray(compare.byZone) ? compare.byZone : [];
+  const useZones = zoneRows.some((z) => z.zoneId !== "girlsDorm" && z.zoneId !== "boysDorm" && z.zoneId !== "unknown");
+  const splitRows = useZones
+    ? zoneRows.map((z) => ({ key: z.zoneId, label: z.name || DORMS[z.zoneId] || z.zoneId, orders: z.orders, revenue: z.revenue, fee: Number(z.deliveryFeeRevenue) || 0 }))
+    : compare.byDorm.map((d) => ({ key: d.deliveryPoint, label: DORMS[d.deliveryPoint] || d.deliveryPoint, orders: d.orders, revenue: d.revenue, fee: 0 }));
   const fmtMetric = (v) => (metricIsMoney ? money(v) : `${num(v)} sipariş`);
 
   return (
@@ -240,8 +251,9 @@ const AdvancedAnalyticsTab = () => {
 
       {/* KPI kartları */}
       <KpiGrid columns={isMobile ? 2 : 6} className="anl-kpis">
-        <KpiCard icon={Wallet} tone="brand" label="Ciro" value={compactMoney(current.revenue)}
-          note={<><Delta value={deltas.revenue} /><span className="anl-prev">önceki {compactMoney(previous.revenue)}</span></>} />
+        <KpiCard icon={Wallet} tone="brand" label={showFee ? "Ciro (ürün)" : "Ciro"} value={compactMoney(current.revenue)}
+          note={<><Delta value={deltas.revenue} /><span className="anl-prev">önceki {compactMoney(previous.revenue)}</span>
+            {showFee && <span className="anl-prev" title={`Teslimat ücreti cirodan ayrıdır · önceki dönem ${money(feePrev)}`}>+ {compactMoney(feeNow)} teslimat</span>}</>} />
         <KpiCard icon={ShoppingBag} tone="info" label="Sipariş" value={num(current.orders)}
           note={<><Delta value={deltas.orders} /><span className="anl-prev">önceki {num(previous.orders)}</span></>} />
         <KpiCard icon={TrendingUp} tone="ok" label="Ortalama sepet" value={money(current.averageOrderValue)}
@@ -333,21 +345,26 @@ const AdvancedAnalyticsTab = () => {
 
         <section className="ui-panel anl-panel">
           <div className="ui-panel-head">
-            <div><h2>Yurda göre</h2><p>Teslimat noktasına göre sipariş ve ciro</p></div>
+            {useZones
+              ? <div><h2>Bölgeye göre</h2><p>Teslimat bölgesine göre sipariş, ürün cirosu ve teslimat ücreti</p></div>
+              : <div><h2>Yurda göre</h2><p>Teslimat noktasına göre sipariş ve ciro</p></div>}
           </div>
           <div className="ui-panel-body anl-dorms">
-            {compare.byDorm.length === 0 ? (
+            {splitRows.length === 0 ? (
               <EmptyState compact icon={Users} title="Veri yok" description="Bu dönemde teslim edilen sipariş yok." />
-            ) : compare.byDorm.map((d) => {
+            ) : splitRows.map((d) => {
               const share = current.revenue > 0 ? Math.round((d.revenue / current.revenue) * 100) : 0;
               return (
-                <div key={d.deliveryPoint} className="anl-dorm">
+                <div key={d.key} className="anl-dorm">
                   <div className="anl-dorm-head">
-                    <strong>{DORMS[d.deliveryPoint] || d.deliveryPoint}</strong>
+                    <strong>{d.label}</strong>
                     <span className="ui-num">{money(d.revenue)} <small className="ui-muted">· %{share}</small></span>
                   </div>
                   <span className="ui-progress"><div style={{ width: `${share}%` }} /></span>
-                  <span className="ui-hint anl-dorm-sub">{num(d.orders)} sipariş · ortalama {money(d.orders ? d.revenue / d.orders : 0)}</span>
+                  <span className="ui-hint anl-dorm-sub">
+                    {num(d.orders)} sipariş · ortalama {money(d.orders ? d.revenue / d.orders : 0)}
+                    {useZones && ` · teslimat ${d.fee > 0 ? money(d.fee) : "ücretsiz"}`}
+                  </span>
                 </div>
               );
             })}
@@ -446,7 +463,7 @@ const AdvancedAnalyticsTab = () => {
             <dl className="anl-facts">
               <div><dt><Activity /> Dönüşüm oranı</dt><dd>%{num(legacy.conversionRate, 1)}<small className="ui-muted">sipariş veren müşteri / kayıtlı müşteri</small></dd></div>
               <div><dt><Users /> Müşteri sadakati</dt><dd>%{num(legacy.customerRetention, 1)}<small className="ui-muted">birden fazla sipariş veren müşteri oranı</small></dd></div>
-              <div><dt><Wallet /> Toplam ciro</dt><dd>{money(legacy.totalRevenue)}<small className="ui-muted">{num(legacy.totalOrders)} sipariş · iptaller hariç</small></dd></div>
+              <div><dt><Wallet /> Toplam ciro</dt><dd>{money(legacy.totalRevenue)}<small className="ui-muted">{num(legacy.totalOrders)} sipariş · iptaller hariç{Number(legacy.totalDeliveryFeeRevenue) > 0 ? ` · teslimat ücreti ayrı: ${money(legacy.totalDeliveryFeeRevenue)}` : ""}</small></dd></div>
               <div><dt><Package2 /> Katalog</dt><dd>{num(legacy.totalProducts)} ürün<small className="ui-muted">{num(legacy.totalUsers)} kayıtlı müşteri</small></dd></div>
             </dl>
           ) : (

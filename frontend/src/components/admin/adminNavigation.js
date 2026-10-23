@@ -22,6 +22,7 @@ import {
   ScanLine,
   Radar,
   UserX,
+  MapPin,
 } from "lucide-react";
 
 // Kenar menüsü ve komut paleti aynı listeyi kullanır.
@@ -34,6 +35,7 @@ export const adminMenuGroups = [
     items: [
       { id: "dashboard", short: "Genel bakış", label: "Genel bakış", icon: LayoutDashboard, keywords: "özet anasayfa dashboard" },
       { id: "orders", short: "Siparişler", label: "Siparişler", icon: ShoppingBag, badge: "orders", keywords: "teslimat kurye" },
+      { id: "delivery-zones", short: "Teslimat bölgeleri", label: "Teslimat bölgeleri", icon: MapPin, keywords: "bölge mahalle köy yurt teslimat ücreti ücretsiz adres pilot kampanya" },
       { id: "analytics", short: "Satış analizi", label: "Satış analizi", icon: BarChart3, keywords: "rapor ciro grafik" },
     ],
   },

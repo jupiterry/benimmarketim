@@ -96,6 +96,13 @@ const couponSchema = new mongoose.Schema(
       type: String,
       enum: ["girlsDorm", "boysDorm"]
     }],
+    // Teslimat bölgesi hedeflemesi (DeliveryZone _id'leri). Yurtlar eski uygulama uyumu için
+    // deliveryPoints'te kalır; değerlendirmede ikisi birleşik hedef listesi sayılır.
+    deliveryZones: [{
+      type: String,
+      trim: true,
+      maxlength: 80
+    }],
     channels: [{
       type: String,
       enum: ["web", "android", "ios"]

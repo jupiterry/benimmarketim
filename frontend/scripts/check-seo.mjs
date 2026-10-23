@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { marketCategories, homeTitle, siteUrl } from "../src/data/seo.js";
+import { deliveryZonesPage, marketCategories, homeTitle, siteUrl } from "../src/data/seo.js";
 const dist = new URL('../dist/', import.meta.url);
 for (const category of [null, ...marketCategories]) {
   const file = category ? `${category.path.slice(1)}/index.html` : 'seo-home/index.html';
@@ -22,9 +22,25 @@ for (const category of [null, ...marketCategories]) {
     else assert.ok(!html.includes(`href="${item.path}"`), `${file}: homepage category should not be clickable`);
   }
 }
+// Teslimat bölgeleri sayfası: kendi metası, kanonik adresi, ilk boyamada stil ve içerik.
+{
+  const file = `${deliveryZonesPage.path.slice(1)}/index.html`;
+  const html = await readFile(new URL(file, dist), 'utf8');
+  assert.equal((html.match(/<title[^>]*>/g) ?? []).length, 1, `${file}: duplicate title`);
+  assert.equal((html.match(/name="description"/g) ?? []).length, 1, `${file}: duplicate description`);
+  assert.equal((html.match(/rel="canonical"/g) ?? []).length, 1, `${file}: duplicate canonical`);
+  assert.ok(html.includes(`href="${siteUrl}${deliveryZonesPage.path}"`), `${file}: canonical`);
+  assert.ok(html.includes('Teslimat Bölgeleri'), `${file}: title`);
+  assert.ok(html.includes('<h1'), `${file}: no initial content`);
+  assert.ok(html.includes('.legal-hero'), `${file}: initial content missing page styles`);
+  assert.ok(html.indexOf('<style data-initial-styles>') < html.indexOf('</head>'), `${file}: styles must precede first paint`);
+  assert.ok(!/<link\b[^>]*rel="stylesheet"/.test(html), `${file}: first paint must not depend on a CSS request`);
+  assert.ok(!html.includes('noindex'), `${file}: blocked`);
+}
 const sitemap = await readFile(new URL('sitemap.xml', dist), 'utf8');
+assert.ok(sitemap.includes(`${siteUrl}${deliveryZonesPage.path}`), 'sitemap: delivery zones page');
 assert.ok(!sitemap.includes('/hakkimizda'));
 for (const item of marketCategories) assert.ok(sitemap.includes(`${siteUrl}${item.path}`));
 const shell = await readFile(new URL('index.html', dist), 'utf8');
 assert.ok(shell.includes('<div id="root"></div>'), 'Application routes must keep their original shell');
-console.log('SEO checks passed: 20 initial HTML pages, metadata, category links, sitemap and application shell.');
+console.log('SEO checks passed: 21 initial HTML pages, metadata, category links, sitemap and application shell.');

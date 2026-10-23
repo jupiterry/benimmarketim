@@ -1,6 +1,7 @@
 import Settings, { DEFAULT_AI_MODEL } from "../models/settings.model.js";
 import { refreshOrderHoursCache } from "./cart.controller.js";
 import { diffFields, money, recordAdminAction, yesNo } from "../services/adminAudit.service.js";
+import { syncYurtZonesFromSettings } from "../services/delivery.service.js";
 
 const AI_PROVIDERS = ["groq", "openrouter", "gemini"];
 const AI_PROVIDER_LABEL = { groq: "Groq", openrouter: "OpenRouter", gemini: "Gemini" };
@@ -118,10 +119,25 @@ export const validateSettingsInput = (body = {}) => {
   return null;
 };
 
+// ── GET /api/settings önbelleği ──
+// Herkese açık uç nokta her uygulama açılışında çağrılır; belge süreç içinde ~10 sn tutulur.
+// Bu süreçteki her ayar değişikliği (PUT /api/settings, teslimat paneli) önbelleği hemen boşaltır;
+// PM2'deki diğer süreçler en geç SETTINGS_CACHE_MS sonra yeni değeri görür.
+// Yanıt belgenin toJSON'udur: settings.delivery (pilotUserIds dahil) şema tarafından çıkarılır.
+export const SETTINGS_CACHE_MS = 10 * 1000;
+let settingsCache = null; // { settings, expiresAt }
+
+export const invalidateSettingsCache = () => {
+  settingsCache = null;
+};
+
 // Tüm ayarları getir
 export const getSettings = async (req, res) => {
   try {
+    const now = Date.now();
+    if (settingsCache && settingsCache.expiresAt > now) return res.status(200).json(settingsCache.settings);
     const settings = await Settings.getSettings();
+    settingsCache = { settings, expiresAt: now + SETTINGS_CACHE_MS };
     res.status(200).json(settings);
   } catch (error) {
     console.error("Ayarlar getirilirken hata oluştu:", error);
@@ -177,9 +193,13 @@ export const updateSettings = async (req, res) => {
     }
 
     await settings.save();
+    invalidateSettingsCache();
 
     // Sipariş saatleri değiştiyse önbelleği hemen temizle
     await refreshOrderHoursCache();
+
+    // Yurt teslimat bölgeleri (Teslimat bölgeleri ekranı) ayarlardaki açık/kapalı ve adla eşlenir
+    if (deliveryPoints !== undefined) await syncYurtZonesFromSettings(settings);
 
     // İşlem kaydı: hangi ayar neyden neye değişti
     const changes = describeSettingsChanges(before, plain(settings));

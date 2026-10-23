@@ -27,8 +27,8 @@ import {
   applySavedFilter, buildCustomerIndex, buildPickedMap, classifyHandoff, completedAt, computeKpis, computeUnseenIds, copyText,
   countAdvanced, createOrderFilter, csvFilename, customerName, customerSummary, enterAction, findByCode, hasAnyFilter, inGChord,
   isActiveStatus, isDoneStatus, isLate, isUnseenCandidate, matchesQuery, nextAction, normalizeFilters, notificationPermission,
-  parseQuery, pickedStore, pointGroups, pointLabel, printedStore, readSavedFilters, readView, seenStore, sortOrders,
-  startOfDay, toSavedFilter, urgencySort, writeSavedFilters, writeView,
+  parseQuery, pickedStore, pointGroups, pointKey, pointLabel, printedStore, readSavedFilters, readView, seenStore, sortOrders,
+  startOfDay, toSavedFilter, urgencySort, writeSavedFilters, writeView, hasZoneOrders, zoneFilterOptions,
 } from "./shared";
 import {
   KbdHint, LiveRegion, LoadErrorPanel, LoadOlderButton, OrdersSkeleton, StaleBanner, StatePanel, useOrdersNow,
@@ -48,7 +48,7 @@ const FLASH_MS = 1400;
 const oldestFirst = (orders) => [...(orders || [])].sort((a, b) => a.createdMs - b.createdMs);
 const completedMs = (order) => completedAt(order)?.getTime() ?? 0;
 const sumTotal = (orders) => orders.reduce((s, o) => s + (Number(o.totalAmount) || 0), 0);
-/** Gruplama açıkken ekrandaki sıra (Kız, Erkek, Diğer bölümleri) — j/k gösterilenle aynı sırada gezer */
+/** Gruplama açıkken ekrandaki sıra (Kız, Erkek, diğer bölgeler, Diğer bölümleri) — j/k gösterilenle aynı sırada gezer */
 const displayOrder = (orders, grouped) => (grouped ? pointGroups(orders).flatMap((g) => g.orders) : orders);
 const countStatuses = (orders) => {
   const out = { all: orders.length, active: 0, [PREP]: 0, [ROAD]: 0, "Teslim Edildi": 0, "İptal Edildi": 0 };
@@ -185,14 +185,25 @@ export default function OrdersScreen() {
   }, [windowOrders, eff, now]);
   const pointCounts = useMemo(() => {
     const match = createOrderFilter(eff, { now, view: "now", ignore: ["point"] });
+    // Bölge anahtarına göre (eski yurt siparişinde yurt kodu; adresli siparişte bölge kimliği)
     const out = { all: 0, girlsDorm: 0, boysDorm: 0 };
     for (const o of activeOrders) {
       if (!match(o)) continue;
       out.all += 1;
-      if (out[o.deliveryPoint] !== undefined) out[o.deliveryPoint] += 1;
+      const key = pointKey(o);
+      out[key] = (out[key] || 0) + 1;
     }
     return out;
   }, [activeOrders, eff, now]);
+  // Bölge seçenekleri: iki yurt her zaman; diğer bölgeler veride görüldükçe (filtre çekmecesi tümünü,
+  // Şimdi çipleri yalnızca aktif siparişi olanları ve seçili olanı gösterir)
+  const zonesPresent = useMemo(() => hasZoneOrders(windowOrders), [windowOrders]);
+  const zoneOptions = useMemo(() => zoneFilterOptions(windowOrders, { include: [filters.point] }), [windowOrders, filters.point]);
+  const pointChipOptions = useMemo(
+    () => zoneOptions.filter((o) => o.value === "all" || o.value === "girlsDorm" || o.value === "boysDorm"
+      || o.value === filters.point || (pointCounts[o.value] || 0) > 0),
+    [zoneOptions, pointCounts, filters.point],
+  );
   const lateCount = useMemo(() => {
     const match = createOrderFilter(eff, { now, view: "now", ignore: ["attention"] });
     return activeOrders.filter((o) => match(o) && isLate(o, now)).length;
@@ -1035,6 +1046,8 @@ export default function OrdersScreen() {
                 searchRef={searchRef}
                 statusCounts={statusCounts}
                 pointCounts={pointCounts}
+                pointOptions={pointChipOptions}
+                zonesPresent={zonesPresent}
                 lateCount={lateCount}
                 groupByPoint={groupByPoint}
                 onGroupByPoint={(next) => setGroupPref(Boolean(next))}
@@ -1110,6 +1123,7 @@ export default function OrdersScreen() {
       {layer === "filters" && (
         <FilterDrawer
           filters={filters}
+          pointOptions={zoneOptions}
           onChange={patchFilters}
           onClear={clearFilters}
           resultCount={resultCount}

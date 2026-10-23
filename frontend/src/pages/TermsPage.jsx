@@ -1,7 +1,8 @@
-import React from 'react';
 import { Helmet } from 'react-helmet-async';
+import { Link } from 'react-router-dom';
 import { FileText, AlertCircle, CheckCircle, XCircle, Shield } from 'lucide-react';
 import LegalLayout from '../components/LegalLayout';
+import { company, DELIVERY_AREA_TEXT, DELIVERY_ZONES_PATH } from '../data/company';
 
 const sections = [
   { id: "genel-kosullar", label: "Genel Koşullar" },
@@ -56,6 +57,16 @@ const TermsPage = () => {
           </div>
           <div className="legal-grid">
             <div className="legal-card">
+              <h3 className="legal-card-title">Sipariş Kanalı</h3>
+              <p className="legal-text legal-text--sm">Siparişler yalnızca {company.brand} mobil uygulamasından verilir; web sitesinden sipariş alınmaz</p>
+            </div>
+            <div className="legal-card">
+              <h3 className="legal-card-title">Teslimat Bölgesi</h3>
+              <p className="legal-text legal-text--sm">
+                <Link className="legal-link" to={DELIVERY_ZONES_PATH}>{DELIVERY_AREA_TEXT}</Link>
+              </p>
+            </div>
+            <div className="legal-card">
               <h3 className="legal-card-title">Sipariş Onayı</h3>
               <p className="legal-text legal-text--sm">Siparişleriniz onaylandıktan sonra işleme alınır</p>
             </div>
@@ -64,8 +75,12 @@ const TermsPage = () => {
               <p className="legal-text legal-text--sm">Ödeme sipariş onayından sonra alınır</p>
             </div>
             <div className="legal-card">
-              <h3 className="legal-card-title">Teslimat</h3>
-              <p className="legal-text legal-text--sm">Teslimat süresi 45 dakika ile 2 saat arasındadır</p>
+              <h3 className="legal-card-title">Teslimat Süresi</h3>
+              <p className="legal-text legal-text--sm">Teslimat süresi bölgeye, yoğunluğa, hava ve yol durumuna göre değişir</p>
+            </div>
+            <div className="legal-card">
+              <h3 className="legal-card-title">Teslimat Ücreti</h3>
+              <p className="legal-text legal-text--sm">Bölgeye göre teslimat ücreti uygulanabilir; ücret varsa siparişi onaylamadan önce gösterilir</p>
             </div>
             <div className="legal-card">
               <h3 className="legal-card-title">Fiyat Değişiklikleri</h3>
@@ -137,8 +152,8 @@ const TermsPage = () => {
             Önemli değişiklikler e-posta ile bildirilir.
           </p>
           <div className="legal-stack legal-stack--tight">
-            <p className="legal-strong">📅 Son güncelleme: 1 Ocak 2025</p>
-            <p className="legal-strong">📧 Bildirimler: info@benimmarketim.com</p>
+            <p className="legal-strong">📅 Son güncelleme: 23 Ekim 2026</p>
+            <p className="legal-strong">📧 Bildirimler: {company.email}</p>
           </div>
         </section>
       </LegalLayout>

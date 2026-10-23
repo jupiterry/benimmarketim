@@ -6,7 +6,15 @@ import {
   Banknote, CheckCircle2, Circle, Clock, CreditCard, KanbanSquare, Landmark, LayoutList, Truck, XCircle, Zap,
 } from "lucide-react";
 import { formatDate, formatTime, money, readPref, writePref } from "../admin/ui";
-import { getStatusTime, normalizeSearch, onlyDigits, shortOrderId, toWhatsAppNumber } from "../../lib/orderTools";
+import {
+  deliveryFeeLabel, getStatusTime, hasDeliveryFeeLine, isAddressOrder, normalizeSearch, onlyDigits, orderAddressLines, orderDeliveryFee,
+  orderMapsLink, orderProductTotal, orderZoneId, orderZoneName, shortOrderId, toWhatsAppNumber,
+} from "../../lib/orderTools";
+
+// Teslimat yardımcıları (lib/orderTools) ekranın tek kaynağından da dışa aktarılır
+export {
+  deliveryFeeLabel, hasDeliveryFeeLine, isAddressOrder, orderAddressLines, orderDeliveryFee, orderMapsLink, orderProductTotal, orderZoneName,
+};
 
 // ── Zaman sabitleri ───────────────────────────────────────────────────────
 export const MINUTE = 60_000;
@@ -201,19 +209,67 @@ export const DELIVERY_POINTS = [
 ];
 const POINT_BY_CODE = Object.fromEntries(DELIVERY_POINTS.map((p) => [p.value, p]));
 export const POINT_FILTERS = [{ value: "all", label: "Tümü" }, ...DELIVERY_POINTS.map(({ value, label }) => ({ value, label }))];
-/** "Yurda göre grupla" bölümleri (sıra sabit) */
+/** "Yurda göre grupla" bölümleri (sıra sabit); veride başka bölge varsa yurtlardan sonra adıyla eklenir */
 export const POINT_GROUPS = [
   { key: "girlsDorm", label: "Kız KYK Yurdu", short: "Kız yurdu" },
   { key: "boysDorm", label: "Erkek KYK Yurdu", short: "Erkek yurdu" },
   { key: "other", label: "Diğer", short: "Diğer" },
 ];
-/** 'girlsDorm' | 'boysDorm' | 'other' (yalnızca kod bakılır) */
-export const pointKey = (order) => (POINT_BY_CODE[order?.deliveryPoint] ? order.deliveryPoint : "other");
-/** Çip: "Kız yurdu", bilgi: "Kız KYK Yurdu"; bilinmeyen nokta için sunucudaki ad */
+const DORM_KEYS = new Set(DELIVERY_POINTS.map((p) => p.value));
+/**
+ * Bölge anahtarı: yurt siparişinde (eski ya da yeni) 'girlsDorm' | 'boysDorm'; adresli siparişte bölge
+ * kimliği (ör. 'mah-cumhuriyet'); bilinmeyen nokta 'other'.
+ */
+export const pointKey = (order) => {
+  if (POINT_BY_CODE[order?.deliveryPoint]) return order.deliveryPoint;
+  return orderZoneId(order) || "other";
+};
+// Veride görülen bölge adları (kimlik → ad); filtre etiketi ve seçenekleri için enrichOrders doldurur
+const ZONE_NAMES = new Map();
+const rememberZone = (order) => {
+  const key = pointKey(order);
+  if (key === "other" || DORM_KEYS.has(key)) return;
+  const name = orderZoneName(order);
+  if (name) ZONE_NAMES.set(key, name);
+};
+/** Bölge kimliğinin görünen adı ("Kız yurdu", "Cumhuriyet Mah."…) */
+export const zoneLabel = (key, { short = true } = {}) => {
+  const known = POINT_BY_CODE[key];
+  if (known) return short ? known.label : known.long;
+  if (key === "other") return "Diğer";
+  return ZONE_NAMES.get(key) || String(key || "");
+};
+/** Çip: "Kız yurdu", bilgi: "Kız KYK Yurdu"; adresli siparişte bölge adı; bilinmeyen nokta için sunucudaki ad */
 export const pointLabel = (order, { short = false } = {}) => {
   const known = POINT_BY_CODE[order?.deliveryPoint];
   if (known) return short ? known.label : known.long;
+  const zone = orderZoneName(order);
+  if (zone) return zone;
   return String(order?.deliveryPointName || order?.city || "").trim() || "Belirtilmemiş";
+};
+/** Veride yurt dışında bölge (adresli sipariş) var mı — "Yurda göre" metinleri "Bölgeye göre" olur */
+export const hasZoneOrders = (orders) => (orders || []).some((o) => {
+  const key = pointKey(o);
+  return key !== "other" && !DORM_KEYS.has(key);
+});
+/**
+ * Bölge filtresi seçenekleri: Tümü, iki yurt (her zaman, bugünkü gibi), ardından veride görülen diğer bölgeler
+ * (ada göre). include: ayrıca gösterilecek kimlikler (ör. seçili filtre).
+ */
+export const zoneFilterOptions = (orders, { include = [] } = {}) => {
+  const extra = new Map();
+  for (const o of orders || []) {
+    const key = pointKey(o);
+    if (key === "other" || DORM_KEYS.has(key) || extra.has(key)) continue;
+    extra.set(key, pointLabel(o, { short: true }));
+  }
+  for (const key of include) {
+    if (key && key !== "all" && key !== "other" && !DORM_KEYS.has(key) && !extra.has(key)) extra.set(key, zoneLabel(key));
+  }
+  const zones = [...extra.entries()]
+    .map(([value, label]) => ({ value, label }))
+    .sort((a, b) => a.label.localeCompare(b.label, "tr"));
+  return [...POINT_FILTERS, ...zones];
 };
 
 export const PAYMENT = {
@@ -367,6 +423,7 @@ export const lineKey = (product) =>
 
 const buildSearchText = (order) => normalizeSearch([
   order.orderId, order.user?.name, order.user?.email, order.deliveryPointName, pointLabel(order), pointLabel(order, { short: true }),
+  orderAddressLines(order)?.oneLine,
   order.note, order.couponCode, order.deliveryTracking, paymentShort(order), paymentLong(order),
   ...order.products.map((p) => p.name),
 ].filter(Boolean).join(" | "));
@@ -400,6 +457,7 @@ const enrichOne = (raw, user) => {
     userDeleted: Boolean(raw.userDeleted || user.deleted),
   };
   order.customerKey = customerKey(order);
+  rememberZone(order);
   order.searchText = buildSearchText(order);
   order.phoneDigits = [onlyDigits(raw.phone), onlyDigits(user.phone)].filter(Boolean).join(" ");
   return order;
@@ -503,7 +561,6 @@ export const SORTS = [
 const ENUMS = {
   status: ["all", "active", ...ORDER_STATUSES],
   date: DATE_OPTIONS.map((o) => o.value),
-  point: POINT_FILTERS.map((o) => o.value),
   payment: PAYMENT_FILTERS.map((o) => o.value),
   attention: ["none", "delayed", "problem"],
 };
@@ -516,6 +573,8 @@ export const normalizeFilters = (partial = {}) => {
     if (value === undefined || value === null) continue;
     if (key === "date") value = LEGACY_DATE[value] || value;
     if (ENUMS[key]) out[key] = ENUMS[key].includes(value) ? value : DEFAULT_FILTERS[key];
+    // Bölge: yurt anahtarı ya da bölge kimliği (slug); geçersiz değer "Tümü" olur
+    else if (key === "point") out.point = /^[A-Za-z0-9_-]{1,60}$/.test(String(value)) ? String(value) : DEFAULT_FILTERS.point;
     else out[key] = String(value);
   }
   return out;
@@ -581,7 +640,7 @@ export const createOrderFilter = (filters, { now = Date.now(), view = "list", ig
   return (order) => {
     if (!order) return false;
     if (status && (status === "active" ? !isActiveStatus(order.status) : order.status !== status)) return false;
-    if (point && order.deliveryPoint !== point) return false;
+    if (point && pointKey(order) !== point) return false;
     if (payment && paymentKey(order) !== payment) return false;
     if (min !== null && !(Number(order.totalAmount) >= min)) return false;
     if (max !== null && !(Number(order.totalAmount) <= max)) return false;
@@ -602,7 +661,7 @@ export const filterTags = (filters, { view = "list" } = {}) => {
   const tags = [];
   const on = (key) => filterApplies(key, view) && isFilterSet(f, key);
   if (on("date")) tags.push({ key: "date", label: DATE_OPTIONS.find((o) => o.value === f.date)?.label || f.date, patch: { date: "all" } });
-  if (on("point")) tags.push({ key: "point", label: POINT_BY_CODE[f.point]?.label || f.point, patch: { point: "all" } });
+  if (on("point")) tags.push({ key: "point", label: zoneLabel(f.point), patch: { point: "all" } });
   if (on("payment")) tags.push({ key: "payment", label: `Ödeme: ${PAYMENT_FILTERS.find((o) => o.value === f.payment)?.label || f.payment}`, patch: { payment: "all" } });
   const min = parseAmount(f.min);
   const max = parseAmount(f.max);
@@ -830,7 +889,7 @@ export const orderAriaLabel = (order, now = Date.now()) => {
 /** Adet, tutar ve ödeme yöntemine göre dağılım */
 export const summarizeOrders = (orders) => {
   const out = {
-    count: 0, units: 0, total: 0,
+    count: 0, units: 0, total: 0, productTotal: 0, deliveryFee: 0,
     cash: { count: 0, total: 0 }, card: { count: 0, total: 0 }, transfer: { count: 0, total: 0 }, none: { count: 0, total: 0 },
   };
   for (const o of orders || []) {
@@ -838,12 +897,16 @@ export const summarizeOrders = (orders) => {
     out.count += 1;
     out.units += Number(o.unitCount) || 0;
     out.total += amount;
+    out.productTotal += orderProductTotal(o);
+    out.deliveryFee += orderDeliveryFee(o);
     const key = paymentKey(o);
     const bucket = key === "bank_transfer" ? out.transfer : out[key];
     bucket.count += 1;
     bucket.total += amount;
   }
   out.total = round2(out.total);
+  out.productTotal = round2(out.productTotal);
+  out.deliveryFee = round2(out.deliveryFee);
   for (const k of ["cash", "card", "transfer", "none"]) out[k].total = round2(out[k].total);
   return out;
 };
@@ -859,6 +922,7 @@ export const computeKpis = (orders, now = Date.now(), { unseenIds } = {}) => {
     prep: 0, road: 0, active: 0, late: 0, latePrep: 0, lateRoad: 0, unseen: 0, oldestPrepMinutes: null,
     roadCash: 0, roadCashCount: 0, roadCard: 0, roadTransfer: 0,
     todayCount: 0, todayValid: 0, todayRevenue: 0, todayAvgBasket: 0, todayDelivered: 0, todayCancelled: 0,
+    todayDeliveryFee: 0, todayPaidDelivery: 0, todayAddress: 0,
     avgDeliveryMinutes: null, avgPrepMinutes: null,
   };
   const deliveries = [];
@@ -881,7 +945,15 @@ export const computeKpis = (orders, now = Date.now(), { unseenIds } = {}) => {
     }
     if (o.createdMs >= today) {
       k.todayCount += 1;
-      if (o.status !== "İptal Edildi") { k.todayValid += 1; k.todayRevenue += amount; }
+      // Ciro ürün tutarıdır; teslimat ücreti ayrı toplanır (kasa/yoldaki nakit müşterinin ödediği tutardır)
+      if (o.status !== "İptal Edildi") {
+        k.todayValid += 1;
+        k.todayRevenue += orderProductTotal(o);
+        const fee = orderDeliveryFee(o);
+        k.todayDeliveryFee += fee;
+        if (fee > 0) k.todayPaidDelivery += 1;
+        if (isAddressOrder(o)) k.todayAddress += 1;
+      }
     }
     const done = completedAt(o);
     if (done && done.getTime() >= today) {
@@ -903,6 +975,7 @@ export const computeKpis = (orders, now = Date.now(), { unseenIds } = {}) => {
   k.late = k.latePrep + k.lateRoad;
   k.roadCash = round2(k.roadCash);
   k.todayRevenue = round2(k.todayRevenue);
+  k.todayDeliveryFee = round2(k.todayDeliveryFee);
   k.todayAvgBasket = k.todayValid ? round2(k.todayRevenue / k.todayValid) : 0;
   k.avgDeliveryMinutes = average(deliveries);
   k.avgPrepMinutes = average(preps);
@@ -936,20 +1009,35 @@ export const activeByPoint = (orders) => {
   const map = new Map();
   for (const o of orders || []) {
     if (!isActiveStatus(o.status)) continue;
-    const key = pointKey(o) === "other" ? `name:${pointLabel(o)}` : o.deliveryPoint;
-    if (!map.has(key)) map.set(key, { code: pointKey(o) === "other" ? null : o.deliveryPoint, name: pointLabel(o), prep: 0, road: 0 });
+    const zone = pointKey(o);
+    const key = zone === "other" ? `name:${pointLabel(o)}` : zone;
+    if (!map.has(key)) map.set(key, { code: zone === "other" ? null : zone, name: pointLabel(o), prep: 0, road: 0 });
     const entry = map.get(key);
     if (o.status === "Hazırlanıyor") entry.prep += 1;
     else entry.road += 1;
   }
   return [...map.values()].sort((a, b) => (b.prep + b.road) - (a.prep + a.road) || a.name.localeCompare(b.name, "tr"));
 };
-/** Yurda göre gruplar (sıra korunur, boş gruplar atlanır): [{ key, label, short, orders, summary }] */
+/**
+ * Bölgeye göre gruplar (boş gruplar atlanır): önce iki yurt (bugünkü sıra), sonra diğer bölgeler adlarına göre,
+ * en sonda "Diğer". → [{ key, label, short, zone (yurt dışı bölge mi), orders, summary }]
+ */
 export const pointGroups = (orders) => {
   const buckets = new Map(POINT_GROUPS.map((g) => [g.key, []]));
-  for (const o of orders || []) buckets.get(pointKey(o)).push(o);
-  return POINT_GROUPS.filter((g) => buckets.get(g.key).length)
-    .map((g) => ({ ...g, orders: buckets.get(g.key), summary: summarizeOrders(buckets.get(g.key)) }));
+  const zones = new Map();
+  for (const o of orders || []) {
+    const key = pointKey(o);
+    if (buckets.has(key)) buckets.get(key).push(o);
+    else {
+      if (!zones.has(key)) zones.set(key, { key, label: pointLabel(o), short: pointLabel(o, { short: true }), zone: true, orders: [] });
+      zones.get(key).orders.push(o);
+    }
+  }
+  const zoneGroups = [...zones.values()].sort((a, b) => a.label.localeCompare(b.label, "tr"));
+  const dorms = POINT_GROUPS.filter((g) => g.key !== "other").map((g) => ({ ...g, orders: buckets.get(g.key) }));
+  const other = { ...POINT_GROUPS.find((g) => g.key === "other"), orders: buckets.get("other") };
+  return [...dorms, ...zoneGroups, other].filter((g) => g.orders.length)
+    .map((g) => ({ ...g, summary: summarizeOrders(g.orders) }));
 };
 /** customerKey → Order[] (en yeni önce; girdi createdMs azalan sıradaysa sıra korunur) */
 export const buildCustomerIndex = (orders) => {
@@ -988,7 +1076,7 @@ export const customerSummary = (source, order) => {
   let lastMs = -Infinity;
   for (const o of list) {
     if (o.status === "İptal Edildi") cancelled += 1;
-    else spent += Number(o.totalAmount) || 0;
+    else spent += orderProductTotal(o);
     if (o.status === "Teslim Edildi") delivered += 1;
     firstMs = Math.min(firstMs, o.createdMs);
     lastMs = Math.max(lastMs, o.createdMs);
@@ -1145,6 +1233,10 @@ const greeting = (order) => {
 const arrivalPlace = (order) => {
   const known = POINT_BY_CODE[order?.deliveryPoint];
   if (known) return `${known.long} girişinde`;
+  if (isAddressOrder(order)) {
+    const street = orderAddressLines(order)?.street;
+    return street ? `${street} adresinde` : "adresinde";
+  }
   const name = String(order?.deliveryPointName || "").trim();
   return name ? `${name} adresinde` : "teslimat noktanda";
 };

@@ -5,7 +5,7 @@
 import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import {
-  AlertCircle, AlertTriangle, Check, ChevronDown, History, ListChecks, Loader2, MapPin, MoreHorizontal, PackageCheck,
+  AlertCircle, AlertTriangle, Check, ChevronDown, History, Home, ListChecks, Loader2, MapPin, MoreHorizontal, PackageCheck,
   Printer, RefreshCw, RotateCcw, Sparkles, StickyNote, Timer, UserX, Wallet,
 } from "lucide-react";
 import {
@@ -14,6 +14,7 @@ import {
 import {
   CLICK_GUARD_MS, KBD_HINT, NOW_TICK_MS, PAYMENT, customerName, durationMinutes, faceTone, formatMinutes, getSla,
   isDeletedCustomer, nextAction, orderCode, orderCodeTitle, paymentKey, paymentLong, pointKey, pointLabel, shortWhen, statusUi,
+  isAddressOrder, orderAddressLines,
 } from "./shared";
 import "../../styles/orders.css";
 
@@ -151,12 +152,32 @@ export const PaymentChip = ({ order, amount = false, className = "" }) => {
     </span>
   );
 };
-/** Teslimat noktası; çipte kısa ad ("Kız yurdu"), title'da uzun ad */
-export const PointChip = ({ order, short = true, className = "" }) => (
-  <span className={`so-chip so-point ${className}`} data-point={pointKey(order)} title={pointLabel(order)}>
-    <MapPin aria-hidden="true" /><span className="so-chip-text">{pointLabel(order, { short })}</span>
-  </span>
-);
+/**
+ * Teslimat noktası; çipte kısa ad ("Kız yurdu"), title'da uzun ad. Adrese teslim siparişte bölge adı
+ * (ev simgesiyle) ve title'da açık adres; yurt siparişi bugünkü gibi.
+ */
+export const PointChip = ({ order, short = true, className = "" }) => {
+  const address = isAddressOrder(order) ? orderAddressLines(order) : null;
+  const Icon = address ? Home : MapPin;
+  return (
+    <span className={`so-chip so-point ${className}`} data-point={pointKey(order)} data-address={address ? "true" : undefined}
+      title={address ? `${pointLabel(order)} · ${address.oneLine}` : pointLabel(order)}>
+      <Icon aria-hidden="true" /><span className="so-chip-text">{pointLabel(order, { short })}</span>
+    </span>
+  );
+};
+/** Adrese teslim siparişin kısa adres satırı (sokak/bina · kat/daire); yurt siparişinde null */
+export const AddressLine = ({ order, className = "" }) => {
+  const address = isAddressOrder(order) ? orderAddressLines(order) : null;
+  if (!address) return null;
+  const text = [address.street, address.building, address.unit].filter(Boolean).join(" · ") || address.oneLine;
+  if (!text) return null;
+  return (
+    <p className={`so-addr-line ${className}`} title={[address.oneLine, address.directions].filter(Boolean).join(" — ")}>
+      <Home aria-hidden="true" /><span className="so-addr-line-text">{text}</span>
+    </p>
+  );
+};
 /** Müşteri notu var işareti (tam metin title'da); not yoksa null */
 export const NoteChip = ({ order, className = "" }) => {
   if (!order?.hasNote && !String(order?.note || "").trim()) return null;

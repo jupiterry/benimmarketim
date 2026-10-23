@@ -7,9 +7,12 @@ import toast from "react-hot-toast";
 import axios from "../../lib/axios";
 import { useConfirm } from "../ConfirmModal";
 import {
-  DAY_LABELS, DELIVERY_LABELS, CHANNEL_LABELS, DAY_MS, money, formatDate, describeRules
+  DAY_LABELS, CHANNEL_LABELS, DAY_MS, money, formatDate, describeRules
 } from "./couponUtils";
 import { RuleIcon } from "./RuleIcon";
+import { LEGACY_POINT_IDS, couponZoneIds, useDeliveryZones, zoneNameMap } from "./useDeliveryZones";
+
+const ZONE_TYPE_LABELS = { yurt: "Yurt", mahalle: "Mahalle", koy: "Köy" };
 
 const EMPTY_FORM = {
   code: "",
@@ -30,7 +33,9 @@ const EMPTY_FORM = {
   validDays: [],
   startTime: "",
   endTime: "",
-  deliveryPoints: [],
+  // Bölge hedefi: yurtlar (girlsDorm/boysDorm) dahil seçili bölge kimlikleri. Kaydederken
+  // backend yurtları eski deliveryPoints alanına, diğerlerini deliveryZones'a ayırır.
+  deliveryZones: [],
   channels: []
 };
 
@@ -148,7 +153,7 @@ const fromCoupon = (coupon) => ({
   validDays: coupon.validDays || [],
   startTime: coupon.startTime || "",
   endTime: coupon.endTime || "",
-  deliveryPoints: coupon.deliveryPoints || [],
+  deliveryZones: couponZoneIds(coupon),
   channels: coupon.channels || []
 });
 
@@ -187,6 +192,8 @@ const CouponComposer = ({ mode, coupon, existingCodes, onClose, onSaved }) => {
   const [productOptions, setProductOptions] = useState([]);
   const [productsLoaded, setProductsLoaded] = useState(false);
   const [productQuery, setProductQuery] = useState("");
+  const [zoneQuery, setZoneQuery] = useState("");
+  const { zones: zoneOptions, loaded: zonesLoaded, fallback: zonesFallback } = useDeliveryZones();
   const codeRef = useRef(null);
   const { confirm } = useConfirm();
 
@@ -275,6 +282,10 @@ const CouponComposer = ({ mode, coupon, existingCodes, onClose, onSaved }) => {
   if (!isPercent && formData.minimumOrderAmount > 0 && formData.discountAmount >= formData.minimumOrderAmount) {
     warnings.push("Sabit indirim, minimum sipariş tutarına eşit veya büyük.");
   }
+  const selectedZones = formData.deliveryZones;
+  if (selectedZones.length && !selectedZones.some((id) => LEGACY_POINT_IDS.includes(id))) {
+    warnings.push("Yalnızca yurt dışı bölgeler seçili: adrese teslimat açılana kadar bu kupon uygulamada görünmez.");
+  }
   const hasErrors = Object.keys(errors).length > 0;
 
   const handleSubmit = async (e) => {
@@ -284,6 +295,8 @@ const CouponComposer = ({ mode, coupon, existingCodes, onClose, onSaved }) => {
     try {
       const payload = {
         ...formData,
+        // Eski backend yalnızca deliveryPoints'i tanır; yeni backend deliveryZones'u ayırarak kaydeder.
+        deliveryPoints: formData.deliveryZones.filter((id) => LEGACY_POINT_IDS.includes(id)),
         maximumDiscount: formData.maximumDiscount || null,
         usageLimit: formData.usageLimit || null
       };
@@ -322,8 +335,22 @@ const CouponComposer = ({ mode, coupon, existingCodes, onClose, onSaved }) => {
     return list.slice(0, 60);
   }, [productOptions, productQuery]);
 
+  const zoneNames = useMemo(() => zoneNameMap(zoneOptions), [zoneOptions]);
+
+  // Seçili bölgeler her zaman listede kalır (kapatılmış ya da silinmiş olsa bile kaldırılabilsin).
+  const zoneChoices = useMemo(() => {
+    const known = new Map(zoneOptions.map((zone) => [String(zone._id ?? zone.id), zone]));
+    selectedZones.forEach((id) => {
+      if (!known.has(id)) known.set(id, { _id: id, name: zoneNames[id] || id, missing: true });
+    });
+    const q = zoneQuery.trim().toLocaleLowerCase("tr-TR");
+    return [...known.values()]
+      .filter((zone) => !q || selectedZones.includes(String(zone._id)) || `${zone.name} ${ZONE_TYPE_LABELS[zone.type] || ""}`.toLocaleLowerCase("tr-TR").includes(q))
+      .sort((a, b) => (Number(b.enabled !== false) - Number(a.enabled !== false)) || (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || String(a.name).localeCompare(String(b.name), "tr"));
+  }, [zoneOptions, selectedZones, zoneNames, zoneQuery]);
+
   const previewValue = isPercent ? `%${formData.discountPercentage || 0}` : money(formData.discountAmount);
-  const rules = describeRules({ ...formData, applicableProducts: formData.applicableProducts });
+  const rules = describeRules({ ...formData, deliveryPoints: [], applicableProducts: formData.applicableProducts }, zoneNames);
   const title = isEdit ? "Kuponu düzenle" : mode === "duplicate" ? "Kopyadan yeni kupon" : "Yeni kupon";
 
   return (
@@ -496,15 +523,36 @@ const CouponComposer = ({ mode, coupon, existingCodes, onClose, onSaved }) => {
                       ))}
                     </div>
                   </div>
-                  <div>
-                    <span className="ui-label">Teslimat noktaları</span>
-                    <div className="ui-chips cpn-wrap">
-                      {Object.entries(DELIVERY_LABELS).map(([value, label]) => (
-                        <button key={value} type="button" aria-pressed={formData.deliveryPoints.includes(value)}
-                          onClick={() => toggleArrayValue("deliveryPoints", value)}>{label}</button>
-                      ))}
+                </div>
+                <div>
+                  <span className="ui-label" id="cpn-zones-label">
+                    Teslimat bölgeleri
+                    <span className="cpn-optional">
+                      {selectedZones.length ? `${selectedZones.length} seçili` : "Seçilmezse tüm bölgelerde geçerli"}
+                    </span>
+                  </span>
+                  {zoneOptions.length > 8 && (
+                    <div className="ui-search cpn-zone-search">
+                      <Search aria-hidden="true" />
+                      <input type="search" className="ui-field" value={zoneQuery} placeholder="Bölge ara"
+                        aria-label="Teslimat bölgesi ara" onChange={(e) => setZoneQuery(e.target.value)} />
                     </div>
+                  )}
+                  <div className="ui-chips cpn-wrap cpn-cats" role="group" aria-labelledby="cpn-zones-label">
+                    {zoneChoices.map((zone) => {
+                      const id = String(zone._id);
+                      const note = zone.missing ? " (silinmiş)" : zone.enabled === false ? " (kapalı)" : "";
+                      return (
+                        <button key={id} type="button" aria-pressed={selectedZones.includes(id)}
+                          title={ZONE_TYPE_LABELS[zone.type] || undefined}
+                          onClick={() => toggleArrayValue("deliveryZones", id)}>{zone.name}{note}</button>
+                      );
+                    })}
+                    {zoneChoices.length === 0 && <span className="ui-hint">Aramaya uyan bölge yok.</span>}
                   </div>
+                  {zonesLoaded && zonesFallback && (
+                    <p className="ui-hint">Bölge listesi alınamadı; yalnızca yurtlar gösteriliyor.</p>
+                  )}
                 </div>
               </Section>
 

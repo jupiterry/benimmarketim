@@ -6,7 +6,7 @@
 // Sözleşme: scratchpad/orders-design/CONTRACTS.md §7.14
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { CheckCircle2, ClipboardList, MapPin, Package, PackageCheck, Phone, Printer, RotateCcw } from "lucide-react";
+import { CheckCircle2, ClipboardList, Home, MapPin, Package, PackageCheck, Phone, Printer, RotateCcw } from "lucide-react";
 import { Drawer, EmptyState, Segmented, money, undoable } from "../admin/ui";
 import { buildPickingList, formatPhoneTR, printPickingList } from "../../lib/orderTools";
 import { cloudinaryImage } from "../../lib/image";
@@ -63,6 +63,7 @@ export default function PickingDrawer({ orders = [], scope, scopes = [], onScope
   const bodyRef = useRef(null);
   const picking = useMemo(() => buildPickingList(orders), [orders]);
   const byId = useMemo(() => new Map(orders.map((o) => [o.orderId, o])), [orders]);
+  const hasAddress = useMemo(() => picking.points.some((point) => point.orders.some((entry) => entry.address)), [picking]);
   const pickedMap = picked instanceof Map ? picked : new Map();
   useDrawerFocus(bodyRef, FOCUS_ORDER);
 
@@ -208,7 +209,7 @@ export default function PickingDrawer({ orders = [], scope, scopes = [], onScope
             </ul>
 
             <section className="so-t-sec" aria-labelledby={`${uid}-points`}>
-              <h3 className="so-t-h" id={`${uid}-points`}><MapPin aria-hidden="true" />Teslimat noktaları</h3>
+              <h3 className="so-t-h" id={`${uid}-points`}><MapPin aria-hidden="true" />{hasAddress ? "Teslimat bölgeleri ve adresler" : "Teslimat noktaları"}</h3>
               <div className="so-t-points">
                 {picking.points.map((point) => (
                   <div key={point.name} className="so-t-point">
@@ -223,7 +224,7 @@ export default function PickingDrawer({ orders = [], scope, scopes = [], onScope
                         const phone = formatPhoneTR(entry.phone);
                         const progress = order ? pickProgress(order, pickedMap.get(entry.orderId)) : null;
                         return (
-                          <li key={entry.orderId} className="so-t-point-row">
+                          <li key={entry.orderId} className="so-t-point-row" data-addr={entry.address ? "true" : undefined}>
                             <span className="so-code" title={orderCodeTitle(entry.orderId)}>#{entry.shortId}</span>
                             <span className="so-t-point-name ui-truncate">{entry.customer}</span>
                             {phone && tel ? (
@@ -237,6 +238,12 @@ export default function PickingDrawer({ orders = [], scope, scopes = [], onScope
                               {order && <PaymentChip order={order} amount={order.paymentMethod === "cash"} />}
                               <PickProgress info={progress} />
                             </span>
+                            {entry.address && (
+                              <span className="so-t-point-addr" title={entry.directions ? `Tarif: ${entry.directions}` : undefined}>
+                                <Home aria-hidden="true" />
+                                <span>{entry.address}{entry.directions ? ` · ${entry.directions}` : ""}</span>
+                              </span>
+                            )}
                           </li>
                         );
                       })}

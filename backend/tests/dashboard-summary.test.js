@@ -115,7 +115,7 @@ test("özet: toplamlar, delta, dağılımlar, çok satanlar ve dikkat gerektiren
   assert.ok(calls[0][1].$facet.topProducts.some((stage) => stage.$limit === 5));
   assert.deepEqual(calls[1][0].$match.createdAt, { $gte: summaryDate(summary.range.start, -7), $lt: new Date(summary.range.start) });
 
-  assert.deepEqual(summary.totals, { orders: 10, cancelled: 2, completed: 8, revenue: 1200, averageBasket: 150, cancelRate: 20 });
+  assert.deepEqual(summary.totals, { orders: 10, cancelled: 2, completed: 8, revenue: 1200, averageBasket: 150, cancelRate: 20, deliveryFeeRevenue: 0 });
   assert.equal(summary.previous.revenue, 1000);
   assert.equal(summary.delta.revenue, 20);
   assert.equal(summary.delta.orders, 25);
@@ -138,6 +138,7 @@ test("özet: toplamlar, delta, dağılımlar, çok satanlar ve dikkat gerektiren
   assert.deepEqual(summary.recentOrders[0], {
     orderId: "64f1a2b3c4d5e6f76ac8bc4d", customerName: "Ayşe", customerAvatar: null, paymentMethod: null, paymentMethodLabel: "Belirtilmedi",
     totalAmount: 120, status: "Hazırlanıyor", itemCount: 3, deliveryPoint: "girlsDorm", deliveryPointName: "", createdAt: NOW,
+    productTotal: 120, deliveryFee: 0, deliveryZoneName: "",
   });
 });
 

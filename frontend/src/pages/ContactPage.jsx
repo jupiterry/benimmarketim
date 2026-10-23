@@ -1,8 +1,10 @@
-import React from 'react';
 import { Helmet } from 'react-helmet-async';
+import { Link } from 'react-router-dom';
 import { Mail, Phone, MapPin, Clock, Send, MessageCircle } from 'lucide-react';
 import LegalLayout from '../components/LegalLayout';
 import SiteMessageForm from '../components/SiteMessageForm';
+import { useSettingsStore } from '../stores/useSettingsStore';
+import { company, isPlaceholder, orderHoursText, DELIVERY_ZONES_PATH } from '../data/company';
 
 const subjects = [
   { value: "siparis", label: "Sipariş Sorunu" },
@@ -15,6 +17,8 @@ const subjects = [
 ];
 
 const ContactPage = () => {
+  // Çalışma saatleri mağaza ayarlarından (GET /api/settings) gelir; uygulamadaki sipariş saatleriyle aynıdır.
+  const settings = useSettingsStore((state) => state.settings);
   return (
     <>
       <Helmet>
@@ -43,31 +47,33 @@ const ContactPage = () => {
                   <Mail className="legal-icon" />
                   <div>
                     <h3 className="legal-card-title">E-posta</h3>
-                    <p className="legal-text">info@benimmarketim.com</p>
-                    <p className="legal-text">destek@benimmarketim.com</p>
+                    <p className="legal-text">{company.email}</p>
+                    <p className="legal-text">{company.supportEmail}</p>
                   </div>
                 </div>
                 <div className="legal-card legal-card--row">
                   <Phone className="legal-icon" />
                   <div>
                     <h3 className="legal-card-title">Telefon</h3>
-                    <p className="legal-text">+90 (XXX) XXX XX XX</p>
+                    <p className="legal-text">{company.phone}</p>
                   </div>
                 </div>
                 <div className="legal-card legal-card--row">
                   <MapPin className="legal-icon" />
                   <div>
                     <h3 className="legal-card-title">Adres</h3>
-                    <p className="legal-text">Benim Marketim</p>
-                    <p className="legal-text">Devrek, Zonguldak</p>
+                    <p className="legal-text">{company.brand}</p>
+                    <p className="legal-text">{company.storeAddress}</p>
+                    <p className="legal-text legal-text--sm">
+                      Teslimat yaptığımız yerler: <Link className="legal-link" to={DELIVERY_ZONES_PATH}>Teslimat bölgeleri</Link>
+                    </p>
                   </div>
                 </div>
                 <div className="legal-card legal-card--row">
                   <Clock className="legal-icon" />
                   <div>
-                    <h3 className="legal-card-title">Çalışma Saatleri</h3>
-                    <p className="legal-text">Pazartesi - Cuma: 08:00 - 23:00</p>
-                    <p className="legal-text">Cumartesi: 09:00 - 23:00</p>
+                    <h3 className="legal-card-title">Sipariş ve Çalışma Saatleri</h3>
+                    <p className="legal-text">Her gün: {orderHoursText(settings)}</p>
                   </div>
                 </div>
               </div>
@@ -80,11 +86,13 @@ const ContactPage = () => {
                 <h2>Hızlı İletişim</h2>
               </div>
               <div className="legal-grid">
-                <a href="tel:+90XXXXXXXXX" className="legal-btn legal-btn--ghost">
-                  <Phone aria-hidden="true" />
-                  Ara
-                </a>
-                <a href="mailto:info@benimmarketim.com" className="legal-btn legal-btn--ghost">
+                {!isPlaceholder(company.phone) && (
+                  <a href={company.phoneHref} className="legal-btn legal-btn--ghost">
+                    <Phone aria-hidden="true" />
+                    Ara
+                  </a>
+                )}
+                <a href={`mailto:${company.email}`} className="legal-btn legal-btn--ghost">
                   <Mail aria-hidden="true" />
                   E-posta
                 </a>

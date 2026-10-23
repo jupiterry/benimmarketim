@@ -62,14 +62,59 @@ const orderSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    // 'address' = adrese teslimat (deliveryAddress dolu); yurt siparişleri eski değerleri taşır
     deliveryPoint: {
       type: String,
-      enum: ["girlsDorm", "boysDorm"],
+      enum: ["girlsDorm", "boysDorm", "address"],
       required: true,
     },
     deliveryPointName: {
       type: String,
       default: "",
+    },
+    deliveryType: {
+      type: String,
+      enum: ["point", "address"],
+      default: "point",
+    },
+    // Sipariş anındaki bölge kopyası (yurt siparişlerinde de doldurulur; eski siparişlerde yok)
+    deliveryZone: {
+      id: { type: String, default: undefined },
+      name: { type: String, default: undefined },
+      type: { type: String, default: undefined },
+    },
+    // Yalnızca adresli siparişte
+    deliveryAddress: {
+      type: new mongoose.Schema(
+        {
+          zoneId: { type: String, default: "" },
+          zoneName: { type: String, default: "" },
+          street: { type: String, default: "" },
+          buildingNo: { type: String, default: "" },
+          buildingName: { type: String, default: "" },
+          floor: { type: String, default: "" },
+          apartment: { type: String, default: "" },
+          directions: { type: String, default: "" },
+          location: {
+            type: new mongoose.Schema({ lat: Number, lng: Number }, { _id: false }),
+            default: null,
+          },
+        },
+        { _id: false }
+      ),
+      default: undefined,
+    },
+    // Teslimat ücreti (sunucuda hesaplanır ve kilitlenir; yurt siparişlerinde 0)
+    deliveryFee: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    // Ürün tutarı − kupon (teslimat ücreti HARİÇ). Eski siparişlerde yok →
+    // okurken { $ifNull: ["$productTotal", "$totalAmount"] }. totalAmount = productTotal + deliveryFee.
+    productTotal: {
+      type: Number,
+      min: 0,
     },
     // Müşteri iptal ederken seçtiği neden (lib/feedbackOptions.js CANCEL_REASONS); eski iptallerde boş
     cancelReason: {
@@ -135,6 +180,8 @@ orderSchema.index({ user: 1, createdAt: -1 });
 // Sipariş ekranı: aktif siparişler ve "son değişenler" yenilemesi
 orderSchema.index({ status: 1, createdAt: -1 });
 orderSchema.index({ updatedAt: -1 });
+// Bölge filtresi / bölgenin siparişi var mı denetimi
+orderSchema.index({ "deliveryZone.id": 1, createdAt: -1 });
 
 const Order = mongoose.model("Order", orderSchema);
 

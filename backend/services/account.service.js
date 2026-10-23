@@ -8,7 +8,7 @@
  * işaretlenir ve sipariş belgesinde ad/e-posta tutulmadığı için kullanıcı silinince
  * kişisel bağ kopar. Kişisel veriler (geri bildirim, sohbet, kayıtlı sepet, fotokopi
  * dosyaları, destek talepleri, referral kayıtları, kişiye özel kuponlar, oturum, avatar)
- * silinir. Yönetici silmesinde (options.keepFeedback) geri bildirimler korunur.
+ * silinir; kayıtlı teslimat adresleri (konum dahil) de silinir. Yönetici silmesinde (options.keepFeedback) geri bildirimler korunur.
  */
 
 import fs from "node:fs/promises";
@@ -24,6 +24,7 @@ import PhotocopyFile from "../models/photocopyFile.model.js";
 import Referral from "../models/referral.model.js";
 import Coupon from "../models/coupon.model.js";
 import SupportRequest from "../models/supportRequest.model.js";
+import UserAddress from "../models/userAddress.model.js";
 import { redis } from "../lib/redis.js";
 import cloudinary, { publicIdFromUrl } from "../lib/cloudinary.js";
 
@@ -82,6 +83,8 @@ export const deleteUserAccount = async (userId, options = {}) => {
   await safe("supportRequest", () => SupportRequest.deleteMany({ user: objectId }));
 
   await safe("savedCart", () => SavedCart.deleteMany({ user: objectId }));
+  // Kayıtlı teslimat adresleri (KVKK: adres ve konum kişisel veridir)
+  await safe("addresses", () => UserAddress.deleteMany({ user: objectId }));
 
   await safe("photocopy", async () => {
     const files = await PhotocopyFile.find({ user: objectId }).select("filePath").lean();

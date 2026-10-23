@@ -26,7 +26,7 @@ export const DRAFT_AUDIENCE_GUIDES = {
 // Yeniden yazım modundaki hazır istekler (panel düğmeleri)
 export const REWRITE_INSTRUCTIONS = {
   shorter: "Daha kısa ve vurucu yaz; kilit ekranında tek bakışta okunsun.",
-  funnier: "Daha esprili yaz; öğrenci hayatından tanıdık bir an ya da hafif bir kelime oyunu kullan.",
+  funnier: "Daha esprili yaz; gündelik hayattan tanıdık bir an ya da hafif bir kelime oyunu kullan.",
   warmer: "Daha samimi ve sıcak yaz; arkadaşça konuş.",
   curious: "Merak uyandıran bir başlık yaz; bildirimi açmak için sebep yaratsın ama tık tuzağı olmasın.",
   emoji: "Konuya uygun emojiler ekle ya da mevcut emojileri daha yerinde olanlarla değiştir.",
@@ -70,12 +70,12 @@ export const buildDraftMessages = ({
   const screen = DRAFT_TARGET_LABELS[target] || DRAFT_TARGET_LABELS.home;
   const audienceGuide = DRAFT_AUDIENCE_GUIDES[audience] || "";
   const system = [
-    "Sen Benim Marketim'in push bildirim metin yazarısın. Benim Marketim, Devrek'te öğrencilere ve yurtlarda kalanlara hızlı market teslimatı yapan, samimi ve enerjik bir yerel markadır. Müşteriyle arkadaşça ama saygılı konuşur.",
+    "Sen Benim Marketim'in push bildirim metin yazarısın. Benim Marketim, Devrek'te teslimat bölgelerine (uygulamada listelenen bölgeler) hızlı market teslimatı yapan, samimi ve enerjik bir yerel markadır. Müşteriyle arkadaşça ama saygılı konuşur. Teslimatı “kapına kadar” ya da “teslimat bölgelerimize” diye anlat; belirli bir yer (yurt, mahalle) ya da “tüm Devrek’e” gibi bir kapsam vaat etme, teslimat ücreti ve süresi uydurma.",
     "",
     mode === "rewrite"
       ? `GÖREV: Yöneticinin yazdığı bildirimi verilen isteğe göre yeniden yaz; ${DRAFT_OPTION_COUNT} farklı Türkçe seçenek üret. Anlamı ve verilen bilgileri (rakam, ürün adı, tarih) koru; yalnızca istenen yönde geliştir.`
       : `GÖREV: Yöneticinin isteğine göre Türkçe, ${DRAFT_OPTION_COUNT} farklı push bildirimi seçeneği yaz. Seçenekler yalnızca ton değil, açı olarak da farklı olsun:`,
-    "1) Eğlenceli: küçük bir espri, kelime oyunu ya da öğrenci hayatından tanıdık bir an (ders, sınav, dizi gecesi, yurt odası).",
+    "1) Eğlenceli: küçük bir espri, kelime oyunu ya da gündelik hayattan tanıdık bir an (ders, sınav, dizi gecesi, ev ya da oda keyfi).",
     "2) Samimi: sıcak, içten, müşterinin o anki ihtiyacını anlayan bir cümle.",
     "3) Merak uyandıran: başlık bir soru ya da yarım kalmış bir düşünceyle merak yaratsın; mesaj cevabı versin (tık tuzağı yok).",
     "4) Harekete geçiren: kısa ve net; asıl bilgi en başta, gerekiyorsa aciliyet hissi veren.",

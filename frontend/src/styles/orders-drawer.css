@@ -626,6 +626,85 @@
   font-weight: 700;
 }
 
+.admin-layout .so-d-fee[data-free="true"] dd,
+.admin-layout .so-d-facts dd[data-free="true"] {
+  color: var(--ui-ok-ink);
+}
+
+/* ── Teslimat adresi (yalnızca adrese teslim siparişler) ─────────── */
+.admin-layout .so-d-addr-fee {
+  flex-shrink: 0;
+}
+.admin-layout .so-d-addr-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ui-s3);
+  padding: var(--ui-s3) var(--ui-s4);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-2);
+}
+.admin-layout .so-d-addr-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.admin-layout .so-d-addr-lines p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.admin-layout .so-d-addr-street {
+  color: var(--ui-text);
+  font-size: var(--ui-fs-md);
+  font-weight: 650;
+}
+.admin-layout .so-d-addr-sub {
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+  font-weight: 550;
+}
+.admin-layout .so-d-addr-dir {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 4px !important;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .so-d-addr-dir > svg {
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  color: var(--ui-text-3);
+}
+.admin-layout .so-d-addr-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--ui-s2);
+  flex-shrink: 0;
+}
+.admin-layout .so-d-addr-map {
+  white-space: nowrap;
+}
+@media (max-width: 760px) {
+  .admin-layout .so-d-addr-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .admin-layout .so-d-addr-actions {
+    flex-direction: row;
+  }
+  .admin-layout .so-d-addr-actions > * {
+    flex: 1 1 0;
+    min-height: 40px;
+    justify-content: center;
+  }
+}
+
 /* ── İletişim ────────────────────────────────────────────────────── */
 .admin-layout .so-d-contact-row {
   display: flex;

@@ -21,7 +21,7 @@ export const ACTIVE_ORDER_STATUSES = ["Hazırlanıyor", "Yolda"];
 const PREPARING_STATUS = "Hazırlanıyor";
 const DELETED_ACCOUNT_NAME = "Silinmiş hesap";
 const ORDER_LIST_FIELDS =
-  "user products totalAmount subtotalAmount couponCode couponDiscount discountPercentage status deliveryTracking statusHistory note phone city deliveryPoint deliveryPointName paymentMethod cancelReason createdAt updatedAt device userDeleted";
+  "user products totalAmount subtotalAmount couponCode couponDiscount discountPercentage status deliveryTracking statusHistory note phone city deliveryPoint deliveryPointName deliveryType deliveryZone deliveryAddress deliveryFee productTotal paymentMethod cancelReason createdAt updatedAt device userDeleted";
 
 export const INVALID_ORDER_ID_MESSAGE = "Geçersiz sipariş kimliği";
 export const SEARCH_TOO_SHORT_MESSAGE = "Arama en az 2 harf veya rakam içermeli";
@@ -37,6 +37,38 @@ const MAX_CUSTOM_AMOUNT = 100000;
 
 const HEX24 = /^[0-9a-f]{24}$/i;
 const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;
+/** Ürün cirosu (teslimat ücreti hariç); eski siparişlerde productTotal yok → totalAmount */
+export const PRODUCT_REVENUE_EXPR = { $ifNull: ["$productTotal", "$totalAmount"] };
+const DELIVERY_FEE_EXPR = { $ifNull: ["$deliveryFee", 0] };
+/** JS tarafı: siparişin ürün tutarı (teslimat ücreti hariç) */
+export const orderProductTotal = (order) => {
+  const value = order?.productTotal ?? order?.totalAmount;
+  return Number(value) || 0;
+};
+const ADDRESS_KEYS = ["zoneId", "zoneName", "street", "buildingNo", "buildingName", "floor", "apartment", "directions"];
+/** Adres kopyası düz nesne olarak (Mongoose iç içe yolu boş nesne döndürebilir → null) */
+const plainAddress = (address) => {
+  if (!address || typeof address !== "object") return null;
+  const out = {};
+  for (const key of ADDRESS_KEYS) out[key] = typeof address[key] === "string" ? address[key] : address[key] ?? "";
+  const lat = Number(address.location?.lat);
+  const lng = Number(address.location?.lng);
+  const hasCoords = address.location?.lat != null && address.location?.lng != null;
+  out.location = hasCoords && Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+  return out.street || out.zoneId || out.zoneName || out.location ? out : null;
+};
+/** Yanıttaki teslimat alanları (eski yurt siparişlerinde varsayılanlar) */
+export const deliveryFields = (order) => ({
+  deliveryType: order?.deliveryType || (order?.deliveryPoint === "address" ? "address" : "point"),
+  deliveryZone: order?.deliveryZone?.id || order?.deliveryZone?.name ? {
+    id: order.deliveryZone.id ?? null,
+    name: order.deliveryZone.name ?? "",
+    type: order.deliveryZone.type ?? null,
+  } : null,
+  deliveryAddress: plainAddress(order?.deliveryAddress),
+  deliveryFee: round2(order?.deliveryFee),
+  productTotal: order?.productTotal ?? order?.totalAmount ?? 0,
+});
 const isObjectIdValue = (value) => value instanceof mongoose.Types.ObjectId || value?._bsontype === "ObjectId";
 /** İstek gövdesi/parametresi: 24 haneli onaltılık kimlik */
 export const isObjectIdString = (value) => (typeof value === "string" && HEX24.test(value)) || isObjectIdValue(value);
@@ -194,6 +226,8 @@ export const groupOrdersByUser = (orders) => {
       // Cihaz bilgisi
       device: order.device || null,
       userDeleted: Boolean(order.userDeleted || customer.deleted),
+      // Teslimat (Devrek genişlemesi): bölge, adres, kilitli teslimat ücreti ve ürün tutarı
+      ...deliveryFields(order),
     });
   }
   return [...groups.values()];
@@ -226,7 +260,7 @@ export const attachCustomerStats = async (usersOrders) => {
         orderCount: { $sum: 1 },
         cancelledCount: { $sum: { $cond: [{ $eq: ["$status", "İptal Edildi"] }, 1, 0] } },
         deliveredCount: { $sum: { $cond: [{ $eq: ["$status", "Teslim Edildi"] }, 1, 0] } },
-        totalSpent: { $sum: { $cond: [{ $ne: ["$status", "İptal Edildi"] }, "$totalAmount", 0] } },
+        totalSpent: { $sum: { $cond: [{ $ne: ["$status", "İptal Edildi"] }, PRODUCT_REVENUE_EXPR, 0] } },
         firstOrderId: { $first: "$_id" },
         firstOrderAt: { $first: "$createdAt" },
         lastOrderAt: { $last: "$createdAt" },
@@ -611,7 +645,7 @@ export const getDailyOrdersData = async (startDate, endDate) => {
         $group: {
           _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
           orders: { $sum: 1 },
-          revenue: { $sum: "$totalAmount" },
+          revenue: { $sum: PRODUCT_REVENUE_EXPR },
         },
       },
       { $sort: { _id: 1 } },
@@ -684,6 +718,7 @@ export const getUserOrders = async (req, res) => {
       paymentMethodLabel: paymentMethodLabel(order.paymentMethod),
       phone: order.phone,
       createdAt: order.createdAt,
+      ...deliveryFields(order),
     }));
 
     res.json({ orders: formattedOrders });
@@ -777,12 +812,28 @@ const findLineIndex = (order, { lineId, productIndex }) => {
   return { index };
 };
 
-/** Toplamı (ve indirim öncesi ara toplam varsa onu da) farka göre günceller; kuruş hassasiyetinde */
-const applyTotalsDelta = (order, delta) => {
+/**
+ * Toplamı (ve indirim öncesi ara toplam varsa onu da) farka göre günceller; kuruş hassasiyetinde.
+ * Teslimat ücreti siparişe kilitlidir, yeniden hesaplanmaz: ürün tutarı (productTotal) farka göre
+ * değişir ve totalAmount = productTotal + deliveryFee olur. productTotal'ı olmayan ve ücretsiz eski
+ * siparişler eskisi gibi yalnızca totalAmount ile güncellenir.
+ * Dönüş: { before, after, productBefore, productAfter, fee }
+ */
+export const applyTotalsDelta = (order, delta) => {
   const before = Number(order.totalAmount) || 0;
+  const fee = Math.max(0, round2(order.deliveryFee));
+  const hasProductTotal = order.productTotal !== undefined && order.productTotal !== null;
+  if (hasProductTotal || fee > 0) {
+    // Değişmez: totalAmount = productTotal + deliveryFee → önceki ürün tutarı toplamdan türetilir
+    const productBefore = Math.max(0, round2(before - fee));
+    order.productTotal = Math.max(0, round2(productBefore + delta));
+    order.totalAmount = round2(order.productTotal + fee);
+    if (order.subtotalAmount) order.subtotalAmount = Math.max(0, round2(Number(order.subtotalAmount) + delta));
+    return { before, after: order.totalAmount, productBefore, productAfter: order.productTotal, fee };
+  }
   order.totalAmount = Math.max(0, round2(before + delta));
   if (order.subtotalAmount) order.subtotalAmount = Math.max(0, round2(Number(order.subtotalAmount) + delta));
-  return { before, after: order.totalAmount };
+  return { before, after: order.totalAmount, productBefore: before, productAfter: order.totalAmount, fee: 0 };
 };
 const totalChange = ({ before, after }) => ({ label: "Toplam", from: money(before), to: money(after) });
 
@@ -1214,7 +1265,8 @@ const periodTotalsStage = [
     _id: null,
     orders: { $sum: 1 },
     cancelled: { $sum: { $cond: [{ $eq: ["$status", "İptal Edildi"] }, 1, 0] } },
-    revenue: { $sum: { $cond: [{ $eq: ["$status", "İptal Edildi"] }, 0, "$totalAmount"] } },
+    revenue: { $sum: { $cond: [{ $eq: ["$status", "İptal Edildi"] }, 0, PRODUCT_REVENUE_EXPR] } },
+    deliveryFee: { $sum: { $cond: [{ $eq: ["$status", "İptal Edildi"] }, 0, DELIVERY_FEE_EXPR] } },
   } },
 ];
 const pct = (current, previous) => (previous ? round2(((current - previous) / previous) * 100) : null);
@@ -1223,7 +1275,13 @@ const summarizeTotals = (row) => {
   const cancelled = row?.cancelled || 0;
   const completed = orders - cancelled;
   const revenue = round2(row?.revenue);
-  return { orders, cancelled, completed, revenue, averageBasket: completed ? round2(revenue / completed) : 0, cancelRate: orders ? round2((cancelled / orders) * 100) : 0 };
+  return {
+    orders, cancelled, completed, revenue,
+    averageBasket: completed ? round2(revenue / completed) : 0,
+    cancelRate: orders ? round2((cancelled / orders) * 100) : 0,
+    // Teslimat ücreti cirodan ayrı raporlanır (revenue = ürün cirosu)
+    deliveryFeeRevenue: round2(row?.deliveryFee),
+  };
 };
 
 /** Model dosyası yoksa (örn. ayrı dağıtım) ilgili sayı atlanır */
@@ -1254,12 +1312,25 @@ export const computeDashboardSummary = async (query = {}, now = new Date()) => {
       byStatus: [{ $group: { _id: "$status", count: { $sum: 1 } } }],
       byDorm: [
         { $match: notCancelled },
-        { $group: { _id: "$deliveryPoint", orders: { $sum: 1 }, revenue: { $sum: "$totalAmount" } } },
+        { $group: { _id: "$deliveryPoint", orders: { $sum: 1 }, revenue: { $sum: PRODUCT_REVENUE_EXPR } } },
+        { $sort: { orders: -1 } },
+      ],
+      // Bölge dağılımı: eski siparişlerde bölge kopyası yok → yurt anahtarı
+      byZone: [
+        { $match: notCancelled },
+        { $group: {
+          _id: { $ifNull: ["$deliveryZone.id", "$deliveryPoint"] },
+          name: { $max: "$deliveryZone.name" },
+          type: { $max: "$deliveryZone.type" },
+          orders: { $sum: 1 },
+          revenue: { $sum: PRODUCT_REVENUE_EXPR },
+          deliveryFee: { $sum: DELIVERY_FEE_EXPR },
+        } },
         { $sort: { orders: -1 } },
       ],
       series: [
         { $match: notCancelled },
-        { $group: { _id: { $dateToString: { format: BUCKET_FORMAT[range.bucket], date: "$createdAt", timezone: "+03:00" } }, orders: { $sum: 1 }, revenue: { $sum: "$totalAmount" } } },
+        { $group: { _id: { $dateToString: { format: BUCKET_FORMAT[range.bucket], date: "$createdAt", timezone: "+03:00" } }, orders: { $sum: 1 }, revenue: { $sum: PRODUCT_REVENUE_EXPR } } },
         { $sort: { _id: 1 } },
         { $limit: 400 },
       ],
@@ -1296,7 +1367,7 @@ export const computeDashboardSummary = async (query = {}, now = new Date()) => {
     safeCount(SupportRequest, { status: "waiting" }),
     safeCount(User, {}),
     range.start ? safeCount(User, rangeMatch(range)) : Promise.resolve(null),
-    Order.find({}).select("user totalAmount status createdAt deliveryPoint deliveryPointName paymentMethod products").populate("user", "name avatar").sort({ createdAt: -1 }).limit(8).lean(),
+    Order.find({}).select("user totalAmount productTotal deliveryFee deliveryZone status createdAt deliveryPoint deliveryPointName paymentMethod products").populate("user", "name avatar").sort({ createdAt: -1 }).limit(8).lean(),
   ]);
 
   const statusCounts = Object.fromEntries((facet?.byStatus || []).map((row) => [row._id, row.count]));
@@ -1311,9 +1382,18 @@ export const computeDashboardSummary = async (query = {}, now = new Date()) => {
       revenue: pct(current.revenue, previous.revenue),
       averageBasket: pct(current.averageBasket, previous.averageBasket),
       cancelRate: previous.orders ? round2(current.cancelRate - previous.cancelRate) : null,
+      deliveryFeeRevenue: pct(current.deliveryFeeRevenue, previous.deliveryFeeRevenue),
     } : null,
     statusDistribution: ["Hazırlanıyor", "Yolda", "Teslim Edildi", "İptal Edildi"].map((status) => ({ status, count: statusCounts[status] || 0 })),
     dormDistribution: (facet?.byDorm || []).map((row) => ({ deliveryPoint: row._id || "unknown", orders: row.orders, revenue: round2(row.revenue) })),
+    zoneDistribution: (facet?.byZone || []).map((row) => ({
+      zoneId: row._id || "unknown",
+      name: row.name || "",
+      type: row.type || (row._id === "girlsDorm" || row._id === "boysDorm" ? "yurt" : null),
+      orders: row.orders,
+      revenue: round2(row.revenue),
+      deliveryFeeRevenue: round2(row.deliveryFee),
+    })),
     series: fillSeries(facet?.series || [], range, range.bucket, now),
     topProducts: (facet?.topProducts || []).map((row) => ({ productId: typeof row._id === "object" && row._id ? String(row._id) : null, name: row.name || "Bilinmeyen Ürün", quantity: row.quantity, revenue: round2(row.revenue) })),
     manualRevenue: round2(facet?.manual?.[0]?.revenue),
@@ -1331,6 +1411,9 @@ export const computeDashboardSummary = async (query = {}, now = new Date()) => {
       deliveryPoint: order.deliveryPoint,
       deliveryPointName: order.deliveryPointName || "",
       createdAt: order.createdAt,
+      productTotal: order.productTotal ?? order.totalAmount,
+      deliveryFee: round2(order.deliveryFee),
+      deliveryZoneName: order.deliveryZone?.name || "",
     })),
   };
 };

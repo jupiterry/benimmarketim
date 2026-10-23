@@ -36,7 +36,10 @@ export function orderText(order, reminder = false) {
     `Sipariş: #${String(order._id).slice(-8).toUpperCase()}`,
     `Saat: ${new Date(order.createdAt).toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}`,
     `Teslimat: ${String(order.deliveryPointName || (order.deliveryPoint === 'girlsDorm' ? 'Kız yurdu' : order.deliveryPoint === 'boysDorm' ? 'Erkek yurdu' : order.city) || 'Panelde').slice(0, 180)}`,
-    '', ...products, '', `Toplam: ${currency(order.totalAmount)}`,
+    '', ...products, '',
+    ...(order.deliveryType === 'address' || Number(order.deliveryFee) > 0
+      ? [`Teslimat ücreti: ${Number(order.deliveryFee) > 0 ? currency(order.deliveryFee) : 'Ücretsiz'}`] : []),
+    `Toplam: ${currency(order.totalAmount)}`,
     order.note ? `Not: ${String(order.note).slice(0, 400)}` : '',
     '\nMüşteri iletişim bilgileri yönetim panelinde.'].filter(Boolean).join('\n').slice(0, 3800);
 }
@@ -50,9 +53,11 @@ export function orderButtons(id, seen = false) {
 
 export function summaryText(day, orders) {
   const valid = orders.filter(o => o.status !== 'İptal Edildi');
-  const total = valid.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+  // Ciro = ürün tutarı; teslimat ücreti ayrı satırda (eski siparişlerde productTotal yok → totalAmount, ücret 0)
+  const total = valid.reduce((sum, o) => sum + Number(o.productTotal ?? o.totalAmount ?? 0), 0);
+  const fees = valid.reduce((sum, o) => sum + Number(o.deliveryFee || 0), 0);
   return [`📊 ${day.split('-').reverse().join('.')} satış özeti`,
-    `Ciro: ${currency(total)}`, `Sipariş: ${valid.length}`,
+    `Ciro: ${currency(total)}`, `Teslimat ücreti: ${currency(fees)}`, `Sipariş: ${valid.length}`,
     `Ortalama sepet: ${currency(valid.length ? total / valid.length : 0)}`,
     `Hazırlanıyor: ${valid.filter(o => o.status === 'Hazırlanıyor').length}`,
     `Yolda: ${valid.filter(o => o.status === 'Yolda').length}`,

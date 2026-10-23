@@ -6,13 +6,16 @@ import {
 } from "./couponUtils";
 import { RuleIcon } from "./RuleIcon";
 import UsageBars from "./UsageBars";
+import { useDeliveryZones, zoneNameMap } from "./useDeliveryZones";
 
 const HISTORY_PREVIEW = 6;
 
 const CouponDetail = ({ coupon, stats, now, onClose, onEdit, onDuplicate, onToggle, onDelete, onCopy, toggling }) => {
   const [showAll, setShowAll] = useState(false);
   const status = getStatus(coupon, now);
-  const rules = describeRules(coupon);
+  const { zones } = useDeliveryZones();
+  const zoneNames = useMemo(() => zoneNameMap(zones), [zones]);
+  const rules = describeRules(coupon, zoneNames);
   const usage = useMemo(() => dailyUsage([coupon], 30, now), [coupon, now]);
   const history = useMemo(
     () => [...(coupon.usedBy || [])].sort((a, b) => new Date(b.usedAt || 0) - new Date(a.usedAt || 0)),

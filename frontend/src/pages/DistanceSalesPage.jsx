@@ -1,7 +1,9 @@
-import React from 'react';
 import { Helmet } from 'react-helmet-async';
+import { Link } from 'react-router-dom';
 import { ShoppingCart, Truck, CreditCard, RotateCcw, Clock, Shield } from 'lucide-react';
 import LegalLayout from '../components/LegalLayout';
+import { useSettingsStore } from '../stores/useSettingsStore';
+import { company, orderHoursText, DELIVERY_AREA_TEXT, DELIVERY_ZONES_PATH } from '../data/company';
 
 const sections = [
   { id: "satici-bilgileri", label: "Satıcı Bilgileri" },
@@ -13,6 +15,7 @@ const sections = [
 ];
 
 const DistanceSalesPage = () => {
+  const settings = useSettingsStore((state) => state.settings);
   return (
     <>
       <Helmet>
@@ -36,19 +39,27 @@ const DistanceSalesPage = () => {
           <div className="legal-grid">
             <div className="legal-card">
               <h3 className="legal-card-title">Şirket Unvanı</h3>
-              <p className="legal-text">Benim Marketim Ticaret Limited Şirketi</p>
+              <p className="legal-text">{company.legalName}</p>
             </div>
             <div className="legal-card">
-              <h3 className="legal-card-title">Vergi No</h3>
-              <p className="legal-text">[Vergi Numarası]</p>
+              <h3 className="legal-card-title">Vergi Dairesi / Vergi No</h3>
+              <p className="legal-text">{company.taxOffice} / {company.taxNumber}</p>
+            </div>
+            <div className="legal-card">
+              <h3 className="legal-card-title">MERSİS No</h3>
+              <p className="legal-text">{company.mersisNumber}</p>
             </div>
             <div className="legal-card">
               <h3 className="legal-card-title">Adres</h3>
-              <p className="legal-text">[Şirket Adresi]</p>
+              <p className="legal-text">{company.address}</p>
             </div>
             <div className="legal-card">
-              <h3 className="legal-card-title">İletişim</h3>
-              <p className="legal-text">info@benimmarketim.com</p>
+              <h3 className="legal-card-title">Telefon</h3>
+              <p className="legal-text">{company.phone}</p>
+            </div>
+            <div className="legal-card">
+              <h3 className="legal-card-title">E-posta</h3>
+              <p className="legal-text">{company.email}</p>
             </div>
           </div>
         </section>
@@ -63,29 +74,29 @@ const DistanceSalesPage = () => {
             <div className="legal-card legal-card--row">
               <div className="legal-step">1</div>
               <div>
-                <h3 className="legal-card-title">Ürün Seçimi</h3>
-                <p className="legal-text">İstediğiniz ürünleri sepete ekleyin</p>
+                <h3 className="legal-card-title">Ürün ve Teslimat Bölgesi Seçimi</h3>
+                <p className="legal-text">Siparişler {company.brand} mobil uygulamasından verilir. İstediğiniz ürünleri sepete ekler, teslimat bölgenizi (adrese teslimatta adresinizi) seçersiniz.</p>
               </div>
             </div>
             <div className="legal-card legal-card--row">
               <div className="legal-step">2</div>
               <div>
-                <h3 className="legal-card-title">Ödeme</h3>
-                <p className="legal-text">Güvenli ödeme yöntemleri ile ödeme yapın</p>
+                <h3 className="legal-card-title">Ödeme Yöntemi ve Tutar</h3>
+                <p className="legal-text">Ödeme yöntemini seçersiniz. Sepet özetinde ürün bedeli, varsa kupon indirimi, varsa teslimat ücreti ve ödenecek toplam tutar sipariş onayından önce gösterilir.</p>
               </div>
             </div>
             <div className="legal-card legal-card--row">
               <div className="legal-step">3</div>
               <div>
                 <h3 className="legal-card-title">Onay</h3>
-                <p className="legal-text">Siparişiniz onaylandıktan sonra işleme alınır</p>
+                <p className="legal-text">Siparişi onaylamanızla sözleşme kurulur ve siparişiniz işleme alınır</p>
               </div>
             </div>
             <div className="legal-card legal-card--row">
               <div className="legal-step">4</div>
               <div>
                 <h3 className="legal-card-title">Teslimat</h3>
-                <p className="legal-text">Ürünleriniz belirtilen adrese teslim edilir</p>
+                <p className="legal-text">Ürünleriniz seçtiğiniz teslimat noktasına ya da adrese teslim edilir</p>
               </div>
             </div>
           </div>
@@ -100,19 +111,21 @@ const DistanceSalesPage = () => {
           <div className="legal-grid">
             <div className="legal-card">
               <h3 className="legal-card-title">Teslimat Süresi</h3>
-              <p className="legal-text legal-text--sm">45 dakika - 2 saat arası</p>
+              <p className="legal-text legal-text--sm">Bölgeye ve yoğunluğa göre değişir; bölgenin tahmini süresi girilmişse uygulamada ve Teslimat bölgeleri sayfasında gösterilir</p>
             </div>
             <div className="legal-card">
               <h3 className="legal-card-title">Teslimat Ücreti</h3>
-              <p className="legal-text legal-text--sm">150₺ üzeri siparişlerde ücretsiz</p>
+              <p className="legal-text legal-text--sm">Bölgeye göre teslimat ücreti uygulanabilir (ücretsiz, sabit ücret ya da belirli sepet tutarının üstünde ücretsiz). Ücret varsa sipariş onayından önce ayrıca gösterilir ve toplam tutara eklenir.</p>
             </div>
             <div className="legal-card">
-              <h3 className="legal-card-title">Teslimat Saatleri</h3>
-              <p className="legal-text legal-text--sm">08:00 - 22:00 arası</p>
+              <h3 className="legal-card-title">Sipariş ve Teslimat Saatleri</h3>
+              <p className="legal-text legal-text--sm">Her gün {orderHoursText(settings)} arası</p>
             </div>
             <div className="legal-card">
               <h3 className="legal-card-title">Teslimat Alanı</h3>
-              <p className="legal-text legal-text--sm">Belirlenen teslimat bölgeleri</p>
+              <p className="legal-text legal-text--sm">
+                <Link className="legal-link" to={DELIVERY_ZONES_PATH}>{DELIVERY_AREA_TEXT}</Link> (Devrek, Zonguldak)
+              </p>
             </div>
           </div>
         </section>
@@ -126,7 +139,11 @@ const DistanceSalesPage = () => {
           <div className="legal-stack">
             <div className="legal-card">
               <h3 className="legal-card-title">Ödeme Yöntemleri</h3>
-              <p className="legal-text">Kredi kartı, banka kartı, nakit ödeme</p>
+              <p className="legal-text">Kapıda nakit, kapıda kart ya da havale/EFT</p>
+            </div>
+            <div className="legal-card">
+              <h3 className="legal-card-title">Toplam Tutar</h3>
+              <p className="legal-text">Ödenecek tutar: ürün bedeli − kupon indirimi + teslimat ücreti (varsa).</p>
             </div>
             <div className="legal-card">
               <h3 className="legal-card-title">Güvenlik</h3>

@@ -1,0 +1,991 @@
+/* Teslimat bölgeleri ekranı (önek dz-). Renkler yalnızca --ui-* belirteçlerinden; karanlık tema kendiliğinden çalışır. */
+
+.admin-layout .dz {
+  min-width: 0;
+}
+.admin-layout .dz-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.admin-layout .dz-h2 {
+  margin: 0;
+  font-size: var(--ui-fs-lg);
+  font-weight: 700;
+  color: var(--ui-text);
+}
+.admin-layout .dz-sub {
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+}
+.admin-layout .dz-busy {
+  width: 16px;
+  height: 16px;
+  color: var(--ui-text-3);
+}
+
+/* ── Kampanya şeridi ──────────────────────────────────────────────── */
+.admin-layout .dz-campaign-banner {
+  border-color: color-mix(in srgb, var(--ui-brand) 35%, var(--ui-line));
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+}
+.admin-layout .dz-campaign-banner > svg {
+  color: var(--ui-brand);
+}
+
+/* ── Adrese teslimat + kampanya kartı ─────────────────────────────── */
+.admin-layout .dz-rollout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  overflow: visible;
+}
+.admin-layout .dz-rollout-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s3);
+  min-width: 0;
+  padding: var(--ui-s4);
+}
+.admin-layout .dz-rollout-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s3);
+  min-width: 0;
+  padding: var(--ui-s4);
+  border-left: 1px solid var(--ui-line);
+  background: var(--ui-surface-2);
+  border-radius: 0 var(--ui-radius-lg) var(--ui-radius-lg) 0;
+  transition: background-color var(--ui-ease);
+}
+.admin-layout .dz-rollout-side[data-on] {
+  background: var(--ui-brand-soft);
+}
+.admin-layout .dz-rollout-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-s2);
+}
+.admin-layout .dz-mode-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 700;
+}
+.admin-layout .dz-mode-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ui-text-3);
+}
+.admin-layout .dz-mode-pill[data-mode="pilot"] {
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+.admin-layout .dz-mode-pill[data-mode="pilot"] .dz-mode-dot {
+  background: var(--ui-warn);
+}
+.admin-layout .dz-mode-pill[data-mode="public"] {
+  background: var(--ui-ok-bg);
+  color: var(--ui-ok-ink);
+}
+.admin-layout .dz-mode-pill[data-mode="public"] .dz-mode-dot {
+  background: var(--ui-ok);
+}
+.admin-layout .dz-status-text {
+  margin: 0;
+  max-width: 72ch;
+  font-size: var(--ui-fs-sm);
+  line-height: 1.5;
+  color: var(--ui-text-2);
+}
+.admin-layout .dz-modes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--ui-s2);
+}
+.admin-layout .dz-mode {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--ui-ease),
+    background-color var(--ui-ease),
+    box-shadow var(--ui-ease);
+}
+.admin-layout .dz-mode:hover:not(:disabled) {
+  border-color: var(--ui-text-3);
+}
+.admin-layout .dz-mode:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+.admin-layout .dz-mode[aria-checked="true"] {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand-soft);
+  box-shadow: inset 0 0 0 1px var(--ui-brand);
+}
+.admin-layout .dz-mode-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+}
+.admin-layout .dz-mode-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.admin-layout .dz-mode[aria-checked="true"] .dz-mode-icon {
+  background: var(--ui-brand);
+  color: var(--ui-surface);
+}
+.admin-layout .dz-mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.admin-layout .dz-mode-text strong {
+  font-size: var(--ui-fs-md);
+  font-weight: 700;
+}
+.admin-layout .dz-mode-text span {
+  font-size: var(--ui-fs-xs);
+  line-height: 1.45;
+  color: var(--ui-text-2);
+}
+.admin-layout .dz-inline-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .dz-inline-warn svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+}
+
+/* Pilot kullanıcılar */
+.admin-layout .dz-pilot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s2);
+  padding-top: var(--ui-s3);
+  border-top: 1px dashed var(--ui-line);
+}
+.admin-layout .dz-pilot-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+  color: var(--ui-text-2);
+}
+.admin-layout .dz-combo {
+  position: relative;
+  max-width: 460px;
+}
+.admin-layout .dz-combo-search .ui-field {
+  padding-left: 36px;
+}
+.admin-layout .dz-combo-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  max-height: 300px;
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-pop);
+}
+.admin-layout .dz-combo-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: var(--ui-radius);
+  cursor: pointer;
+}
+.admin-layout .dz-combo-item[aria-selected="true"] {
+  background: var(--ui-surface-3);
+}
+.admin-layout .dz-combo-text,
+.admin-layout .dz-pilot-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text);
+}
+.admin-layout .dz-combo-add {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--ui-brand);
+}
+.admin-layout .dz-combo-empty {
+  padding: 10px;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text-3);
+}
+.admin-layout .dz-avatar {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  font-size: 11px;
+}
+.admin-layout .dz-pilot-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-layout .dz-pilot-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 260px;
+  min-width: 0;
+  padding: 4px 4px 4px 6px;
+  border: 1px solid var(--ui-line);
+  border-radius: 999px;
+  background: var(--ui-surface-2);
+}
+.admin-layout .dz-pilot-text {
+  line-height: 1.25;
+}
+.admin-layout .dz-pilot-empty,
+.admin-layout .dz-pilot-note {
+  margin: 0;
+}
+
+/* Kampanya */
+.admin-layout .dz-campaign {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.admin-layout .dz-campaign-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--ui-surface);
+  color: var(--ui-brand);
+  box-shadow: inset 0 0 0 1px var(--ui-line);
+}
+.admin-layout .dz-campaign-icon svg {
+  width: 18px;
+  height: 18px;
+}
+.admin-layout .dz-campaign-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.admin-layout .dz-campaign-text .dz-h2 {
+  font-size: var(--ui-fs-md);
+}
+.admin-layout .dz-campaign-text .ui-hint {
+  margin: 4px 0 0;
+  line-height: 1.45;
+}
+.admin-layout .dz-campaign-switch {
+  flex-shrink: 0;
+  margin-top: -4px;
+}
+.admin-layout .dz-campaign-state {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text-2);
+}
+.admin-layout .dz-campaign-state[data-on] {
+  color: var(--ui-brand-ink);
+}
+
+/* ── Liste ────────────────────────────────────────────────────────── */
+.admin-layout .dz-list {
+  overflow: visible;
+}
+.admin-layout .dz-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-s2) var(--ui-s3);
+  padding: var(--ui-s3) var(--ui-s4);
+}
+.admin-layout .dz-search {
+  flex: 1 1 220px;
+  max-width: 320px;
+}
+.admin-layout .dz-search .ui-field {
+  padding-left: 36px;
+}
+.admin-layout .dz-chips-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-s2);
+  min-width: 0;
+}
+.admin-layout .dz-chips-wrap > .ui-chips {
+  flex-shrink: 0;
+}
+.admin-layout .dz-table[data-campaign] .dz-cell--threshold .dz-main {
+  color: var(--ui-text-3);
+  text-decoration: line-through;
+}
+.admin-layout .dz-chips-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--ui-line);
+}
+.admin-layout .dz-sort {
+  margin-left: auto;
+}
+.admin-layout .dz-result {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-s2);
+  min-height: 40px;
+  padding: 4px var(--ui-s4);
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .dz-list-banner {
+  margin: 0 var(--ui-s4) var(--ui-s3);
+}
+.admin-layout .dz-skel {
+  padding: var(--ui-s3) var(--ui-s4) var(--ui-s4);
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .dz-list > .ui-empty {
+  border-top: 1px solid var(--ui-line);
+}
+
+/* Tablo (div ızgarası; ≤900 px'te kart) */
+.admin-layout .dz-table {
+  --dz-cols: 28px minmax(0, 2fr) minmax(0, 1.25fr) minmax(0, 0.85fr) minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 0.7fr) 116px;
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .dz-row {
+  display: grid;
+  grid-template-columns: var(--dz-cols);
+  align-items: center;
+  gap: var(--ui-s3);
+  min-height: 58px;
+  padding: 8px var(--ui-s4);
+  border-bottom: 1px solid var(--ui-line);
+  background: var(--ui-surface);
+  transition:
+    background-color var(--ui-ease),
+    box-shadow var(--ui-ease);
+}
+.admin-layout .dz-head {
+  position: sticky;
+  top: var(--app-top, 52px);
+  z-index: 3;
+  min-height: 40px;
+  padding-top: 0;
+  padding-bottom: 0;
+  background: var(--ui-surface-2);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+}
+.admin-layout .dz-head .dz-cell {
+  flex-direction: row;
+  align-items: center;
+}
+.admin-layout .dz-body .dz-row:last-child {
+  border-bottom: 0;
+}
+.admin-layout .dz-body .dz-row:hover {
+  background: var(--ui-surface-2);
+}
+.admin-layout .dz-body .dz-row[data-selected] {
+  background: var(--ui-brand-soft);
+}
+.admin-layout .dz-body .dz-row[data-cursor] {
+  box-shadow: inset 3px 0 0 var(--ui-brand);
+}
+.admin-layout .dz-body .dz-row[data-closed] .dz-name,
+.admin-layout .dz-body .dz-row[data-closed] .dz-fee,
+.admin-layout .dz-body .dz-row[data-closed] .dz-main {
+  color: var(--ui-text-2);
+}
+.admin-layout .dz-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .dz-cell--check {
+  align-items: center;
+}
+.admin-layout .dz-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+}
+.admin-layout .dz-cell--actions {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+.admin-layout .dz-name {
+  display: flex;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-md);
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+}
+.admin-layout .dz-name:hover {
+  color: var(--ui-brand-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.admin-layout .dz-name-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.admin-layout .dz-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.admin-layout .dz-type svg {
+  width: 12px;
+  height: 12px;
+}
+.admin-layout .dz-type[data-type="yurt"] {
+  background: var(--ui-info-bg);
+  color: var(--ui-info-ink);
+}
+.admin-layout .dz-type[data-type="mahalle"] {
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+}
+.admin-layout .dz-type[data-type="koy"] {
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+.admin-layout .dz-legacy {
+  font-size: 11px;
+  color: var(--ui-text-3);
+}
+.admin-layout .dz-reason {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.35;
+}
+.admin-layout .dz-fee-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+}
+.admin-layout .dz-fee {
+  font-weight: 700;
+  color: var(--ui-text);
+  white-space: nowrap;
+}
+.admin-layout .dz-fee[data-free] {
+  color: var(--ui-ok-ink);
+}
+.admin-layout .dz-strike {
+  text-decoration: line-through;
+}
+.admin-layout .dz-main {
+  color: var(--ui-text);
+}
+.admin-layout .dz-main.ui-muted {
+  color: var(--ui-text-3);
+}
+.admin-layout .dz-switch {
+  margin-right: 2px;
+}
+
+.admin-layout .dz-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-s2) var(--ui-s4);
+  padding: 10px var(--ui-s4);
+  border-top: 1px solid var(--ui-line);
+  background: var(--ui-surface-2);
+  border-radius: 0 0 var(--ui-radius-lg) var(--ui-radius-lg);
+}
+.admin-layout .dz-foot-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.admin-layout .dz-foot-note svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ── Toplu işlem çubuğu ───────────────────────────────────────────── */
+.admin-layout .dz-bulk {
+  top: auto;
+  bottom: 12px;
+  margin: var(--ui-s3);
+  box-shadow: var(--ui-shadow-pop);
+}
+.admin-layout .dz-bulk-actions {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.admin-layout .dz-bulk-sep {
+  width: 1px;
+  height: 22px;
+  margin: 0 4px;
+  background: color-mix(in srgb, var(--ui-brand) 30%, var(--ui-line));
+}
+.admin-layout .dz-bulk-clear {
+  margin-left: auto;
+}
+.admin-layout .dz-bulk-form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-width: 0;
+}
+.admin-layout .dz-bulk-label {
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+  color: var(--ui-brand-ink);
+}
+.admin-layout .dz-bulk-money {
+  width: 180px;
+}
+.admin-layout .dz-bulk-hint {
+  flex-basis: 100%;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-2);
+}
+.admin-layout .dz-bulk-hint.is-error {
+  color: var(--ui-danger-ink);
+  font-weight: 600;
+}
+
+/* TL son ekli tutar alanı */
+.admin-layout .dz-money {
+  position: relative;
+  display: block;
+}
+.admin-layout .dz-money > .ui-field {
+  padding-right: 36px;
+}
+.admin-layout .dz-money > span {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  color: var(--ui-text-3);
+  pointer-events: none;
+}
+
+/* ── Çekmece formu ────────────────────────────────────────────────── */
+.admin-layout .dz-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s4);
+}
+.admin-layout .dz-fieldset {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.admin-layout .dz-fieldset > .ui-segmented {
+  align-self: flex-start;
+}
+.admin-layout .dz-label-sm {
+  font-weight: 600;
+}
+.admin-layout .dz-hint {
+  margin: 6px 0 0;
+  line-height: 1.45;
+}
+.admin-layout .dz-hint--info {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-info-bg);
+  color: var(--ui-info-ink);
+}
+.admin-layout .dz-hint--info svg {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+}
+.admin-layout .dz-error {
+  margin: 6px 0 0;
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  color: var(--ui-danger-ink);
+}
+.admin-layout .dz-form .ui-field[aria-invalid="true"] {
+  border-color: var(--ui-danger);
+}
+.admin-layout .dz-box {
+  gap: var(--ui-s3);
+  padding: var(--ui-s3);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-2);
+}
+.admin-layout .dz-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-s3);
+}
+.admin-layout .dz-toggle-title {
+  font-size: var(--ui-fs-md);
+  font-weight: 650;
+  color: var(--ui-text);
+}
+.admin-layout .dz-toggle-row .ui-hint {
+  margin: 2px 0 0;
+}
+.admin-layout .dz-subfield {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.admin-layout .dz-subfield > .ui-label {
+  margin-bottom: 0;
+}
+.admin-layout .dz-presets {
+  flex-wrap: wrap;
+}
+.admin-layout .dz-money-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: var(--ui-s3);
+  margin-top: var(--ui-s3);
+}
+.admin-layout .dz-grid-2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: var(--ui-s3);
+}
+.admin-layout .dz-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: var(--ui-s3);
+  border: 1px dashed var(--ui-line-strong);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+}
+.admin-layout .dz-preview-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ui-text-3);
+}
+.admin-layout .dz-preview-name {
+  font-size: var(--ui-fs-md);
+  color: var(--ui-text);
+}
+.admin-layout .dz-preview-line {
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text-2);
+}
+.admin-layout .dz-preview-note {
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-warn-ink);
+}
+.admin-layout .dz-danger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-s3);
+  padding: var(--ui-s3);
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 25%, var(--ui-line));
+  border-radius: var(--ui-radius-lg);
+}
+.admin-layout .dz-danger strong {
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text);
+}
+.admin-layout .dz-danger .ui-hint {
+  margin: 2px 0 0;
+}
+.admin-layout .dz-danger .ui-btn {
+  flex-shrink: 0;
+}
+.admin-layout .dz-kbd-hint {
+  margin: 0;
+}
+
+/* ── Duyarlı düzen ────────────────────────────────────────────────── */
+@media (max-width: 1280px) {
+  .admin-layout .dz-table {
+    --dz-cols: 28px minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 0.9fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 0.7fr) 116px;
+  }
+  .admin-layout .dz-cell--eta {
+    display: none;
+  }
+}
+@media (max-width: 1100px) {
+  .admin-layout .dz-rollout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-layout .dz-rollout-side {
+    border-left: 0;
+    border-top: 1px solid var(--ui-line);
+    border-radius: 0 0 var(--ui-radius-lg) var(--ui-radius-lg);
+  }
+}
+@media (max-width: 900px) {
+  .admin-layout .dz-head {
+    display: none;
+  }
+  .admin-layout .dz-row {
+    grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr) auto;
+    grid-template-areas:
+      "check name name actions"
+      ". status fee fee"
+      ". threshold minimum minimum"
+      ". eta orders orders";
+    align-items: start;
+    gap: 10px var(--ui-s3);
+    padding: var(--ui-s3);
+  }
+  .admin-layout .dz-cell--check { grid-area: check; }
+  .admin-layout .dz-cell--name { grid-area: name; align-self: center; }
+  .admin-layout .dz-cell--status { grid-area: status; }
+  .admin-layout .dz-cell--fee { grid-area: fee; }
+  .admin-layout .dz-cell--threshold { grid-area: threshold; }
+  .admin-layout .dz-cell--minimum { grid-area: minimum; }
+  .admin-layout .dz-cell--eta { grid-area: eta; display: flex; }
+  .admin-layout .dz-cell--orders { grid-area: orders; }
+  .admin-layout .dz-cell--actions { grid-area: actions; align-self: center; }
+  .admin-layout .dz-row .ui-cell-label {
+    display: block;
+  }
+  .admin-layout .dz-body .dz-row[data-cursor] {
+    box-shadow: inset 3px 0 0 var(--ui-brand);
+  }
+}
+@media (max-width: 760px) {
+  .admin-layout .dz-campaign-banner {
+    flex-wrap: wrap;
+  }
+  .admin-layout .dz-campaign-banner > .ui-grow {
+    flex: 1 1 calc(100% - 32px);
+  }
+  .admin-layout .dz-campaign-banner > .ui-btn {
+    flex: 1 1 100%;
+    justify-content: center;
+    min-height: 36px;
+  }
+  .admin-layout .dz-help-btn,
+  .admin-layout .dz-kbd,
+  .admin-layout .dz-kbd-hint {
+    display: none;
+  }
+  .admin-layout .dz-rollout-main,
+  .admin-layout .dz-rollout-side {
+    padding: var(--ui-s3);
+  }
+  .admin-layout .dz-modes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-layout .dz-mode {
+    align-items: center;
+    padding: 10px 12px;
+  }
+  .admin-layout .dz-combo {
+    max-width: none;
+  }
+  .admin-layout .dz-pilot-chip {
+    max-width: 100%;
+  }
+  .admin-layout .dz-toolbar {
+    padding: var(--ui-s3);
+  }
+  .admin-layout .dz-search {
+    flex-basis: 100%;
+    max-width: none;
+  }
+  .admin-layout .dz-chips-wrap {
+    flex: 1 1 100%;
+    margin: 0 calc(-1 * var(--ui-s3));
+    padding: 2px var(--ui-s3);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .admin-layout .dz-chips-wrap::-webkit-scrollbar {
+    display: none;
+  }
+  .admin-layout .dz-chips-wrap .ui-chips > button {
+    height: 34px;
+  }
+  .admin-layout .dz-sort {
+    flex: 1 1 100%;
+    width: 100%;
+    margin-left: 0;
+  }
+  .admin-layout .dz-result {
+    padding: 4px var(--ui-s3);
+  }
+  .admin-layout .dz-bulk {
+    bottom: 8px;
+    margin: 8px;
+    padding: 10px;
+  }
+  .admin-layout .dz-bulk .ui-bulkbar-count {
+    flex: 1 1 auto;
+  }
+  .admin-layout .dz-bulk-actions {
+    order: 3;
+    flex-basis: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .admin-layout .dz-bulk-actions .ui-btn {
+    justify-content: center;
+    min-height: 36px;
+  }
+  .admin-layout .dz-bulk-sep {
+    display: none;
+  }
+  .admin-layout .dz-bulk-form {
+    order: 3;
+    flex-basis: 100%;
+  }
+  .admin-layout .dz-bulk-label {
+    flex-basis: 100%;
+  }
+  .admin-layout .dz-bulk-money {
+    flex: 1 1 120px;
+    width: auto;
+  }
+  .admin-layout .dz-cell--actions .ui-icon-btn--sm {
+    width: 36px;
+    height: 36px;
+  }
+  /* Kart: üst satırda ad + aç/kapat + düzenle; silme çekmecede */
+  .admin-layout .dz-row {
+    grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr) auto;
+    grid-template-areas:
+      "check name name actions"
+      ". status fee fee"
+      ". threshold minimum minimum"
+      ". eta orders orders";
+    gap: 8px 10px;
+    padding: 12px var(--ui-s3);
+  }
+  .admin-layout .dz-cell--actions .ui-icon-btn--danger {
+    display: none;
+  }
+  .admin-layout .dz-row .dz-cell {
+    gap: 1px;
+  }
+  .admin-layout .dz-row .dz-cell .ui-badge {
+    margin-top: 1px;
+  }
+  .admin-layout .dz-foot {
+    padding: 10px var(--ui-s3);
+  }
+  .admin-layout .dz-money-grid,
+  .admin-layout .dz-grid-2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-layout .dz-danger {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-layout .dz-row,
+  .admin-layout .dz-mode,
+  .admin-layout .dz-rollout-side {
+    transition: none;
+  }
+}

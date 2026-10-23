@@ -138,6 +138,13 @@ const settingsSchema = new mongoose.Schema(
         default: "https://apps.apple.com/tr/app/benim-marketim/id6755792336?l=tr"
       }
     },
+    // Adrese teslimat (Devrek genişlemesi). 'off' iken mevcut yurt akışı birebir aynı çalışır.
+    // pilotUserIds herkese açık GET /api/settings yanıtında ASLA görünmez (aşağıdaki toJSON).
+    delivery: {
+      addressOrdering: { type: String, enum: ["off", "pilot", "public"], default: "off" },
+      pilotUserIds: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], default: [] },
+      freeDeliveryEverywhere: { type: Boolean, default: false },
+    },
     ai: {
       enabled: { type: Boolean, default: true },
       provider: { type: String, enum: ["groq", "openrouter", "gemini"], default: () => process.env.AI_DEFAULT_PROVIDER || "openrouter" },
@@ -145,7 +152,17 @@ const settingsSchema = new mongoose.Schema(
       maxHistoryMessages: { type: Number, default: 12, min: 2, max: 30 },
     }
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    // JSON yanıtlarında (GET/PUT /api/settings) teslimat bayrağı ve pilot kullanıcı listesi yer almaz;
+    // bunlar GET /api/delivery/me ve yönetici uç noktası /api/delivery/admin/settings üzerinden okunur.
+    toJSON: {
+      transform(doc, ret) {
+        delete ret.delivery;
+        return ret;
+      },
+    },
+  }
 );
 
 // Varsayılan ayarları getiren statik metod

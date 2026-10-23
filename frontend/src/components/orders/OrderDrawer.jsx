@@ -5,7 +5,7 @@
 // (footer yok; Esc / X detaya döner). "?" kısayolu konteynerin; burada işlenmez. Stil: orders-drawer.css (so-d-).
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertTriangle, ArrowRight, Calendar, Check, CheckSquare, ChevronLeft, ChevronRight, Copy, Info, Landmark, Loader2, Mail, MapPin,
+  AlertTriangle, ArrowRight, Bike, Calendar, Check, CheckSquare, ChevronLeft, ChevronRight, Copy, Info, Landmark, Loader2, Mail, MapPin,
   MessageCircle, MoreHorizontal, PackagePlus, PackageX, Phone, Printer, RotateCcw, Save, Smartphone, Square, Trash2, Wallet, X, XCircle,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -18,11 +18,12 @@ import {
 import {
   CLICK_GUARD_MS, TZ, buildWhatsAppLink, customerName, customerPhone, describeChanges, getSla, inGChord, isActiveStatus,
   isDeletedCustomer, isDoneStatus, lastStatusTime, moveTargets, nextAction, orderCode, orderCodeTitle, paymentKey, paymentLong,
-  platformLabel, pointLabel, shortWhen, statusUi, telHref, toMs,
+  platformLabel, pointLabel, shortWhen, statusUi, telHref, toMs, deliveryFeeLabel, hasDeliveryFeeLine, isAddressOrder, orderDeliveryFee,
 } from "./shared";
 import AddItemPanel from "./AddItemPanel";
 import ContactActions from "./drawer/ContactActions";
 import CustomerPanel from "./drawer/CustomerPanel";
+import DeliveryAddress from "./drawer/DeliveryAddress";
 import OrderItems from "./drawer/OrderItems";
 import OrderTimeline from "./drawer/OrderTimeline";
 import "../../styles/orders-drawer.css";
@@ -285,9 +286,15 @@ function DeliveryFacts({ order, missing, onSaveTracking }) {
       </div>
       <dl className="so-d-facts">
         <div>
-          <dt><MapPin aria-hidden="true" />Teslimat noktası</dt>
+          <dt><MapPin aria-hidden="true" />{isAddressOrder(order) ? "Bölge" : "Teslimat noktası"}</dt>
           <dd>{pointLabel(order)}</dd>
         </div>
+        {hasDeliveryFeeLine(order) && (
+          <div>
+            <dt><Bike aria-hidden="true" />Teslimat ücreti</dt>
+            <dd className="ui-num" data-free={orderDeliveryFee(order) > 0 ? undefined : "true"}>{deliveryFeeLabel(order)}</dd>
+          </div>
+        )}
         <div>
           <dt><Phone aria-hidden="true" />Telefon</dt>
           <dd>
@@ -669,6 +676,8 @@ export default function OrderDrawer({
           </div>
         </div>
       )}
+
+      <DeliveryAddress order={order} />
 
       <OrderItems
         order={order}

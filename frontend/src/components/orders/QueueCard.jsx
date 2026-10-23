@@ -6,10 +6,10 @@ import { memo } from "react";
 import { StickyNote } from "lucide-react";
 import { money } from "../admin/ui";
 import {
-  CustomerFace, NextStepButton, OrderCode, PaymentChip, PickProgress, PointChip, PrintedMark, SelectCheck, SlaChip,
+  AddressLine, CustomerFace, NextStepButton, OrderCode, PaymentChip, PickProgress, PointChip, PrintedMark, SelectCheck, SlaChip,
   TrustBadges, UnseenBadge,
 } from "./atoms";
-import { customerName, getSla, orderAriaLabel, orderCode } from "./shared";
+import { customerName, getSla, isAddressOrder, orderAriaLabel, orderCode } from "./shared";
 import "../../styles/orders-queue.css";
 
 const flag = (value) => (value ? "true" : undefined);
@@ -36,6 +36,7 @@ function QueueCard({
       data-fresh={flag(fresh)}
       data-pending={flag(order.pending)}
       data-note={note ? "true" : undefined}
+      data-addr={isAddressOrder(order) ? "true" : undefined}
     >
       <SelectCheck
         className="so-q-check"
@@ -70,6 +71,8 @@ function QueueCard({
         <PrintedMark at={printedAt} />
         <PickProgress info={picked} />
       </div>
+
+      <AddressLine order={order} className="so-q-addr" />
 
       {note && (
         <p className="so-q-note" title={note}>

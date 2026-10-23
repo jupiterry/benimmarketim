@@ -53,6 +53,7 @@ const SECTIONS = [
   ["/api/products", "product", "Ürün"],
   ["/api/categories", "product", "Kategori"],
   ["/api/price-watch", "product", "Fiyat bekçisi"],
+  ["/api/delivery", "settings", "Teslimat bölgesi"],
   ["/api/flash-sales", "campaign", "Flash sale"],
   ["/api/weekly-products", "campaign", "Haftalık fırsat"],
   ["/api/coupon-requests", "campaign", "Kupon isteği kampanyası"],
