@@ -21,6 +21,7 @@ import {
   Inbox,
   ScanLine,
   Radar,
+  UserX,
 } from "lucide-react";
 
 // Kenar menüsü ve komut paleti aynı listeyi kullanır.
@@ -63,6 +64,7 @@ export const adminMenuGroups = [
     title: "Müşteri ve destek",
     items: [
       { id: "users", short: "Müşteriler", label: "Müşteriler", icon: Users, keywords: "kullanıcı hesap" },
+      { id: "account-cleanup", short: "Hesap temizliği", label: "Pasif hesap temizliği", icon: UserX, keywords: "pasif inaktif silme kvkk temizlik hesap" },
       { id: "chat", short: "Mesajlar", label: "Mesajlar", icon: MessageCircle, badge: "chats", keywords: "sohbet chat" },
       { id: "support-queue", short: "Bekleyen destek", label: "Bekleyen destekler", icon: Headphones, keywords: "destek talep" },
       { id: "feedback", short: "Geri bildirimler", label: "Geri bildirimler", icon: MessageSquare, keywords: "yorum puan şikayet" },

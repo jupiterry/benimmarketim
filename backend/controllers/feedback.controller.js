@@ -9,6 +9,15 @@ import { createCompensationCoupon, suggestCompensation, validateCompensation } f
 const MAX_REPLY = 1000;
 const FEEDBACK_STATUSES = ["Yeni", "İnceleniyor", "Çözüldü", "Kapatıldı"];
 
+// Yönetici silmesinde geri bildirimler korunur (account.service keepFeedback); kullanıcısı silinmiş
+// kayıtta populate null döner. Panel çökmesin ve "Silinmiş hesap" görünsün diye yer tutucu konur.
+export const DELETED_USER_NAME = "Silinmiş hesap";
+export const withDeletedUser = (feedback) => {
+  if (!feedback || feedback.user) return feedback;
+  const plain = typeof feedback.toJSON === "function" ? feedback.toJSON() : { ...feedback };
+  return { ...plain, user: { _id: null, name: DELETED_USER_NAME, email: "", avatar: null, deleted: true } };
+};
+
 // Geri bildirim oluştur
 export const createFeedback = async (req, res) => {
   try {
@@ -41,7 +50,7 @@ export const getAllFeedbacks = async (req, res) => {
       .populate("user", "name email avatar")
       .sort("-createdAt");
 
-    res.json(feedbacks);
+    res.json((feedbacks || []).map(withDeletedUser));
   } catch (error) {
     console.error("Geri bildirimler getirilirken hata:", error);
     res.status(500).json({ message: "Geri bildirimler getirilemedi", error: error.message });
@@ -64,7 +73,7 @@ export const updateFeedbackStatus = async (req, res) => {
       return res.status(404).json({ message: "Geri bildirim bulunamadı" });
     }
 
-    res.json(feedback);
+    res.json(withDeletedUser(feedback));
   } catch (error) {
     console.error("Geri bildirim durumu güncellenirken hata:", error);
     res.status(500).json({ message: "Geri bildirim durumu güncellenemedi", error: error.message });
@@ -185,7 +194,7 @@ export const replyToFeedback = async (req, res) => {
       sendPushToUser(customerId, { title: "Geri bildiriminize yanıt verdik", body: text.length > 120 ? `${text.slice(0, 117)}...` : text },
         { type: "feedback_reply", feedbackId: id, route: "/feedback" }, { category: "messages", collapseId: `feedback-${id}` }).catch(() => {});
     }
-    res.json(feedback);
+    res.json(withDeletedUser(feedback));
   } catch (error) {
     console.error("Geri bildirim yanıtlanırken hata:", error);
     res.status(500).json({ message: "Yanıt kaydedilemedi", error: error.message });
@@ -235,6 +244,10 @@ export const compensateFeedback = async (req, res) => {
     const current = await Feedback.findById(id).select("user status compensation title").lean();
     if (!current) return res.status(404).json({ message: "Geri bildirim bulunamadı" });
     if (current.compensation?.coupon) return res.status(409).json({ message: `Bu geri bildirim için zaten ${current.compensation.amount} TL kupon verildi (${current.compensation.code})` });
+    // Hesap silinmişse (geri bildirim keepFeedback ile korunmuş) kimsenin kullanamayacağı kupon ve boşa bildirim olmasın
+    if (!current.user || !(await User.exists({ _id: current.user }))) {
+      return res.status(409).json({ message: "Bu geri bildirimin hesabı silinmiş; kupon tanımlanamaz" });
+    }
 
     const { coupon } = await createCompensationCoupon({ userId: current.user, amount, feedbackId: id });
     const update = { compensation: { coupon: coupon._id, code: coupon.code, amount, at: new Date(), by: req.user._id } };
@@ -249,7 +262,7 @@ export const compensateFeedback = async (req, res) => {
       targetName: feedback?.user?.name || current.title || "Geri bildirim",
       changes: [{ label: "Kupon", from: "", to: `${coupon.code} · ${amount} TL` }],
     });
-    res.status(201).json(feedback);
+    res.status(201).json(withDeletedUser(feedback));
   } catch (error) {
     console.error("Telafi kuponu oluşturulamadı:", error);
     res.status(500).json({ message: "Telafi kuponu oluşturulamadı", error: error.message });

@@ -1,6 +1,9 @@
 // backend/controllers/userController.js
 import User from "../models/user.model.js";
 import bcrypt from "bcryptjs";
+import { deleteUserAccount } from "../services/account.service.js";
+import { recordAdminAction } from "../services/adminAudit.service.js";
+import { invalidateAccountCleanupCache } from "../services/accountCleanup.service.js";
 
 export const getAllUsers = async (req, res) => {
   try {
@@ -131,16 +134,42 @@ export const addPhoneFieldToAllUsers = async (req, res) => {
   }
 };
 
+// DELETE /api/users/:userId (yönetici) — yalnızca müşteri hesabı silinir: ortak servis siparişleri
+// korur (userDeleted işaretlenir), geri bildirimleri saklar, kişisel verileri temizler.
+// Yönetici hesapları ve isteği yapanın kendi hesabı buradan silinemez. Yanıt: { success, message }
 export const deleteUser = async (req, res) => {
-  const { userId } = req.params;
+  const userId = String(req.params?.userId || "");
 
   try {
-    const deletedUser = await User.findByIdAndDelete(userId);
-    if (!deletedUser) {
+    if (!/^[0-9a-f]{24}$/i.test(userId)) {
+      return res.status(400).json({ success: false, message: "Geçersiz kullanıcı kimliği" });
+    }
+    if (req.user?._id && String(req.user._id).toLowerCase() === userId.toLowerCase()) {
+      return res.status(400).json({ success: false, message: "Kendi hesabınızı buradan silemezsiniz" });
+    }
+    const user = await User.findById(userId).select("name email role").lean();
+    if (!user) {
       return res.status(404).json({ success: false, message: "Kullanıcı bulunamadı" });
     }
+    if (user.role === "admin") {
+      return res.status(403).json({ success: false, message: "Yönetici hesapları silinemez. Önce yönetici yetkisini kaldırın." });
+    }
+
+    const { ordersAnonymized } = await deleteUserAccount(userId, { keepFeedback: true });
+    recordAdminAction(req, {
+      action: "Müşteri hesabı silindi",
+      category: "customer",
+      target: userId,
+      targetName: user.name || user.email || "",
+      changes: [{ label: "Korunan sipariş", from: "", to: String(ordersAnonymized || 0) }],
+    });
+    invalidateAccountCleanupCache().catch(() => {});
     res.status(200).json({ success: true, message: "Kullanıcı başarıyla silindi" });
   } catch (error) {
+    if (error?.code === "USER_NOT_FOUND") {
+      return res.status(404).json({ success: false, message: "Kullanıcı bulunamadı" });
+    }
+    console.error("Kullanıcı silinirken hata:", error);
     res.status(500).json({ success: false, message: "Kullanıcı silinirken hata oluştu" });
   }
 };

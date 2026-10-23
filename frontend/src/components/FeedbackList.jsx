@@ -73,7 +73,10 @@ const needsAction = (f) => f?.thumb === "down" || (Number(f?.rating) > 0 && Numb
 // 👍, olumlu tavsiye puanı ve vazgeçme yanıtları yanıt beklemez; listede bilgi olarak durur
 const isInformational = (f) => f?.thumb === "up" || (f?.kind === "nps" && Number(f?.npsScore) >= 7) || f?.kind === "abandon";
 const isPending = (f) => !hasReply(f) && !isInformational(f) && (f?.status === "Yeni" || f?.status === "İnceleniyor");
-const customerName = (f) => f?.user?.name || "Müşteri";
+// Yönetici pasif hesabı silince geri bildirim kalır; populate null dönerse (ya da sunucu yer tutucu koyarsa) "Silinmiş hesap".
+// Bu kayıtlarda kupon, yanıt ve görüşme müşteriye ulaşmaz (kullanıcı alanı zorunlu; boşsa hesap silinmiştir).
+const isAccountDeleted = (f) => Boolean(f) && (!f.user || Boolean(f.user.deleted));
+const customerName = (f) => f?.user?.name || (isAccountDeleted(f) ? "Silinmiş hesap" : "Müşteri");
 const messageOf = (f) => (f?.message && f.message !== DEFAULT_MESSAGE ? f.message : "");
 const titleOf = (f) => (f?.title && f.title !== DEFAULT_TITLE ? f.title : "");
 const tagLabel = (tag) => TAG_LABELS[tag] || tag;
@@ -171,7 +174,8 @@ const FeedbackRow = ({ f, now, active, selected, onOpen, onReply, onResolve, onD
         {hasReply(f) && <span className="fbk-replied"><CornerDownRight aria-hidden="true" />Yanıtlandı</span>}
       </div>
       <div className="fbk-actions" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-        <button type="button" className="ui-icon-btn" onClick={() => onReply(f)} aria-label="Yanıtla" title="Yanıtla (r)"><Reply /></button>
+        <button type="button" className="ui-icon-btn" onClick={() => onReply(f)}
+          aria-label={isAccountDeleted(f) ? "Not ekle" : "Yanıtla"} title={isAccountDeleted(f) ? "Not ekle (hesap silinmiş; müşteriye ulaşmaz)" : "Yanıtla (r)"}><Reply /></button>
         {f.status !== "Çözüldü" && (
           <button type="button" className="ui-icon-btn" onClick={() => onResolve(f)} aria-label="Çözüldü işaretle" title="Çözüldü işaretle (c)"><CheckCircle2 /></button>
         )}
@@ -201,6 +205,7 @@ const FeedbackDrawer = ({ f, order, onClose, onStatus, onReply, onDelete, onOpen
   const text = messageOf(f);
   const title = titleOf(f);
   const replyBy = f.adminReply?.by?.name;
+  const accountDeleted = isAccountDeleted(f);
 
   const save = () => { if (dirty && draft.trim()) onReply(f, draft.trim()); };
   const onDirtyClose = () => confirm({
@@ -296,7 +301,7 @@ const FeedbackDrawer = ({ f, order, onClose, onStatus, onReply, onDelete, onOpen
         {(f.supportChat || needsAction(f) || hasCompensation(f)) && (
           <section className="fbk-section">
             <h3 className="ui-overline">Çözüm</h3>
-            {f.supportChat && (
+            {f.supportChat && !accountDeleted && (
               <div className="ui-between">
                 <span className="ui-text-sm">Destek kuyruğunda kayıt açıldı; müşteriye görüşmeden yazabilirsiniz.</span>
                 <button type="button" className="ui-btn ui-btn--sm" onClick={() => onOpenChat(f)}><Headphones />Görüşmeyi aç</button>
@@ -304,6 +309,8 @@ const FeedbackDrawer = ({ f, order, onClose, onStatus, onReply, onDelete, onOpen
             )}
             {hasCompensation(f) ? (
               <p className="ui-text-sm"><Gift aria-hidden="true" /> <strong>{f.compensation.amount} TL</strong> telafi kuponu verildi: <span className="ui-mono">{f.compensation.code}</span> · {formatDateTime(f.compensation.at)}. Müşteriye bildirim gönderildi.</p>
+            ) : accountDeleted ? (
+              <p className="ui-text-sm ui-muted">Hesap silinmiş; telafi kuponu verilemez{f.supportChat ? ", destek görüşmesi de silindi" : ""}.</p>
             ) : (
               <div className="ui-stack ui-stack--sm">
                 <span className="ui-text-sm">Telafi kuponu (müşteriye özel, tek kullanımlık, 30 gün geçerli):</span>
@@ -377,7 +384,10 @@ const FeedbackDrawer = ({ f, order, onClose, onStatus, onReply, onDelete, onOpen
               </div>
             </div>
           )}
-          <label className="ui-label" htmlFor="fbk-reply-input">{saved ? "Yanıtı düzenle" : "Yanıt yaz"}</label>
+          {accountDeleted && (
+            <p className="ui-hint" id="fbk-reply-deleted">Hesap silinmiş; yanıt müşteriye ulaşmaz (yalnızca kayıt olarak saklanır).</p>
+          )}
+          <label className="ui-label" htmlFor="fbk-reply-input">{accountDeleted ? (saved ? "Notu düzenle" : "Not yaz") : saved ? "Yanıtı düzenle" : "Yanıt yaz"}</label>
           <textarea
             id="fbk-reply-input"
             ref={textareaRef}
@@ -385,15 +395,18 @@ const FeedbackDrawer = ({ f, order, onClose, onStatus, onReply, onDelete, onOpen
             value={draft}
             maxLength={MAX_REPLY}
             rows={4}
-            placeholder="Müşteriye kısa ve net bir yanıt yazın…"
+            aria-describedby={accountDeleted ? "fbk-reply-deleted" : undefined}
+            placeholder={accountDeleted ? "Kayıt için kısa bir not yazın…" : "Müşteriye kısa ve net bir yanıt yazın…"}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); save(); } }}
           />
           <div className="ui-between fbk-reply-foot">
             <span className="ui-hint"><kbd className="ui-kbd">Ctrl</kbd> + <kbd className="ui-kbd">↵</kbd> kaydeder · <span className="ui-num">{draft.length}/{MAX_REPLY}</span></span>
             <div className="ui-cluster">
-              {saved && <button type="button" className="ui-btn ui-btn--sm ui-btn--ghost" disabled={busy} onClick={() => onReply(f, "")}>Yanıtı kaldır</button>}
-              <button type="button" className="ui-btn ui-btn--sm ui-btn--primary" disabled={busy || !dirty || !draft.trim()} onClick={save}><Reply />{saved ? "Yanıtı güncelle" : "Yanıtı kaydet"}</button>
+              {saved && <button type="button" className="ui-btn ui-btn--sm ui-btn--ghost" disabled={busy} onClick={() => onReply(f, "")}>{accountDeleted ? "Notu kaldır" : "Yanıtı kaldır"}</button>}
+              <button type="button" className="ui-btn ui-btn--sm ui-btn--primary" disabled={busy || !dirty || !draft.trim()} onClick={save}>
+                <Reply />{accountDeleted ? (saved ? "Notu güncelle" : "Notu kaydet") : saved ? "Yanıtı güncelle" : "Yanıtı kaydet"}
+              </button>
             </div>
           </div>
         </section>
@@ -554,7 +567,7 @@ const FeedbackList = () => {
     try {
       const { data } = await axios.patch(`/feedback/${f._id}/reply`, { text });
       patchItem(f._id, { adminReply: data?.adminReply || { text }, status: data?.status || f.status });
-      toast.success(text ? "Yanıt kaydedildi" : "Yanıt kaldırıldı");
+      toast.success(isAccountDeleted(f) ? (text ? "Not kaydedildi" : "Not kaldırıldı") : text ? "Yanıt kaydedildi" : "Yanıt kaldırıldı");
     } catch (err) {
       toast.error(err?.response?.data?.message || "Yanıt kaydedilemedi");
     } finally {
@@ -582,6 +595,7 @@ const FeedbackList = () => {
   };
 
   const compensate = async (f, amount) => {
+    if (isAccountDeleted(f)) { toast.error("Hesap silinmiş; telafi kuponu verilemez"); return; }
     setBusy(true);
     try {
       const { data } = await axios.post(`/feedback/${f._id}/compensate`, { amount });
