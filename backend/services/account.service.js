@@ -8,7 +8,7 @@
  * işaretlenir ve sipariş belgesinde ad/e-posta tutulmadığı için kullanıcı silinince
  * kişisel bağ kopar. Kişisel veriler (geri bildirim, sohbet, kayıtlı sepet, fotokopi
  * dosyaları, destek talepleri, referral kayıtları, kişiye özel kuponlar, oturum, avatar)
- * silinir.
+ * silinir. Yönetici silmesinde (options.keepFeedback) geri bildirimler korunur.
  */
 
 import fs from "node:fs/promises";
@@ -49,10 +49,15 @@ const safe = async (label, task) => {
 /**
  * Kullanıcıyı ve kişisel verilerini siler; siparişleri anonimleştirerek saklar.
  * @param {string|mongoose.Types.ObjectId} userId
+ * @param {{ keepFeedback?: boolean }} [options]
+ *   keepFeedback: true → geri bildirimler (sipariş deneyimi anketleri, memnuniyet raporu sayıları)
+ *   silinmez; kayıtlar "Silinmiş hesap" olarak görünür. Yönetici silmesi (pasif hesap temizliği,
+ *   DELETE /api/users/:id) bunu kullanır. Varsayılan (müşterinin kendi hesabını silmesi): silinir.
  * @returns {Promise<{ userId: string, ordersAnonymized: number }>}
  * @throws {Error} Kullanıcı bulunamazsa ("USER_NOT_FOUND")
  */
-export const deleteUserAccount = async (userId) => {
+export const deleteUserAccount = async (userId, options = {}) => {
+  const keepFeedback = options?.keepFeedback === true;
   const objectId = new mongoose.Types.ObjectId(String(userId));
   const user = await User.findById(objectId).select("avatar");
   if (!user) throw Object.assign(new Error("Kullanıcı bulunamadı"), { code: "USER_NOT_FOUND", statusCode: 404 });
@@ -64,7 +69,7 @@ export const deleteUserAccount = async (userId) => {
   );
 
   // 2) Kişisel veriler
-  await safe("feedback", () => Feedback.deleteMany({ user: objectId }));
+  if (!keepFeedback) await safe("feedback", () => Feedback.deleteMany({ user: objectId }));
 
   await safe("chat", async () => {
     const chatIds = await Chat.find({ user: objectId }).distinct("_id");

@@ -25,6 +25,7 @@ import FeedbackList from "../components/FeedbackList";
 import SettingsTab from "../components/SettingsTab";
 import DashboardWidgets from "../components/DashboardWidgets";
 import UsersTab from "../components/UsersTab";
+import AccountCleanupTab from "../components/AccountCleanupTab";
 import PhotocopyTab from "../components/PhotocopyTab";
 import BannerTab from "../components/BannerTab";
 import CouponsTab from "../components/CouponsTab";
@@ -156,6 +157,7 @@ const AdminPage = () => {
       "photo-create": "Fotoğraftan ürün ekle",
       "price-watch": "Fiyat bekçisi",
       users: "Müşteriler",
+      "account-cleanup": "Pasif hesap temizliği",
       coupons: "Kuponlar",
       referrals: "Davet sistemi",
       feedback: "Geri Bildirimler",
@@ -696,6 +698,8 @@ const AdminPage = () => {
             onRefresh={fetchUsers}
           />
         );
+      case "account-cleanup":
+        return <AccountCleanupTab onAccountsDeleted={fetchUsers} />;
       case "feedback":
         return <FeedbackList />;
       case "photocopy":
