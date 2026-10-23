@@ -144,6 +144,15 @@ const settingsSchema = new mongoose.Schema(
       addressOrdering: { type: String, enum: ["off", "pilot", "public"], default: "off" },
       pilotUserIds: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], default: [] },
       freeDeliveryEverywhere: { type: Boolean, default: false },
+      // Kuryeler (sipariş ataması ve kurye bazında gün sonu). Telefon yalnızca yönetici uç noktalarında görünür.
+      couriers: {
+        type: [new mongoose.Schema({
+          name: { type: String, required: true, trim: true, maxlength: 40 },
+          phone: { type: String, default: "", trim: true, maxlength: 20 },
+          active: { type: Boolean, default: true },
+        })],
+        default: [],
+      },
     },
     ai: {
       enabled: { type: Boolean, default: true },

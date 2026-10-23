@@ -11,6 +11,7 @@ import {
 import { useUserStore } from "../../stores/useUserStore";
 import { buildOrderSummaryText, buildOrdersCsv, downloadTextFile, printReceipts, printRunSheet } from "../../lib/orderTools";
 import useOrdersData from "./useOrdersData";
+import useCouriers from "./useCouriers";
 import OrdersHeader from "./OrdersHeader";
 import OrdersKpis from "./OrdersKpis";
 import OrdersToolbar from "./OrdersToolbar";
@@ -29,6 +30,7 @@ import {
   isActiveStatus, isDoneStatus, isLate, isUnseenCandidate, matchesQuery, nextAction, normalizeFilters, notificationPermission,
   parseQuery, pickedStore, pointGroups, pointKey, pointLabel, printedStore, readSavedFilters, readView, seenStore, sortOrders,
   startOfDay, toSavedFilter, urgencySort, writeSavedFilters, writeView, hasZoneOrders, zoneFilterOptions,
+  courierFilterOptions, courierKey, courierLabel, needsCallbackPending,
 } from "./shared";
 import {
   KbdHint, LiveRegion, LoadErrorPanel, LoadOlderButton, OrdersSkeleton, StaleBanner, StatePanel, useOrdersNow,
@@ -95,6 +97,7 @@ const capToast = () => toast.error(`En fazla ${BULK_MAX} sipariş seçebilirsini
 export default function OrdersScreen() {
   const accessToken = useUserStore((state) => state.user?.accessToken);
   const data = useOrdersData({ accessToken });
+  const courierData = useCouriers();
   const now = useOrdersNow();
   const isMobile = useIsMobile();
 
@@ -208,6 +211,26 @@ export default function OrdersScreen() {
     const match = createOrderFilter(eff, { now, view: "now", ignore: ["attention"] });
     return activeOrders.filter((o) => match(o) && isLate(o, now)).length;
   }, [activeOrders, eff, now]);
+  const callbackCount = useMemo(() => {
+    const match = createOrderFilter(eff, { now, view: "now", ignore: ["attention"] });
+    return activeOrders.filter((o) => match(o) && needsCallbackPending(o)).length;
+  }, [activeOrders, eff, now]);
+  // Kurye filtresi seçenekleri (ayarlardaki kuryeler + siparişte görülenler + Atanmamış)
+  const courierOptions = useMemo(
+    () => courierFilterOptions(courierData.couriers, windowOrders, { include: [filters.courier] }),
+    [courierData.couriers, windowOrders, filters.courier],
+  );
+  // Kurye fişleri: aktif siparişi olan her kurye (en eski önce)
+  const courierSheets = useMemo(() => {
+    const map = new Map();
+    for (const o of activeOrders) {
+      const key = courierKey(o);
+      if (key === "none") continue;
+      if (!map.has(key)) map.set(key, { id: key, name: o.courier?.name || courierLabel(key), orders: [] });
+      map.get(key).orders.push(o);
+    }
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "tr"));
+  }, [activeOrders]);
 
   // Pano: aktif sütunlar aciliyete, tamamlananlar tamamlanma zamanına göre
   const boardBase = useMemo(() => windowOrders.filter(createOrderFilter(eff, { now, view: "board" })), [windowOrders, eff, now]);
@@ -656,6 +679,16 @@ export default function OrdersScreen() {
     setSelected(new Set());
     requestAnimationFrame(() => focusItem(cursorId, { scroll: false }));
   };
+  // Toplu kurye ataması; seçim korunur (ardından yazdırma / yola çıkarma yapılabilir)
+  const bulkCourier = async (courier) => {
+    if (!selectedOrders.length) return;
+    const ok = await data.assignCourier(selectedOrders, courier);
+    if (ok) toast.success(courier ? `${selectedOrders.length} sipariş ${courier.name} kuryesine atandı` : `${selectedOrders.length} siparişin kurye ataması kaldırıldı`);
+  };
+  const printCourierSheet = (id) => {
+    const sheet = courierSheets.find((c) => c.id === id);
+    if (sheet) actions.runSheet(sheet.orders, sheet.name);
+  };
   const keepVisible = () => setSelected((prev) => new Set([...prev].filter((id) => visibleIds.has(id))));
   const clearSelection = useCallback(() => setSelected(new Set()), []);
 
@@ -999,6 +1032,8 @@ export default function OrdersScreen() {
           onRetry: failed ? undefined : refresh, // ilk yükleme hatasında tek "Tekrar dene" hata şeridindedir
         }}
         onExportCsv={exportCurrent}
+        courierSheets={courierSheets.map(({ id, name, orders }) => ({ id, name, count: orders.length }))}
+        onCourierSheet={printCourierSheet}
         onOpenDayClose={() => openLayer("dayclose")}
         unprintedCount={unprinted.length}
         onPrintUnprinted={() => actions.printMany(unprinted)}
@@ -1024,11 +1059,13 @@ export default function OrdersScreen() {
               prep: view === "list" ? filters.status === PREP : undefined,
               road: view === "list" ? filters.status === ROAD : undefined,
               late: filters.attention === "delayed",
+              callbacks: filters.attention === "callback",
               today: view === "list" && filters.date === "today",
             }}
             onPrep={() => focusStatus(PREP)}
             onRoad={() => focusStatus(ROAD)}
             onLate={() => patchFilters({ attention: filters.attention === "delayed" ? "none" : "delayed" })}
+            onCallbacks={() => patchFilters({ attention: filters.attention === "callback" ? "none" : "callback" })}
             onToday={toggleToday}
             onDayClose={() => openLayer("dayclose")}
             insightsOpen={insightsPref === true}
@@ -1049,6 +1086,7 @@ export default function OrdersScreen() {
                 pointOptions={pointChipOptions}
                 zonesPresent={zonesPresent}
                 lateCount={lateCount}
+                callbackCount={callbackCount}
                 groupByPoint={groupByPoint}
                 onGroupByPoint={(next) => setGroupPref(Boolean(next))}
                 sort={sort}
@@ -1075,6 +1113,8 @@ export default function OrdersScreen() {
                   onPicking={() => openPicking("selected")}
                   onKeepVisible={keepVisible}
                   onClear={clearSelection}
+                  couriers={courierData.status === "ready" ? courierData.active : []}
+                  onAssignCourier={courierData.status === "ready" ? bulkCourier : undefined}
                 />
               )}
               <KbdHint />
@@ -1118,12 +1158,18 @@ export default function OrdersScreen() {
           onAddCustom={data.addCustomItem}
           onMarkOutOfStock={data.markOutOfStock}
           onOpenProfile={openProfile}
+          couriers={courierData.couriers}
+          couriersStatus={courierData.status}
+          onConfirmCallback={data.confirmCallback}
+          onAssignCourier={(order, courier) => data.assignCourier([order], courier)}
+          onDeliveryFailed={data.markDeliveryFailed}
         />
       )}
       {layer === "filters" && (
         <FilterDrawer
           filters={filters}
           pointOptions={zoneOptions}
+          courierOptions={courierOptions}
           onChange={patchFilters}
           onClear={clearFilters}
           resultCount={resultCount}

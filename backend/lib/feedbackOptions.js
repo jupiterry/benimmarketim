@@ -23,7 +23,26 @@ export const CANCEL_REASONS = {
   yanlis_siparis: "Yanlış/eksik sipariş verdim",
   fiyat: "Fiyat yüksek geldi",
   baska_yer: "Başka yerden aldım",
+  bolge_disi: "Adresime teslimat yok",
+  ucret_yuksek: "Teslimat ücreti yüksek",
   diger: "Diğer",
+};
+
+/**
+ * "Teslim edilemedi" nedeni (yönetici işaretler; sipariş iptal edilir). Müşteriye
+ * "Teslim edilemedi: <etiket>" olarak gösterilir (GET /api/orders-analytics/user-orders → deliveryOutcomeLabel).
+ */
+export const DELIVERY_OUTCOMES = {
+  adres_bulunamadi: "Adres bulunamadı",
+  cevap_yok: "Müşteriye ulaşılamadı",
+  reddetti: "Müşteri teslim almadı",
+  diger: "Diğer",
+};
+export const DELIVERY_OUTCOME_NOTE_MAX = 200;
+/** Müşteri metni: "Teslim edilemedi: Adres bulunamadı" ya da "" */
+export const deliveryOutcomeText = (outcome) => {
+  const label = outcome?.code ? outcome.label || DELIVERY_OUTCOMES[outcome.code] || "" : "";
+  return label ? `Teslim edilemedi: ${label}` : "";
 };
 
 /** Sepeti boşaltan müşteriye sorulan "Neden vazgeçtin?" */

@@ -241,6 +241,8 @@ export const emitOrderStatusUpdated = (io, order, status) => {
 export async function applyOrderStatusChange(order, status, { actorId = null, io = null } = {}) {
   const previousStatus = order.status;
   order.status = status;
+  // İptalden geri alınan siparişte eski "teslim edilemedi" kaydı kalmaz
+  if (previousStatus === CANCELLED_STATUS && status !== CANCELLED_STATUS && order.deliveryOutcome?.code) order.deliveryOutcome = undefined;
   if (!Array.isArray(order.statusHistory)) order.statusHistory = [];
   order.statusHistory.push({ status, changedAt: new Date(), changedBy: actorId });
   const customWhere = order.$where;

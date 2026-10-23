@@ -1,7 +1,9 @@
 import mongoose from "mongoose";
 import Order from "../models/order.model.js";
 import Product from "../models/product.model.js";
-import { CANCEL_REASONS } from "../lib/feedbackOptions.js";
+import { CANCEL_REASONS, DELIVERY_OUTCOMES, DELIVERY_OUTCOME_NOTE_MAX, deliveryOutcomeText } from "../lib/feedbackOptions.js";
+import Settings from "../models/settings.model.js";
+import { listCouriers } from "../services/delivery.service.js";
 import User from "../models/user.model.js";
 import { paymentMethodLabel } from "../lib/paymentMethods.js";
 import { money, recordAdminAction, yesNo } from "../services/adminAudit.service.js";
@@ -21,7 +23,7 @@ export const ACTIVE_ORDER_STATUSES = ["Hazırlanıyor", "Yolda"];
 const PREPARING_STATUS = "Hazırlanıyor";
 const DELETED_ACCOUNT_NAME = "Silinmiş hesap";
 const ORDER_LIST_FIELDS =
-  "user products totalAmount subtotalAmount couponCode couponDiscount discountPercentage status deliveryTracking statusHistory note phone city deliveryPoint deliveryPointName deliveryType deliveryZone deliveryAddress deliveryFee productTotal paymentMethod cancelReason createdAt updatedAt device userDeleted";
+  "user products totalAmount subtotalAmount couponCode couponDiscount discountPercentage status deliveryTracking statusHistory note phone city deliveryPoint deliveryPointName deliveryType deliveryZone deliveryAddress deliveryFee productTotal paymentMethod cancelReason createdAt updatedAt device userDeleted needsCallback callbackConfirmedAt deliveryOutcome courier";
 
 export const INVALID_ORDER_ID_MESSAGE = "Geçersiz sipariş kimliği";
 export const SEARCH_TOO_SHORT_MESSAGE = "Arama en az 2 harf veya rakam içermeli";
@@ -69,6 +71,21 @@ export const deliveryFields = (order) => ({
   deliveryFee: round2(order?.deliveryFee),
   productTotal: order?.productTotal ?? order?.totalAmount ?? 0,
 });
+/** İlk sipariş teyidi alanları (müşteri ve yönetici yanıtı) */
+const callbackFields = (order) => ({
+  needsCallback: order?.needsCallback === true,
+  callbackConfirmedAt: order?.needsCallback === true && order?.callbackConfirmedAt ? order.callbackConfirmedAt : null,
+});
+/** Yönetici: "teslim edilemedi" kaydı ya da null */
+const adminDeliveryOutcome = (outcome) => (outcome?.code ? {
+  code: outcome.code,
+  label: outcome.label || DELIVERY_OUTCOMES[outcome.code] || "",
+  note: outcome.note || "",
+  at: outcome.at || null,
+  by: outcome.by ? String(outcome.by) : null,
+} : null);
+/** Yönetici: atanan kurye ya da null */
+const adminCourier = (courier) => (courier?.id || courier?.name ? { id: courier.id ? String(courier.id) : null, name: courier.name || "" } : null);
 const isObjectIdValue = (value) => value instanceof mongoose.Types.ObjectId || value?._bsontype === "ObjectId";
 /** İstek gövdesi/parametresi: 24 haneli onaltılık kimlik */
 export const isObjectIdString = (value) => (typeof value === "string" && HEX24.test(value)) || isObjectIdValue(value);
@@ -228,6 +245,11 @@ export const groupOrdersByUser = (orders) => {
       userDeleted: Boolean(order.userDeleted || customer.deleted),
       // Teslimat (Devrek genişlemesi): bölge, adres, kilitli teslimat ücreti ve ürün tutarı
       ...deliveryFields(order),
+      // Teslimat operasyonu: ilk sipariş teyidi, teslim edilemedi kaydı, kurye
+      ...callbackFields(order),
+      deliveryOutcome: adminDeliveryOutcome(order.deliveryOutcome),
+      deliveryOutcomeLabel: deliveryOutcomeText(order.deliveryOutcome),
+      courier: adminCourier(order.courier),
     });
   }
   return [...groups.values()];
@@ -629,6 +651,163 @@ export const updateDeliveryTracking = async (req, res) => {
   }
 };
 
+// ── Teslimat operasyonu: ilk sipariş teyidi, teslim edilemedi, kurye ataması ────
+
+const timeText = (value) => {
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime())
+    ? date.toLocaleString("tr-TR", { timeZone: "Europe/Istanbul", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+    : "—";
+};
+
+/**
+ * PUT /api/orders-analytics/confirm-callback { orderId } — "Arandı, teyit edildi".
+ * Yanıt: { order: { orderId, needsCallback, callbackConfirmedAt }, unchanged? }
+ */
+export const confirmCallback = async (req, res) => {
+  try {
+    const { orderId } = req.body || {};
+    if (!isObjectIdString(orderId)) return res.status(400).json({ message: INVALID_ORDER_ID_MESSAGE });
+    const order = await Order.findById(orderId);
+    if (!order) return res.status(404).json({ message: "Sipariş bulunamadı" });
+    if (order.needsCallback !== true) {
+      return res.status(400).json({ message: "Bu sipariş için telefonla teyit gerekmiyor" });
+    }
+    const summary = () => ({ orderId: String(order._id), needsCallback: true, callbackConfirmedAt: order.callbackConfirmedAt });
+    if (order.callbackConfirmedAt) {
+      req.auditRecorded = true;
+      return res.json({ message: "Sipariş zaten teyit edilmiş", order: summary(), unchanged: true });
+    }
+    order.callbackConfirmedAt = new Date();
+    order.callbackConfirmedBy = req.user?._id || null;
+    await order.save({ validateModifiedOnly: true });
+
+    recordAdminAction(req, { action: "Sipariş telefonla teyit edildi", category: "order", target: String(order._id),
+      targetName: orderTargetName(order),
+      changes: [{ label: "Telefon teyidi", from: "Bekliyor", to: `Teyit edildi (${timeText(order.callbackConfirmedAt)})` }] });
+    emitOrderUpdated(req, order._id, "callback");
+    return res.json({ message: "Sipariş teyit edildi", order: summary() });
+  } catch (error) {
+    return sendOrderError(res, error, "Telefon teyidi kaydedilirken hata:");
+  }
+};
+
+/** { code, note } → { value: { code, label, note } } ya da { error } */
+export const normalizeDeliveryOutcome = (body = {}) => {
+  const code = typeof body?.code === "string" ? body.code.trim() : "";
+  if (!DELIVERY_OUTCOMES[code]) return { error: "Teslim edilememe nedeni seçin" };
+  if (body.note !== undefined && body.note !== null && typeof body.note !== "string") return { error: "Not geçersiz" };
+  const note = String(body.note ?? "").replace(/\s+/g, " ").trim();
+  if (note.length > DELIVERY_OUTCOME_NOTE_MAX) return { error: `Not en fazla ${DELIVERY_OUTCOME_NOTE_MAX} karakter olabilir` };
+  if (code === "diger" && !note) return { error: "“Diğer” için kısa bir açıklama yazın" };
+  return { value: { code, label: DELIVERY_OUTCOMES[code], note } };
+};
+
+const FAILABLE_STATUSES = ["Hazırlanıyor", "Yolda"];
+
+/**
+ * PUT /api/orders-analytics/delivery-failed { orderId, code, note? } — "Teslim edilemedi".
+ * deliveryOutcome yazılır ve durum ortak servisle "İptal Edildi" olur (kupon iadesi, müşteri bildirimi
+ * "Siparişin teslim edilemedi: <neden>", orderStatusUpdated, alarm). Yalnızca Hazırlanıyor / Yolda.
+ * Yanıt: { order, deliveryOutcome } · 409 { status } durum uygun değilse ya da bu arada değiştiyse
+ */
+export const markDeliveryFailed = async (req, res) => {
+  try {
+    const { orderId } = req.body || {};
+    if (!isObjectIdString(orderId)) return res.status(400).json({ message: INVALID_ORDER_ID_MESSAGE });
+    const { value, error } = normalizeDeliveryOutcome(req.body);
+    if (error) return res.status(400).json({ message: error });
+
+    const order = await Order.findById(orderId);
+    if (!order) return res.status(404).json({ message: "Sipariş bulunamadı" });
+    if (!FAILABLE_STATUSES.includes(order.status)) {
+      return res.status(409).json({ message: "Yalnızca hazırlanan ya da yoldaki sipariş teslim edilemedi olarak işaretlenebilir", status: order.status });
+    }
+
+    order.deliveryOutcome = { ...value, at: new Date(), by: req.user?._id || null };
+    let previousStatus;
+    try {
+      previousStatus = await applyOrderStatusChange(order, "İptal Edildi", { actorId: req.user?._id, io: req.app?.get?.("io") });
+    } catch (saveError) {
+      if (!isWriteConflict(saveError)) throw saveError;
+      const current = await Order.findById(orderId);
+      if (!current) return res.status(404).json({ message: "Sipariş bulunamadı" });
+      return res.status(409).json({ message: STATUS_CONFLICT_MESSAGE, status: current.status });
+    }
+
+    recordAdminAction(req, { action: "Sipariş teslim edilemedi", category: "order", target: String(order._id),
+      targetName: orderTargetName(order),
+      changes: [
+        { label: "Durum", from: previousStatus, to: "İptal Edildi" },
+        { label: "Teslim edilemedi", from: "—", to: value.note ? `${value.label} — ${value.note}` : value.label },
+      ] });
+    pingOrderAlarm();
+    emitOrderUpdated(req, order._id, "delivery-failed");
+    return res.json({ message: "Sipariş teslim edilemedi olarak işaretlendi", order, deliveryOutcome: adminDeliveryOutcome(order.deliveryOutcome) });
+  } catch (error) {
+    return sendOrderError(res, error, "Teslim edilemedi kaydedilirken hata:");
+  }
+};
+
+/**
+ * PUT /api/orders-analytics/assign-courier { orderIds: [..] (1–100), courierId | null }
+ * courierId: settings.delivery.couriers içinde aktif bir kurye; null → atama kaldırılır.
+ * Yanıt: { updated, courier: { id, name } | null, skipped: [{ orderId, reason: 'missing'|'unchanged' }] }
+ */
+export const assignCourier = async (req, res) => {
+  try {
+    const { orderIds, courierId } = req.body || {};
+    if (!Array.isArray(orderIds) || orderIds.length < 1 || orderIds.length > 100 || !orderIds.every((id) => typeof id === "string" && HEX24.test(id))) {
+      return res.status(400).json({ message: "Sipariş seçimi geçersiz" });
+    }
+    if (courierId !== null && courierId !== undefined && courierId !== "" && (typeof courierId !== "string" || !HEX24.test(courierId))) {
+      return res.status(400).json({ message: "Kurye seçimi geçersiz" });
+    }
+    let courier = null;
+    if (courierId) {
+      const settings = await Settings.getSettings();
+      const found = listCouriers(settings).find((c) => c._id.toLowerCase() === courierId.toLowerCase());
+      if (!found) return res.status(404).json({ message: "Kurye bulunamadı" });
+      if (!found.active) return res.status(400).json({ message: `${found.name} pasif; önce Teslimat bölgeleri ekranından aktif yapın` });
+      courier = { id: found._id, name: found.name };
+    }
+
+    const ids = [...new Set(orderIds.map((id) => id.toLowerCase()))];
+    const orders = await Order.find({ _id: { $in: ids } }).select("_id courier deliveryPoint deliveryPointName").lean();
+    const byId = new Map((orders || []).map((order) => [String(order._id).toLowerCase(), order]));
+    const skipped = [];
+    const targets = [];
+    for (const id of ids) {
+      const order = byId.get(id);
+      if (!order) skipped.push({ orderId: id, reason: "missing" });
+      else if ((order.courier?.id || null) === (courier?.id || null) && (!courier || order.courier?.name === courier.name)) skipped.push({ orderId: id, reason: "unchanged" });
+      else targets.push(order);
+    }
+    if (!targets.length) {
+      req.auditRecorded = true;
+      if (!orders?.length) return res.status(404).json({ message: "Siparişler bulunamadı" });
+      return res.json({ updated: 0, courier, skipped });
+    }
+
+    const update = courier ? { $set: { courier } } : { $unset: { courier: 1 } };
+    await Order.updateMany({ _id: { $in: targets.map((order) => order._id) } }, update);
+
+    const previousNames = [...new Set(targets.map((order) => order.courier?.name || "Atanmamış"))];
+    recordAdminAction(req, {
+      action: courier ? `Kurye atandı: ${courier.name}` : "Kurye ataması kaldırıldı",
+      category: "order",
+      target: targets.length === 1 ? String(targets[0]._id) : `${targets.length} sipariş`,
+      targetName: targets.length === 1 ? orderTargetName(targets[0]) : targets.map((order) => orderTag(order)).join(", "),
+      changes: [{ label: "Kurye", from: previousNames.join(", "), to: courier?.name || "Atanmamış" }],
+      ...(targets.length > 1 ? { meta: { orderIds: targets.map((order) => String(order._id)) } } : {}),
+    });
+    for (const order of targets) emitOrderUpdated(req, order._id, "courier");
+    return res.json({ updated: targets.length, courier, skipped });
+  } catch (error) {
+    return sendOrderError(res, error, "Kurye atanırken hata:");
+  }
+};
+
 // Günlük sipariş verilerini getiren fonksiyon
 export const getDailyOrdersData = async (startDate, endDate) => {
   try {
@@ -719,6 +898,11 @@ export const getUserOrders = async (req, res) => {
       phone: order.phone,
       createdAt: order.createdAt,
       ...deliveryFields(order),
+      // Teyit ve iptal bilgisi (kurye telefonu ve yönetici kimlikleri müşteriye gönderilmez)
+      ...callbackFields(order),
+      deliveryOutcomeLabel: deliveryOutcomeText(order.deliveryOutcome),
+      cancelReasonLabel: order.cancelReason?.code ? CANCEL_REASONS[order.cancelReason.code] || "" : "",
+      cancelReasonNote: order.cancelReason?.code ? order.cancelReason.note || "" : "",
     }));
 
     res.json({ orders: formattedOrders });
@@ -1301,6 +1485,28 @@ const safeCount = async (model, filter) => {
   }
 };
 
+/** [{ _id: { zone, code }, name, count }] → { total, byReason: {code: n}, byZone: [{ zoneId, name, count, byReason }] } */
+export const summarizeFailedDeliveries = (rows = []) => {
+  const zones = new Map();
+  const byReason = {};
+  let total = 0;
+  for (const row of rows || []) {
+    const zoneId = row?._id?.zone || "unknown";
+    const code = row?._id?.code || "diger";
+    const count = Number(row?.count) || 0;
+    if (!count) continue;
+    total += count;
+    byReason[code] = (byReason[code] || 0) + count;
+    if (!zones.has(zoneId)) zones.set(zoneId, { zoneId, name: "", count: 0, byReason: {} });
+    const zone = zones.get(zoneId);
+    if (row.name && !zone.name) zone.name = row.name;
+    zone.count += count;
+    zone.byReason[code] = (zone.byReason[code] || 0) + count;
+  }
+  const byZone = [...zones.values()].sort((a, b) => b.count - a.count || String(a.name).localeCompare(String(b.name), "tr"));
+  return { total, byReason, byZone };
+};
+
 export const computeDashboardSummary = async (query = {}, now = new Date()) => {
   const range = buildDashboardRange(query, now);
   const match = rangeMatch(range);
@@ -1348,6 +1554,15 @@ export const computeDashboardSummary = async (query = {}, now = new Date()) => {
         { $match: { "products.isManual": true } },
         { $group: { _id: null, revenue: { $sum: { $multiply: ["$products.price", "$products.quantity"] } } } },
       ],
+      // "Teslim edilemedi" (deliveryOutcome dolu iptaller): bölge ve nedene göre
+      failedDeliveries: [
+        { $match: { status: "İptal Edildi", "deliveryOutcome.code": { $exists: true, $nin: ["", null] } } },
+        { $group: {
+          _id: { zone: { $ifNull: ["$deliveryZone.id", "$deliveryPoint"] }, code: "$deliveryOutcome.code" },
+          name: { $max: "$deliveryZone.name" },
+          count: { $sum: 1 },
+        } },
+      ],
     } },
   ]);
   const previousRows = range.previous
@@ -1358,7 +1573,7 @@ export const computeDashboardSummary = async (query = {}, now = new Date()) => {
 
   const [Product, SupportRequest] = await Promise.all([loadModel("../models/product.model.js"), loadModel("../models/supportRequest.model.js")]);
   const delayedBefore = new Date(now.getTime() - DELAYED_PREPARING_MINUTES * 60 * 1000);
-  const [delayedOrders, preparingOrders, activeOrders, productsWithoutImage, productsOutOfStock, waitingSupport, totalCustomers, newCustomers, recentRows] = await Promise.all([
+  const [delayedOrders, preparingOrders, activeOrders, productsWithoutImage, productsOutOfStock, waitingSupport, totalCustomers, newCustomers, recentRows, pendingCallbacks] = await Promise.all([
     Order.countDocuments({ status: "Hazırlanıyor", createdAt: { $lt: delayedBefore } }),
     Order.countDocuments({ status: "Hazırlanıyor" }),
     Order.countDocuments({ status: { $in: ACTIVE_ORDER_STATUSES } }),
@@ -1368,6 +1583,8 @@ export const computeDashboardSummary = async (query = {}, now = new Date()) => {
     safeCount(User, {}),
     range.start ? safeCount(User, rangeMatch(range)) : Promise.resolve(null),
     Order.find({}).select("user totalAmount productTotal deliveryFee deliveryZone status createdAt deliveryPoint deliveryPointName paymentMethod products").populate("user", "name avatar").sort({ createdAt: -1 }).limit(8).lean(),
+    // Teyit için aranmayı bekleyen aktif siparişler (dönemden bağımsız)
+    Order.countDocuments({ needsCallback: true, callbackConfirmedAt: null, status: { $in: ACTIVE_ORDER_STATUSES } }).catch(() => null),
   ]);
 
   const statusCounts = Object.fromEntries((facet?.byStatus || []).map((row) => [row._id, row.count]));
@@ -1399,6 +1616,9 @@ export const computeDashboardSummary = async (query = {}, now = new Date()) => {
     manualRevenue: round2(facet?.manual?.[0]?.revenue),
     customers: { total: totalCustomers, new: newCustomers },
     attention: { delayedOrders, preparingOrders, activeOrders, productsWithoutImage, productsOutOfStock, waitingSupport },
+    // Teslimat operasyonu (yeni anahtarlar): teyit bekleyenler ve dönemdeki "teslim edilemedi" bölge dağılımı
+    callbacks: { pending: Number.isFinite(pendingCallbacks) ? pendingCallbacks : null },
+    failedDeliveries: summarizeFailedDeliveries(facet?.failedDeliveries),
     recentOrders: recentRows.map((order) => ({
       orderId: String(order._id),
       customerName: order.user?.name || "Müşteri",

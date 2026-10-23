@@ -20,6 +20,8 @@ import {
   computeDeliveryQuote,
   getZone,
   isValidObjectId,
+  legacyZoneNeedsCallback,
+  needsFirstOrderCallback,
   normalizeAddressInput,
   resolveMinimumOrderAmount,
   roundMoney,
@@ -442,6 +444,8 @@ const placeAddressOrder = async (req, res, { products, phone, note, couponCode, 
 
   const productTotal = roundMoney(Math.max(0, subtotal - couponDiscount));
   const deliveryFee = quote.deliveryFee;
+  // Bölgede "ilk siparişte telefonla teyit" açıksa ve müşterinin teslim edilmiş siparişi yoksa
+  const needsCallback = await needsFirstOrderCallback(zone, req.user._id);
 
   const newOrder = await Order.create({
     user: req.user._id,
@@ -461,6 +465,7 @@ const placeAddressOrder = async (req, res, { products, phone, note, couponCode, 
     couponCode: appliedCoupon?.code || null,
     couponDiscount,
     paymentMethod,
+    needsCallback,
   });
 
   return finalizeOrder(req, res, newOrder, appliedCoupon, phone);
@@ -543,6 +548,8 @@ export const placeOrder = async (req, res) => {
     );
 
     const finalTotalAmount = Math.max(0, totalAmount - couponDiscount);
+    // Yurt bölgesinde "ilk siparişte telefonla teyit" açıksa (bölge okunamazsa teyitsiz alınır)
+    const needsCallback = await legacyZoneNeedsCallback(deliveryPoint, req.user._id);
 
     // Sipariş kaydet (yurt siparişi: teslimat ücreti yok, productTotal = ödenecek tutar)
     const newOrder = await Order.create({
@@ -562,6 +569,7 @@ export const placeOrder = async (req, res) => {
       couponCode: appliedCoupon?.code || null,
       couponDiscount,
       paymentMethod,
+      needsCallback,
     });
 
     return await finalizeOrder(req, res, newOrder, appliedCoupon, phone);

@@ -1,0 +1,357 @@
+/* Siparişler — teslimat operasyonu: ilk sipariş telefon teyidi, kurye ataması, "Teslim edilemedi",
+   KPI uyarı şeridi ve gün sonunda kurye bazında tahsilat. Önek: so-ops- (çipler: so-callback, so-courier, so-outcome).
+   Yalnızca tasarım belirteçleri; karanlık tema belirteçlerle kendiliğinden çalışır. */
+
+/* ── Çipler ──────────────────────────────────────────────────────── */
+.admin-layout .so-chip.so-callback {
+  font-weight: 650;
+  box-shadow: inset 0 0 0 1px var(--ui-danger);
+}
+.admin-layout .so-chip.so-courier .so-chip-text,
+.admin-layout .so-chip.so-outcome .so-chip-text {
+  max-width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── KPI altındaki uyarı şeridi ─────────────────────────────────── */
+.admin-layout .so-ops-kpi-banner {
+  flex-wrap: wrap;
+  gap: var(--ui-s2) var(--ui-s3);
+  border-radius: var(--ui-radius);
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+}
+.admin-layout .so-ops-kpi-banner .ui-grow {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+.admin-layout .so-ops-kpi-banner .ui-btn {
+  flex-shrink: 0;
+}
+
+/* ── Çekmece: telefon teyidi ────────────────────────────────────── */
+.admin-layout .so-ops-callback {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s3);
+  padding: var(--ui-s3) var(--ui-s4);
+  border: 1px solid var(--ui-danger);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+}
+.admin-layout .so-ops-callback-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-s3);
+}
+.admin-layout .so-ops-callback-head > svg {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  color: var(--ui-danger);
+}
+.admin-layout .so-ops-callback-head strong {
+  display: block;
+  font-size: var(--ui-fs-md);
+  font-weight: 700;
+}
+.admin-layout .so-ops-callback-head p {
+  margin: 2px 0 0;
+  font-size: var(--ui-fs-sm);
+  line-height: 1.45;
+}
+.admin-layout .so-ops-callback-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-s2);
+}
+.admin-layout .so-ops-callback-tel {
+  min-height: 40px;
+  background: var(--ui-surface);
+  color: var(--ui-text);
+}
+.admin-layout .so-ops-callback-ok {
+  flex: 1 1 200px;
+  justify-content: center;
+  min-height: 40px;
+}
+.admin-layout .so-ops-callback-done {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-s2);
+  margin: 0;
+  padding: var(--ui-s2) var(--ui-s3);
+  border-radius: var(--ui-radius);
+  background: var(--ui-ok-bg);
+  color: var(--ui-ok-ink);
+  font-size: var(--ui-fs-sm);
+  font-weight: 550;
+}
+.admin-layout .so-ops-callback-done svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+/* ── Çekmece: teslim edilemedi notu (iptal edilmiş sipariş) ─────── */
+.admin-layout .so-ops-outcome {
+  align-items: flex-start;
+  border-radius: var(--ui-radius);
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+}
+.admin-layout .so-ops-outcome .ui-grow {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.admin-layout .so-ops-outcome-note {
+  font-weight: 450;
+}
+.admin-layout .so-ops-outcome-time {
+  color: var(--ui-text-3);
+  font-weight: 450;
+}
+
+/* ── Çekmece: kurye ve teslimat bölümü ──────────────────────────── */
+.admin-layout .so-ops-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ui-s3);
+}
+.admin-layout .so-ops-field {
+  display: flex;
+  flex: 1 1 220px;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.admin-layout .so-ops-field .ui-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.admin-layout .so-ops-field .ui-label svg {
+  width: 14px;
+  height: 14px;
+  color: var(--ui-text-3);
+}
+.admin-layout .so-ops-courier {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-s2);
+}
+.admin-layout .so-ops-courier .ui-field {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 38px;
+}
+.admin-layout .so-ops-busy {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--ui-text-3);
+}
+.admin-layout .so-ops-hint {
+  margin: 0;
+}
+.admin-layout .so-ops-empty {
+  display: flex;
+  flex: 1 1 220px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-s2);
+}
+.admin-layout .so-ops-empty .ui-hint {
+  margin: 0;
+}
+.admin-layout .so-ops-fail-open {
+  flex: 0 0 auto;
+  min-height: 38px;
+}
+
+/* "Teslim edilemedi" formu */
+.admin-layout .so-ops-fail {
+  display: flex;
+  flex: 1 1 100%;
+  flex-direction: column;
+  gap: var(--ui-s2);
+  padding: var(--ui-s3);
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-2);
+}
+.admin-layout .so-ops-fail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-s2);
+}
+.admin-layout .so-ops-fail-head strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ui-danger-ink);
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .so-ops-fail-head strong svg {
+  width: 15px;
+  height: 15px;
+}
+.admin-layout .so-ops-reasons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ui-s2);
+}
+.admin-layout .so-ops-reason {
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font: inherit;
+  font-size: var(--ui-fs-sm);
+  font-weight: 550;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--ui-ease), background var(--ui-ease);
+}
+.admin-layout .so-ops-reason:hover {
+  border-color: var(--ui-danger);
+}
+.admin-layout .so-ops-reason[aria-checked="true"] {
+  border-color: var(--ui-danger);
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+}
+.admin-layout .so-ops-note {
+  width: 100%;
+  min-height: 60px;
+  resize: vertical;
+}
+.admin-layout .so-ops-note-hint {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--ui-s2);
+  margin: 0;
+}
+.admin-layout .so-ops-error {
+  color: var(--ui-danger-ink);
+  font-weight: 550;
+}
+.admin-layout .so-ops-fail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ui-s2);
+}
+.admin-layout .so-ops-fail-actions .ui-btn {
+  min-height: 36px;
+}
+
+/* ── Gün sonu: kurye bazında tahsilat ───────────────────────────── */
+.admin-layout .so-ops-couriers {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  list-style: none;
+}
+.admin-layout .so-ops-courier-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 4px var(--ui-s3);
+  padding: 10px 12px;
+}
+.admin-layout .so-ops-courier-row + .so-ops-courier-row {
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .so-ops-courier-row[data-none="true"] .so-ops-courier-name {
+  color: var(--ui-text-3);
+}
+.admin-layout .so-ops-courier-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+}
+.admin-layout .so-ops-courier-name small {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  font-weight: 450;
+}
+.admin-layout .so-ops-courier-pay {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.admin-layout .so-ops-courier-pay svg {
+  width: 14px;
+  height: 14px;
+  color: var(--ui-text-3);
+}
+.admin-layout .so-ops-courier-pay small {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  font-weight: 450;
+}
+.admin-layout .so-ops-courier-extra {
+  grid-column: 1 / -1;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
+
+@media (max-width: 760px) {
+  .admin-layout .so-ops-callback {
+    padding: var(--ui-s3);
+  }
+  .admin-layout .so-ops-callback-tel,
+  .admin-layout .so-ops-callback-ok {
+    flex: 1 1 100%;
+    justify-content: center;
+    min-height: 44px;
+  }
+  .admin-layout .so-ops-fail-open {
+    flex: 1 1 100%;
+    justify-content: center;
+    min-height: 44px;
+  }
+  .admin-layout .so-ops-reasons {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-layout .so-ops-reason {
+    min-height: 44px;
+  }
+  .admin-layout .so-ops-fail-actions .ui-btn {
+    flex: 1 1 0;
+    justify-content: center;
+    min-height: 44px;
+  }
+  .admin-layout .so-ops-courier-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .admin-layout .so-ops-courier-name {
+    grid-column: 1 / -1;
+  }
+  .admin-layout .so-ops-kpi-banner .ui-btn {
+    flex: 1 1 100%;
+    justify-content: center;
+    min-height: 40px;
+  }
+}

@@ -121,6 +121,29 @@ const orderSchema = new mongoose.Schema(
       code: { type: String, default: "" },
       note: { type: String, default: "", maxlength: 300 },
     },
+    // İlk sipariş telefon teyidi: bölgede requireFirstOrderCallback açık ve müşterinin teslim edilmiş siparişi yoksa
+    needsCallback: { type: Boolean, default: false },
+    callbackConfirmedAt: { type: Date, default: null },
+    callbackConfirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    // "Teslim edilemedi" (yönetici işaretler, sipariş İptal Edildi olur). code: lib/feedbackOptions.js DELIVERY_OUTCOMES
+    deliveryOutcome: {
+      type: new mongoose.Schema(
+        {
+          code: { type: String, enum: ["adres_bulunamadi", "cevap_yok", "reddetti", "diger"], required: true },
+          label: { type: String, default: "" },
+          note: { type: String, default: "", maxlength: 200 },
+          at: { type: Date, default: null },
+          by: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+        },
+        { _id: false }
+      ),
+      default: undefined,
+    },
+    // Atanan kurye (settings.delivery.couriers kopyası: kimlik + ad). Kurye telefonu siparişe yazılmaz.
+    courier: {
+      type: new mongoose.Schema({ id: { type: String, default: "" }, name: { type: String, default: "" } }, { _id: false }),
+      default: undefined,
+    },
     // Ödeme yöntemi (lib/paymentMethods.js). Bu alan eklenmeden önceki siparişlerde null.
     paymentMethod: {
       type: String,
@@ -182,6 +205,8 @@ orderSchema.index({ status: 1, createdAt: -1 });
 orderSchema.index({ updatedAt: -1 });
 // Bölge filtresi / bölgenin siparişi var mı denetimi
 orderSchema.index({ "deliveryZone.id": 1, createdAt: -1 });
+// Teyit bekleyen siparişler (pano sayısı)
+orderSchema.index({ needsCallback: 1, status: 1 }, { partialFilterExpression: { needsCallback: true } });
 
 const Order = mongoose.model("Order", orderSchema);
 

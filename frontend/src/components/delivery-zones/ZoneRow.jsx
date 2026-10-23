@@ -1,6 +1,6 @@
 // Bölge listesinin satırı: geniş ekranda tablo satırı, ≤900 px'te kart (CSS ile dönüşür).
 import { memo } from "react";
-import { Pencil, ToggleLeft, ToggleRight, Trash2 } from "lucide-react";
+import { Pencil, PhoneCall, ToggleLeft, ToggleRight, Trash2 } from "lucide-react";
 import { TYPES, deleteBlock, num, tl } from "./shared";
 
 export const TypeChip = ({ type }) => {
@@ -31,6 +31,11 @@ const ZoneRow = memo(function ZoneRow({
         <span className="dz-sub dz-name-sub">
           <TypeChip type={zone.type} />
           {zone.legacyPoint && <span className="dz-legacy" title="Mevcut mobil uygulamadaki yurt seçeneğiyle eşlenik">Uygulamada seçenek</span>}
+          {zone.requireFirstOrderCallback && (
+            <span className="dz-callback" title="İlk siparişte müşteri telefonla aranıp teyit edilir">
+              <PhoneCall aria-hidden="true" />İlk sipariş teyidi
+            </span>
+          )}
         </span>
       </span>
 

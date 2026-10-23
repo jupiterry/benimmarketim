@@ -12,6 +12,8 @@ import {
   adminBulkUpdateZones,
   adminGetDeliverySettings,
   adminUpdateDeliverySettings,
+  adminGetCouriers,
+  adminUpdateCouriers,
 } from "../controllers/delivery.controller.js";
 
 // Mount: /api/delivery
@@ -30,5 +32,7 @@ router.put("/admin/zones/:id", protectRoute, adminRoute, adminUpdateZone);
 router.delete("/admin/zones/:id", protectRoute, adminRoute, adminDeleteZone);
 router.get("/admin/settings", protectRoute, adminRoute, adminGetDeliverySettings);
 router.put("/admin/settings", protectRoute, adminRoute, adminUpdateDeliverySettings);
+router.get("/admin/couriers", protectRoute, adminRoute, adminGetCouriers);
+router.put("/admin/couriers", protectRoute, adminRoute, adminUpdateCouriers);
 
 export default router;

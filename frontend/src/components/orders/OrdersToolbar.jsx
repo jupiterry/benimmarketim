@@ -1,7 +1,7 @@
 // Siparişler ekranının araç çubuğu (C4): arama, görünüme özgü filtreler, "Filtreler" düğmesi ve etkin filtre etiketleri.
 // Filtre çekmecesi (FilterDrawer) P6'dadır; bu bileşen yalnızca onOpenFilters çağırır.
 // Stil: styles/orders-overview.css (önek so-ov-). Sözleşme: scratchpad/orders-design/CONTRACTS.md §7.3
-import { AlertCircle, ArrowUpDown, CalendarDays, Layers, Search, SlidersHorizontal, X } from "lucide-react";
+import { AlertCircle, ArrowUpDown, CalendarDays, Layers, PhoneCall, Search, SlidersHorizontal, X } from "lucide-react";
 import {
   DATE_OPTIONS, DEFAULT_FILTERS, DELAY_HINT, POINT_FILTERS, SORTS, STATUS_CHIPS, filterTags, hasAnyFilter,
 } from "./shared";
@@ -20,7 +20,7 @@ const IconSelect = ({ icon: Icon, label, value, options, onChange, active = fals
 );
 
 export default function OrdersToolbar({
-  view = "now", filters, onFilters, onClear, searchRef, statusCounts, pointCounts, pointOptions, zonesPresent = false, lateCount = 0,
+  view = "now", filters, onFilters, onClear, searchRef, statusCounts, pointCounts, pointOptions, zonesPresent = false, lateCount = 0, callbackCount = 0,
   groupByPoint = false, onGroupByPoint, sort = "newest", onSort, advancedCount = 0, filtersOpen = false, onOpenFilters,
   resultCount = 0, scopeNote = null,
 }) {
@@ -31,6 +31,8 @@ export default function OrdersToolbar({
   const tags = showTags ? filterTags(f, { view }) : [];
   const late = Math.max(0, Number(lateCount) || 0);
   const lateOn = f.attention === "delayed";
+  const callbacks = Math.max(0, Number(callbackCount) || 0);
+  const callbackOn = f.attention === "callback";
   const dateTitle = f.date === "all" && scopeNote ? scopeNote : undefined;
   // Veride yalnızca yurt siparişi varsa bugünkü metin; adresli bölge siparişi varsa "Bölgeye göre"
   const groupLabel = zonesPresent ? "Bölgeye göre grupla" : "Yurda göre grupla";
@@ -83,6 +85,13 @@ export default function OrdersToolbar({
                 <AlertCircle aria-hidden="true" />Geciken
                 <span className="ui-count" data-tone={late ? "danger" : undefined}>{count(late)}</span>
               </button>
+              {(callbacks > 0 || callbackOn) && (
+                <button type="button" className="so-ov-late" aria-pressed={callbackOn} title="İlk siparişi telefonla teyit edilmemiş aktif siparişler"
+                  onClick={() => patch({ attention: callbackOn ? "none" : "callback" })}>
+                  <PhoneCall aria-hidden="true" />Teyit bekleyen
+                  <span className="ui-count" data-tone={callbacks ? "danger" : undefined}>{count(callbacks)}</span>
+                </button>
+              )}
             </div>
           </div>
         )}

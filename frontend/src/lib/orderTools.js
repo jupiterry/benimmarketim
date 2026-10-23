@@ -558,7 +558,7 @@ const csvNumber = (value) => (Number(value) || 0).toFixed(2).replace(".", ",");
 export const ORDER_CSV_COLUMNS = [
   "Sipariş No", "Tarih", "Saat", "Müşteri", "Telefon", "E-posta", "Teslimat Noktası", "Bölge", "Adres", "Ödeme", "Durum",
   "Çeşit", "Adet", "Ara Toplam", "Kupon", "İndirim", "Ürün tutarı", "Teslimat ücreti", "Toplam", "Teslim Süresi (dk)", "Müşteri Notu",
-  "Teslimat Takibi", "Ürünler",
+  "Teslimat Takibi", "Ürünler", "Kurye", "Teslim Edilemedi",
 ];
 
 export const buildOrdersCsv = (orders) => {
@@ -592,6 +592,8 @@ export const buildOrdersCsv = (orders) => {
       csvCell(order.note || ""),
       csvCell(order.deliveryTracking || ""),
       csvCell(products.map((p) => `${p.name} x${p.quantity}`).join(", ")),
+      csvCell(order.courier?.name || ""),
+      csvCell(order.deliveryOutcome?.code ? [order.deliveryOutcome.label, order.deliveryOutcome.note].filter(Boolean).join(" — ") : ""),
     ].join(";");
   });
   return `\uFEFF${ORDER_CSV_COLUMNS.map(csvCell).join(";")}\r\n${rows.join("\r\n")}`;
@@ -771,10 +773,11 @@ export const buildDayCloseSummary = (orders, now = Date.now(), { dayStart } = {}
     }
   }
 
-  // Kasa: bugün teslim edilenler (teslim anına göre; geçmiş yoksa updatedAt)
+  // Kasa: bugün teslim edilenler (teslim anına göre; geçmiş yoksa updatedAt). Kurye bazında da toplanır.
   let deliveredToday = 0;
   let deliveredTodayTotal = 0;
   const collected = { cash: [0, 0], card: [0, 0], bank_transfer: [0, 0] };
+  const couriers = new Map();
   for (const order of list) {
     if (order.status !== "Teslim Edildi") continue;
     const at = lastStatusMs(order, "Teslim Edildi") ?? toTime(order.updatedAt);
@@ -787,6 +790,20 @@ export const buildDayCloseSummary = (orders, now = Date.now(), { dayStart } = {}
       bucket[0] += amount;
       bucket[1] += 1;
     }
+    const courierId = order.courier?.id ? String(order.courier.id) : "none";
+    if (!couriers.has(courierId)) {
+      couriers.set(courierId, {
+        id: courierId, name: courierId === "none" ? "Atanmamış" : order.courier?.name || "Kurye",
+        count: 0, total: 0, cash: 0, cashCount: 0, card: 0, cardCount: 0, transfer: 0, transferCount: 0, other: 0, otherCount: 0,
+      });
+    }
+    const row = couriers.get(courierId);
+    row.count += 1;
+    row.total += amount;
+    if (order.paymentMethod === "cash") { row.cash += amount; row.cashCount += 1; }
+    else if (order.paymentMethod === "card") { row.card += amount; row.cardCount += 1; }
+    else if (order.paymentMethod === "bank_transfer") { row.transfer += amount; row.transferCount += 1; }
+    else { row.other += amount; row.otherCount += 1; }
   }
 
   const open = list.filter((order) => isOpenStatus(order.status))
@@ -835,6 +852,15 @@ export const buildDayCloseSummary = (orders, now = Date.now(), { dayStart } = {}
     deliveredTransferCount: collected.bank_transfer[1],
     deliveredToday,
     deliveredTodayTotal: roundMoney(deliveredTodayTotal),
+    // Kurye bazında bugün teslim edilenlerin tahsilatı (yalnızca en az bir siparişte kurye atanmışsa dolu)
+    byCourier: [...couriers.keys()].some((key) => key !== "none")
+      ? [...couriers.values()]
+        .map((row) => ({
+          ...row, total: roundMoney(row.total), cash: roundMoney(row.cash), card: roundMoney(row.card),
+          transfer: roundMoney(row.transfer), other: roundMoney(row.other),
+        }))
+        .sort((a, b) => (a.id === "none") - (b.id === "none") || b.count - a.count || collator.compare(a.name, b.name))
+      : [],
     open,
     openPrep: open.filter((order) => order.status === "Hazırlanıyor").length,
     openRoad: open.filter((order) => order.status === "Yolda").length,
@@ -942,6 +968,13 @@ export const buildDayCloseDocument = (summary, { autoPrint = true, counted = nul
       ? row("Sayılan nakit", money(countedValue), "strong") + row("Fark", signedMoney(countedValue - (s.deliveredCash || 0)), "strong")
       : '<div class="line"><span>Sayılan nakit</span><span></span></div><div class="line"><span>Fark</span><span></span></div>',
   ].join("");
+  const courierHtml = (s.byCourier || []).length ? `
+            <h2>Kurye bazında (bugün teslim)</h2>
+            ${s.byCourier.map((c) => row(`${c.name} (${c.count})`, money(c.total), "strong")
+              + row(`  Nakit (${c.cashCount})`, money(c.cash))
+              + row(`  POS (${c.cardCount})`, money(c.card))
+              + (c.transferCount ? row(`  Havale (${c.transferCount})`, money(c.transfer)) : "")
+              + (c.otherCount ? row(`  Belirtilmemiş (${c.otherCount})`, money(c.other)) : "")).join("")}` : "";
   const openList = s.open || [];
   const openHtml = openList.length ? `
             <h2>Açık siparişler (${openList.length})</h2>
@@ -979,6 +1012,7 @@ export const buildDayCloseDocument = (summary, { autoPrint = true, counted = nul
             <div class="rule-solid"></div>
             <h2>Kasa (bugün teslim edilenler)</h2>
             ${cashRows}
+            ${courierHtml}
             ${openHtml}
             <div class="rule-solid"></div>
             <div class="line"><span>İmza</span><span></span></div>
@@ -1036,6 +1070,7 @@ export const buildRunSheetDocument = (orders, { title, autoPrint = true } = {}) 
             <div class="stop">
               <div class="stop-head"><span class="box"></span><span>#${esc(shortOrderId(order.orderId))}</span><span class="where">${esc(orderPointName(order))}</span></div>
               <div class="name">${esc(printableCustomer(order, "Müşteri"))}</div>
+              ${order.needsCallback && !order.callbackConfirmedAt ? '<div class="note">TEYİT İÇİN ARA (ilk sipariş)</div>' : ""}
               ${addressHtml}
               <div class="phone">${esc(phone)}</div>
               <div class="pay"><span>${esc(RUN_PAY_LINE[method] || "Ödeme belirtilmemiş")}</span><span>${esc(money(amount))}</span></div>

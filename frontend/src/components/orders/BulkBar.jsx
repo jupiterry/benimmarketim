@@ -4,7 +4,7 @@
 // ≤760 px: alt sekme çubuğunun üstünde sabit; sayı, iki ana düğme ve ⋯ (yazdır, toplama, durumlar, seçimi bırak).
 // Sözleşme: CONTRACTS.md §7.8. Stil: styles/orders-list.css (önek so-bulk-).
 import { useRef } from "react";
-import { AlertTriangle, CheckCircle2, Eye, EyeOff, ListChecks, Printer, Shuffle, Truck, Users, X } from "lucide-react";
+import { AlertTriangle, Bike, CheckCircle2, Eye, EyeOff, ListChecks, Printer, Shuffle, Truck, UserMinus, Users, X } from "lucide-react";
 import { useIsMobile } from "../admin/ui";
 import { MenuButton, SrOnly } from "./atoms";
 import { BULK_MAX, ORDER_STATUSES, STATUS, moveLabel } from "./shared";
@@ -42,6 +42,7 @@ const focusTargetIn = (root) =>
  */
 export default function BulkBar({
   orders = [], hiddenCount = 0, max = BULK_MAX, onAdvance, onSetStatus, onPrint, onPicking, onKeepVisible, onClear,
+  couriers = [], onAssignCourier,
 }) {
   const isMobile = useIsMobile();
   const rootRef = useRef(null);
@@ -85,6 +86,22 @@ export default function BulkBar({
     statusItems[3],
   ];
 
+  // Kuryeye ata: aktif kuryeler (her birinde zaten o kuryede olan seçili sayısı) + atamayı kaldır
+  const assigned = orders.filter((o) => o.courier?.id).length;
+  const courierItems = onAssignCourier ? [
+    { type: "label", label: couriers.length ? "Seçililerin tümünü ata" : "Kurye yok — Teslimat bölgeleri ekranından ekleyin" },
+    ...couriers.map((c) => {
+      const already = orders.filter((o) => String(o.courier?.id || "") === c._id).length;
+      return {
+        id: `courier-${c._id}`, label: c.name, icon: Bike, disabled: over || already === n,
+        description: already ? `${already} sipariş zaten bu kuryede` : undefined,
+        onSelect: () => onAssignCourier(c),
+      };
+    }),
+    { type: "divider" },
+    { id: "courier-none", label: `Kurye atamasını kaldır (${assigned})`, icon: UserMinus, disabled: over || assigned === 0, onSelect: () => onAssignCourier(null) },
+  ] : [];
+
   const wayTitle = k ? `Hazırlanıyor durumundaki ${k} seçili siparişi yola çıkar` : "Seçimde Hazırlanıyor durumunda sipariş yok";
   const doneTitle = m ? `Yolda olan ${m} seçili siparişi teslim et` : "Seçimde Yolda durumunda sipariş yok";
   const hiddenTitle = "Bu siparişler şu anki filtre ya da görünümde görünmüyor; toplu işlemler onları da kapsar";
@@ -110,6 +127,7 @@ export default function BulkBar({
       hidden > 0 && { type: "divider" },
       { id: "print", label: "Fişleri yazdır", icon: Printer, onSelect: () => onPrint?.() },
       { id: "picking", label: "Toplama listesi", icon: ListChecks, onSelect: () => onPicking?.() },
+      ...(courierItems.length ? [{ type: "divider" }, ...courierItems.map((item) => (item.type === "label" ? { ...item, label: "Kuryeye ata" } : item))] : []),
       { type: "divider" },
       ...statusMenu,
       { type: "divider" },
@@ -174,6 +192,19 @@ export default function BulkBar({
         <button type="button" className="ui-btn ui-btn--sm" onClick={() => onPicking?.()} title="Seçili siparişlerin ürünlerini topla">
           <ListChecks aria-hidden="true" />Toplama listesi
         </button>
+        {courierItems.length > 0 && (
+          <MenuButton
+            label="Kuryeye ata"
+            icon={Bike}
+            caret
+            size="sm"
+            items={courierItems}
+            align="start"
+            className="so-bulk-courier"
+            menuLabel="Seçili siparişleri kuryeye ata"
+            title="Seçili siparişleri bir kuryeye ata"
+          />
+        )}
         <MenuButton
           label="Diğer durum"
           icon={Shuffle}

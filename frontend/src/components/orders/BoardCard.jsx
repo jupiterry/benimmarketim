@@ -6,12 +6,12 @@ import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 
 import { CheckSquare, GripVertical, MinusSquare } from "lucide-react";
 import { formatDateTime, money } from "../admin/ui";
 import {
-  CustomerFace, MenuButton, NextStepButton, NoteChip, OrderCode, PaymentChip, PickProgress, PointChip, PrintedMark,
-  SelectCheck, SlaChip, TrustBadges, UnseenBadge,
+  CallbackBadge, CourierChip, CustomerFace, MenuButton, NextStepButton, NoteChip, OrderCode, OutcomeChip, PaymentChip, PickProgress,
+  PointChip, PrintedMark, SelectCheck, SlaChip, TrustBadges, UnseenBadge,
 } from "./atoms";
 import {
-  completedAt, customerName, durationMinutes, formatMinutes, getSla, isDoneStatus, moveTargets, orderAriaLabel, orderCode,
-  paymentKey, pointKey, shortWhen, statusUi,
+  completedAt, courierKey, customerName, durationMinutes, formatMinutes, getSla, isDoneStatus, moveTargets, needsCallbackPending,
+  orderAriaLabel, orderCode, paymentKey, pointKey, shortWhen, statusUi,
 } from "./shared";
 import "../../styles/orders-board.css";
 
@@ -82,7 +82,8 @@ function BoardCard({
   const sla = order && !done ? getSla(order, now) : null;
   const sig = order && !done
     ? [pointKey(order), paymentKey(order), order.hasNote ? 1 : 0, order.isFirstOrder ? 1 : 0,
-      order.cancelBadge || 0, picked?.done || 0, picked?.total || 0, printedAt || 0].join("|")
+      order.cancelBadge || 0, picked?.done || 0, picked?.total || 0, printedAt || 0,
+      needsCallbackPending(order) ? 1 : 0, courierKey(order)].join("|")
     : "";
   const more = useChipOverflow(chipsRef, sig, Boolean(order) && !done);
   if (!order) return null;
@@ -210,10 +211,16 @@ function BoardCard({
         {done ? menu : <SlaChip order={order} now={now} className="so-b-sla" />}
       </div>
 
+      {done && order.status === "İptal Edildi" && order.deliveryOutcome?.code && (
+        <div className="so-b-chips"><OutcomeChip order={order} /></div>
+      )}
+
       {!done && (
         <div className="so-b-chips" ref={chipsRef}>
+          <CallbackBadge order={order} />
           <PointChip order={order} />
           <PaymentChip order={order} />
+          <CourierChip order={order} />
           <NoteChip order={order} />
           <TrustBadges order={order} />
           <PickProgress info={picked} />

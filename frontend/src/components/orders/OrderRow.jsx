@@ -7,8 +7,8 @@ import { memo } from "react";
 import { Archive } from "lucide-react";
 import { formatTime, money } from "../admin/ui";
 import {
-  CustomerFace, NextStepButton, NoteChip, OrderCode, PaymentChip, PickProgress, PointChip, PrintedMark, SelectCheck, SlaChip,
-  StatusBadge, TrustBadges, UnseenBadge,
+  CallbackBadge, CourierChip, CustomerFace, NextStepButton, NoteChip, OrderCode, OutcomeChip, PaymentChip, PickProgress, PointChip,
+  PrintedMark, SelectCheck, SlaChip, StatusBadge, TrustBadges, UnseenBadge,
 } from "./atoms";
 import { customerName, getSla, nextAction, orderAriaLabel, orderCode, shortWhen, statusUi } from "./shared";
 import "../../styles/orders-list.css";
@@ -20,6 +20,7 @@ const Delivery = ({ order, className }) => (
   <span className={className}>
     <PointChip order={order} />
     <PaymentChip order={order} />
+    <CourierChip order={order} />
   </span>
 );
 
@@ -72,6 +73,8 @@ function OrderRow({
         <span className="so-l-who">
           <span className="so-l-name">
             <span className="so-l-name-text">{customerName(order)}</span>
+            <CallbackBadge order={order} />
+            <OutcomeChip order={order} />
             <TrustBadges order={order} />
             {unseen && <UnseenBadge />}
             {archived && (

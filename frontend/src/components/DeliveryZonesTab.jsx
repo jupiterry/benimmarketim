@@ -2,7 +2,8 @@
 // bölgeye özel minimum sepeti ve tahmini süreyi yönetir. Üstte "Adrese teslimat" anahtarı (Kapalı / Pilot / Herkese açık)
 // ve "Her yerde ücretsiz teslimat" kampanyası bulunur. Anahtar "Kapalı" iken mevcut uygulama bugünkü gibi çalışır.
 // Uç noktalar: GET/POST /delivery/admin/zones, PUT/DELETE /delivery/admin/zones/:id, PATCH /delivery/admin/zones/bulk,
-// GET/PUT /delivery/admin/settings, GET /settings (genel minimum sepet). Değişiklikler sunucuda işlem kaydına yazılır.
+// GET/PUT /delivery/admin/settings, GET /settings (genel minimum sepet), GET/PUT /delivery/admin/couriers (Kuryeler kartı).
+// Değişiklikler sunucuda işlem kaydına yazılır.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Gift, Keyboard, MapPin, MapPinned, Plus, RefreshCw, Search, X } from "lucide-react";
 import toast from "react-hot-toast";
@@ -10,6 +11,7 @@ import axios from "../lib/axios";
 import { useConfirm } from "./ConfirmModal";
 import { EmptyState, PageHeader, ShortcutHelp, SkeletonRows, SortHead, fold, undoable, useListShortcuts, usePref } from "./admin/ui";
 import RolloutCard from "./delivery-zones/RolloutCard";
+import CouriersCard from "./delivery-zones/CouriersCard";
 import ZoneRow from "./delivery-zones/ZoneRow";
 import ZoneDrawer from "./delivery-zones/ZoneDrawer";
 import BulkBar from "./delivery-zones/BulkBar";
@@ -33,7 +35,7 @@ const normalizeSettings = (data = {}, previous = null) => ({
 const applySet = (zone, set) => ({ ...zone, ...set, ...(set.enabled ? { closedReason: zone.closedReason } : {}) });
 
 const DeliveryZonesTab = ({ users: usersProp }) => {
-  const confirm = useConfirm();
+  const { confirm } = useConfirm();
   // ── Veri ──
   const [zones, setZones] = useState(null);
   const [zonesLoading, setZonesLoading] = useState(true);
@@ -289,6 +291,8 @@ const DeliveryZonesTab = ({ users: usersProp }) => {
       set = { minimumOrderAmount: value };
       message = (c) => (value === null ? `${num(c)} bölge genel minimum sepete döndü` : value === 0 ? `${num(c)} bölgede minimum sepet kaldırıldı` : `${num(c)} bölgede minimum sepet ${tl(value)}`);
     } else if (kind === "open") { set = { enabled: true }; message = (c) => `${num(c)} bölge siparişe açıldı`; }
+    else if (kind === "callbackOn") { set = { requireFirstOrderCallback: true }; message = (c) => `${num(c)} bölgede ilk sipariş telefonla teyit edilecek`; }
+    else if (kind === "callbackOff") { set = { requireFirstOrderCallback: false }; message = (c) => `${num(c)} bölgede ilk sipariş teyidi kapatıldı`; }
     else if (kind === "close") {
       const yurts = chosen.filter((z) => z.type === "yurt" && z.enabled);
       const ok = await confirm({
@@ -466,6 +470,8 @@ const DeliveryZonesTab = ({ users: usersProp }) => {
           <button type="button" className="ui-btn ui-btn--sm" onClick={loadSettings}><RefreshCw />Tekrar dene</button>
         </div>
       )}
+
+      <CouriersCard />
 
       <section className="ui-panel dz-list" aria-label="Bölgeler">
         {all.length > 0 && (

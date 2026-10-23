@@ -29,7 +29,7 @@ const requestedChatId = () => new URLSearchParams(window.location.search).get("c
 export default function ChatTab() {
   const { user } = useUserStore();
   const accessToken = user?.accessToken;
-  const confirm = useConfirm();
+  const { confirm } = useConfirm();
   const now = useNow(30000);
   const narrow = useMediaQuery("(max-width: 1100px)");
   const mobile = useMediaQuery("(max-width: 760px)");
