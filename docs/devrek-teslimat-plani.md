@@ -4,6 +4,8 @@
 **Sipariş kanalı:** Yalnızca mobil uygulama. Web sitesinden sipariş açılmayacak.
 **Teslimat ücreti:** Bölge bölge yönetici panelinden ayarlanır. Ücretsiz bölgelerde müşteri "Ücretsiz teslimat" görür.
 
+> **Güncelleme (karar):** Bölgeler sabit üç tanedir: **Kız KYK Yurdu**, **Erkek KYK Yurdu** ve **Genel Devrek**. Genel Devrek'in alanı, sitedeki haritada görünen Devrek merkez sınırıdır (OpenStreetMap'ten yüklenir, panelden doğrulanır). Devrek adreslerinde mahalle, sokak, bina no ve haritada pin zorunludur; pin sınır dışındaysa sipariş alınmaz. Aşağıdaki mahalle/köy katmanlarından ve köy günü rotalarından söz eden bölümler bu karara göre geçersizdir. Mobil için güncel prompt: `docs/mobil-asama-2-prompt.md`.
+
 ## Temel kararlar
 
 | Konu | Karar |

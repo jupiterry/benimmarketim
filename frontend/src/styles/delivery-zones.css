@@ -1184,3 +1184,363 @@
     min-height: 40px;
   }
 }
+
+/* ── Sabit bölge kartları (Kız KYK Yurdu, Erkek KYK Yurdu, Genel Devrek) ── */
+.admin-layout .dz-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ui-s4);
+  align-items: start;
+}
+.admin-layout .dz-card[data-wide],
+.admin-layout .dz-cards-empty {
+  grid-column: 1 / -1;
+}
+.admin-layout .dz-card {
+  min-width: 0;
+  border-top: 3px solid var(--ui-line-strong);
+}
+.admin-layout .dz-card[data-open] {
+  border-top-color: var(--ui-ok);
+}
+.admin-layout .dz-card--skel,
+.admin-layout .dz-card--missing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s3);
+  padding: var(--ui-s4);
+}
+.admin-layout .dz-card-form {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.admin-layout .dz-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-s3);
+  padding: var(--ui-s4) var(--ui-s4) var(--ui-s2);
+}
+.admin-layout .dz-card-icon {
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-info-bg);
+  color: var(--ui-info-ink);
+}
+.admin-layout .dz-card-icon[data-type="ilce"] {
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+}
+.admin-layout .dz-card-icon svg {
+  width: 20px;
+  height: 20px;
+}
+.admin-layout .dz-card-titles {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.admin-layout .dz-card-note {
+  margin: 2px 0 0;
+  line-height: 1.45;
+}
+.admin-layout .dz-card-state {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.admin-layout .dz-card-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 0 var(--ui-s4) var(--ui-s3);
+  border-bottom: 1px solid var(--ui-line);
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text-2);
+}
+.admin-layout .dz-card-stats strong {
+  color: var(--ui-text);
+  font-weight: 700;
+}
+.admin-layout .dz-card-dot {
+  color: var(--ui-text-3);
+}
+.admin-layout .dz-card-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ui-s4);
+  padding: var(--ui-s4);
+}
+.admin-layout .dz-card-body--wide {
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  align-items: start;
+}
+.admin-layout .dz-card-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s4);
+  min-width: 0;
+}
+.admin-layout .dz-card-extra {
+  min-width: 0;
+}
+.admin-layout .dz-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ui-s2);
+  padding: var(--ui-s3) var(--ui-s4);
+  border-top: 1px solid var(--ui-line);
+  background: var(--ui-surface-2);
+  border-radius: 0 0 var(--ui-radius-lg) var(--ui-radius-lg);
+}
+.admin-layout .dz-card-foot[data-dirty] {
+  background: var(--ui-warn-bg);
+}
+.admin-layout .dz-card-dirty {
+  flex: 1 1 auto;
+  margin: 0;
+  min-width: 0;
+}
+.admin-layout .dz-card-foot[data-dirty] .dz-card-dirty {
+  color: var(--ui-warn-ink);
+  font-weight: 600;
+}
+.admin-layout .dz-page-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+/* ── Devrek: teslimat alanı ──────────────────────────────────────────── */
+.admin-layout .dz-area {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s3);
+  padding: var(--ui-s4);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-2);
+}
+.admin-layout .dz-area-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-s3);
+}
+.admin-layout .dz-area-icon {
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-line);
+  color: var(--ui-brand);
+}
+.admin-layout .dz-area-icon svg {
+  width: 17px;
+  height: 17px;
+}
+.admin-layout .dz-area-titles {
+  min-width: 0;
+}
+.admin-layout .dz-area-h {
+  margin: 0;
+  font-size: var(--ui-fs-md);
+  font-weight: 700;
+  color: var(--ui-text);
+}
+.admin-layout .dz-area-titles .ui-hint {
+  margin: 2px 0 0;
+  line-height: 1.45;
+}
+.admin-layout .dz-area-status {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-s2);
+  padding: 10px 12px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-ok-bg);
+  color: var(--ui-ok-ink);
+}
+.admin-layout .dz-area-status[data-state="missing"] {
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+.admin-layout .dz-area-status > svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+.admin-layout .dz-area-status-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: var(--ui-fs-sm);
+  overflow-wrap: anywhere;
+}
+.admin-layout .dz-area-status-text strong {
+  font-weight: 700;
+}
+.admin-layout .dz-area-error {
+  margin: 0;
+}
+.admin-layout .dz-area-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-s2);
+}
+.admin-layout .dz-area-clear {
+  color: var(--ui-danger-ink);
+}
+.admin-layout .dz-area-cands {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.admin-layout .dz-area-cands > legend {
+  margin-bottom: 2px;
+  padding: 0;
+}
+.admin-layout .dz-area-cands-hint {
+  margin: 0;
+  line-height: 1.45;
+}
+.admin-layout .dz-area-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.admin-layout .dz-area-cand {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-s3);
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  cursor: pointer;
+  transition: border-color var(--ui-ease), background var(--ui-ease);
+}
+.admin-layout .dz-area-cand:hover {
+  border-color: var(--ui-line-strong);
+}
+.admin-layout .dz-area-cand[data-checked] {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand-soft);
+}
+.admin-layout .dz-area-cands:disabled .dz-area-cand {
+  cursor: progress;
+  opacity: 0.75;
+}
+.admin-layout .dz-area-radio {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--ui-brand);
+}
+.admin-layout .dz-area-cand-main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.admin-layout .dz-area-cand-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  color: var(--ui-text);
+  overflow-wrap: anywhere;
+}
+.admin-layout .dz-area-tag {
+  font-weight: 600;
+}
+.admin-layout .dz-area-cand-meta {
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-2);
+}
+.admin-layout .dz-area-cand-busy {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--ui-text-3);
+}
+.admin-layout .dz-area-cand-link {
+  flex-shrink: 0;
+}
+
+@media (max-width: 1100px) {
+  .admin-layout .dz-card-body--wide {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 900px) {
+  .admin-layout .dz-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 760px) {
+  .admin-layout .dz-cards {
+    gap: var(--ui-s3);
+  }
+  .admin-layout .dz-card-head {
+    padding: var(--ui-s3) var(--ui-s3) var(--ui-s2);
+  }
+  .admin-layout .dz-card-stats {
+    padding: 0 var(--ui-s3) var(--ui-s3);
+  }
+  .admin-layout .dz-card-body {
+    padding: var(--ui-s3);
+  }
+  .admin-layout .dz-card-foot {
+    padding: var(--ui-s3);
+  }
+  .admin-layout .dz-card-foot .ui-btn {
+    min-height: 40px;
+    justify-content: center;
+  }
+  .admin-layout .dz-card-foot .ui-btn--primary {
+    flex: 1 1 auto;
+  }
+  .admin-layout .dz-card-dirty {
+    flex-basis: 100%;
+  }
+  .admin-layout .dz-area {
+    padding: var(--ui-s3);
+  }
+  .admin-layout .dz-area-actions .ui-btn {
+    flex: 1 1 100%;
+    justify-content: center;
+    min-height: 40px;
+  }
+  .admin-layout .dz-area-cand-link {
+    width: 36px;
+    height: 36px;
+  }
+  .admin-layout .dz-card .ui-switch {
+    min-width: 44px;
+    min-height: 40px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-layout .dz-area-cand {
+    transition: none;
+  }
+}

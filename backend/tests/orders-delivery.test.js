@@ -57,7 +57,7 @@ const chain = (result, record = {}) => {
 };
 
 const ADDRESS = {
-  zoneId: "mah-cumhuriyet", zoneName: "Cumhuriyet Mah.", street: "Atatürk Cd.", buildingNo: "5", buildingName: "Gül Apt.",
+  zoneId: "devrek", zoneName: "Devrek", neighborhood: "Cumhuriyet", street: "Atatürk Cd.", buildingNo: "5", buildingName: "Gül Apt.",
   floor: "2", apartment: "4", directions: "Eczanenin üstü", location: { lat: 41.2195, lng: 31.9512 },
 };
 const dormOrder = (fields = {}) => ({
@@ -70,7 +70,7 @@ const dormOrder = (fields = {}) => ({
 const addressOrder = (fields = {}) => dormOrder({
   _id: new mongoose.Types.ObjectId(ORDER(2)),
   deliveryPoint: "address", deliveryType: "address", deliveryPointName: "Cumhuriyet Mah. · Atatürk Cd. No:5",
-  deliveryZone: { id: "mah-cumhuriyet", name: "Cumhuriyet Mah.", type: "mahalle" }, deliveryAddress: ADDRESS,
+  deliveryZone: { id: "devrek", name: "Devrek", type: "ilce" }, deliveryAddress: ADDRESS, areaVerified: false,
   productTotal: 80, deliveryFee: 40, totalAmount: 120, ...fields,
 });
 
@@ -88,8 +88,14 @@ test("liste: adresli siparişte bölge, adres, ücret ve ürün tutarı; eski yu
     { deliveryType: "point", deliveryZone: null, deliveryAddress: null, deliveryFee: 0, productTotal: 80 },
   );
   assert.equal(fresh.deliveryType, "address");
-  assert.deepEqual(fresh.deliveryZone, { id: "mah-cumhuriyet", name: "Cumhuriyet Mah.", type: "mahalle" });
+  assert.deepEqual(fresh.deliveryZone, { id: "devrek", name: "Devrek", type: "ilce" });
   assert.deepEqual(fresh.deliveryAddress, ADDRESS);
+  assert.equal(fresh.areaVerified, false, "sınır yüklenmeden alınan Devrek siparişi");
+  assert.equal(old.areaVerified, null, "yurt/eski siparişte null");
+  // Eski adresli siparişte (mahalle alanı yok) neighborhood boş metin döner
+  const [legacyGroup] = groupOrdersByUser([addressOrder({ deliveryAddress: { ...ADDRESS, neighborhood: undefined }, areaVerified: undefined })]);
+  assert.equal(legacyGroup.orders[0].deliveryAddress.neighborhood, "");
+  assert.equal(legacyGroup.orders[0].areaVerified, null);
   assert.equal(fresh.deliveryFee, 40);
   assert.equal(fresh.productTotal, 80);
   assert.equal(fresh.totalAmount, 120);
@@ -236,7 +242,7 @@ test("pano: ciro ürün tutarından; teslimat ücreti ayrı; bölge dağılımı
   assert.equal(summary.recentOrders[0].totalAmount, 120);
   assert.equal(summary.recentOrders[0].productTotal, 80);
   assert.equal(summary.recentOrders[0].deliveryFee, 40);
-  assert.equal(summary.recentOrders[0].deliveryZoneName, "Cumhuriyet Mah.");
+  assert.equal(summary.recentOrders[0].deliveryZoneName, "Devrek");
 });
 
 // ── Analitik karşılaştırma ──────────────────────────────────────────────────

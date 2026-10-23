@@ -1,5 +1,5 @@
 import Settings from "../../models/settings.model.js";
-import DeliveryZone from "../../models/deliveryZone.model.js";
+import DeliveryZone, { DEVREK_ZONE_ID, FIXED_ZONE_IDS } from "../../models/deliveryZone.model.js";
 
 const formatTime = (hour, minute) => `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 
@@ -15,6 +15,10 @@ export const isWithinOrderSchedule = ({ startHour, startMinute, endHour, endMinu
 
 const numberOrNull = (value) => (value === null || value === undefined || value === "" || !Number.isFinite(Number(value)) ? null : Number(value));
 
+// Üç sabit bölge vardır: iki KYK yurdu (adlarıyla) ve Devrek merkez. Mahalle/köy bölgesi yoktur; Devrek bölgesi
+// uygulamadaki haritada gösterilen Devrek sınırının içidir.
+const ZONE_DESCRIPTIONS = { [DEVREK_ZONE_ID]: "Devrek merkez (haritadaki sınır)" };
+
 // Asistanın gördüğü bölge bilgisi: yalnızca panelde girilen değerler (ücret, eşik, minimum, süre).
 // Ücret 0 ise ücretsiz; minimumOrderAmount null ise genel minimum geçerlidir.
 export const publicZoneInfo = (zone, generalMinimum) => {
@@ -29,15 +33,16 @@ export const publicZoneInfo = (zone, generalMinimum) => {
     freeDeliveryThreshold: numberOrNull(zone.freeDeliveryThreshold),
     minimumOrderAmount: zoneMinimum ?? generalMinimum,
     etaText: String(zone.etaText || "").slice(0, 40),
+    description: ZONE_DESCRIPTIONS[String(zone._id ?? zone.id)] || "",
   };
 };
 
-// Açık teslimat bölgeleri (sortOrder sırasıyla). Bölge koleksiyonu henüz tohumlanmadıysa ya da
-// okunamazsa, bugünkü yurt teslimat noktaları (ücretsiz, eski akış) gösterilir.
+// Açık teslimat bölgeleri (yalnızca üç sabit bölge: Kız KYK Yurdu, Erkek KYK Yurdu, Devrek merkez; sortOrder
+// sırasıyla). Bölge koleksiyonu henüz tohumlanmadıysa ya da okunamazsa, bugünkü yurt teslimat noktaları (ücretsiz, eski akış) gösterilir.
 export const getDeliveryZoneInfo = async (settings, generalMinimum) => {
   let zones = [];
   try {
-    zones = await DeliveryZone.find({ enabled: true }).sort({ sortOrder: 1, name: 1 }).lean();
+    zones = await DeliveryZone.find({ _id: { $in: FIXED_ZONE_IDS }, enabled: true }).select("-area -areaCandidates").sort({ sortOrder: 1, name: 1 }).lean();
   } catch (error) {
     console.error("AI teslimat bölgeleri okunamadı:", error.message);
     zones = [];

@@ -24,6 +24,7 @@ import {
   needsFirstOrderCallback,
   normalizeAddressInput,
   resolveMinimumOrderAmount,
+  validateAddressForZone,
   roundMoney,
   zoneClosedMessage,
   zoneSnapshot,
@@ -339,6 +340,8 @@ export const updateQuantity = async (req, res) => {
 //    teslimat ücreti HER ZAMAN 0. (Yeni istemci zoneId = girlsDorm | boysDorm da gönderebilir.)
 //  - Adres akışı: gövdede addressId ya da deliveryAddress (+ zoneId) varsa. Yalnızca
 //    settings.delivery.addressOrdering izin veriyorsa; ücret ve minimum sunucuda hesaplanıp kilitlenir.
+//    Devrek bölgesinde mahalle/sokak/bina no/konum zorunlu; konum yüklü sınırın dışındaysa 400 OUT_OF_AREA,
+//    sınır yüklenmemişse sipariş alınır ve areaVerified: false yazılır.
 // Her 4xx yanıtı hem `error` (web) hem `message` (mobil) taşır.
 // ─────────────────────────────────────────────────────────────────
 const fail = (res, status, message, extra = {}) => res.status(status).json({ error: message, message, ...extra });
@@ -420,9 +423,12 @@ const placeAddressOrder = async (req, res, { products, phone, note, couponCode, 
     address = value;
   }
 
-  const zone = await getZone(address.zoneId, { settings });
+  const zone = await getZone(address.zoneId, { settings, withArea: true });
   if (!zone) return fail(res, 400, "Teslimat bölgesi bulunamadı. Lütfen adresinizi güncelleyin.", { code: "ZONE_NOT_FOUND" });
   if (!zone.enabled) return fail(res, 400, zoneClosedMessage(zone), { code: "ZONE_CLOSED", closedReason: zone.closedReason || "" });
+  // Bölge kuralları: Devrek'te mahalle/sokak/bina no/konum zorunlu ve konum yüklü sınırın içinde olmalı
+  const areaCheck = validateAddressForZone(address, zone);
+  if (areaCheck.error) return fail(res, 400, areaCheck.error, { code: areaCheck.code });
 
   // Fiyat hesaplama (order.service) ve teslimat ücreti (delivery.service) — istemci değerleri kullanılmaz
   const { orderProducts, totalAmount: subtotal } = await buildOrderProducts(products);
@@ -466,6 +472,8 @@ const placeAddressOrder = async (req, res, { products, phone, note, couponCode, 
     couponDiscount,
     paymentMethod,
     needsCallback,
+    // Devrek: alan yüklüyse ve konum içindeyse true, alan yüklenmemişken false; yurtta alan yok
+    ...(typeof areaCheck.areaVerified === "boolean" ? { areaVerified: areaCheck.areaVerified } : {}),
   });
 
   return finalizeOrder(req, res, newOrder, appliedCoupon, phone);

@@ -23,7 +23,7 @@ export const ACTIVE_ORDER_STATUSES = ["Hazırlanıyor", "Yolda"];
 const PREPARING_STATUS = "Hazırlanıyor";
 const DELETED_ACCOUNT_NAME = "Silinmiş hesap";
 const ORDER_LIST_FIELDS =
-  "user products totalAmount subtotalAmount couponCode couponDiscount discountPercentage status deliveryTracking statusHistory note phone city deliveryPoint deliveryPointName deliveryType deliveryZone deliveryAddress deliveryFee productTotal paymentMethod cancelReason createdAt updatedAt device userDeleted needsCallback callbackConfirmedAt deliveryOutcome courier";
+  "user products totalAmount subtotalAmount couponCode couponDiscount discountPercentage status deliveryTracking statusHistory note phone city deliveryPoint deliveryPointName deliveryType deliveryZone deliveryAddress deliveryFee productTotal paymentMethod cancelReason createdAt updatedAt device userDeleted needsCallback callbackConfirmedAt deliveryOutcome courier areaVerified";
 
 export const INVALID_ORDER_ID_MESSAGE = "Geçersiz sipariş kimliği";
 export const SEARCH_TOO_SHORT_MESSAGE = "Arama en az 2 harf veya rakam içermeli";
@@ -47,7 +47,7 @@ export const orderProductTotal = (order) => {
   const value = order?.productTotal ?? order?.totalAmount;
   return Number(value) || 0;
 };
-const ADDRESS_KEYS = ["zoneId", "zoneName", "street", "buildingNo", "buildingName", "floor", "apartment", "directions"];
+const ADDRESS_KEYS = ["zoneId", "zoneName", "neighborhood", "street", "buildingNo", "buildingName", "floor", "apartment", "directions"];
 /** Adres kopyası düz nesne olarak (Mongoose iç içe yolu boş nesne döndürebilir → null) */
 const plainAddress = (address) => {
   if (!address || typeof address !== "object") return null;
@@ -250,6 +250,8 @@ export const groupOrdersByUser = (orders) => {
       deliveryOutcome: adminDeliveryOutcome(order.deliveryOutcome),
       deliveryOutcomeLabel: deliveryOutcomeText(order.deliveryOutcome),
       courier: adminCourier(order.courier),
+      // Devrek: konum teslimat alanında doğrulandı mı (false = sınır yüklenmeden alındı); yurt/eski siparişte null
+      areaVerified: typeof order.areaVerified === "boolean" ? order.areaVerified : null,
     });
   }
   return [...groups.values()];
