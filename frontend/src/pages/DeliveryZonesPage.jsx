@@ -13,7 +13,8 @@ const sections = [
   { id: "nasil-calisir", label: "Teslimat nasıl çalışır?" },
 ];
 
-const TYPE_LABELS = { yurt: "Yurt", mahalle: "Mahalle", koy: "Köy" };
+// Üç sabit bölge: iki KYK yurdu ve Devrek merkez (uygulamadaki haritada gösterilen Devrek sınırı)
+const TYPE_LABELS = { yurt: "KYK yurdu", ilce: "Devrek merkez (haritadaki sınır)" };
 
 const lira = (value) => `${Number(value || 0).toLocaleString("tr-TR", { maximumFractionDigits: 2 })} TL`;
 const isAmount = (value) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
@@ -29,6 +30,7 @@ const zoneLines = (zone, { freeEverywhere, generalMinimum }) => {
   const minimum = isAmount(zone.minimumOrderAmount) ? Number(zone.minimumOrderAmount) : (isAmount(generalMinimum) ? Number(generalMinimum) : null);
   if (minimum !== null) lines.push(minimum > 0 ? `Minimum sepet ${lira(minimum)}` : "Minimum sepet tutarı yok");
   if (zone.etaText) lines.push(`Tahmini teslimat: ${zone.etaText}`);
+  if (zone.type === "ilce" || zone.requiresLocation) lines.push("Adresini uygulamada haritada işaretlersin; Devrek sınırı içindeki adreslere teslim edilir");
   return { free, fee, lines };
 };
 
@@ -77,7 +79,7 @@ const DeliveryZonesPage = ({ initialData = null }) => {
       <LegalLayout
         title="Teslimat bölgeleri"
         subtitle="Devrek, Zonguldak"
-        description="Siparişlerini aşağıda listelenen bölgelerde kapına kadar getiriyoruz. Bölgeler, teslimat ücretleri ve minimum sepet tutarları güncel olarak burada görünür."
+        description="Siparişlerini Kız KYK Yurdu, Erkek KYK Yurdu ve Devrek merkezde (uygulamadaki haritada gösterilen Devrek sınırının içi) kapına kadar getiriyoruz. Açık bölgeler, teslimat ücretleri ve minimum sepet tutarları güncel olarak burada görünür."
         icon={MapPin}
         toc={sections}
         docs={false}
@@ -164,6 +166,10 @@ const DeliveryZonesPage = ({ initialData = null }) => {
             </div>
             <div className="legal-item">
               <div className="legal-dot" aria-hidden="true"></div>
+              <p className="legal-text">Üç teslimat bölgemiz var: Kız KYK Yurdu, Erkek KYK Yurdu ve Devrek merkez. Devrek merkez bölgesi, uygulamadaki haritada gösterilen Devrek sınırının içidir; adresini eklerken konumunu haritada işaretlersin.</p>
+            </div>
+            <div className="legal-item">
+              <div className="legal-dot" aria-hidden="true"></div>
               <p className="legal-text">Teslimat ücreti bölgeye göre değişebilir. Ücret varsa, siparişi onaylamadan önce uygulamada sepet özetinde gösterilir.</p>
             </div>
             <div className="legal-item">
@@ -173,7 +179,7 @@ const DeliveryZonesPage = ({ initialData = null }) => {
             <div className="legal-item">
               <div className="legal-dot" aria-hidden="true"></div>
               <p className="legal-text">
-                Bölgen listede yoksa henüz oraya teslimat yapamıyoruz. Talebini <Link className="legal-link" to="/contact">iletişim sayfasından</Link> bize iletebilirsin.
+                Adresin Devrek sınırının dışındaysa ya da bölge şu an kapalıysa oraya teslimat yapamıyoruz. Talebini <Link className="legal-link" to="/contact">iletişim sayfasından</Link> bize iletebilirsin.
               </p>
             </div>
           </div>

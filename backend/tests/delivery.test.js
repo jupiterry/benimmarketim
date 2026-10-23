@@ -24,8 +24,8 @@ import {
   computeDeliveryQuote,
   canOrderToAddress,
   resolveMinimumOrderAmount,
-  slugifyZoneName,
   buildAddressPointName,
+  validateAddressForZone,
   normalizeAddressInput,
   normalizeZoneInput,
   resetYurtSeedState,
@@ -97,11 +97,12 @@ const mockSettings = (t, fields) => {
   return { doc, saves, updates };
 };
 
+// Sabit üç bölge + eski sürümden kalmış (emekli) bir mahalle bölgesi: belgede açık görünse de kapalı sayılır
 const ZONES = () => [
   { _id: "girlsDorm", name: "Kız KYK Yurdu", type: "yurt", enabled: true, closedReason: "", deliveryFee: 0, freeDeliveryThreshold: null, minimumOrderAmount: null, etaText: "", sortOrder: 0, legacyPoint: "girlsDorm" },
   { _id: "boysDorm", name: "Erkek KYK Yurdu", type: "yurt", enabled: true, closedReason: "", deliveryFee: 0, freeDeliveryThreshold: null, minimumOrderAmount: null, etaText: "", sortOrder: 1, legacyPoint: "boysDorm" },
+  { _id: "devrek", name: "Devrek", type: "ilce", enabled: true, closedReason: "", deliveryFee: 40, freeDeliveryThreshold: 500, minimumOrderAmount: null, etaText: "30-60 dk", sortOrder: 2, legacyPoint: null, area: null },
   { _id: "mah-cumhuriyet", name: "Cumhuriyet Mahallesi", type: "mahalle", enabled: true, closedReason: "", deliveryFee: 40, freeDeliveryThreshold: 500, minimumOrderAmount: null, etaText: "30-60 dk", sortOrder: 5, legacyPoint: null },
-  { _id: "koy-yazicik", name: "Yazıcık Köyü", type: "koy", enabled: false, closedReason: "Yol kapalı", deliveryFee: 60, freeDeliveryThreshold: null, minimumOrderAmount: 300, etaText: "", sortOrder: 3, legacyPoint: null },
 ];
 
 /** DeliveryZone taklidi: bellekte bölge listesi; updateMany/findByIdAndUpdate gerçekten uygulanır */
@@ -130,7 +131,9 @@ const mockZones = (t, zones = ZONES()) => {
     fx.updateMany.push({ filter, update });
     let modified = 0;
     for (const zone of fx.zones) {
-      const match = filter._id?.$in ? filter._id.$in.includes(zone._id) : filter.legacyPoint ? zone.legacyPoint === filter.legacyPoint : false;
+      const match = filter._id?.$in ? filter._id.$in.includes(zone._id)
+        : filter._id?.$nin ? !filter._id.$nin.includes(zone._id) && (filter.enabled === undefined || zone.enabled === filter.enabled)
+          : filter.legacyPoint ? zone.legacyPoint === filter.legacyPoint : false;
       if (match) { Object.assign(zone, update.$set); modified += 1; }
     }
     return { matchedCount: modified, modifiedCount: modified };
@@ -254,16 +257,24 @@ test("sipariş saati mesajı doğal saat biçiminde", () => {
 });
 
 test("yardımcılar: adres doğrulama, kısa ad ve teslimat metni", () => {
-  assert.equal(slugifyZoneName("Cumhuriyet Mahallesi", "mahalle"), "mah-cumhuriyet");
-  assert.equal(slugifyZoneName("Yazıcık Köyü", "koy"), "koy-yazicik");
-  assert.equal(slugifyZoneName("Çaydeğirmeni", "koy"), "koy-caydegirmeni");
-  assert.equal(slugifyZoneName("Şirinköy Mah.", "mahalle"), "mah-sirinkoy");
-  assert.equal(buildAddressPointName({ name: "Cumhuriyet Mahallesi", type: "mahalle" }, { street: "Atatürk Cd.", buildingNo: "5" }), "Cumhuriyet Mah. · Atatürk Cd. No:5");
-  assert.ok(buildAddressPointName({ name: "X", type: "koy" }, { street: "a".repeat(100) }).length <= 60);
-  assert.equal(normalizeAddressInput({ zoneId: "mah-a" }).error, "Cadde/sokak bilgisi zorunludur");
-  assert.equal(normalizeAddressInput({ zoneId: "mah-a", street: "x", location: { lat: 200, lng: 1 } }).error, "Konum bilgisi geçersiz");
-  assert.deepEqual(normalizeAddressInput({ zoneId: "mah-a", street: "  Atatürk   Cd. ", location: { lat: "41.2", lng: 31.95 } }).value.location, { lat: 41.2, lng: 31.95 });
-  assert.equal(normalizeZoneInput({ name: "A", type: "mahalle", deliveryFee: -1 }).error.startsWith("Teslimat ücreti"), true);
+  const devrek = { _id: "devrek", name: "Devrek", type: "ilce" };
+  assert.equal(buildAddressPointName(devrek, { neighborhood: "Cumhuriyet", street: "Atatürk Cd.", buildingNo: "5" }), "Cumhuriyet Mah. · Atatürk Cd. No:5");
+  assert.equal(buildAddressPointName(devrek, { neighborhood: "Cumhuriyet Mahallesi", street: "Atatürk Cd.", buildingNo: "5" }), "Cumhuriyet Mah. · Atatürk Cd. No:5");
+  assert.equal(buildAddressPointName({ name: "Cumhuriyet Mahallesi", type: "mahalle" }, { street: "Atatürk Cd.", buildingNo: "5" }), "Cumhuriyet Mah. · Atatürk Cd. No:5", "eski mahalle bölgesi güvenle okunur");
+  assert.ok(buildAddressPointName(devrek, { neighborhood: "a".repeat(60), street: "a".repeat(100), buildingNo: "1" }).length <= 60);
+  assert.equal(normalizeAddressInput({ zoneId: "devrek", neighborhood: "a".repeat(61) }).error, "Mahalle en fazla 60 karakter olabilir");
+  assert.equal(normalizeAddressInput({ zoneId: "devrek", street: "x", location: { lat: 200, lng: 1 } }).error, "Konum bilgisi geçersiz");
+  assert.deepEqual(normalizeAddressInput({ zoneId: "devrek", street: "  Atatürk   Cd. ", location: { lat: "41.2", lng: 31.95 } }).value.location, { lat: 41.2, lng: 31.95 });
+  assert.equal(normalizeAddressInput({ zoneId: "devrek", neighborhood: "  Cumhuriyet  " }).value.neighborhood, "Cumhuriyet");
+  // Bölgeye göre zorunlu alanlar
+  const full = { neighborhood: "Cumhuriyet", street: "Atatürk Cd.", buildingNo: "5", location: { lat: 41.22, lng: 31.95 } };
+  assert.deepEqual(validateAddressForZone(full, devrek), { areaVerified: false }, "sınır yüklü değil → kabul, doğrulanmadı");
+  assert.equal(validateAddressForZone({ ...full, neighborhood: "" }, devrek).code, "NEIGHBORHOOD_REQUIRED");
+  assert.equal(validateAddressForZone({ ...full, street: "" }, devrek).error, "Cadde/sokak bilgisi zorunludur");
+  assert.equal(validateAddressForZone({ ...full, buildingNo: "" }, devrek).error, "Bina no zorunludur");
+  assert.equal(validateAddressForZone({ ...full, location: null }, devrek).code, "LOCATION_REQUIRED");
+  assert.deepEqual(validateAddressForZone({}, { _id: "girlsDorm", type: "yurt" }), { areaVerified: null }, "yurtta zorunlu alan yok");
+  assert.equal(normalizeZoneInput({ deliveryFee: -1 }).error.startsWith("Teslimat ücreti"), true);
   assert.deepEqual(normalizeZoneInput({ freeDeliveryThreshold: "", minimumOrderAmount: "150" }, { partial: true }).value, { freeDeliveryThreshold: null, minimumOrderAmount: 150 });
   assert.equal(isAddressOrderRequest(legacyBody()), false);
   assert.equal(isAddressOrderRequest({ zoneId: "girlsDorm" }), false);
@@ -394,8 +405,8 @@ const addressBody = (fields = {}) => ({
   paymentMethod: "card",
   products: [{ product: PRODUCT(1), quantity: 4 }], // 200 TL
   phone: "05551112233",
-  zoneId: "mah-cumhuriyet",
-  deliveryAddress: { street: "Atatürk Cd.", buildingNo: "5", floor: "2", apartment: "4", directions: "Eczanenin üstü", location: { lat: 41.2167, lng: 31.95 } },
+  zoneId: "devrek",
+  deliveryAddress: { neighborhood: "Cumhuriyet", street: "Atatürk Cd.", buildingNo: "5", floor: "2", apartment: "4", directions: "Eczanenin üstü", location: { lat: 41.2167, lng: 31.95 } },
   // İstemcinin gönderdiği tutarlar yok sayılır
   totalAmount: 1, deliveryFee: 0,
   note: "",
@@ -443,11 +454,12 @@ test("adresli sipariş (pilot kullanıcı): ücret sunucuda hesaplanır, city/de
   assert.equal(order.deliveryPoint, "address");
   assert.equal(order.deliveryType, "address");
   assert.equal(order.deliveryPointName, "Cumhuriyet Mah. · Atatürk Cd. No:5");
-  assert.deepEqual(order.deliveryZone, { id: "mah-cumhuriyet", name: "Cumhuriyet Mahallesi", type: "mahalle" });
+  assert.deepEqual(order.deliveryZone, { id: "devrek", name: "Devrek", type: "ilce" });
   assert.deepEqual(order.deliveryAddress, {
-    zoneId: "mah-cumhuriyet", zoneName: "Cumhuriyet Mahallesi", street: "Atatürk Cd.", buildingNo: "5", buildingName: "",
+    zoneId: "devrek", zoneName: "Devrek", neighborhood: "Cumhuriyet", street: "Atatürk Cd.", buildingNo: "5", buildingName: "",
     floor: "2", apartment: "4", directions: "Eczanenin üstü", location: { lat: 41.2167, lng: 31.95 },
   });
+  assert.equal(order.areaVerified, false, "sınır yüklenmeden alındı");
   assert.equal(order.paymentMethod, "card");
   // Şemaya uygun (gerçek Order doğrulaması)
   await new Order({ ...order, _id: undefined }).validate();
@@ -470,7 +482,7 @@ test("adresli sipariş: kayıtlı adres (addressId) yalnızca sahibinden okunur"
   t.mock.method(UserAddress, "findOne", (filter) => {
     lookups.push(filter);
     return chain(String(filter.user) === String(user._id) && filter._id === ADDRESS(1)
-      ? { _id: ADDRESS(1), user: user._id, zoneId: "mah-cumhuriyet", street: "İnönü Sk.", buildingNo: "12", buildingName: "Gül Apt.", floor: "", apartment: "", directions: "", location: null }
+      ? { _id: ADDRESS(1), user: user._id, zoneId: "devrek", neighborhood: "Cumhuriyet", street: "İnönü Sk.", buildingNo: "12", buildingName: "Gül Apt.", floor: "", apartment: "", directions: "", location: { lat: 41.22, lng: 31.95 } }
       : null);
   });
 
@@ -479,7 +491,8 @@ test("adresli sipariş: kayıtlı adres (addressId) yalnızca sahibinden okunur"
   assert.equal(res.statusCode, 201, JSON.stringify(res.body));
   assert.equal(created[0].deliveryPointName, "Cumhuriyet Mah. · İnönü Sk. No:12");
   assert.equal(created[0].deliveryAddress.buildingName, "Gül Apt.");
-  assert.equal(created[0].deliveryAddress.location, null);
+  assert.deepEqual(created[0].deliveryAddress.location, { lat: 41.22, lng: 31.95 });
+  assert.equal(created[0].deliveryAddress.neighborhood, "Cumhuriyet");
   assert.equal(String(lookups[0].user), String(user._id));
 
   const foreign = response();
@@ -489,41 +502,56 @@ test("adresli sipariş: kayıtlı adres (addressId) yalnızca sahibinden okunur"
   assert.equal(created.length, 1);
 });
 
-test("adresli sipariş: kapalı bölge 400 (kapanma nedeniyle), bölge minimumu altı 400, bilinmeyen bölge 400", async (t) => {
+test("adresli sipariş: kapalı bölge 400 (kapanma nedeniyle), bölge minimumu altı 400, bilinmeyen/emekli bölge, eksik adres", async (t) => {
   mockSettings(t, { delivery: { addressOrdering: "public" } });
   mockCatalog(t);
   const zones = mockZones(t);
   const created = mockOrderCreate(t);
+  const devrek = zones.zones.find((z) => z._id === "devrek");
+  Object.assign(devrek, { enabled: false, closedReason: "Yol kapalı", minimumOrderAmount: 300 });
 
   const closed = response();
-  await placeOrder(orderRequest(addressBody({ zoneId: "koy-yazicik" })), closed);
+  await placeOrder(orderRequest(addressBody()), closed);
   assert.equal(closed.statusCode, 400);
   assert.equal(closed.body.code, "ZONE_CLOSED");
-  assert.match(closed.body.message, /Yazıcık Köyü bölgesine şu anda teslimat yapılamıyor \(Yol kapalı\)/);
+  assert.match(closed.body.message, /Devrek bölgesine şu anda teslimat yapılamıyor \(Yol kapalı\)/);
   assert.equal(closed.body.error, closed.body.message);
 
-  zones.zones.find((z) => z._id === "koy-yazicik").enabled = true;
+  devrek.enabled = true;
   const low = response();
-  await placeOrder(orderRequest(addressBody({ zoneId: "koy-yazicik" })), low); // 200 < 300
+  await placeOrder(orderRequest(addressBody()), low); // 200 < 300
   assert.equal(low.statusCode, 400);
   assert.equal(low.body.code, "BELOW_MINIMUM");
-  assert.equal(low.body.message, "Yazıcık Köyü için sipariş tutarı minimum 300 TL olmalıdır!");
+  assert.equal(low.body.message, "Devrek için sipariş tutarı minimum 300 TL olmalıdır!");
 
   const unknown = response();
   await placeOrder(orderRequest(addressBody({ zoneId: "mah-yok" })), unknown);
   assert.equal(unknown.statusCode, 400);
   assert.equal(unknown.body.code, "ZONE_NOT_FOUND");
 
-  const noStreet = response();
-  await placeOrder(orderRequest(addressBody({ deliveryAddress: { buildingNo: "3" } })), noStreet);
-  assert.equal(noStreet.statusCode, 400);
-  assert.equal(noStreet.body.message, "Cadde/sokak bilgisi zorunludur");
+  // Eski sürümden kalan mahalle bölgesi belgede açık olsa da kapalı sayılır
+  const retired = response();
+  await placeOrder(orderRequest(addressBody({ zoneId: "mah-cumhuriyet" })), retired);
+  assert.equal(retired.statusCode, 400);
+  assert.equal(retired.body.code, "ZONE_CLOSED");
+
+  for (const [deliveryAddress, message] of [
+    [{ street: "Atatürk Cd.", buildingNo: "3", location: { lat: 41.22, lng: 31.95 } }, "Mahalle bilgisi zorunludur"],
+    [{ neighborhood: "Cumhuriyet", buildingNo: "3", location: { lat: 41.22, lng: 31.95 } }, "Cadde/sokak bilgisi zorunludur"],
+    [{ neighborhood: "Cumhuriyet", street: "Atatürk Cd.", location: { lat: 41.22, lng: 31.95 } }, "Bina no zorunludur"],
+    [{ neighborhood: "Cumhuriyet", street: "Atatürk Cd.", buildingNo: "3" }, "Adresini haritada işaretle: konum zorunludur"],
+  ]) {
+    const res = response();
+    await placeOrder(orderRequest(addressBody({ deliveryAddress })), res);
+    assert.equal(res.statusCode, 400, message);
+    assert.equal(res.body.message, message);
+  }
   assert.equal(created.length, 0);
 });
 
 // ── Herkese açık bölgeler ve teklif ──────────────────────────────────────────
 
-test("GET /api/delivery/zones: yalnızca açık bölgeler, sıralı; yurt açık/kapalı ayarlardan gelir; tohumlama idempotent", async (t) => {
+test("GET /api/delivery/zones: yalnızca açık sabit bölgeler, sıralı; yurt açık/kapalı ayarlardan gelir; tohumlama idempotent", async (t) => {
   const store = mockSettings(t, { minimumOrderAmount: 150 });
   store.doc.deliveryPoints.boysDorm.enabled = false;
   const zones = mockZones(t);
@@ -531,17 +559,24 @@ test("GET /api/delivery/zones: yalnızca açık bölgeler, sıralı; yurt açık
   await getPublicZones({}, res);
   assert.deepEqual(res.body, {
     zones: [
-      { id: "girlsDorm", name: "Kız KYK Yurdu", type: "yurt", deliveryFee: 0, isFree: true, freeDeliveryThreshold: null, minimumOrderAmount: 150, etaText: "", requiresFirstOrderCallback: false },
-      { id: "mah-cumhuriyet", name: "Cumhuriyet Mahallesi", type: "mahalle", deliveryFee: 40, isFree: false, freeDeliveryThreshold: 500, minimumOrderAmount: 150, etaText: "30-60 dk", requiresFirstOrderCallback: false },
+      { id: "girlsDorm", name: "Kız KYK Yurdu", type: "yurt", deliveryFee: 0, isFree: true, freeDeliveryThreshold: null, minimumOrderAmount: 150, etaText: "", requiresFirstOrderCallback: false, requiresLocation: false, hasArea: false },
+      { id: "devrek", name: "Devrek", type: "ilce", deliveryFee: 40, isFree: false, freeDeliveryThreshold: 500, minimumOrderAmount: 150, etaText: "30-60 dk", requiresFirstOrderCallback: false, requiresLocation: true, hasArea: false },
     ],
     freeDeliveryEverywhere: false,
   });
-  // Tohumlama: iki yurt, $setOnInsert + upsert; ikinci çağrı tekrar yazmaz
-  assert.equal(zones.seeds.length, 2);
-  assert.ok(zones.seeds.every((s) => s.update.$setOnInsert && s.update.$setOnInsert.deliveryFee === 0 && s.update.$setOnInsert.type === "yurt"));
+  // Tohumlama: iki yurt + devrek, $setOnInsert + upsert; ikinci çağrı tekrar yazmaz
+  assert.equal(zones.seeds.length, 3);
+  const yurtSeeds = zones.seeds.filter((s) => s.filter._id !== "devrek");
+  assert.ok(yurtSeeds.every((s) => s.update.$setOnInsert && s.update.$setOnInsert.deliveryFee === 0 && s.update.$setOnInsert.type === "yurt"));
   assert.equal(zones.seeds.find((s) => s.filter._id === "boysDorm").update.$setOnInsert.enabled, false, "seed ayardaki değeri alır");
+  const devrekSeed = zones.seeds.find((s) => s.filter._id === "devrek").update.$setOnInsert;
+  assert.deepEqual([devrekSeed.name, devrekSeed.type, devrekSeed.enabled, devrekSeed.deliveryFee], ["Devrek", "ilce", false, 0], "devrek kapalı ve ücretsiz başlar");
+  // Eski (sabit olmayan) açık bölgeler kapatılır
+  const retire = zones.updateMany.find((u) => u.filter._id?.$nin);
+  assert.deepEqual(retire, { filter: { _id: { $nin: ["girlsDorm", "boysDorm", "devrek"] }, enabled: true }, update: { $set: { enabled: false } } });
+  assert.equal(zones.zones.find((z) => z._id === "mah-cumhuriyet").enabled, false);
   await getPublicZones({}, response());
-  assert.equal(zones.seeds.length, 2);
+  assert.equal(zones.seeds.length, 3);
 });
 
 test("POST /api/delivery/quote: sunucu fiyatlarıyla ücret, eşiğe kalan ve minimum", async (t) => {
@@ -549,20 +584,20 @@ test("POST /api/delivery/quote: sunucu fiyatlarıyla ücret, eşiğe kalan ve mi
   mockCatalog(t);
   mockZones(t);
   const res = response();
-  await quoteDelivery({ user: customer(), body: { zoneId: "mah-cumhuriyet", products: [{ product: PRODUCT(1), quantity: 2 }, { _id: PRODUCT(2), quantity: 5 }] } }, res);
+  await quoteDelivery({ user: customer(), body: { zoneId: "devrek", products: [{ product: PRODUCT(1), quantity: 2 }, { _id: PRODUCT(2), quantity: 5 }] } }, res);
   assert.deepEqual(res.body, {
-    zoneId: "mah-cumhuriyet", zoneName: "Cumhuriyet Mahallesi", subtotal: 140, deliveryFee: 40, isFree: false, freeReason: null,
+    zoneId: "devrek", zoneName: "Devrek", subtotal: 140, deliveryFee: 40, isFree: false, freeReason: null,
     remainingForFree: 360, minimumOrderAmount: 100, meetsMinimum: true, total: 180,
   });
   const closed = response();
-  await quoteDelivery({ user: customer(), body: { zoneId: "koy-yazicik", products: [] } }, closed);
+  await quoteDelivery({ user: customer(), body: { zoneId: "mah-cumhuriyet", products: [] } }, closed);
   assert.equal(closed.statusCode, 400);
   assert.equal(closed.body.code, "ZONE_CLOSED");
   const missing = response();
   await quoteDelivery({ user: customer(), body: { zoneId: "yok", products: [] } }, missing);
   assert.equal(missing.statusCode, 404);
   const bad = response();
-  await quoteDelivery({ user: customer(), body: { zoneId: "mah-cumhuriyet", products: [{ product: PRODUCT(1), quantity: 500 }] } }, bad);
+  await quoteDelivery({ user: customer(), body: { zoneId: "devrek", products: [{ product: PRODUCT(1), quantity: 500 }] } }, bad);
   assert.equal(bad.statusCode, 400);
   assert.ok(bad.body.message && bad.body.error);
 });
@@ -580,24 +615,25 @@ test("yönetici toplu güncelleme: seçili bölgelere uygulanır, işlem kaydı 
   const store = mockSettings(t);
   const zones = mockZones(t);
   const audits = captureAudit(t);
-  const req = adminReq({ ids: ["mah-cumhuriyet", "girlsDorm", "yok"], set: { deliveryFee: 0, enabled: false } }, {}, "PATCH");
+  const req = adminReq({ ids: ["devrek", "girlsDorm", "mah-cumhuriyet", "yok"], set: { deliveryFee: 0, enabled: false } }, {}, "PATCH");
   const res = response();
   await adminBulkUpdateZones(req, res);
   await tick();
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
-  assert.equal(res.body.updated, 2);
-  assert.deepEqual(zones.updateMany[0].filter, { _id: { $in: ["girlsDorm", "mah-cumhuriyet"] } });
-  assert.deepEqual(zones.updateMany[0].update, { $set: { enabled: false, deliveryFee: 0 } });
+  assert.equal(res.body.updated, 2, "emekli bölge toplu işleme girmez");
+  const bulkUpdate = zones.updateMany.find((u) => u.filter._id?.$in);
+  assert.deepEqual(bulkUpdate.filter, { _id: { $in: ["girlsDorm", "devrek"] } });
+  assert.deepEqual(bulkUpdate.update, { $set: { enabled: false, deliveryFee: 0 } });
   assert.deepEqual(store.updates, [{ filter: { name: "default" }, update: { $set: { "deliveryPoints.girlsDorm.enabled": false } } }]);
   assert.equal(audits.length, 1);
   assert.equal(audits[0].category, "settings");
   assert.equal(audits[0].action, "2 teslimat bölgesi toplu güncellendi");
-  assert.deepEqual(audits[0].meta, { ids: ["girlsDorm", "mah-cumhuriyet"] });
+  assert.deepEqual(audits[0].meta, { ids: ["girlsDorm", "devrek"] });
   assert.deepEqual(audits[0].changes.map((c) => [c.label, c.to]), [["Teslimat", "Kapalı"], ["Teslimat ücreti", "Ücretsiz"]]);
   assert.equal(req.auditRecorded, true);
 
   const invalid = response();
-  await adminBulkUpdateZones(adminReq({ ids: ["mah-cumhuriyet"], set: { name: "x" } }), invalid);
+  await adminBulkUpdateZones(adminReq({ ids: ["devrek"], set: { name: "x" } }), invalid);
   assert.equal(invalid.statusCode, 400);
   const empty = response();
   await adminBulkUpdateZones(adminReq({ ids: [], set: { deliveryFee: 5 } }), empty);
@@ -606,37 +642,41 @@ test("yönetici toplu güncelleme: seçili bölgelere uygulanır, işlem kaydı 
 
 test("yönetici bölge listesi: sipariş sayıları (eski yurt siparişleri deliveryPoint ile eşlenir)", async (t) => {
   mockSettings(t);
-  mockZones(t);
   let pipeline;
-  t.mock.method(Order, "aggregate", async (p) => { pipeline = p; return [{ _id: "girlsDorm", ordersTotal: 12, ordersThisMonth: 3 }, { _id: "mah-cumhuriyet", ordersTotal: 1, ordersThisMonth: 1 }]; });
+  const zones = mockZones(t);
+  Object.assign(zones.zones.find((z) => z._id === "boysDorm"), { enabled: false, closedReason: "Yoğunluk" });
+  t.mock.method(Order, "aggregate", async (p) => { pipeline = p; return [{ _id: "girlsDorm", ordersTotal: 12, ordersThisMonth: 3 }, { _id: "devrek", ordersTotal: 1, ordersThisMonth: 1 }]; });
   const res = response();
   await adminListZones(adminReq({}, {}, "GET"), res);
   assert.deepEqual(pipeline[0].$group._id, { $ifNull: ["$deliveryZone.id", "$deliveryPoint"] });
   const byId = Object.fromEntries(res.body.zones.map((z) => [z.id, z]));
-  assert.equal(res.body.zones.length, 4, "kapalı bölgeler de listelenir");
+  assert.deepEqual(res.body.zones.map((z) => z.id), ["girlsDorm", "boysDorm", "devrek"], "yalnızca üç sabit bölge, sabit sırayla");
   assert.deepEqual([byId.girlsDorm.ordersTotal, byId.girlsDorm.ordersThisMonth], [12, 3]);
-  assert.deepEqual([byId["koy-yazicik"].ordersTotal, byId["koy-yazicik"].closedReason], [0, "Yol kapalı"]);
-  assert.equal(byId["mah-cumhuriyet"].deliveryFee, 40);
+  assert.deepEqual([byId.devrek.ordersTotal, byId.devrek.deliveryFee], [1, 40]);
+  assert.equal(byId.devrek.area, null);
+  assert.deepEqual(byId.devrek.areaCandidates, []);
+  assert.equal("area" in byId.girlsDorm, false, "yurtlarda alan alanı yok");
 });
 
-test("yönetici bölge ekleme / güncelleme / silme: kısa ad, çakışma eki, yurt koruması, siparişli bölge 409", async (t) => {
+test("yönetici: bölgeler sabit — ekleme/silme 400 ZONES_FIXED; güncellemede ad/tür değişmez, yurt kapatılınca ayar da kapanır", async (t) => {
   const store = mockSettings(t);
   const zones = mockZones(t);
   const audits = captureAudit(t);
 
   const created = response();
-  await adminCreateZone(adminReq({ name: "Cumhuriyet Mahallesi", type: "mahalle", deliveryFee: 25, etaText: "45 dk" }, {}, "POST"), created);
-  await tick();
-  assert.equal(created.statusCode, 201, JSON.stringify(created.body));
-  assert.equal(created.body.zone._id, "mah-cumhuriyet-2", "var olan 'mah-cumhuriyet' ile çakışınca sayı eki");
-  assert.equal(created.body.zone.enabled, false, "yeni bölge varsayılan kapalı");
-  assert.equal(created.body.zone.sortOrder, 6);
-  assert.equal(created.body.zone.legacyPoint, null);
-  assert.equal(audits.at(-1).action, "Teslimat bölgesi eklendi: Cumhuriyet Mahallesi");
-
-  const badType = response();
-  await adminCreateZone(adminReq({ name: "X", type: "il" }, {}, "POST"), badType);
-  assert.equal(badType.statusCode, 400);
+  const createReq = adminReq({ name: "Cumhuriyet Mahallesi", type: "mahalle", deliveryFee: 25 }, {}, "POST");
+  await adminCreateZone(createReq, created);
+  assert.equal(created.statusCode, 400);
+  assert.equal(created.body.code, "ZONES_FIXED");
+  assert.ok(created.body.message && created.body.error);
+  assert.equal(createReq.auditRecorded, true, "reddedilen istek işlem kaydı yazmaz");
+  for (const id of ["girlsDorm", "devrek", "mah-cumhuriyet", "yok"]) {
+    const removed = response();
+    await adminDeleteZone(adminReq({}, { id }, "DELETE"), removed);
+    assert.equal(removed.statusCode, 400, id);
+    assert.equal(removed.body.code, "ZONES_FIXED");
+  }
+  assert.deepEqual(zones.deleted, [], "hiçbir bölge silinmez");
 
   // Yurt bölgesi kapatılınca ayar da kapanır (iki yönlü eşleme)
   const yurt = response();
@@ -646,26 +686,26 @@ test("yönetici bölge ekleme / güncelleme / silme: kısa ad, çakışma eki, y
   assert.equal(yurt.body.zone.enabled, false);
   assert.deepEqual(store.updates.at(-1).update, { $set: { "deliveryPoints.boysDorm.enabled": false } });
   assert.deepEqual(audits.at(-1).changes.map((c) => c.label), ["Teslimat", "Kapanma nedeni"]);
-  const typeChange = response();
-  await adminUpdateZone(adminReq({ type: "mahalle" }, { id: "boysDorm" }), typeChange);
-  assert.equal(typeChange.statusCode, 400);
 
-  // Silme kuralları
-  t.mock.method(Order, "exists", async (filter) => filter.$or.some((c) => c["deliveryZone.id"] === "mah-cumhuriyet"));
-  t.mock.method(UserAddress, "countDocuments", async () => 0);
-  const protectedYurt = response();
-  await adminDeleteZone(adminReq({}, { id: "girlsDorm" }, "DELETE"), protectedYurt);
-  assert.equal(protectedYurt.statusCode, 409);
-  const withOrders = response();
-  await adminDeleteZone(adminReq({}, { id: "mah-cumhuriyet" }, "DELETE"), withOrders);
-  assert.equal(withOrders.statusCode, 409);
-  assert.equal(withOrders.body.code, "ZONE_HAS_ORDERS");
-  const ok = response();
-  await adminDeleteZone(adminReq({}, { id: "koy-yazicik" }, "DELETE"), ok);
-  assert.equal(ok.statusCode, 200);
-  assert.deepEqual(zones.deleted, ["koy-yazicik"]);
+  // Devrek fiyatı: aynı ad yok sayılır, farklı ad/tür reddedilir
+  const fee = response();
+  await adminUpdateZone(adminReq({ name: "Devrek", deliveryFee: 25, freeDeliveryThreshold: 400, etaText: "30-45 dk" }, { id: "devrek" }), fee);
+  await tick();
+  assert.equal(fee.statusCode, 200, JSON.stringify(fee.body));
+  assert.deepEqual([fee.body.zone.deliveryFee, fee.body.zone.freeDeliveryThreshold, fee.body.zone.etaText], [25, 400, "30-45 dk"]);
+  assert.equal(audits.at(-1).action, "Teslimat bölgesi değiştirildi: Devrek");
+  for (const body of [{ type: "mahalle" }, { name: "Devrek Merkez" }, { sortOrder: 9 }]) {
+    const res = response();
+    await adminUpdateZone(adminReq(body, { id: body.type ? "boysDorm" : "devrek" }), res);
+    assert.equal(res.statusCode, 400, JSON.stringify(body));
+    assert.equal(res.body.code, "ZONES_FIXED");
+  }
+  const retired = response();
+  await adminUpdateZone(adminReq({ enabled: true }, { id: "mah-cumhuriyet" }), retired);
+  assert.equal(retired.statusCode, 404, "emekli bölge düzenlenemez");
+  assert.equal(zones.zones.find((z) => z._id === "mah-cumhuriyet").deliveryFee, 40);
   const missing = response();
-  await adminDeleteZone(adminReq({}, { id: "yok" }, "DELETE"), missing);
+  await adminUpdateZone(adminReq({ enabled: true }, { id: "yok" }), missing);
   assert.equal(missing.statusCode, 404);
 });
 
@@ -788,7 +828,7 @@ test("adresler: ekleme (ilk adres varsayılan), en fazla 5, başkasının adresi
   const owner = customer(1);
   const other = customer(2);
   const fx = mockAddresses(t);
-  const input = { label: "Ev", zoneId: "mah-cumhuriyet", street: "Atatürk Cd.", buildingNo: "5", location: { lat: 41.2, lng: 31.9 } };
+  const input = { label: "Ev", zoneId: "devrek", neighborhood: "Cumhuriyet", street: "Atatürk Cd.", buildingNo: "5", location: { lat: 41.2, lng: 31.9 } };
 
   const first = response();
   const req = addrReq(owner, input);
@@ -796,13 +836,16 @@ test("adresler: ekleme (ilk adres varsayılan), en fazla 5, başkasının adresi
   assert.equal(first.statusCode, 201, JSON.stringify(first.body));
   assert.equal(req.auditRecorded, true, "müşteri adres işlemi yönetici kaydına yazılmaz");
   assert.equal(first.body.address.isDefault, true);
-  assert.equal(first.body.address.zoneName, "Cumhuriyet Mahallesi");
+  assert.equal(first.body.address.zoneName, "Devrek");
+  assert.equal(first.body.address.zoneType, "ilce");
+  assert.equal(first.body.address.neighborhood, "Cumhuriyet");
   assert.equal(first.body.address.zoneEnabled, true);
   assert.deepEqual(first.body.address.location, { lat: 41.2, lng: 31.9 });
 
   const closedZone = response();
-  await createAddress(addrReq(owner, { ...input, zoneId: "koy-yazicik" }), closedZone);
-  assert.equal(closedZone.statusCode, 400);
+  await createAddress(addrReq(owner, { ...input, zoneId: "mah-cumhuriyet" }), closedZone);
+  assert.equal(closedZone.statusCode, 400, "eski mahalle bölgesine adres eklenemez");
+  assert.equal(closedZone.body.code, "ZONE_CLOSED");
 
   const second = response();
   await createAddress(addrReq(owner, { ...input, label: "İş", isDefault: true }), second);

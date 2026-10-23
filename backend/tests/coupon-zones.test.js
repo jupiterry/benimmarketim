@@ -28,9 +28,9 @@ test("legacy dorm targeting keeps working and dorm codes count as the dorm zones
 });
 
 test("zone-only coupons are unusable for clients that cannot order to addresses", async () => {
-  const zoneOnly = coupon({ deliveryZones: ["mah-cumhuriyet"] });
+  const zoneOnly = coupon({ deliveryZones: ["devrek"] });
   assert.equal(isAddressOnlyCoupon(zoneOnly), true);
-  assert.equal(isAddressOnlyCoupon(coupon({ deliveryPoints: ["boysDorm"], deliveryZones: ["mah-cumhuriyet"] })), false);
+  assert.equal(isAddressOnlyCoupon(coupon({ deliveryPoints: ["boysDorm"], deliveryZones: ["devrek"] })), false);
   assert.equal(isAddressOnlyCoupon(coupon({})), false);
 
   const oldApp = await evaluateCoupon(zoneOnly, { userId: USER_ID, totalAmount: 100, deferDeliveryPoint: true });
@@ -42,9 +42,9 @@ test("zone-only coupons are unusable for clients that cannot order to addresses"
   const pilot = await evaluateCoupon(zoneOnly, { userId: USER_ID, totalAmount: 100, deferDeliveryPoint: true, canOrderToAddress: true });
   assert.equal(pilot.valid, true);
   assert.equal(pilot.requiresDeliveryPoint, true);
-  const matching = await evaluateCoupon(zoneOnly, { userId: USER_ID, totalAmount: 100, deliveryPoint: "address", deliveryZone: "mah-cumhuriyet" });
+  const matching = await evaluateCoupon(zoneOnly, { userId: USER_ID, totalAmount: 100, deliveryPoint: "address", deliveryZone: "devrek" });
   assert.equal(matching.valid, true);
-  const otherZone = await evaluateCoupon(zoneOnly, { userId: USER_ID, totalAmount: 100, deliveryPoint: "address", deliveryZone: "koy-yazicik" });
+  const otherZone = await evaluateCoupon(zoneOnly, { userId: USER_ID, totalAmount: 100, deliveryPoint: "address", deliveryZone: "girlsDorm" });
   assert.equal(otherZone.message, "Bu kupon seçtiğiniz teslimat bölgesinde geçerli değil");
   // Sipariş anında (erteleme yok) bölge yoksa kupon reddedilir.
   const noZone = await evaluateCoupon(zoneOnly, { userId: USER_ID, totalAmount: 100, deliveryPoint: "address", canOrderToAddress: true });
@@ -52,10 +52,10 @@ test("zone-only coupons are unusable for clients that cannot order to addresses"
 });
 
 test("panel zone selection is stored as legacy dorm points plus new zones", () => {
-  assert.deepEqual(splitZoneTargets(["girlsDorm", "mah-a", "mah-a", " koy-b ", "", null]), { deliveryPoints: ["girlsDorm"], deliveryZones: ["mah-a", "koy-b"] });
-  const data = couponPublicData(coupon({ deliveryPoints: ["boysDorm"], deliveryZones: ["mah-a"] }));
+  assert.deepEqual(splitZoneTargets(["girlsDorm", "devrek", "devrek", " mah-eski ", "", null]), { deliveryPoints: ["girlsDorm"], deliveryZones: ["devrek", "mah-eski"] });
+  const data = couponPublicData(coupon({ deliveryPoints: ["boysDorm"], deliveryZones: ["devrek"] }));
   assert.deepEqual(data.deliveryPoints, ["boysDorm"]);
-  assert.deepEqual(data.deliveryZones, ["mah-a"]);
+  assert.deepEqual(data.deliveryZones, ["devrek"]);
 });
 
 test("create and update split deliveryZones; old panels sending deliveryPoints still work", async (t) => {
@@ -63,10 +63,10 @@ test("create and update split deliveryZones; old panels sending deliveryPoints s
   const saved = [];
   t.mock.method(Coupon.prototype, "save", async function save() { saved.push(this); return this; });
   const res = response();
-  await createCoupon({ body: { code: "yeni", discountType: "fixed", discountAmount: 20, expirationDate: future(), deliveryZones: ["boysDorm", "mah-a"] } }, res);
+  await createCoupon({ body: { code: "yeni", discountType: "fixed", discountAmount: 20, expirationDate: future(), deliveryZones: ["boysDorm", "devrek"] } }, res);
   assert.equal(res.statusCode, 201);
   assert.deepEqual([...saved[0].deliveryPoints], ["boysDorm"]);
-  assert.deepEqual([...saved[0].deliveryZones], ["mah-a"]);
+  assert.deepEqual([...saved[0].deliveryZones], ["devrek"]);
 
   await createCoupon({ body: { code: "eski", discountType: "fixed", discountAmount: 20, expirationDate: future(), deliveryPoints: ["girlsDorm"] } }, response());
   assert.deepEqual([...saved[1].deliveryPoints], ["girlsDorm"]);
@@ -75,14 +75,14 @@ test("create and update split deliveryZones; old panels sending deliveryPoints s
   const existing = coupon({ deliveryPoints: ["girlsDorm"] });
   t.mock.method(Coupon, "findById", async () => existing);
   const upd = response();
-  await updateCoupon({ params: { id: "x" }, body: { deliveryZones: ["mah-b"] } }, upd);
+  await updateCoupon({ params: { id: "x" }, body: { deliveryZones: ["devrek"] } }, upd);
   assert.equal(upd.statusCode, 200);
   assert.deepEqual([...existing.deliveryPoints], []);
-  assert.deepEqual([...existing.deliveryZones], ["mah-b"]);
+  assert.deepEqual([...existing.deliveryZones], ["devrek"]);
 });
 
 test("wallet and recommendations hide zone-only coupons from the current app", async (t) => {
-  const coupons = [coupon({ code: "DORM", deliveryPoints: ["girlsDorm"] }), coupon({ code: "MAHALLE", deliveryZones: ["mah-a"] }), coupon({ code: "HERKES" })];
+  const coupons = [coupon({ code: "DORM", deliveryPoints: ["girlsDorm"] }), coupon({ code: "DEVREK", deliveryZones: ["devrek"] }), coupon({ code: "HERKES" })];
   t.mock.method(Coupon, "find", () => ({ sort: async () => coupons }));
   const settingsCalls = t.mock.method(Settings, "getSettings", async () => ({ delivery: { addressOrdering: "public" } }));
 
@@ -93,17 +93,17 @@ test("wallet and recommendations hide zone-only coupons from the current app", a
 
   const newApp = response();
   await getCoupon({ user: { _id: USER_ID }, query: { zoneAware: "1" } }, newApp);
-  assert.deepEqual(newApp.body.coupons.map((c) => c.code), ["DORM", "MAHALLE", "HERKES"]);
+  assert.deepEqual(newApp.body.coupons.map((c) => c.code), ["DORM", "DEVREK", "HERKES"]);
 
   const rec = response();
   await recommendCoupons({ user: { _id: USER_ID }, body: { orderAmount: 100 } }, rec);
   const listed = [...rec.body.eligibleCoupons, ...rec.body.unavailableCoupons].map((c) => c.code);
-  assert.ok(!listed.includes("MAHALLE"));
+  assert.ok(!listed.includes("DEVREK"));
   assert.ok(rec.body.eligibleCoupons.some((c) => c.code === "DORM" && c.requiresDeliveryPoint));
 
   const zoneRec = response();
-  await recommendCoupons({ user: { _id: USER_ID }, body: { orderAmount: 100, deliveryZone: "mah-a" } }, zoneRec);
-  assert.deepEqual(zoneRec.body.eligibleCoupons.map((c) => c.code).sort(), ["HERKES", "MAHALLE"]);
+  await recommendCoupons({ user: { _id: USER_ID }, body: { orderAmount: 100, deliveryZone: "devrek" } }, zoneRec);
+  assert.deepEqual(zoneRec.body.eligibleCoupons.map((c) => c.code).sort(), ["DEVREK", "HERKES"]);
 
   // Adrese sipariş kapalıyken (off) yeni uygulama da bu kuponu görmez.
   settingsCalls.mock.mockImplementation(async () => ({ delivery: { addressOrdering: "off" } }));
@@ -113,14 +113,14 @@ test("wallet and recommendations hide zone-only coupons from the current app", a
 });
 
 test("validate endpoint accepts the zone a new client sends", async (t) => {
-  const zoneOnly = coupon({ code: "MAHALLE", deliveryZones: ["mah-a"] });
+  const zoneOnly = coupon({ code: "DEVREK", deliveryZones: ["devrek"] });
   t.mock.method(Coupon, "findOne", async () => zoneOnly);
   t.mock.method(Settings, "getSettings", async () => ({ delivery: { addressOrdering: "pilot", pilotUserIds: [USER_ID] } }));
   const oldApp = response();
-  await validateCoupon({ user: { _id: USER_ID }, body: { code: "mahalle", orderAmount: 100 } }, oldApp);
+  await validateCoupon({ user: { _id: USER_ID }, body: { code: "devrek", orderAmount: 100 } }, oldApp);
   assert.equal(oldApp.statusCode, 400);
   const ok = response();
-  await validateCoupon({ user: { _id: USER_ID }, body: { code: "mahalle", orderAmount: 100, deliveryZone: "mah-a" } }, ok);
+  await validateCoupon({ user: { _id: USER_ID }, body: { code: "devrek", orderAmount: 100, deliveryZone: "devrek" } }, ok);
   assert.equal(ok.statusCode, 200);
-  assert.deepEqual(ok.body.coupon.deliveryZones, ["mah-a"]);
+  assert.deepEqual(ok.body.coupon.deliveryZones, ["devrek"]);
 });

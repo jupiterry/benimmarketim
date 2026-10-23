@@ -89,6 +89,8 @@ const orderSchema = new mongoose.Schema(
         {
           zoneId: { type: String, default: "" },
           zoneName: { type: String, default: "" },
+          // Mahalle (Devrek bölgesi; eski siparişlerde yok)
+          neighborhood: { type: String, default: "" },
           street: { type: String, default: "" },
           buildingNo: { type: String, default: "" },
           buildingName: { type: String, default: "" },
@@ -104,6 +106,9 @@ const orderSchema = new mongoose.Schema(
       ),
       default: undefined,
     },
+    // Devrek bölgesi: konum yüklü teslimat alanının içinde doğrulandı mı (true), alan yüklenmemişken mi
+    // alındı (false). Yurt ve eski siparişlerde yok.
+    areaVerified: { type: Boolean, default: undefined },
     // Teslimat ücreti (sunucuda hesaplanır ve kilitlenir; yurt siparişlerinde 0)
     deliveryFee: {
       type: Number,

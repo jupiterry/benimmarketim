@@ -30,7 +30,7 @@ export const marketCategories = [
 export const deliveryZonesPage = {
   path: "/teslimat-bolgeleri",
   title: "Teslimat Bölgeleri | Devrek Benim Marketim",
-  description: "Benim Marketim'in Devrek'te teslimat yaptığı bölgeler, bölge bazında teslimat ücreti, ücretsiz teslimat tutarı, minimum sepet ve tahmini teslimat süresi.",
+  description: "Benim Marketim'in teslimat bölgeleri: Kız KYK Yurdu, Erkek KYK Yurdu ve Devrek merkez (haritadaki sınır). Teslimat ücreti, ücretsiz teslimat tutarı, minimum sepet ve tahmini teslimat süresi.",
 };
 
 export const publicPages = ["/", "/teslimat-bolgeleri", "/about", "/contact", "/faq", "/privacy", "/terms", "/distance-sales", "/return-policy", "/cookies", "/kvkk", "/kvkk-basvuru", "/hesap-silme"];

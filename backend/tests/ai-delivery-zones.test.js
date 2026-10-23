@@ -22,32 +22,30 @@ test("store info lists the enabled delivery zones from the panel with their real
     filter = value;
     return chain([
       { _id: "girlsDorm", name: "Kız KYK Yurdu", type: "yurt", enabled: true, deliveryFee: 0, freeDeliveryThreshold: null, minimumOrderAmount: null, etaText: "" },
-      { _id: "mah-cumhuriyet", name: "Cumhuriyet Mah.", type: "mahalle", enabled: true, deliveryFee: 30, freeDeliveryThreshold: 300, minimumOrderAmount: 200, etaText: "30-60 dk" },
-      { _id: "koy-yazicik", name: "Yazıcık Köyü", type: "koy", enabled: true, deliveryFee: 50, freeDeliveryThreshold: null, minimumOrderAmount: null, etaText: "" },
+      { _id: "devrek", name: "Devrek", type: "ilce", enabled: true, deliveryFee: 30, freeDeliveryThreshold: 300, minimumOrderAmount: 200, etaText: "30-60 dk" },
     ]);
   });
   const info = await getStoreInfo();
-  assert.deepEqual(filter, { enabled: true });
-  assert.equal(info.deliveryZones.length, 3);
-  assert.deepEqual(info.deliveryZones[1], { id: "mah-cumhuriyet", name: "Cumhuriyet Mah.", type: "mahalle", deliveryFee: 30, isFree: false, freeDeliveryThreshold: 300, minimumOrderAmount: 200, etaText: "30-60 dk" });
-  assert.equal(info.deliveryZones[2].minimumOrderAmount, 250, "boş bölge minimumu genel minimuma düşer");
+  assert.deepEqual(filter, { _id: { $in: ["girlsDorm", "boysDorm", "devrek"] }, enabled: true }, "yalnızca üç sabit bölge");
+  assert.equal(info.deliveryZones.length, 2);
+  assert.deepEqual(info.deliveryZones[1], { id: "devrek", name: "Devrek", type: "ilce", deliveryFee: 30, isFree: false, freeDeliveryThreshold: 300, minimumOrderAmount: 200, etaText: "30-60 dk", description: "Devrek merkez (haritadaki sınır)" });
+  assert.equal(info.deliveryZones[0].minimumOrderAmount, 250, "boş bölge minimumu genel minimuma düşer");
   const text = formatToolResult({ tool: "getStoreInfo", ...info });
   assert.match(text, /Teslimat bölgelerimiz:/);
   assert.match(text, /• Kız KYK Yurdu \(ücretsiz teslimat\)/);
-  assert.match(text, /• Cumhuriyet Mah\. \(teslimat ücreti 30,00 TL, 300,00 TL ve üstü ücretsiz, minimum sepet 200,00 TL, 30-60 dk\)/);
-  // Eşik girilmemiş bölgede "üstü ücretsiz" uydurulmaz.
-  assert.match(text, /• Yazıcık Köyü \(teslimat ücreti 50,00 TL\)/);
+  assert.match(text, /• Devrek merkez \(haritadaki sınır\) \(teslimat ücreti 30,00 TL, 300,00 TL ve üstü ücretsiz, minimum sepet 200,00 TL, 30-60 dk\)/);
   assert.doesNotMatch(text, /Erkek KYK Yurdu/);
+  assert.doesNotMatch(text, /mahalle|köy/i, "mahalle/köy anlatımı yok");
 });
 
 test("free-delivery campaign and zero minimum are reported without inventing numbers", async (t) => {
   t.mock.method(Settings, "getSettings", async () => settings({ minimumOrderAmount: 0, delivery: { freeDeliveryEverywhere: true } }));
-  t.mock.method(DeliveryZone, "find", () => chain([{ _id: "mah-a", name: "A Mah.", type: "mahalle", deliveryFee: 40, freeDeliveryThreshold: 500, minimumOrderAmount: null }]));
+  t.mock.method(DeliveryZone, "find", () => chain([{ _id: "devrek", name: "Devrek", type: "ilce", deliveryFee: 40, freeDeliveryThreshold: 500, minimumOrderAmount: null }]));
   const info = await getStoreInfo();
   assert.equal(info.freeDeliveryEverywhere, true);
   const text = formatToolResult({ tool: "getStoreSettings", ...info });
   assert.match(text, /Minimum sepet tutarı yok\./);
-  assert.match(text, /• A Mah\. \(ücretsiz teslimat\)/);
+  assert.match(text, /• Devrek merkez \(haritadaki sınır\) \(ücretsiz teslimat\)/);
   assert.match(text, /tüm teslimat bölgelerinde teslimat ücretsiz/);
   assert.doesNotMatch(text, /40,00 TL/);
 });
@@ -79,8 +77,8 @@ test("order answers show the zone or address summary instead of raw delivery cod
   const addressOrder = {
     _id: "507f191e810c19729de860ff", status: "Yolda", totalAmount: 130, deliveryFee: 30, createdAt: new Date("2026-10-05T10:00:00Z"),
     deliveryPoint: "address", deliveryType: "address", deliveryPointName: "Cumhuriyet Mah. · Atatürk Cd. No:5",
-    deliveryZone: { id: "mah-cumhuriyet", name: "Cumhuriyet Mah.", type: "mahalle" },
-    deliveryAddress: { zoneName: "Cumhuriyet Mah.", street: "Atatürk Cd.", buildingNo: "5" },
+    deliveryZone: { id: "devrek", name: "Devrek", type: "ilce" },
+    deliveryAddress: { zoneName: "Devrek", neighborhood: "Cumhuriyet Mahallesi", street: "Atatürk Cd.", buildingNo: "5" },
   };
   assert.equal(orderDeliveryLabel(addressOrder), "Cumhuriyet Mah. · Atatürk Cd. No:5");
   assert.equal(orderDeliveryLabel({ deliveryPoint: "address" }), "Adrese teslimat");
@@ -89,6 +87,7 @@ test("order answers show the zone or address summary instead of raw delivery cod
   t.mock.method(Order, "find", () => ({ ...chain([{ _id: "507f191e810c19729de860fe", status: "Teslim Edildi", totalAmount: 300, createdAt: new Date("2026-10-04T10:00:00Z"), deliveryPoint: "girlsDorm", deliveryPointName: "" }]), select(value) { projection = value; return this; } }));
   const old = await runAiTool({ name: "getMyLastOrder" }, USER_ID);
   assert.match(projection, /deliveryAddress\.street/);
+  assert.match(projection, /deliveryAddress\.neighborhood/);
   assert.equal(old.orders[0].deliveryPoint, "Kız KYK Yurdu");
   const oldText = formatToolResult(old);
   assert.match(oldText, /\(Kız KYK Yurdu\)/);

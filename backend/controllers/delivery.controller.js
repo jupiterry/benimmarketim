@@ -1,14 +1,18 @@
 /**
- * delivery.controller.js — teslimat bölgeleri, ücret teklifi ve adrese sipariş bayrağı.
+ * delivery.controller.js — teslimat bölgeleri, ücret teklifi, teslimat alanı ve adrese sipariş bayrağı.
+ *
+ * Bölgeler SABİTTİR: girlsDorm, boysDorm (yurt) ve devrek (ilce). Yönetici yalnızca açar/kapatır ve fiyatı ayarlar.
  *
  * Müşteri / herkese açık:
- *   GET  /api/delivery/zones   (auth yok)   açık bölgeler
- *   GET  /api/delivery/me      (oturum)     { addressOrdering, canOrderToAddress }
- *   POST /api/delivery/quote   (oturum)     sepet + bölge → teslimat ücreti, eşik, minimum
+ *   GET  /api/delivery/zones              (auth yok)   açık bölgeler (+ requiresLocation, hasArea)
+ *   GET  /api/delivery/zones/:id/area     (auth yok)   { area: { type, coordinates } | null, updatedAt } (harita katmanı)
+ *   GET  /api/delivery/me                 (oturum)     { addressOrdering, canOrderToAddress }
+ *   POST /api/delivery/quote              (oturum)     sepet + bölge → teslimat ücreti, eşik, minimum
  * Yönetici (protectRoute + adminRoute, her değişiklik recordAdminAction ile kaydedilir):
- *   GET/POST /api/delivery/admin/zones, PUT/DELETE /api/delivery/admin/zones/:id,
- *   PATCH /api/delivery/admin/zones/bulk, GET/PUT /api/delivery/admin/settings,
- *   GET/PUT /api/delivery/admin/couriers (kurye listesi; telefonlar yalnızca burada görünür)
+ *   GET /api/delivery/admin/zones, PUT /api/delivery/admin/zones/:id, PATCH /api/delivery/admin/zones/bulk,
+ *   POST/DELETE /api/delivery/admin/zones(/:id) → 400 ZONES_FIXED (rota korunur),
+ *   POST /api/delivery/admin/zones/devrek/area/fetch, PUT/DELETE /api/delivery/admin/zones/devrek/area,
+ *   GET/PUT /api/delivery/admin/settings, GET/PUT /api/delivery/admin/couriers (telefonlar yalnızca burada görünür)
  */
 
 import mongoose from "mongoose";
@@ -16,27 +20,29 @@ import DeliveryZone from "../models/deliveryZone.model.js";
 import Order from "../models/order.model.js";
 import Settings from "../models/settings.model.js";
 import User from "../models/user.model.js";
-import UserAddress from "../models/userAddress.model.js";
 import { buildOrderProducts } from "../services/order.service.js";
 import { diffFields, money, recordAdminAction, yesNo } from "../services/adminAudit.service.js";
 import { invalidateSettingsCache } from "./settings.controller.js";
 import {
   ADDRESS_ORDERING_MODES,
+  DEVREK_ZONE_ID,
   canOrderToAddress,
   computeDeliveryQuote,
-  ensureYurtZones,
   getAddressOrderingMode,
   getZone,
+  isFixedZoneId,
   isValidObjectId,
   listCouriers,
   listZones,
   normalizeCouriersInput,
   normalizeZoneInput,
   serializePublicZone,
-  slugifyZoneName,
+  simplifyAreaGeometry,
+  summarizeArea,
   syncSettingsFromZones,
   zoneClosedMessage,
 } from "../services/delivery.service.js";
+import { candidateKey, fetchDevrekAreaCandidates, getCandidatePolygon } from "../services/deliveryArea.service.js";
 
 const fail = (res, status, message, extra = {}) => res.status(status).json({ error: message, message, ...extra });
 const serverError = (res, label, error) => {
@@ -44,10 +50,11 @@ const serverError = (res, label, error) => {
   return res.status(500).json({ error: "İşlem sırasında bir hata oluştu", message: "İşlem sırasında bir hata oluştu" });
 };
 
-const TYPE_LABEL = { yurt: "Yurt", mahalle: "Mahalle", koy: "Köy" };
+const TYPE_LABEL = { yurt: "Yurt", ilce: "İlçe merkezi", mahalle: "Mahalle", koy: "Köy" };
 const MODE_LABEL = { off: "Kapalı", pilot: "Pilot (seçili kullanıcılar)", public: "Herkese açık" };
 const amountOrDash = (value) => (value === null || value === undefined ? "Yok" : money(value));
 const feeLabel = (value) => (Number(value) === 0 ? "Ücretsiz" : money(value));
+const ZONES_FIXED_MESSAGE = "Teslimat bölgeleri sabittir (Kız KYK Yurdu, Erkek KYK Yurdu, Devrek). Bölge eklenemez ya da silinemez; açıp kapatabilir ve ücretini değiştirebilirsiniz.";
 
 export const ZONE_AUDIT_FIELDS = [
   { key: "name", label: "Bölge adı" },
@@ -83,21 +90,31 @@ export const countOrdersByZone = async (now = new Date()) => {
   return new Map(rows.map((row) => [String(row._id), row]));
 };
 
-const zoneHasOrders = async (zone) => {
-  const or = [{ "deliveryZone.id": zone._id }];
-  if (zone.legacyPoint) or.push({ deliveryPoint: zone.legacyPoint });
-  return Boolean(await Order.exists({ $or: or }));
-};
+const candidateView = (candidate) => ({
+  osmType: candidate.osmType,
+  osmId: Number(candidate.osmId),
+  adminLevel: candidate.adminLevel ?? null,
+  kind: candidate.kind || "",
+  displayName: candidate.displayName || "",
+  areaKm2: candidate.areaKm2 ?? null,
+});
 
 const adminZone = (zone, counts) => {
   const row = counts?.get(String(zone._id));
+  const { area, areaCandidates, areaCandidatesFetchedAt, ...rest } = zone;
   return {
-    ...zone,
+    ...rest,
     id: zone._id,
     requireFirstOrderCallback: zone.requireFirstOrderCallback === true,
     requiresFirstOrderCallback: zone.requireFirstOrderCallback === true,
     ordersThisMonth: row?.ordersThisMonth || 0,
     ordersTotal: row?.ordersTotal || 0,
+    // Teslimat alanı yalnızca devrek'te; koordinatlar yönetici listesinde dönmez
+    ...(zone._id === DEVREK_ZONE_ID ? {
+      area: summarizeArea(area),
+      areaCandidates: (areaCandidates || []).map(candidateView),
+      areaCandidatesFetchedAt: areaCandidatesFetchedAt || null,
+    } : {}),
   };
 };
 
@@ -115,6 +132,23 @@ export const getPublicZones = async (req, res) => {
     });
   } catch (error) {
     return serverError(res, "Teslimat bölgeleri getirilemedi", error);
+  }
+};
+
+/**
+ * GET /api/delivery/zones/:id/area — mobil harita katmanı. Bölge sabit değilse 404; alanı yoksa area: null.
+ * Yanıt kısa süre önbelleğe alınabilir (sınır nadiren değişir).
+ */
+export const getPublicZoneArea = async (req, res) => {
+  try {
+    const id = String(req.params.id || "");
+    if (!isFixedZoneId(id)) return fail(res, 404, "Teslimat bölgesi bulunamadı", { code: "ZONE_NOT_FOUND" });
+    const zone = await DeliveryZone.findById(id).select("area updatedAt").lean();
+    const area = zone?.area?.type && zone.area.coordinates ? { type: zone.area.type, coordinates: zone.area.coordinates } : null;
+    res.set?.("Cache-Control", "public, max-age=300");
+    res.json({ area, updatedAt: area ? zone.area.fetchedAt || zone.updatedAt || null : null });
+  } catch (error) {
+    return serverError(res, "Teslimat alanı getirilemedi", error);
   }
 };
 
@@ -170,7 +204,7 @@ export const quoteDelivery = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────
-// Yönetici: bölgeler
+// Yönetici: bölgeler (sabit üç bölge)
 // ─────────────────────────────────────────────
 
 export const adminListZones = async (req, res) => {
@@ -182,60 +216,42 @@ export const adminListZones = async (req, res) => {
   }
 };
 
-const uniqueZoneId = async (base) => {
-  const taken = new Set(
-    (await DeliveryZone.find({ _id: { $regex: `^${base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(-\\d+)?$` } }).select("_id").lean()).map((z) => z._id)
-  );
-  if (!taken.has(base)) return base;
-  for (let n = 2; n < 1000; n += 1) if (!taken.has(`${base}-${n}`)) return `${base}-${n}`;
-  return `${base}-${Date.now()}`;
+/** POST /api/delivery/admin/zones — bölgeler sabit: 400 ZONES_FIXED (eski panel 404 almasın diye rota durur). */
+export const adminCreateZone = async (req, res) => {
+  req.auditRecorded = true;
+  return fail(res, 400, ZONES_FIXED_MESSAGE, { code: "ZONES_FIXED" });
 };
 
-export const adminCreateZone = async (req, res) => {
-  try {
-    const { value, error } = normalizeZoneInput(req.body || {});
-    if (error) return fail(res, 400, error);
-    await ensureYurtZones();
-    if (value.sortOrder === undefined) {
-      const last = await DeliveryZone.findOne({}).sort({ sortOrder: -1 }).select("sortOrder").lean();
-      value.sortOrder = (Number(last?.sortOrder) || 0) + 1;
-    }
-    const _id = await uniqueZoneId(slugifyZoneName(value.name, value.type));
-    const created = await DeliveryZone.create({ ...value, _id, legacyPoint: null });
-    const zone = created.toObject();
-
-    recordAdminAction(req, {
-      action: `Teslimat bölgesi eklendi: ${zone.name}`,
-      category: "settings",
-      target: zone._id,
-      targetName: zone.name,
-      changes: diffFields({}, zone, ZONE_AUDIT_FIELDS).map((c) => ({ ...c, from: "—" })),
-    });
-    res.status(201).json({ zone: adminZone(zone) });
-  } catch (error) {
-    if (error?.code === 11000) return fail(res, 409, "Bu adla bir bölge zaten var, lütfen tekrar deneyin");
-    return serverError(res, "Teslimat bölgesi eklenemedi", error);
-  }
+/** DELETE /api/delivery/admin/zones/:id — bölgeler sabit: 400 ZONES_FIXED. */
+export const adminDeleteZone = async (req, res) => {
+  req.auditRecorded = true;
+  return fail(res, 400, ZONES_FIXED_MESSAGE, { code: "ZONES_FIXED" });
 };
 
 export const adminUpdateZone = async (req, res) => {
   try {
-    const { value, error } = normalizeZoneInput(req.body || {}, { partial: true });
+    const { value, fixedFields, error } = normalizeZoneInput(req.body || {});
     if (error) return fail(res, 400, error);
-    if (!Object.keys(value).length) return fail(res, 400, "Değiştirilecek alan yok");
 
-    const before = await getZone(String(req.params.id || ""));
-    if (!before) return fail(res, 404, "Teslimat bölgesi bulunamadı");
-    if (before.legacyPoint && value.type !== undefined && value.type !== "yurt") return fail(res, 400, "Yurt bölgesinin türü değiştirilemez");
+    const id = String(req.params.id || "");
+    if (!isFixedZoneId(id)) return fail(res, 404, "Teslimat bölgesi bulunamadı", { code: "ZONE_NOT_FOUND" });
+    const before = await getZone(id);
+    if (!before) return fail(res, 404, "Teslimat bölgesi bulunamadı", { code: "ZONE_NOT_FOUND" });
+    // Ad, tür ve sıra sabit: aynı değer gönderilirse yok sayılır, farklıysa reddedilir
+    const changedFixed = Object.entries(fixedFields || {}).filter(([key, v]) => String(v ?? "").trim() !== String(before[key] ?? "").trim());
+    if (changedFixed.length) {
+      return fail(res, 400, "Teslimat bölgelerinin adı, türü ve sırası değiştirilemez; yalnızca açık/kapalı durumu ve ücretleri değişir.", { code: "ZONES_FIXED" });
+    }
+    if (!Object.keys(value).length) return fail(res, 400, "Değiştirilecek alan yok");
 
     // Yurt bölgesinde ayarlardan gelen açık/kapalı ve ad belgeye de yazılır (olası kaymayı onarır)
     const set = before.legacyPoint ? { enabled: before.enabled, name: before.name, ...value } : value;
-    const updated = await DeliveryZone.findByIdAndUpdate(before._id, { $set: set }, { new: true, runValidators: true }).lean();
-    if (!updated) return fail(res, 404, "Teslimat bölgesi bulunamadı");
+    const updated = await DeliveryZone.findByIdAndUpdate(before._id, { $set: set }, { new: true, runValidators: true }).select("-area.coordinates").lean();
+    if (!updated) return fail(res, 404, "Teslimat bölgesi bulunamadı", { code: "ZONE_NOT_FOUND" });
 
-    // Yurt: açık/kapalı ve ad mevcut uygulamanın okuduğu ayarlara da yazılır
-    if (before.legacyPoint && (value.enabled !== undefined || value.name !== undefined)) {
-      const changed = await syncSettingsFromZones([{ legacyPoint: before.legacyPoint, enabled: value.enabled, name: value.name }]);
+    // Yurt: açık/kapalı mevcut uygulamanın okuduğu ayarlara da yazılır
+    if (before.legacyPoint && value.enabled !== undefined) {
+      const changed = await syncSettingsFromZones([{ legacyPoint: before.legacyPoint, enabled: value.enabled }]);
       if (changed) invalidateSettingsCache();
     }
 
@@ -259,36 +275,10 @@ export const adminUpdateZone = async (req, res) => {
   }
 };
 
-export const adminDeleteZone = async (req, res) => {
-  try {
-    const zone = await getZone(String(req.params.id || ""));
-    if (!zone) return fail(res, 404, "Teslimat bölgesi bulunamadı");
-    if (zone.legacyPoint || ["girlsDorm", "boysDorm"].includes(zone._id)) {
-      return fail(res, 409, "Yurt bölgeleri silinemez; teslimatı kapatabilirsiniz", { code: "ZONE_PROTECTED" });
-    }
-    if (await zoneHasOrders(zone)) {
-      return fail(res, 409, "Bu bölgeye verilmiş siparişler var, bölge silinemez; teslimatı kapatabilirsiniz", { code: "ZONE_HAS_ORDERS" });
-    }
-    const addressCount = await UserAddress.countDocuments({ zoneId: zone._id });
-    if (addressCount > 0) {
-      return fail(res, 409, `${addressCount} müşterinin kayıtlı adresi bu bölgede, bölge silinemez; teslimatı kapatabilirsiniz`, { code: "ZONE_HAS_ADDRESSES" });
-    }
-    await DeliveryZone.deleteOne({ _id: zone._id });
-    recordAdminAction(req, {
-      action: `Teslimat bölgesi silindi: ${zone.name}`,
-      category: "settings",
-      target: zone._id,
-      targetName: zone.name,
-    });
-    res.json({ success: true, deletedId: zone._id });
-  } catch (error) {
-    return serverError(res, "Teslimat bölgesi silinemedi", error);
-  }
-};
-
 const BULK_FIELDS = ["deliveryFee", "freeDeliveryThreshold", "minimumOrderAmount", "enabled", "etaText", "closedReason", "requireFirstOrderCallback"];
-const MAX_BULK_IDS = 500;
+const MAX_BULK_IDS = 10;
 
+/** PATCH /api/delivery/admin/zones/bulk — geriye uyum; yalnızca sabit bölgelere uygulanır. */
 export const adminBulkUpdateZones = async (req, res) => {
   try {
     const { ids, set } = req.body || {};
@@ -298,7 +288,7 @@ export const adminBulkUpdateZones = async (req, res) => {
     if (!set || typeof set !== "object" || Array.isArray(set)) return fail(res, 400, "Değiştirilecek alan yok");
     const unknown = Object.keys(set).filter((key) => !BULK_FIELDS.includes(key));
     if (unknown.length) return fail(res, 400, `Toplu işlemde değiştirilemeyen alan: ${unknown.join(", ")}`);
-    const { value, error } = normalizeZoneInput(set, { partial: true });
+    const { value, error } = normalizeZoneInput(set);
     if (error) return fail(res, 400, error);
     if (!Object.keys(value).length) return fail(res, 400, "Değiştirilecek alan yok");
 
@@ -314,10 +304,9 @@ export const adminBulkUpdateZones = async (req, res) => {
       if (changed) invalidateSettingsCache();
     }
 
-    const after = { ...value };
     const changes = ZONE_AUDIT_FIELDS
       .filter(({ key }) => key in value)
-      .map(({ key, label, format = (v) => v }) => ({ label, from: "—", to: format(after[key]) }));
+      .map(({ key, label, format = (v) => v }) => ({ label, from: "—", to: format(value[key]) }));
     recordAdminAction(req, {
       action: `${targets.length} teslimat bölgesi toplu güncellendi`,
       category: "settings",
@@ -330,6 +319,136 @@ export const adminBulkUpdateZones = async (req, res) => {
     res.json({ updated: result.modifiedCount ?? 0, matched: result.matchedCount ?? targets.length });
   } catch (error) {
     return serverError(res, "Teslimat bölgeleri toplu güncellenemedi", error);
+  }
+};
+
+// ─────────────────────────────────────────────
+// Yönetici: Devrek teslimat alanı (OpenStreetMap sınırı)
+// ─────────────────────────────────────────────
+
+const areaFail = (res, error) => {
+  if (error?.statusCode && error.statusCode < 600 && error.code) return fail(res, error.statusCode, error.message, { code: error.code });
+  return null;
+};
+
+const areaAuditText = (area) => (area ? `${area.displayName || `${area.osmType}/${area.osmId}`} (~${area.areaKm2 ?? "?"} km²)` : "Yok");
+
+/** Seçilen adayı devrek bölgesine yazar; { area, candidates } yanıt gövdesi döner. */
+const storeArea = async ({ candidate, geometry, candidates }) => {
+  const simplified = simplifyAreaGeometry(geometry);
+  const area = {
+    type: simplified.type,
+    coordinates: simplified.coordinates,
+    source: "osm",
+    osmType: candidate.osmType,
+    osmId: Number(candidate.osmId),
+    adminLevel: candidate.adminLevel ?? null,
+    displayName: candidate.displayName || "",
+    areaKm2: candidate.areaKm2 ?? null,
+    fetchedAt: new Date(),
+  };
+  const set = { area };
+  if (candidates) {
+    set.areaCandidates = candidates.map(candidateView);
+    set.areaCandidatesFetchedAt = area.fetchedAt;
+  }
+  await DeliveryZone.updateOne({ _id: DEVREK_ZONE_ID }, { $set: set }, { runValidators: true });
+  return area;
+};
+
+const devrekZoneDoc = async () => {
+  await listZones(); // sabit bölgeler yoksa oluşturur
+  return DeliveryZone.findById(DEVREK_ZONE_ID).select("area.osmType area.osmId area.displayName area.areaKm2 areaCandidates").lean();
+};
+
+const requireDevrek = (req, res) => {
+  if (String(req.params.id || DEVREK_ZONE_ID) !== DEVREK_ZONE_ID) {
+    fail(res, 400, "Teslimat alanı yalnızca Devrek bölgesi için yüklenebilir", { code: "AREA_ONLY_DEVREK" });
+    return false;
+  }
+  return true;
+};
+
+/**
+ * POST /api/delivery/admin/zones/devrek/area/fetch — Nominatim'den adayları getirir, en küçük (merkez) sınırı
+ * seçer. Önceden seçilmiş sınır yeni adaylar arasındaysa o korunur (çokgeni tazelenir).
+ * Yanıt: { area, candidates, selected: { osmType, osmId } }
+ */
+export const adminFetchZoneArea = async (req, res) => {
+  try {
+    if (!requireDevrek(req, res)) return undefined;
+    const before = await devrekZoneDoc();
+    const { candidates, polygons } = await fetchDevrekAreaCandidates();
+    const current = before?.area?.osmType ? candidates.find((c) => c.osmType === before.area.osmType && Number(c.osmId) === Number(before.area.osmId)) : null;
+    const chosen = current || candidates[0];
+    const area = await storeArea({ candidate: chosen, geometry: polygons.get(candidateKey(chosen.osmType, chosen.osmId)), candidates });
+
+    recordAdminAction(req, {
+      action: "Devrek teslimat alanı OpenStreetMap'ten yüklendi",
+      category: "settings",
+      target: DEVREK_ZONE_ID,
+      targetName: "Devrek",
+      changes: [{ label: "Teslimat alanı", from: areaAuditText(before?.area), to: areaAuditText(area) }],
+      meta: { candidates: candidates.length },
+    });
+    res.json({ area: summarizeArea(area), candidates: candidates.map(candidateView), selected: { osmType: area.osmType, osmId: area.osmId } });
+  } catch (error) {
+    return areaFail(res, error) || serverError(res, "Teslimat alanı yüklenemedi", error);
+  }
+};
+
+/** PUT /api/delivery/admin/zones/devrek/area { osmType, osmId } — kayıtlı adaylardan birini seçer. */
+export const adminSelectZoneArea = async (req, res) => {
+  try {
+    if (!requireDevrek(req, res)) return undefined;
+    const osmType = String(req.body?.osmType || "").toLowerCase();
+    const osmId = Number(req.body?.osmId);
+    if (!["relation", "way"].includes(osmType) || !Number.isSafeInteger(osmId) || osmId <= 0) {
+      return fail(res, 400, "Geçerli bir sınır seçin (osmType: relation|way, osmId)");
+    }
+    const before = await devrekZoneDoc();
+    const known = (before?.areaCandidates || []).find((c) => c.osmType === osmType && Number(c.osmId) === osmId);
+    if (!known) return fail(res, 400, "Bu sınır aday listesinde yok. Önce “Sınırı OpenStreetMap'ten yükle” düğmesine basın.", { code: "AREA_NOT_CANDIDATE" });
+    const { candidate, geometry } = await getCandidatePolygon(osmType, osmId);
+    const area = await storeArea({ candidate: { ...known, ...candidate }, geometry });
+
+    if (before?.area?.osmType === osmType && Number(before?.area?.osmId) === osmId) {
+      req.auditRecorded = true;
+    } else {
+      recordAdminAction(req, {
+        action: "Devrek teslimat alanı değiştirildi",
+        category: "settings",
+        target: DEVREK_ZONE_ID,
+        targetName: "Devrek",
+        changes: [{ label: "Teslimat alanı", from: areaAuditText(before?.area), to: areaAuditText(area) }],
+      });
+    }
+    res.json({ area: summarizeArea(area), candidates: (before?.areaCandidates || []).map(candidateView), selected: { osmType, osmId } });
+  } catch (error) {
+    return areaFail(res, error) || serverError(res, "Teslimat alanı seçilemedi", error);
+  }
+};
+
+/** DELETE /api/delivery/admin/zones/devrek/area — alanı kaldırır (siparişler "alan doğrulanmadı" olarak alınır). */
+export const adminClearZoneArea = async (req, res) => {
+  try {
+    if (!requireDevrek(req, res)) return undefined;
+    const before = await devrekZoneDoc();
+    if (!before?.area) {
+      req.auditRecorded = true;
+      return res.json({ area: null, cleared: false });
+    }
+    await DeliveryZone.updateOne({ _id: DEVREK_ZONE_ID }, { $set: { area: null } });
+    recordAdminAction(req, {
+      action: "Devrek teslimat alanı kaldırıldı",
+      category: "settings",
+      target: DEVREK_ZONE_ID,
+      targetName: "Devrek",
+      changes: [{ label: "Teslimat alanı", from: areaAuditText(before.area), to: "Yok" }],
+    });
+    res.json({ area: null, cleared: true });
+  } catch (error) {
+    return serverError(res, "Teslimat alanı kaldırılamadı", error);
   }
 };
 

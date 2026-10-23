@@ -1,14 +1,24 @@
 // Teslimat bölgeleri ekranının ortak sabitleri ve yardımcıları (biçimlendirme, doğrulama, sıralama).
+// Bölgeler sabittir: girlsDorm, boysDorm (yurt) ve devrek (ilce). Eski mahalle/köy türleri yalnızca okunur.
 /* global Intl */
-import { Building2, Home, Trees } from "lucide-react";
+import { Building2, Home, Landmark, Trees } from "lucide-react";
 import { fold } from "../admin/ui";
 
 export const TYPES = {
   yurt: { label: "Yurt", plural: "Yurtlar", icon: Building2, tone: "info" },
+  ilce: { label: "Devrek merkez", plural: "Devrek merkez", icon: Landmark, tone: "brand" },
   mahalle: { label: "Mahalle", plural: "Mahalleler", icon: Home, tone: "brand" },
   koy: { label: "Köy", plural: "Köyler", icon: Trees, tone: "warn" },
 };
-export const TYPE_ORDER = ["yurt", "mahalle", "koy"];
+export const TYPE_ORDER = ["yurt", "ilce", "mahalle", "koy"];
+
+// Sabit üç bölge (sunucu da yalnızca bunları döndürür): kart başlığı ve açıklaması
+export const FIXED_ZONES = [
+  { id: "girlsDorm", title: "Kız KYK Yurdu", note: "Yurt girişinde teslim. Mağaza ayarlarındaki yurt anahtarıyla aynıdır." },
+  { id: "boysDorm", title: "Erkek KYK Yurdu", note: "Yurt girişinde teslim. Mağaza ayarlarındaki yurt anahtarıyla aynıdır." },
+  { id: "devrek", title: "Genel Devrek", note: "Devrek merkez: haritadaki Devrek sınırı içindeki adreslere teslimat." },
+];
+export const DEVREK_ID = "devrek";
 
 export const MODES = [
   { value: "off", label: "Kapalı", tone: "neutral" },
@@ -65,6 +75,8 @@ export const normalizeZone = (z = {}) => ({
   sortOrder: Number.isFinite(Number(z.sortOrder)) ? Number(z.sortOrder) : 0,
   ordersThisMonth: Number(z.ordersThisMonth) || 0,
   ordersTotal: Number(z.ordersTotal) || 0,
+  area: z.area && z.area.osmType ? z.area : null,
+  areaCandidates: Array.isArray(z.areaCandidates) ? z.areaCandidates : [],
 });
 
 /** Silinebilir mi: yurt değil ve hiç siparişi yok */
@@ -166,3 +178,31 @@ export const validateForm = (form, { zones = [], editingId = null, isYurt = fals
   if (!isYurt) payload.type = form.type;
   return { errors, payload };
 };
+
+// ── Sabit bölge kartı formu (ad, tür ve sıra değişmez) ────────────────────
+export const cardFormFromZone = (z) => ({
+  enabled: Boolean(z.enabled),
+  closedReason: z.closedReason || "",
+  feeMode: z.deliveryFee > 0 ? "paid" : "free",
+  fee: z.deliveryFee > 0 ? moneyText(z.deliveryFee) : "",
+  threshold: moneyText(z.freeDeliveryThreshold),
+  minimum: moneyText(z.minimumOrderAmount),
+  etaText: z.etaText || "",
+  callback: Boolean(z.requireFirstOrderCallback),
+});
+
+/** Kart formunu doğrular; { errors, payload } döner (payload: PUT /delivery/admin/zones/:id gövdesi). */
+export const validateCardForm = (form) => {
+  const { errors, payload } = validateForm({ ...form, name: "x", sortOrder: "0", type: "yurt" }, { isYurt: true });
+  delete errors.name;
+  delete errors.sortOrder;
+  const rest = { ...payload };
+  delete rest.name;
+  delete rest.sortOrder;
+  return { errors, payload: rest };
+};
+
+/** OpenStreetMap'te nesne bağlantısı: https://www.openstreetmap.org/relation/123 */
+export const osmLink = (osmType, osmId) => (osmType && osmId ? `https://www.openstreetmap.org/${osmType}/${osmId}` : null);
+/** 5.6 → "~5,6 km²" */
+export const km2 = (value) => (Number.isFinite(Number(value)) && value !== null ? `~${NUM.format(Number(value))} km²` : "Alan bilinmiyor");

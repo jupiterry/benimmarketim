@@ -164,8 +164,7 @@ test("bildirim metni: teslim edilemedi iptalinde neden yazılır, diğer durumla
 const ZONES = () => [
   { _id: "girlsDorm", name: "Kız KYK Yurdu", type: "yurt", enabled: true, closedReason: "", deliveryFee: 0, freeDeliveryThreshold: null, minimumOrderAmount: null, etaText: "", sortOrder: 0, legacyPoint: "girlsDorm", requireFirstOrderCallback: false },
   { _id: "boysDorm", name: "Erkek KYK Yurdu", type: "yurt", enabled: true, closedReason: "", deliveryFee: 0, freeDeliveryThreshold: null, minimumOrderAmount: null, etaText: "", sortOrder: 1, legacyPoint: "boysDorm" },
-  { _id: "mah-cumhuriyet", name: "Cumhuriyet Mahallesi", type: "mahalle", enabled: true, closedReason: "", deliveryFee: 40, freeDeliveryThreshold: 500, minimumOrderAmount: null, etaText: "30-60 dk", sortOrder: 5, legacyPoint: null },
-  { _id: "koy-yazicik", name: "Yazıcık Köyü", type: "koy", enabled: true, closedReason: "", deliveryFee: 60, freeDeliveryThreshold: null, minimumOrderAmount: null, etaText: "Günde 2 sefer", sortOrder: 6, legacyPoint: null, requireFirstOrderCallback: true },
+  { _id: "devrek", name: "Devrek", type: "ilce", enabled: true, closedReason: "", deliveryFee: 40, freeDeliveryThreshold: 500, minimumOrderAmount: null, etaText: "30-60 dk", sortOrder: 2, legacyPoint: null, requireFirstOrderCallback: true, area: null },
 ];
 const mockZones = (t, zones = ZONES()) => {
   const fx = { zones, updateMany: [] };
@@ -199,17 +198,17 @@ test("GET /api/delivery/zones ve yönetici listesi requiresFirstOrderCallback d�
   const res = response();
   await getPublicZones({}, res);
   const byId = Object.fromEntries(res.body.zones.map((z) => [z.id, z]));
-  assert.equal(byId["koy-yazicik"].requiresFirstOrderCallback, true);
-  assert.equal(byId["mah-cumhuriyet"].requiresFirstOrderCallback, false, "alanı olmayan eski bölge false");
+  assert.equal(byId.devrek.requiresFirstOrderCallback, true);
+  assert.equal(byId.boysDorm.requiresFirstOrderCallback, false, "alanı olmayan eski bölge false");
   assert.equal(byId.girlsDorm.requiresFirstOrderCallback, false);
   for (const zone of res.body.zones) assert.equal(typeof zone.requiresFirstOrderCallback, "boolean");
 
   const admin = response();
   await adminListZones({}, admin);
   const adminById = Object.fromEntries(admin.body.zones.map((z) => [z.id, z]));
-  assert.equal(adminById["koy-yazicik"].requiresFirstOrderCallback, true);
-  assert.equal(adminById["koy-yazicik"].requireFirstOrderCallback, true);
-  assert.equal(adminById["mah-cumhuriyet"].requiresFirstOrderCallback, false);
+  assert.equal(adminById.devrek.requiresFirstOrderCallback, true);
+  assert.equal(adminById.devrek.requireFirstOrderCallback, true);
+  assert.equal(adminById.boysDorm.requiresFirstOrderCallback, false);
 });
 
 test("bölge düzenleme ve toplu işlem: requireFirstOrderCallback doğrulanır, kaydedilir ve işlem kaydına yazılır", async (t) => {
@@ -220,20 +219,20 @@ test("bölge düzenleme ve toplu işlem: requireFirstOrderCallback doğrulanır,
   assert.deepEqual(normalizeZoneInput({ requireFirstOrderCallback: true }, { partial: true }).value, { requireFirstOrderCallback: true });
 
   const res = response();
-  await adminUpdateZone({ body: { requireFirstOrderCallback: true }, params: { id: "mah-cumhuriyet" }, user: ADMIN, method: "PUT", originalUrl: "/api/delivery/admin/zones/mah-cumhuriyet" }, res);
+  await adminUpdateZone({ body: { requireFirstOrderCallback: true }, params: { id: "boysDorm" }, user: ADMIN, method: "PUT", originalUrl: "/api/delivery/admin/zones/boysDorm" }, res);
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
   assert.equal(res.body.zone.requiresFirstOrderCallback, true);
-  assert.equal(fx.zones.find((z) => z._id === "mah-cumhuriyet").requireFirstOrderCallback, true);
+  assert.equal(fx.zones.find((z) => z._id === "boysDorm").requireFirstOrderCallback, true);
   await tick();
   assert.deepEqual(audits[0].changes, [{ label: "İlk siparişte telefonla teyit", from: "Kapalı", to: "Açık" }]);
 
   const bulk = response();
-  await adminBulkUpdateZones({ body: { ids: ["mah-cumhuriyet", "koy-yazicik"], set: { requireFirstOrderCallback: false } }, user: ADMIN, method: "PATCH", originalUrl: "/api/delivery/admin/zones/bulk" }, bulk);
+  await adminBulkUpdateZones({ body: { ids: ["boysDorm", "devrek"], set: { requireFirstOrderCallback: false } }, user: ADMIN, method: "PATCH", originalUrl: "/api/delivery/admin/zones/bulk" }, bulk);
   assert.equal(bulk.statusCode, 200, JSON.stringify(bulk.body));
   assert.deepEqual(fx.updateMany.at(-1).update, { $set: { requireFirstOrderCallback: false } });
-  assert.equal(fx.zones.find((z) => z._id === "koy-yazicik").requireFirstOrderCallback, false);
+  assert.equal(fx.zones.find((z) => z._id === "devrek").requireFirstOrderCallback, false);
   const bad = response();
-  await adminBulkUpdateZones({ body: { ids: ["koy-yazicik"], set: { requireFirstOrderCallback: 1 } }, user: ADMIN, method: "PATCH", originalUrl: "/x" }, bad);
+  await adminBulkUpdateZones({ body: { ids: ["devrek"], set: { requireFirstOrderCallback: 1 } }, user: ADMIN, method: "PATCH", originalUrl: "/x" }, bad);
   assert.equal(bad.statusCode, 400);
 });
 
@@ -267,7 +266,7 @@ const addressBody = (zoneId, fields = {}) => ({
   products: [{ product: PRODUCT(1), quantity: 6 }],
   phone: "05551112233",
   zoneId,
-  deliveryAddress: { street: "Köy içi", buildingNo: "3", directions: "Caminin karşısı, mavi kapı" },
+  deliveryAddress: { neighborhood: "Cumhuriyet", street: "Atatürk Cd.", buildingNo: "3", directions: "Caminin karşısı, mavi kapı", location: { lat: 41.2207, lng: 31.9563 } },
   ...fields,
 });
 
@@ -281,7 +280,7 @@ test("adresli sipariş: teyitli bölgede teslim edilmiş siparişi olmayan müş
   t.mock.method(Order, "exists", async (filter) => { existsCalls.push(filter); return delivered; });
 
   const first = response();
-  await placeOrder(orderRequest(addressBody("koy-yazicik"), customer(1)), first);
+  await placeOrder(orderRequest(addressBody("devrek"), customer(1)), first);
   assert.equal(first.statusCode, 201, JSON.stringify(first.body));
   assert.equal(created[0].needsCallback, true);
   assert.equal(existsCalls.length, 1);
@@ -292,12 +291,12 @@ test("adresli sipariş: teyitli bölgede teslim edilmiş siparişi olmayan müş
 
   delivered = { _id: new mongoose.Types.ObjectId() };
   const returning = response();
-  await placeOrder(orderRequest(addressBody("koy-yazicik"), customer(2)), returning);
+  await placeOrder(orderRequest(addressBody("devrek"), customer(2)), returning);
   assert.equal(returning.statusCode, 201);
   assert.equal(created[1].needsCallback, false, "daha önce teslim edilmiş siparişi var");
 
   const plainZone = response();
-  await placeOrder(orderRequest(addressBody("mah-cumhuriyet"), customer(3)), plainZone);
+  await placeOrder(orderRequest(addressBody("girlsDorm"), customer(3)), plainZone);
   assert.equal(plainZone.statusCode, 201);
   assert.equal(created[2].needsCallback, false);
   assert.equal(existsCalls.length, 2, "bayrak kapalı bölgede teslim geçmişi sorgulanmaz");
@@ -589,9 +588,9 @@ test("GET /user-orders: mobilin beklediği alanların tamamı; kurye ve yönetic
     new Order({
       _id: ORDER(1), user: USER(1), products: [{ product: PRODUCT(1), name: "Süt", quantity: 2, price: 50 }],
       totalAmount: 160, productTotal: 100, deliveryFee: 60, subtotalAmount: 100, city: "Devrek", phone: "05551112233",
-      deliveryPoint: "address", deliveryType: "address", deliveryPointName: "Yazıcık Köyü · Köy içi No:3",
-      deliveryZone: { id: "koy-yazicik", name: "Yazıcık Köyü", type: "koy" },
-      deliveryAddress: { zoneId: "koy-yazicik", zoneName: "Yazıcık Köyü", street: "Köy içi", buildingNo: "3", directions: "Caminin karşısı", location: null },
+      deliveryPoint: "address", deliveryType: "address", deliveryPointName: "Cumhuriyet Mah. · Atatürk Cd. No:3",
+      deliveryZone: { id: "devrek", name: "Devrek", type: "ilce" }, areaVerified: true,
+      deliveryAddress: { zoneId: "devrek", zoneName: "Devrek", neighborhood: "Cumhuriyet", street: "Atatürk Cd.", buildingNo: "3", directions: "Caminin karşısı", location: { lat: 41.2207, lng: 31.9563 } },
       status: "İptal Edildi", needsCallback: true, callbackConfirmedAt: confirmedAt, callbackConfirmedBy: ADMIN._id,
       deliveryOutcome: { code: "adres_bulunamadi", label: "Adres bulunamadı", note: "iç not", at: new Date(), by: ADMIN._id },
       courier: { id: COURIER(1), name: "Ali" },
@@ -622,12 +621,14 @@ test("GET /user-orders: mobilin beklediği alanların tamamı; kurye ve yönetic
     assert.ok(!("callbackConfirmedBy" in order));
   }
   assert.equal(address.deliveryType, "address");
-  assert.deepEqual(address.deliveryZone, { id: "koy-yazicik", name: "Yazıcık Köyü", type: "koy" });
-  assert.equal(address.deliveryAddress.street, "Köy içi");
+  assert.deepEqual(address.deliveryZone, { id: "devrek", name: "Devrek", type: "ilce" });
+  assert.equal(address.deliveryAddress.street, "Atatürk Cd.");
+  assert.equal(address.deliveryAddress.neighborhood, "Cumhuriyet", "mobil: deliveryAddress.neighborhood");
+  assert.deepEqual(address.deliveryAddress.location, { lat: 41.2207, lng: 31.9563 });
   assert.equal(address.deliveryFee, 60);
   assert.equal(address.productTotal, 100);
   assert.equal(address.totalAmount, 160);
-  assert.equal(address.deliveryPointName, "Yazıcık Köyü · Köy içi No:3");
+  assert.equal(address.deliveryPointName, "Cumhuriyet Mah. · Atatürk Cd. No:3");
   assert.equal(address.needsCallback, true);
   assert.equal(new Date(address.callbackConfirmedAt).toISOString(), confirmedAt.toISOString());
   assert.equal(address.deliveryOutcomeLabel, "Teslim edilemedi: Adres bulunamadı");
@@ -687,9 +688,9 @@ test("pano özeti: teslim edilemeyenler bölge ve nedene göre (yeni anahtar), t
     return [{
       totals: [], byStatus: [], byDorm: [], byZone: [], series: [], topProducts: [], manual: [],
       failedDeliveries: [
-        { _id: { zone: "koy-yazicik", code: "adres_bulunamadi" }, name: "Yazıcık Köyü", count: 2 },
-        { _id: { zone: "koy-yazicik", code: "cevap_yok" }, name: "Yazıcık Köyü", count: 1 },
-        { _id: { zone: "mah-cumhuriyet", code: "cevap_yok" }, name: "Cumhuriyet Mahallesi", count: 1 },
+        { _id: { zone: "devrek", code: "adres_bulunamadi" }, name: "Devrek", count: 2 },
+        { _id: { zone: "devrek", code: "cevap_yok" }, name: "Devrek", count: 1 },
+        { _id: { zone: "girlsDorm", code: "cevap_yok" }, name: "Kız KYK Yurdu", count: 1 },
       ],
     }];
   });
@@ -707,8 +708,8 @@ test("pano özeti: teslim edilemeyenler bölge ve nedene göre (yeni anahtar), t
     total: 4,
     byReason: { adres_bulunamadi: 2, cevap_yok: 2 },
     byZone: [
-      { zoneId: "koy-yazicik", name: "Yazıcık Köyü", count: 3, byReason: { adres_bulunamadi: 2, cevap_yok: 1 } },
-      { zoneId: "mah-cumhuriyet", name: "Cumhuriyet Mahallesi", count: 1, byReason: { cevap_yok: 1 } },
+      { zoneId: "devrek", name: "Devrek", count: 3, byReason: { adres_bulunamadi: 2, cevap_yok: 1 } },
+      { zoneId: "girlsDorm", name: "Kız KYK Yurdu", count: 1, byReason: { cevap_yok: 1 } },
     ],
   });
   assert.deepEqual(summary.callbacks, { pending: 4 });

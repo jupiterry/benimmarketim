@@ -24,7 +24,9 @@ export const orderDeliveryLabel = (order = {}) => {
     return text && !RAW_DELIVERY_CODES.has(text) ? text.slice(0, 80) : "";
   };
   if (order.deliveryType === "address" || order.deliveryPoint === "address" || address?.street) {
-    const zone = named(address?.zoneName) || named(order.deliveryZone?.name);
+    // Devrek siparişinde bölge adı yerine mahalle ("Cumhuriyet Mah.") gösterilir
+    const neighborhood = String(address?.neighborhood || "").trim().replace(/\s+(mahallesi|mahalle|mah\.?)$/i, "");
+    const zone = (neighborhood ? `${neighborhood.slice(0, 60)} Mah.` : "") || named(address?.zoneName) || named(order.deliveryZone?.name);
     const street = [address?.street, address?.buildingNo ? `No:${address.buildingNo}` : ""].map((part) => String(part || "").trim()).filter(Boolean).join(" ");
     return [zone, street.slice(0, 80)].filter(Boolean).join(" · ") || named(order.deliveryPointName) || "Adrese teslimat";
   }
@@ -293,7 +295,7 @@ export const runAiTool = async (intent, authenticatedUserId) => {
     const orderId = intent.orderId || null;
     if (orderId && !mongoose.isValidObjectId(orderId)) return { tool: intent.name, found: false };
     const filter = ownedOrderFilter(orderId, authenticatedUserId);
-    const deliveryFields = "deliveryPoint deliveryPointName deliveryType deliveryZone deliveryAddress.zoneName deliveryAddress.street deliveryAddress.buildingNo deliveryFee";
+    const deliveryFields = "deliveryPoint deliveryPointName deliveryType deliveryZone deliveryAddress.zoneName deliveryAddress.neighborhood deliveryAddress.street deliveryAddress.buildingNo deliveryFee";
     const projection = intent.name === "getOrderDetails" ? `status totalAmount subtotalAmount couponDiscount ${deliveryFields} deliveryTracking createdAt products.name products.quantity products.price` : `status totalAmount ${deliveryFields} deliveryTracking createdAt`;
     const orders = intent.name === "getMyActiveOrders"
       ? await Order.find({ ...filter, status: { $in: ["Hazırlanıyor", "Yolda"] } }).sort({ createdAt: -1 }).select(projection).limit(5).lean()
@@ -463,7 +465,7 @@ const zoneSummary = (zone, info = {}) => {
   const minimum = zone.minimumOrderAmount === null || zone.minimumOrderAmount === undefined ? null : Number(zone.minimumOrderAmount);
   if (minimum !== null && Number.isFinite(minimum) && minimum !== Number(info.minimumOrderAmount)) parts.push(minimum > 0 ? `minimum sepet ${formatMoney(minimum)}` : "minimum sepet yok");
   if (zone.etaText) parts.push(String(zone.etaText));
-  return `${zone.name} (${parts.join(", ")})`;
+  return `${zone.description || zone.name} (${parts.join(", ")})`;
 };
 const productLine = (product) => `• ${product.name} — ${formatMoney(product.price)}${product.inStock ? "" : " (şu anda tükendi)"}`;
 

@@ -12,7 +12,7 @@ import {
 import { RuleIcon } from "./RuleIcon";
 import { LEGACY_POINT_IDS, couponZoneIds, useDeliveryZones, zoneNameMap } from "./useDeliveryZones";
 
-const ZONE_TYPE_LABELS = { yurt: "Yurt", mahalle: "Mahalle", koy: "Köy" };
+const ZONE_TYPE_LABELS = { yurt: "Yurt", ilce: "Devrek merkez", mahalle: "Mahalle", koy: "Köy" };
 
 const EMPTY_FORM = {
   code: "",

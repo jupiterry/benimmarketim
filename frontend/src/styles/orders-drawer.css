@@ -635,6 +635,31 @@
 .admin-layout .so-d-addr-fee {
   flex-shrink: 0;
 }
+.admin-layout .so-d-addr-badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ui-s1);
+  min-width: 0;
+}
+.admin-layout .so-d-addr-unverified {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.admin-layout .so-d-addr-unverified svg {
+  width: 12px;
+  height: 12px;
+}
+.admin-layout .so-d-addr-loc a {
+  color: var(--ui-brand-strong);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.admin-layout .so-d-addr-coords {
+  color: var(--ui-text-3);
+}
 .admin-layout .so-d-addr-card {
   display: flex;
   align-items: flex-start;

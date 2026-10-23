@@ -72,16 +72,24 @@ export const orderZoneName = (order) => cleanText(order?.deliveryZone?.name || o
 /** Bölge kimliği (yurt siparişinde yurt anahtarı); yoksa boş */
 export const orderZoneId = (order) => cleanText(order?.deliveryZone?.id || order?.deliveryAddress?.zoneId)
   || (DORM_POINT_NAMES[order?.deliveryPoint] ? order.deliveryPoint : "");
+/** "Cumhuriyet" / "Cumhuriyet Mahallesi" / "Cumhuriyet Mah." → "Cumhuriyet Mah." (boşsa "") */
+export const neighborhoodLabel = (value) => {
+  const name = cleanText(value).replace(/\s+(mahallesi|mahalle|mah\.?)$/i, "").trim();
+  return name ? `${name} Mah.` : "";
+};
 /**
  * Adres satırları (adresli siparişte; aksi halde null):
- * { street: "Atatürk Cd. No:5", building: "Gül Apt.", unit: "Kat 2 · Daire 4", directions, zone, oneLine }
+ * { street: "Cumhuriyet Mah. Atatürk Cd. No:5", neighborhood: "Cumhuriyet Mah.", building: "Gül Apt.",
+ *   unit: "Kat 2 · Daire 4", directions, zone, oneLine }
+ * Mahalle (Devrek siparişi) varsa sokak satırının başına yazılır; fiş, kurye fişi, toplama listesi ve CSV bu satırı kullanır.
  */
 export const orderAddressLines = (order) => {
   if (!isAddressOrder(order)) return null;
   const a = order?.deliveryAddress || {};
+  const neighborhood = neighborhoodLabel(a.neighborhood);
   const streetName = cleanText(a.street);
   const no = cleanText(a.buildingNo);
-  const street = [streetName, no ? `No:${no}` : ""].filter(Boolean).join(" ");
+  const street = [neighborhood, streetName, no ? `No:${no}` : ""].filter(Boolean).join(" ");
   const building = cleanText(a.buildingName);
   const unit = [cleanText(a.floor) ? `Kat ${cleanText(a.floor)}` : "", cleanText(a.apartment) ? `Daire ${cleanText(a.apartment)}` : ""]
     .filter(Boolean).join(" · ");
@@ -89,21 +97,28 @@ export const orderAddressLines = (order) => {
   const zone = orderZoneName(order);
   const oneLine = [street, building, unit, zone].filter(Boolean).join(", ")
     || cleanText(order?.deliveryPointName) || zone;
-  return { street, building, unit, directions, zone, oneLine };
+  return { street, neighborhood, building, unit, directions, zone, oneLine };
 };
+/** Siparişteki müşteri konumu { lat, lng } ya da null */
+export const orderLocation = (order) => {
+  const location = order?.deliveryAddress?.location;
+  if (!location || location.lat == null || location.lng == null) return null;
+  const lat = Number(location.lat);
+  const lng = Number(location.lng);
+  return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+};
+/** Devrek siparişi teslimat alanı (sınır) doğrulanmadan mı alındı? (yalnızca areaVerified === false) */
+export const isAreaUnverified = (order) => order?.areaVerified === false;
 /**
- * Google Haritalar bağlantısı: konum varsa koordinat, yoksa "<sokak> <bina no>, <bölge>, Devrek" araması.
+ * Google Haritalar bağlantısı: konum varsa koordinat, yoksa "<mahalle> <sokak> <bina no>, <bölge>, Devrek" araması.
  * Adresli olmayan siparişte null.
  */
 export const orderMapsLink = (order) => {
   if (!isAddressOrder(order)) return null;
   const a = order?.deliveryAddress || {};
-  const lat = Number(a.location?.lat);
-  const lng = Number(a.location?.lng);
-  if (a.location && a.location.lat != null && a.location.lng != null && Number.isFinite(lat) && Number.isFinite(lng)) {
-    return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
-  }
-  const street = [cleanText(a.street), cleanText(a.buildingNo)].filter(Boolean).join(" ");
+  const location = orderLocation(order);
+  if (location) return `https://www.google.com/maps/search/?api=1&query=${location.lat},${location.lng}`;
+  const street = [neighborhoodLabel(a.neighborhood), cleanText(a.street), cleanText(a.buildingNo)].filter(Boolean).join(" ");
   const query = [street, orderZoneName(order), "Devrek"].filter(Boolean).join(", ");
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 };

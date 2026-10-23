@@ -3,11 +3,14 @@
  * Her işlem yalnızca oturumdaki kullanıcının kendi adresleri üzerinde çalışır; başkasının adresi
  * 404 döner. Kişi başı en fazla MAX_ADDRESSES_PER_USER adres. İlk adres varsayılan olur; varsayılan
  * adres silinirse en son güncellenen adres varsayılan yapılır.
+ * Bölge kuralları (validateAddressForZone): Devrek'te mahalle, cadde/sokak, bina no ve konum zorunlu; konum yüklü
+ * Devrek sınırının dışındaysa 400 OUT_OF_AREA. Yurtta alan zorunlu değil. Eski (kapatılmış) bölgelerdeki
+ * kayıtlı adresler zoneEnabled: false ile listelenir.
  */
 
 import UserAddress, { MAX_ADDRESSES_PER_USER } from "../models/userAddress.model.js";
 import Settings from "../models/settings.model.js";
-import { getZone, isValidObjectId, listZones, normalizeAddressInput } from "../services/delivery.service.js";
+import { getZone, isValidObjectId, listZones, normalizeAddressInput, validateAddressForZone } from "../services/delivery.service.js";
 
 const fail = (res, status, message, extra = {}) => res.status(status).json({ error: message, message, ...extra });
 const serverError = (res, label, error) => {
@@ -27,6 +30,7 @@ export const serializeAddress = (address, zoneMap) => {
     zoneName: zone?.name || "",
     zoneType: zone?.type || null,
     zoneEnabled: Boolean(zone?.enabled),
+    neighborhood: address.neighborhood || "",
     street: address.street || "",
     buildingNo: address.buildingNo || "",
     buildingName: address.buildingName || "",
@@ -42,7 +46,7 @@ export const serializeAddress = (address, zoneMap) => {
 
 const zoneMapFor = async () => {
   try {
-    const zones = await listZones();
+    const zones = await listZones({ includeRetired: true });
     return new Map(zones.map((zone) => [zone._id, zone]));
   } catch (error) {
     console.warn("Adres listesi için bölgeler okunamadı:", error.message);
@@ -64,14 +68,21 @@ const findOwn = async (req) => {
   return UserAddress.findOne({ _id: id, user: req.user._id });
 };
 
-/** Bölge var ve açık mı? Hata mesajı ya da null. */
-const zoneError = async (zoneId) => {
+/**
+ * Adresi bölgesine göre denetler. requireOpen: bölge açık olmalı (yeni adres ya da bölge değişikliği).
+ * @returns {Promise<{ status, message, code? } | null>} hata ya da null
+ */
+const addressProblem = async (address, { requireOpen }) => {
   const settings = await Settings.getSettings();
-  const zone = await getZone(zoneId, { settings });
-  if (!zone) return "Teslimat bölgesi bulunamadı";
-  if (!zone.enabled) return `${zone.name} bölgesine şu anda teslimat yapılamıyor`;
+  const zone = await getZone(address.zoneId, { settings, withArea: true });
+  if (!zone) return { status: 400, message: "Teslimat bölgesi bulunamadı", code: "ZONE_NOT_FOUND" };
+  if (requireOpen && !zone.enabled) return { status: 400, message: `${zone.name} bölgesine şu anda teslimat yapılamıyor`, code: "ZONE_CLOSED" };
+  const check = validateAddressForZone(address, zone);
+  if (check.error) return { status: 400, message: check.error, code: check.code };
   return null;
 };
+
+const failWith = (res, problem) => fail(res, problem.status, problem.message, problem.code ? { code: problem.code } : {});
 
 const clearOtherDefaults = (userId, keepId) =>
   UserAddress.updateMany({ user: userId, _id: { $ne: keepId }, isDefault: true }, { $set: { isDefault: false } });
@@ -98,8 +109,8 @@ export const createAddress = async (req, res) => {
     if (count >= MAX_ADDRESSES_PER_USER) {
       return fail(res, 400, `En fazla ${MAX_ADDRESSES_PER_USER} adres kaydedebilirsiniz. Yeni adres için birini silin.`, { code: "ADDRESS_LIMIT" });
     }
-    const zoneProblem = await zoneError(value.zoneId);
-    if (zoneProblem) return fail(res, 400, zoneProblem);
+    const problem = await addressProblem(value, { requireOpen: true });
+    if (problem) return failWith(res, problem);
 
     const isDefault = count === 0 || value.isDefault === true;
     const created = await UserAddress.create({ ...value, user: req.user._id, isDefault });
@@ -119,10 +130,11 @@ export const updateAddress = async (req, res) => {
     if (!address) return fail(res, 404, "Adres bulunamadı");
     const { value, error } = normalizeAddressInput(req.body || {}, { partial: true });
     if (error) return fail(res, 400, error);
-    if (value.zoneId !== undefined && value.zoneId !== address.zoneId) {
-      const zoneProblem = await zoneError(value.zoneId);
-      if (zoneProblem) return fail(res, 400, zoneProblem);
-    }
+    // Birleşik adres bölgesine göre denetlenir; bölge değişiyorsa yeni bölge açık olmalı
+    const current = typeof address.toObject === "function" ? address.toObject() : { ...address };
+    const merged = { ...current, ...value };
+    const problem = await addressProblem(merged, { requireOpen: value.zoneId !== undefined && value.zoneId !== address.zoneId });
+    if (problem) return failWith(res, problem);
     const makeDefault = value.isDefault === true;
     delete value.isDefault; // varsayılanlık yalnızca açıkça true ile verilir (kaldırmak için başka adresi varsayılan yapın)
     Object.assign(address, value);
