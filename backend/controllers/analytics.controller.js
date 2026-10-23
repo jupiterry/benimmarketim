@@ -2,6 +2,13 @@ import Order from "../models/order.model.js";
 import User from "../models/user.model.js";
 import Product from "../models/product.model.js";
 
+// Ciro = ürün cirosu (teslimat ücreti hariç). Eski siparişlerde productTotal yok → totalAmount.
+const PRODUCT_REVENUE = { $ifNull: ["$productTotal", "$totalAmount"] };
+/** JS tarafı ürün tutarı */
+export const productAmount = (order) => Number(order?.productTotal ?? order?.totalAmount) || 0;
+/** Kilitli teslimat ücreti (eski siparişlerde 0) */
+export const deliveryFeeAmount = (order) => Number(order?.deliveryFee) || 0;
+
 export const getAnalytics = async (req, res) => {
 	try {
 		const { timeRange } = req.query;
@@ -30,7 +37,7 @@ export const getAnalytics = async (req, res) => {
 		// Seçili dönem için sipariş verileri (yalnızca gerekli alanlar)
 		const currentPeriodOrders = await Order.find({
 			createdAt: { $gte: startDate }
-		}).select("status totalAmount couponCode couponDiscount").lean();
+		}).select("status totalAmount productTotal deliveryFee couponCode couponDiscount").lean();
 
 		// Önceki dönem için sipariş verileri
 		const previousPeriodStart = new Date(startDate);
@@ -48,18 +55,21 @@ export const getAnalytics = async (req, res) => {
 
 		const previousPeriodOrders = await Order.find({
 			createdAt: { $gte: previousPeriodStart, $lt: startDate }
-		}).select("status totalAmount couponCode couponDiscount").lean();
+		}).select("status totalAmount productTotal deliveryFee couponCode couponDiscount").lean();
 
 		// Toplam gelir hesaplama - Tüm zamanlar için (İptal edilenler hariç); belge yüklemeden $sum
 		const [revenueRow] = await Order.aggregate([
 			{ $match: { status: { $ne: "İptal Edildi" } } },
-			{ $group: { _id: null, total: { $sum: { $ifNull: ["$totalAmount", 0] } } } },
+			{ $group: { _id: null, total: { $sum: { $ifNull: ["$productTotal", { $ifNull: ["$totalAmount", 0] }] } }, deliveryFee: { $sum: { $ifNull: ["$deliveryFee", 0] } } } },
 		]);
 		const totalRevenue = revenueRow?.total || 0;
+		const totalDeliveryFeeRevenue = revenueRow?.deliveryFee || 0;
 
 		// Değişim oranları hesaplama
-		const currentPeriodRevenue = currentPeriodOrders.filter(o => o.status !== "İptal Edildi").reduce((sum, order) => sum + (order.totalAmount || 0), 0);
-		const previousPeriodRevenue = previousPeriodOrders.filter(o => o.status !== "İptal Edildi").reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+		const currentPeriodRevenue = currentPeriodOrders.filter(o => o.status !== "İptal Edildi").reduce((sum, order) => sum + productAmount(order), 0);
+		const previousPeriodRevenue = previousPeriodOrders.filter(o => o.status !== "İptal Edildi").reduce((sum, order) => sum + productAmount(order), 0);
+		const periodDeliveryFeeRevenue = currentPeriodOrders.filter(o => o.status !== "İptal Edildi").reduce((sum, order) => sum + deliveryFeeAmount(order), 0);
+		const previousDeliveryFeeRevenue = previousPeriodOrders.filter(o => o.status !== "İptal Edildi").reduce((sum, order) => sum + deliveryFeeAmount(order), 0);
 
 		const revenueChange = previousPeriodRevenue === 0 ? null :
 			((currentPeriodRevenue - previousPeriodRevenue) / previousPeriodRevenue) * 100;
@@ -77,7 +87,7 @@ export const getAnalytics = async (req, res) => {
 			{
 				$group: {
 					_id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-					amount: { $sum: "$totalAmount" }
+					amount: { $sum: PRODUCT_REVENUE }
 				}
 			},
 			{
@@ -158,6 +168,8 @@ export const getAnalytics = async (req, res) => {
 			customer: order.user?.name || "Bilinmeyen Kullanıcı",
 			items: order.products?.length || 0,
 			total: order.totalAmount || 0,
+			productTotal: productAmount(order),
+			deliveryFee: deliveryFeeAmount(order),
 			status: order.status || "Beklemede"
 		}));
 
@@ -241,7 +253,7 @@ export const getAnalytics = async (req, res) => {
 				$group: {
 					_id: { $hour: "$createdAt" },
 					orders: { $sum: 1 },
-					revenue: { $sum: "$totalAmount" }
+					revenue: { $sum: PRODUCT_REVENUE }
 				}
 			},
 			{
@@ -291,7 +303,7 @@ export const getAnalytics = async (req, res) => {
 				$group: {
 					_id: "$city",
 					orders: { $sum: 1 },
-					revenue: { $sum: "$totalAmount" }
+					revenue: { $sum: PRODUCT_REVENUE }
 				}
 			},
 			{
@@ -317,7 +329,11 @@ export const getAnalytics = async (req, res) => {
 			previousPeriodRevenue,
 			periodOrders: valid.length,
 			cancelledCount: cancelled.length,
-			cancelledAmount: cancelled.reduce((sum, o) => sum + (o.totalAmount || 0), 0),
+			cancelledAmount: cancelled.reduce((sum, o) => sum + productAmount(o), 0),
+			// Teslimat ücreti cirodan ayrı (iptaller hariç)
+			periodDeliveryFeeRevenue: Math.round(periodDeliveryFeeRevenue * 100) / 100,
+			previousDeliveryFeeRevenue: Math.round(previousDeliveryFeeRevenue * 100) / 100,
+			totalDeliveryFeeRevenue: Math.round(totalDeliveryFeeRevenue * 100) / 100,
 			returnRate: null,
 			couponOrders: valid.filter(o => o.couponCode).length,
 			couponDiscount: valid.reduce((sum, o) => sum + (o.couponDiscount || 0), 0),
@@ -371,7 +387,7 @@ export const getHeatmapData = async (req, res) => {
 				$project: {
 					dayOfWeek: { $dayOfWeek: "$createdAt" }, // 1 = Pazar, 7 = Cumartesi
 					hour: { $hour: "$createdAt" },
-					totalAmount: 1
+					productTotal: PRODUCT_REVENUE
 				}
 			},
 			{
@@ -381,7 +397,7 @@ export const getHeatmapData = async (req, res) => {
 						hour: "$hour"
 					},
 					sales: { $sum: 1 },
-					revenue: { $sum: "$totalAmount" }
+					revenue: { $sum: "$productTotal" }
 				}
 			},
 			{
@@ -547,14 +563,17 @@ const median = (values) => {
 export const summarizeCompareOrders = (orders = []) => {
 	const valid = orders.filter((o) => o.status !== "İptal Edildi");
 	const cancelled = orders.filter((o) => o.status === "İptal Edildi");
-	const revenue = round2(valid.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0));
+	const revenue = round2(valid.reduce((sum, o) => sum + productAmount(o), 0));
 	const prep = valid.map(prepMinutes).filter((m) => m !== null);
 	const avgPrep = prep.length ? round2(prep.reduce((a, b) => a + b, 0) / prep.length) : null;
 	return {
 		orders: valid.length,
 		revenue,
 		cancelled: cancelled.length,
-		cancelledAmount: round2(cancelled.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0)),
+		cancelledAmount: round2(cancelled.reduce((sum, o) => sum + productAmount(o), 0)),
+		// Teslimat ücreti cirodan ayrı raporlanır
+		deliveryFeeRevenue: round2(valid.reduce((sum, o) => sum + deliveryFeeAmount(o), 0)),
+		paidDeliveryOrders: valid.filter((o) => deliveryFeeAmount(o) > 0).length,
 		cancelRate: orders.length ? round2((cancelled.length / orders.length) * 100) : null,
 		averageOrderValue: valid.length ? round2(revenue / valid.length) : 0,
 		couponOrders: valid.filter((o) => o.couponCode).length,
@@ -574,7 +593,7 @@ export const dailySeries = (orders, start) => {
 		if (o.status === "İptal Edildi") continue;
 		const day = trDay(o.createdAt);
 		const entry = map.get(day) || { date: day, amount: 0, orders: 0 };
-		entry.amount = round2(entry.amount + (Number(o.totalAmount) || 0));
+		entry.amount = round2(entry.amount + productAmount(o));
 		entry.orders += 1;
 		map.set(day, entry);
 	}
@@ -591,7 +610,7 @@ export const hourlyBreakdown = (orders) => {
 		if (o.status === "İptal Edildi") continue;
 		const row = rows[trHour(o.createdAt)];
 		row.orders += 1;
-		row.revenue = round2(row.revenue + (Number(o.totalAmount) || 0));
+		row.revenue = round2(row.revenue + productAmount(o));
 	}
 	return rows;
 };
@@ -604,7 +623,23 @@ export const dormBreakdown = (orders) => {
 		const key = o.deliveryPoint || "unknown";
 		const row = map.get(key) || { deliveryPoint: key, orders: 0, revenue: 0 };
 		row.orders += 1;
-		row.revenue = round2(row.revenue + (Number(o.totalAmount) || 0));
+		row.revenue = round2(row.revenue + productAmount(o));
+		map.set(key, row);
+	}
+	return [...map.values()].sort((a, b) => b.revenue - a.revenue);
+};
+
+/** Bölgeye göre sipariş, ürün cirosu ve teslimat ücreti (eski siparişlerde bölge = yurt anahtarı) */
+export const zoneBreakdown = (orders) => {
+	const map = new Map();
+	for (const o of orders) {
+		if (o.status === "İptal Edildi") continue;
+		const key = o.deliveryZone?.id || o.deliveryPoint || "unknown";
+		const row = map.get(key) || { zoneId: key, name: o.deliveryZone?.name || "", type: o.deliveryZone?.type || (key === "girlsDorm" || key === "boysDorm" ? "yurt" : null), orders: 0, revenue: 0, deliveryFeeRevenue: 0 };
+		if (!row.name && o.deliveryZone?.name) row.name = o.deliveryZone.name;
+		row.orders += 1;
+		row.revenue = round2(row.revenue + productAmount(o));
+		row.deliveryFeeRevenue = round2(row.deliveryFeeRevenue + deliveryFeeAmount(o));
 		map.set(key, row);
 	}
 	return [...map.values()].sort((a, b) => b.revenue - a.revenue);
@@ -628,7 +663,7 @@ export const topProductsBreakdown = (orders, limit = 10) => {
 	return [...map.values()].sort((a, b) => b.units - a.units || b.revenue - a.revenue).slice(0, limit);
 };
 
-const COMPARE_FIELDS = "products totalAmount status statusHistory createdAt deliveryPoint couponCode couponDiscount";
+const COMPARE_FIELDS = "products totalAmount productTotal deliveryFee deliveryZone status statusHistory createdAt deliveryPoint couponCode couponDiscount";
 const findCompareOrders = (range) =>
 	Order.find({ createdAt: { $gte: range.start, $lt: range.end }, status: { $in: ACTIVE_STATUSES } }).select(COMPARE_FIELDS).lean();
 
@@ -669,7 +704,7 @@ export const buildCompareResponse = ({ ranges, currentOrders, previousOrders, ca
 		generatedAt: ranges.current.end.toISOString(),
 		current: { start: ranges.current.start.toISOString(), end: ranges.current.end.toISOString(), ...current },
 		previous: { start: ranges.previous.start.toISOString(), end: ranges.previous.end.toISOString(), ...previous },
-		previousFull: { start: ranges.previousFull.start.toISOString(), end: ranges.previousFull.end.toISOString(), revenue: previousFull.revenue, orders: previousFull.orders },
+		previousFull: { start: ranges.previousFull.start.toISOString(), end: ranges.previousFull.end.toISOString(), revenue: previousFull.revenue, orders: previousFull.orders, deliveryFeeRevenue: previousFull.deliveryFeeRevenue },
 		deltas: {
 			revenue: pct(current.revenue, previous.revenue),
 			orders: pct(current.orders, previous.orders),
@@ -678,10 +713,12 @@ export const buildCompareResponse = ({ ranges, currentOrders, previousOrders, ca
 			cancelRate: diff(current.cancelRate, previous.cancelRate),
 			avgPrepMinutes: diff(current.avgPrepMinutes, previous.avgPrepMinutes),
 			couponDiscount: pct(current.couponDiscount, previous.couponDiscount),
+			deliveryFeeRevenue: pct(current.deliveryFeeRevenue, previous.deliveryFeeRevenue),
 		},
 		salesByDay: { current: dailySeries(currentOrders, ranges.current.start), previous: dailySeries(previousOrders, ranges.previous.start) },
 		hourly: hourlyBreakdown(currentOrders),
 		byDorm: dormBreakdown(currentOrders),
+		byZone: zoneBreakdown(currentOrders),
 		byCategory: categories.map((c) => ({ ...c, share: catTotal > 0 ? round2((c.revenue / catTotal) * 100) : 0 })),
 		topProducts: topProductsBreakdown(currentOrders),
 	};

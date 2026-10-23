@@ -44,7 +44,8 @@ export const getBestCustomers = async (req, res) => {
       {
         $group: {
           _id: "$user",
-          totalSpent: { $sum: "$totalAmount" },
+          // Ürün harcaması (teslimat ücreti hariç; eski siparişlerde totalAmount)
+          totalSpent: { $sum: { $ifNull: ["$productTotal", "$totalAmount"] } },
           orderCount: { $sum: 1 }
         }
       },
@@ -178,7 +179,9 @@ const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;
 export const buildCustomerProfile = (user, orders = [], { invitedBy = null, own = null } = {}) => {
   const sorted = [...orders].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   const valid = sorted.filter((order) => order.status !== CANCELLED);
-  const totalSpent = round2(valid.reduce((sum, order) => sum + (Number(order.totalAmount) || 0), 0));
+  // Ürün harcaması: teslimat ücreti ayrı (eski siparişlerde productTotal yok → totalAmount)
+  const totalSpent = round2(valid.reduce((sum, order) => sum + (Number(order.productTotal ?? order.totalAmount) || 0), 0));
+  const deliveryFeeTotal = round2(valid.reduce((sum, order) => sum + (Number(order.deliveryFee) || 0), 0));
   const deliveredCount = sorted.filter((order) => order.status === "Teslim Edildi").length;
   const oldest = sorted[sorted.length - 1];
 
@@ -239,6 +242,7 @@ export const buildCustomerProfile = (user, orders = [], { invitedBy = null, own 
       deliveredCount,
       totalSpent,
       avgBasket: valid.length ? round2(totalSpent / valid.length) : 0,
+      deliveryFeeTotal,
       firstOrderAt: toIso(oldest?.createdAt),
       lastOrderAt: toIso(sorted[0]?.createdAt),
       couponOrders: valid.filter((order) => order.couponCode).length,
@@ -248,6 +252,9 @@ export const buildCustomerProfile = (user, orders = [], { invitedBy = null, own 
       _id: String(order._id),
       status: order.status || "Hazırlanıyor",
       totalAmount: Number(order.totalAmount) || 0,
+      productTotal: Number(order.productTotal ?? order.totalAmount) || 0,
+      deliveryFee: Number(order.deliveryFee) || 0,
+      deliveryZoneName: order.deliveryZone?.name || "",
       createdAt: toIso(order.createdAt),
       itemCount: (order.products || []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0),
       couponCode: order.couponCode || null,
@@ -332,7 +339,7 @@ export const getCustomerProfile = async (req, res) => {
     }
     const [orders, invitedByDoc, own] = await Promise.all([
       Order.find({ user: id })
-        .select("status totalAmount createdAt products couponCode couponDiscount device deliveryPointName")
+        .select("status totalAmount productTotal deliveryFee deliveryZone createdAt products couponCode couponDiscount device deliveryPointName")
         .populate({ path: "products.product", select: "name image" })
         .sort({ createdAt: -1 })
         .lean(),

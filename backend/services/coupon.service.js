@@ -50,6 +50,44 @@ const scopedSubtotal = (coupon, orderProducts, totalAmount) => {
   }, 0);
 };
 
+// ── Teslimat bölgesi hedeflemesi ──
+// Eski kuponlar deliveryPoints ile yurt hedefler (girlsDorm/boysDorm); bu kimlikler yurt
+// teslimat bölgelerinin _id'leriyle aynıdır, bu yüzden ikisi tek bir hedef listesinde birleşir.
+export const LEGACY_DELIVERY_POINTS = ["girlsDorm", "boysDorm"];
+const LEGACY_POINT_SET = new Set(LEGACY_DELIVERY_POINTS);
+
+export const couponZoneTargets = (coupon = {}) => [
+  ...new Set([...(coupon.deliveryZones || []), ...(coupon.deliveryPoints || [])].map(String).filter(Boolean)),
+];
+
+// Kupon yalnızca yurt dışındaki bölgeleri mi hedefliyor? Böyle kuponları adrese sipariş
+// veremeyen istemciler (bölge göndermeyen eski uygulama) kullanamaz; listede gösterilmez.
+export const isAddressOnlyCoupon = (coupon = {}) => {
+  const targets = couponZoneTargets(coupon);
+  return targets.length > 0 && !targets.some((id) => LEGACY_POINT_SET.has(id));
+};
+
+// Yönetici panelinden gelen bölge seçimini kaydedilecek iki alana ayırır: yurtlar eski
+// deliveryPoints alanında kalır (eski uygulama bunu okur), diğer bölgeler deliveryZones'a yazılır.
+export const splitZoneTargets = (zones = []) => {
+  const list = [...new Set((Array.isArray(zones) ? zones : []).map((id) => String(id || "").trim()).filter(Boolean))].slice(0, 100);
+  return {
+    deliveryPoints: list.filter((id) => LEGACY_POINT_SET.has(id)),
+    deliveryZones: list.filter((id) => !LEGACY_POINT_SET.has(id)),
+  };
+};
+
+// Ayarlara göre kullanıcının adrese sipariş verip veremeyeceği (sözleşme: off → hayır,
+// pilot → pilotUserIds'te mi, public → evet).
+export const canUserOrderToAddress = (settings, userId) => {
+  const delivery = settings?.delivery || {};
+  if (delivery.addressOrdering === "public") return true;
+  if (delivery.addressOrdering === "pilot") {
+    return (delivery.pilotUserIds || []).some((id) => String(id) === String(userId));
+  }
+  return false;
+};
+
 export async function evaluateCoupon(
   coupon,
   {
@@ -57,6 +95,8 @@ export async function evaluateCoupon(
     totalAmount = 0,
     orderProducts = [],
     deliveryPoint,
+    deliveryZone,
+    canOrderToAddress,
     channel,
     deferDeliveryPoint = false,
     now = new Date(),
@@ -93,16 +133,26 @@ export async function evaluateCoupon(
     return fail("Bu kupon şu anda kullanım saatleri dışında", "schedule");
   }
 
-  if (coupon.deliveryPoints?.length) {
-    if (!deliveryPoint) {
+  const zoneTargets = couponZoneTargets(coupon);
+  if (zoneTargets.length) {
+    // Bölge bağlamı: yeni istemci deliveryZone gönderir; eski akışta yurt kodu (deliveryPoint) bölge kimliğidir.
+    const zoneId = String(deliveryZone || "").trim() || (LEGACY_POINT_SET.has(deliveryPoint) ? deliveryPoint : "");
+    if (!zoneId) {
+      // Bölge seçilmemişken: adrese sipariş veremeyen istemci yalnızca yurt hedeflerini kullanabilir.
+      const reachable = canOrderToAddress === true ? zoneTargets : zoneTargets.filter((id) => LEGACY_POINT_SET.has(id));
+      if (!reachable.length) {
+        return fail("Bu kupon yalnızca adrese teslimat yapılan bölgelerde geçerli", "delivery_zone");
+      }
       if (deferDeliveryPoint) {
         requirements.push("delivery_point");
       } else {
         return fail("Bu kupon için teslimat noktası seçmelisiniz", "delivery_point");
       }
-    }
-    if (deliveryPoint && !coupon.deliveryPoints.includes(deliveryPoint)) {
-      return fail("Bu kupon seçtiğiniz teslimat noktasında geçerli değil", "delivery_point");
+    } else if (!zoneTargets.includes(zoneId)) {
+      return fail(
+        deliveryZone ? "Bu kupon seçtiğiniz teslimat bölgesinde geçerli değil" : "Bu kupon seçtiğiniz teslimat noktasında geçerli değil",
+        "delivery_point"
+      );
     }
   }
 
@@ -176,6 +226,7 @@ export const couponPublicData = (coupon, evaluation = {}) => ({
   startTime: coupon.startTime || "",
   endTime: coupon.endTime || "",
   deliveryPoints: coupon.deliveryPoints || [],
+  deliveryZones: coupon.deliveryZones || [],
   channels: coupon.channels || [],
   newUsersOnly: coupon.newUsersOnly,
   newUserDays: coupon.newUserDays,

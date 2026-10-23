@@ -541,6 +541,32 @@
   gap: 4px;
   min-width: 0;
 }
+/* Adrese teslim: satırın altında açık adres (yurt satırı bugünkü gibi iki satır) */
+.admin-layout .so-t-point-row[data-addr="true"] {
+  grid-template-areas:
+    "code name tags"
+    "code phone tags"
+    "code addr addr";
+}
+.admin-layout .so-t-point-addr {
+  display: flex;
+  grid-area: addr;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  padding-bottom: 2px;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+.admin-layout .so-t-point-addr > svg {
+  width: 13px;
+  height: 13px;
+  margin-top: 1px;
+  flex-shrink: 0;
+  color: var(--ui-text-3);
+}
 
 /* ── Gün sonu ────────────────────────────────────────────────────── */
 .admin-layout .so-t-open {
@@ -625,6 +651,31 @@
   line-height: 1.15;
 }
 .admin-layout .so-t-hero-note {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .so-t-hero-fee {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  margin-top: var(--ui-s2);
+  padding-top: var(--ui-s2);
+  border-top: 1px dashed var(--ui-line-strong);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .so-t-hero-fee > svg {
+  width: 15px;
+  height: 15px;
+  color: var(--ui-info);
+}
+.admin-layout .so-t-hero-fee strong {
+  color: var(--ui-text);
+  font-weight: 700;
+}
+.admin-layout .so-t-hero-fee-meta {
+  flex-basis: 100%;
   color: var(--ui-text-3);
   font-size: var(--ui-fs-xs);
 }
@@ -913,6 +964,10 @@
   }
   .admin-layout .so-t-point-tags {
     margin-left: auto;
+  }
+  .admin-layout .so-t-point-addr {
+    flex: 1 1 100%;
+    padding-bottom: 6px;
   }
   .admin-layout .so-t-stats:not(.so-t-stats--3) {
     grid-template-columns: repeat(2, minmax(0, 1fr));

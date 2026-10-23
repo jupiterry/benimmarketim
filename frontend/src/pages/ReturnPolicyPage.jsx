@@ -1,7 +1,7 @@
-import React from 'react';
 import { Helmet } from 'react-helmet-async';
 import { RotateCcw, Clock, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import LegalLayout from '../components/LegalLayout';
+import { company } from '../data/company';
 
 const sections = [
   { id: "iptal-kosullari", label: "İptal Koşulları" },
@@ -176,7 +176,7 @@ const ReturnPolicyPage = () => {
           </p>
           <div className="legal-stack legal-stack--tight">
             <p className="legal-strong">📧 E-posta: iade@benimmarketim.com</p>
-            <p className="legal-strong">📞 Telefon: +90 (XXX) XXX XX XX</p>
+            <p className="legal-strong">📞 Telefon: {company.phone}</p>
             <p className="legal-strong">🕒 Çalışma Saatleri: 09:00 - 18:00</p>
           </div>
         </section>

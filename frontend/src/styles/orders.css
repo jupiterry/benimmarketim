@@ -337,6 +337,30 @@
 .admin-layout .so-point {
   max-width: 180px;
 }
+/* Adrese teslim siparişin kısa adres satırı */
+.admin-layout .so-addr-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 550;
+  line-height: 1.4;
+}
+.admin-layout .so-addr-line > svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  color: var(--ui-text-3);
+}
+.admin-layout .so-addr-line-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* Fiş ve toplama işaretleri (bu cihaz) */
 .admin-layout .so-printed {

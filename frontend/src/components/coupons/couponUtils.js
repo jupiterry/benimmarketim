@@ -145,7 +145,7 @@ const dayList = (days = []) =>
   DAY_LABELS.filter(([, d]) => days.includes(d)).map(([l]) => l).join(", ");
 
 // Kuponun kurallarını okunur cümleler halinde döndürür.
-export const describeRules = (c) => {
+export const describeRules = (c, zoneNames = {}) => {
   const rules = [];
   const value =
     c.discountType === "percentage"
@@ -176,8 +176,11 @@ export const describeRules = (c) => {
   if (c.channels?.length) {
     rules.push({ key: "ch", icon: "phone", text: `Kanal: ${c.channels.map((x) => CHANNEL_LABELS[x] || x).join(", ")}` });
   }
-  if (c.deliveryPoints?.length) {
-    rules.push({ key: "dp", icon: "pin", text: `Teslimat: ${c.deliveryPoints.map((x) => DELIVERY_LABELS[x] || x).join(", ")}` });
+  // Bölge hedefi: eski yurt kodları (deliveryPoints) + yeni bölge kimlikleri (deliveryZones)
+  const zoneTargets = [...new Set([...(c.deliveryPoints || []), ...(c.deliveryZones || [])])];
+  if (zoneTargets.length) {
+    const names = { ...DELIVERY_LABELS, ...zoneNames };
+    rules.push({ key: "dp", icon: "pin", text: `Teslimat bölgesi: ${zoneTargets.map((x) => names[x] || x).join(", ")}` });
   }
   if (c.isReferralCoupon) {
     rules.push({ key: "ref", icon: "gift", text: c.referredBy?.name ? `Referans ödülü (${c.referredBy.name})` : "Referans ödülü" });

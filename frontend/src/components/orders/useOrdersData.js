@@ -58,6 +58,8 @@ const lineKeysOf = (products) => {
 const withTotalsDelta = (order, delta) => {
   const next = { ...order, totalAmount: round2((Number(order.totalAmount) || 0) + delta) };
   if (order.couponCode && Number(order.subtotalAmount) > 0) next.subtotalAmount = round2(Number(order.subtotalAmount) + delta);
+  // Teslimat ücreti kilitlidir: yalnızca ürün tutarı değişir (sunucu da aynı kuralı uygular)
+  if (order.productTotal !== undefined && order.productTotal !== null) next.productTotal = Math.max(0, round2(Number(order.productTotal) + delta));
   return next;
 };
 

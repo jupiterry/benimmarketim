@@ -39,6 +39,75 @@ export const normalizeSearch = (value) =>
 
 export const onlyDigits = (value) => String(value ?? "").replace(/\D/g, "");
 
+// ── Teslimat: bölge, adres ve teslimat ücreti (Devrek genişlemesi) ───────────
+// Eski yurt siparişlerinde deliveryType/deliveryZone/deliveryAddress/deliveryFee/productTotal yoktur:
+// bu yardımcılar o siparişlerde bugünkü değerleri verir (ücret 0, ürün tutarı = toplam, adres yok).
+const DORM_POINT_NAMES = { girlsDorm: "Kız KYK Yurdu", boysDorm: "Erkek KYK Yurdu" };
+const money2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const cleanText = (value) => String(value ?? "").replace(/\s+/g, " ").trim();
+
+/** Adrese teslim siparişi mi (yurt/nokta siparişinde false) */
+export const isAddressOrder = (order) =>
+  order?.deliveryType === "address" || order?.deliveryPoint === "address" || Boolean(cleanText(order?.deliveryAddress?.street));
+/** Siparişe kilitli teslimat ücreti (eski siparişlerde 0) */
+export const orderDeliveryFee = (order) => Math.max(0, money2(order?.deliveryFee));
+/**
+ * Ürün tutarı (kupon sonrası, teslimat ücreti hariç). Değişmez: totalAmount = productTotal + deliveryFee;
+ * panelde iyimser düzenlemeler totalAmount'u güncellediği için toplamdan türetilir.
+ */
+export const orderProductTotal = (order) => {
+  const total = Number(order?.totalAmount);
+  if (Number.isFinite(total)) return Math.max(0, money2(total - orderDeliveryFee(order)));
+  return Math.max(0, money2(order?.productTotal));
+};
+/** Siparişte teslimat ücreti satırı gösterilmeli mi (adresli ya da ücretli sipariş) */
+export const hasDeliveryFeeLine = (order) => isAddressOrder(order) || orderDeliveryFee(order) > 0;
+/** "Ücretsiz" ya da "₺40,00" */
+export const deliveryFeeLabel = (order) => {
+  const fee = orderDeliveryFee(order);
+  return fee > 0 ? formatMoney(fee) : "Ücretsiz";
+};
+/** Bölge adı (sipariş anındaki kopya); yoksa boş */
+export const orderZoneName = (order) => cleanText(order?.deliveryZone?.name || order?.deliveryAddress?.zoneName);
+/** Bölge kimliği (yurt siparişinde yurt anahtarı); yoksa boş */
+export const orderZoneId = (order) => cleanText(order?.deliveryZone?.id || order?.deliveryAddress?.zoneId)
+  || (DORM_POINT_NAMES[order?.deliveryPoint] ? order.deliveryPoint : "");
+/**
+ * Adres satırları (adresli siparişte; aksi halde null):
+ * { street: "Atatürk Cd. No:5", building: "Gül Apt.", unit: "Kat 2 · Daire 4", directions, zone, oneLine }
+ */
+export const orderAddressLines = (order) => {
+  if (!isAddressOrder(order)) return null;
+  const a = order?.deliveryAddress || {};
+  const streetName = cleanText(a.street);
+  const no = cleanText(a.buildingNo);
+  const street = [streetName, no ? `No:${no}` : ""].filter(Boolean).join(" ");
+  const building = cleanText(a.buildingName);
+  const unit = [cleanText(a.floor) ? `Kat ${cleanText(a.floor)}` : "", cleanText(a.apartment) ? `Daire ${cleanText(a.apartment)}` : ""]
+    .filter(Boolean).join(" · ");
+  const directions = cleanText(a.directions);
+  const zone = orderZoneName(order);
+  const oneLine = [street, building, unit, zone].filter(Boolean).join(", ")
+    || cleanText(order?.deliveryPointName) || zone;
+  return { street, building, unit, directions, zone, oneLine };
+};
+/**
+ * Google Haritalar bağlantısı: konum varsa koordinat, yoksa "<sokak> <bina no>, <bölge>, Devrek" araması.
+ * Adresli olmayan siparişte null.
+ */
+export const orderMapsLink = (order) => {
+  if (!isAddressOrder(order)) return null;
+  const a = order?.deliveryAddress || {};
+  const lat = Number(a.location?.lat);
+  const lng = Number(a.location?.lng);
+  if (a.location && a.location.lat != null && a.location.lng != null && Number.isFinite(lat) && Number.isFinite(lng)) {
+    return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+  }
+  const street = [cleanText(a.street), cleanText(a.buildingNo)].filter(Boolean).join(" ");
+  const query = [street, orderZoneName(order), "Devrek"].filter(Boolean).join(", ");
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+};
+
 export const shortOrderId = (orderId, length = 6) => String(orderId || "").slice(-length).toUpperCase();
 
 // ── Telefon ───────────────────────────────────────────────────────────────────
@@ -169,6 +238,9 @@ const RECEIPT_CSS = `
             font-size: 18px;
             font-weight: bold;
           }
+          .addr { margin: 0 0 4px; font-size: 12px; font-weight: bold; word-break: break-word; }
+          .addr div + div { margin-top: 1px; }
+          .addr .dir { font-size: 11px; font-weight: normal; }
           .footer { text-align: center; margin-top: 6px; }
           .footer div { font-size: 10px; font-weight: bold; margin-top: 2px; }
           * { page-break-inside: avoid; }
@@ -209,7 +281,21 @@ export const buildReceiptBody = (order) => {
       `;
   }).join("");
 
-  const deliveryInfo = order.deliveryPointName || order.city || "Teslimat noktası belirtilmemiş";
+  // Adresli siparişte kutuda bölge adı, altında açık adres; yurt siparişinde bugünkü nokta adı
+  const address = orderAddressLines(order);
+  const deliveryInfo = (address && (address.zone || order.deliveryPointName)) || order.deliveryPointName || order.city || "Teslimat noktası belirtilmemiş";
+  const addressHtml = address ? `
+              <div class="addr">
+                ${address.street ? `<div>${esc(address.street)}</div>` : ""}
+                ${address.building ? `<div>${esc(address.building)}</div>` : ""}
+                ${address.unit ? `<div>${esc(address.unit)}</div>` : ""}
+                ${address.directions ? `<div class="dir">Tarif: ${esc(address.directions)}</div>` : ""}
+              </div>` : "";
+  // Teslimat ücreti satırı yalnızca adresli/ücretli siparişte (eski yurt fişi aynen kalır)
+  const feeHtml = hasDeliveryFeeLine(order) ? `
+              <div class="row"><div>Ürünler</div><div>${money(orderProductTotal(order))}</div></div>
+              <div class="row strong"><div>Teslimat</div><div>${esc(deliveryFeeLabel(order))}</div></div>
+      ` : "";
   const phone = order.phone || order.user?.phone || "-";
   // userOrderCount siparişin müşteri geçmişindeki sırasıdır (0 = bilinmiyor → bayrak yok). Sunucu
   // istatistiğinden gelen isFirstOrder kesin bilgidir: true ise sıra bilinmese de bayrak basılır,
@@ -236,15 +322,17 @@ export const buildReceiptBody = (order) => {
                 ${flagHtml}
               </div>
               <div class="point">${esc(deliveryInfo)}</div>
+              ${addressHtml}
               <div class="row strong"><div>Müşteri</div><div>${esc(printableCustomer(order, "-"))}</div></div>
               <div class="row phone"><div>Telefon</div><div>${esc(phone)}</div></div>
-              ${order.user?.address ? `<div class="row"><div>Adres</div><div>${esc(order.user.address)}</div></div>` : ""}
+              ${!address && order.user?.address ? `<div class="row"><div>Adres</div><div>${esc(order.user.address)}</div></div>` : ""}
               ${noteHtml}
               <div class="rule"></div>
               ${itemsHtml}
               <div class="count">${products.length} çeşit · ${unitCount} adet</div>
               <div class="rule"></div>
               ${discountHtml}
+              ${feeHtml}
               <div class="rule-solid"></div>
               <div class="total"><div>TOPLAM</div><div>${money(order.totalAmount)}</div></div>
               ${order.paymentMethod ? `<div class="row strong"><div>Ödeme</div><div>${esc(orderPaymentLabel(order))}</div></div>` : ""}
@@ -365,7 +453,9 @@ export const buildPickingList = (orders) => {
       }
     });
 
-    const pointName = order.deliveryPointName || order.city || "Belirtilmemiş";
+    // Adresli sipariş bölgesine göre gruplanır; yurt siparişi bugünkü nokta adıyla
+    const address = orderAddressLines(order);
+    const pointName = (address && address.zone) || order.deliveryPointName || order.city || "Belirtilmemiş";
     if (!points.has(pointName)) points.set(pointName, { name: pointName, orders: [], total: 0 });
     const point = points.get(pointName);
     point.orders.push({
@@ -377,6 +467,10 @@ export const buildPickingList = (orders) => {
       status: order.status,
       paymentMethod: order.paymentMethod || null,
       paymentLabel: orderPaymentLabel(order),
+      address: address ? [address.street, address.building, address.unit].filter(Boolean).join(", ") : "",
+      directions: address?.directions || "",
+      deliveryFee: orderDeliveryFee(order),
+      isAddress: Boolean(address),
     });
     point.total += Number(order.totalAmount) || 0;
   }
@@ -409,6 +503,7 @@ const PICKING_CSS = `
           .point-head { display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 1px; }
           .order { display: flex; justify-content: space-between; gap: 6px; font-size: 10px; margin: 2px 0; }
           .order span:last-child { white-space: nowrap; }
+          .order-addr { font-size: 10px; font-weight: bold; margin: 0 0 3px; word-break: break-word; }
         </style>
       `;
 
@@ -427,7 +522,8 @@ export const buildPickingDocument = (picking, { autoPrint = true } = {}) => {
   const pointsHtml = picking.points.map((point) => `
           <div class="point">
             <div class="point-head"><span>${esc(point.name)} (${point.orders.length})</span><span>${formatMoney(point.total)}</span></div>
-            ${point.orders.map((o) => `<div class="order"><span>#${esc(o.shortId)} ${esc(o.customer)}</span><span>${esc(formatPhoneTR(o.phone) || "-")}</span></div>`).join("")}
+            ${point.orders.map((o) => `<div class="order"><span>#${esc(o.shortId)} ${esc(o.customer)}</span><span>${esc(formatPhoneTR(o.phone) || "-")}</span></div>${
+              o.address ? `<div class="order-addr">${esc(o.address)}${o.directions ? ` · ${esc(shortText(o.directions, 80))}` : ""}</div>` : ""}`).join("")}
           </div>`).join("");
   return `
         <html lang="tr">
@@ -460,8 +556,9 @@ const csvCell = (value) => {
 const csvNumber = (value) => (Number(value) || 0).toFixed(2).replace(".", ",");
 
 export const ORDER_CSV_COLUMNS = [
-  "Sipariş No", "Tarih", "Saat", "Müşteri", "Telefon", "E-posta", "Teslimat Noktası", "Ödeme", "Durum",
-  "Çeşit", "Adet", "Ara Toplam", "Kupon", "İndirim", "Toplam", "Teslim Süresi (dk)", "Müşteri Notu", "Teslimat Takibi", "Ürünler",
+  "Sipariş No", "Tarih", "Saat", "Müşteri", "Telefon", "E-posta", "Teslimat Noktası", "Bölge", "Adres", "Ödeme", "Durum",
+  "Çeşit", "Adet", "Ara Toplam", "Kupon", "İndirim", "Ürün tutarı", "Teslimat ücreti", "Toplam", "Teslim Süresi (dk)", "Müşteri Notu",
+  "Teslimat Takibi", "Ürünler",
 ];
 
 export const buildOrdersCsv = (orders) => {
@@ -470,6 +567,7 @@ export const buildOrdersCsv = (orders) => {
     const valid = !Number.isNaN(created.getTime());
     const products = order.products || [];
     const deleted = isDeletedAccount(order);
+    const address = orderAddressLines(order);
     return [
       csvCell(`#${shortOrderId(order.orderId, 8)}`),
       csvCell(valid ? created.toLocaleDateString("tr-TR", { timeZone: TR_TZ, day: "2-digit", month: "2-digit", year: "numeric" }) : ""),
@@ -478,6 +576,8 @@ export const buildOrdersCsv = (orders) => {
       csvCell(formatPhoneTR(order.phone || order.user?.phone || "")),
       csvCell(deleted ? "" : order.user?.email || ""),
       csvCell(order.deliveryPointName || order.city || ""),
+      csvCell(orderZoneName(order) || DORM_POINT_NAMES[order.deliveryPoint] || ""),
+      csvCell(address ? [address.street, address.building, address.unit, address.directions ? `Tarif: ${address.directions}` : ""].filter(Boolean).join(", ") : ""),
       csvCell(orderPaymentLabel(order)),
       csvCell(order.status || ""),
       products.length,
@@ -485,6 +585,8 @@ export const buildOrdersCsv = (orders) => {
       csvNumber(order.subtotalAmount || order.totalAmount),
       csvCell(order.couponCode || ""),
       csvNumber(order.couponDiscount || 0),
+      csvNumber(orderProductTotal(order)),
+      csvNumber(orderDeliveryFee(order)),
       csvNumber(order.totalAmount),
       getDeliveryMinutes(order) ?? "",
       csvCell(order.note || ""),
@@ -508,10 +610,16 @@ export const downloadTextFile = (content, filename, type = "text/csv;charset=utf
 
 // ── Paylaşım metni (kuryeye / mesaja yapıştırmak için) ────────────────────────
 export const buildOrderSummaryText = (order) => {
+  const summaryAddress = orderAddressLines(order);
+  const summaryMaps = orderMapsLink(order);
   const lines = [
-    `#${shortOrderId(order.orderId)} · ${order.deliveryPointName || order.city || "Teslimat noktası yok"}`,
+    `#${shortOrderId(order.orderId)} · ${(isAddressOrder(order) && orderZoneName(order)) || order.deliveryPointName || order.city || "Teslimat noktası yok"}`,
+    ...(summaryAddress ? [`Adres: ${summaryAddress.oneLine}`] : []),
+    ...(summaryAddress?.directions ? [`Tarif: ${summaryAddress.directions}`] : []),
+    ...(summaryMaps ? [`Harita: ${summaryMaps}`] : []),
     `${printableCustomer(order, "Müşteri")} · ${formatPhoneTR(order.phone || order.user?.phone || "") || "-"}`,
     ...(order.products || []).map((p) => `- ${p.quantity} x ${p.name}`),
+    ...(hasDeliveryFeeLine(order) ? [`Teslimat: ${deliveryFeeLabel(order)}`] : []),
     `Toplam: ${formatMoney(order.totalAmount)}`,
     ...(order.paymentMethod ? [`Ödeme: ${orderPaymentLabel(order)}`] : []),
   ];
@@ -527,7 +635,7 @@ export const buildWhatsAppMessage = (order) => {
   const no = `#${shortOrderId(order.orderId)}`;
   const byStatus = {
     "Hazırlanıyor": `${no} numaralı siparişinizi hazırlıyoruz.`,
-    "Yolda": `${no} numaralı siparişiniz yola çıktı, birazdan ${order.deliveryPointName || "teslimat noktanızda"} olacak.`,
+    "Yolda": `${no} numaralı siparişiniz yola çıktı, birazdan ${isAddressOrder(order) ? "adresinizde" : order.deliveryPointName || "teslimat noktanızda"} olacak.`,
     "Teslim Edildi": `${no} numaralı siparişiniz teslim edildi. Afiyet olsun!`,
     "İptal Edildi": `${no} numaralı siparişiniz hakkında yazıyoruz.`,
   };
@@ -570,14 +678,17 @@ const DAY_PAYMENTS = [
 const paymentMethodKey = (order) => (ORDER_PAYMENT_LABELS[order?.paymentMethod] ? order.paymentMethod : "none");
 const KNOWN_POINTS = { girlsDorm: "Kız KYK Yurdu", boysDorm: "Erkek KYK Yurdu" };
 const orderPointName = (order) =>
-  KNOWN_POINTS[order?.deliveryPoint] || String(order?.deliveryPointName || order?.city || "").trim() || "Belirtilmemiş";
+  KNOWN_POINTS[order?.deliveryPoint] || orderZoneName(order) || String(order?.deliveryPointName || order?.city || "").trim() || "Belirtilmemiş";
 const isOpenStatus = (status) => status === "Hazırlanıyor" || status === "Yolda";
 
 /**
  * Gün sonu özeti. Sayılar ve ciro BUGÜN (İstanbul) OLUŞTURULAN siparişlerden; kasa sayımı
  * (deliveredCash) ise oluşturulma gününden bağımsız olarak son "Teslim Edildi" kaydı bugün olan
  * nakit siparişlerden hesaplanır (23:50'de verilip 00:10'da teslim edilen sipariş teslim gününe yazılır).
+ * Ciro (revenue) ürün tutarıdır; teslimat ücreti deliveryFeeTotal'da ayrı tutulur (grossTotal = ikisinin toplamı).
+ * Ödeme yöntemi ve kasa satırları müşterinin ödediği tutardır (teslimat ücreti dahil).
  * → { dayStart, generatedAt, count, valid, delivered, cancelled, revenue, avgBasket, cancelledTotal,
+ *     deliveryFeeTotal, paidDeliveryCount, freeAddressCount, addressCount, grossTotal,
  *     couponTotal, manualTotal, byPayment:[{method,label,count,total}], byPoint:[{name,count,total}],
  *     avgPrep, avgRoad, avgTotal, deliveredCash, deliveredCashCount, open (tüm aktifler, en eski önce),
  *     + openPrep, openRoad, openCash, openCashCount, pendingToday, deliveredToday, deliveredTodayTotal,
@@ -603,16 +714,28 @@ export const buildDayCloseSummary = (orders, now = Date.now(), { dayStart } = {}
   let cancelledTotal = 0;
   let couponTotal = 0;
   let manualTotal = 0;
+  let deliveryFeeTotal = 0;
+  let paidDeliveryCount = 0;
+  let freeAddressCount = 0;
+  let addressCount = 0;
 
   for (const order of todayOrders) {
     const amount = Number(order.totalAmount) || 0;
+    const productAmount = orderProductTotal(order);
     if (order.status === "İptal Edildi") {
       cancelled += 1;
-      cancelledTotal += amount;
+      cancelledTotal += productAmount;
       continue;
     }
     valid += 1;
-    revenue += amount;
+    revenue += productAmount;
+    const fee = orderDeliveryFee(order);
+    deliveryFeeTotal += fee;
+    if (fee > 0) paidDeliveryCount += 1;
+    if (isAddressOrder(order)) {
+      addressCount += 1;
+      if (fee <= 0) freeAddressCount += 1;
+    }
     if (order.couponCode) couponTotal += Number(order.couponDiscount) || 0;
     for (const product of order.products || []) {
       if (product?.isManual) manualTotal += (Number(product.price) || 0) * (Number(product.quantity) || 0);
@@ -621,10 +744,11 @@ export const buildDayCloseSummary = (orders, now = Date.now(), { dayStart } = {}
     payment.count += 1;
     payment.total += amount;
     const pointName = orderPointName(order);
-    if (!points.has(pointName)) points.set(pointName, { name: pointName, count: 0, total: 0 });
+    if (!points.has(pointName)) points.set(pointName, { name: pointName, count: 0, total: 0, fee: 0 });
     const point = points.get(pointName);
     point.count += 1;
-    point.total += amount;
+    point.total += productAmount;
+    point.fee += fee;
 
     const created = createdTime(order);
     const onWayFirst = getStatusTime(order, "Yolda")?.getTime();
@@ -689,11 +813,16 @@ export const buildDayCloseSummary = (orders, now = Date.now(), { dayStart } = {}
     revenue,
     avgBasket: valid ? roundMoney(revenue / valid) : 0,
     cancelledTotal: roundMoney(cancelledTotal),
+    deliveryFeeTotal: roundMoney(deliveryFeeTotal),
+    paidDeliveryCount,
+    freeAddressCount,
+    addressCount,
+    grossTotal: roundMoney(revenue + deliveryFeeTotal),
     couponTotal: roundMoney(couponTotal),
     manualTotal: roundMoney(manualTotal),
     byPayment: [...payments.values()].map((entry) => ({ ...entry, total: roundMoney(entry.total) })),
     byPoint: [...points.values()]
-      .map((entry) => ({ ...entry, total: roundMoney(entry.total) }))
+      .map((entry) => ({ ...entry, total: roundMoney(entry.total), fee: roundMoney(entry.fee) }))
       .sort((a, b) => b.count - a.count || collator.compare(a.name, b.name)),
     avgPrep: averageMinutes(preps),
     avgRoad: averageMinutes(roads),
@@ -740,6 +869,9 @@ const REPORT_CSS = `
           .phone { font-size: 16px; font-weight: bold; letter-spacing: 0.3px; margin-top: 1px; }
           .pay { display: flex; justify-content: space-between; gap: 6px; font-size: 12px; font-weight: bold; margin-top: 3px; }
           .note { font-size: 10px; margin-top: 3px; padding-top: 2px; border-top: 1px dashed #000; word-break: break-word; }
+          .addr { font-size: 12px; font-weight: bold; margin-top: 3px; word-break: break-word; }
+          .addr .dir { font-size: 10px; font-weight: normal; margin-top: 1px; }
+          .fee { font-size: 10px; text-align: right; margin-top: 1px; }
           .open { display: flex; justify-content: space-between; gap: 6px; font-size: 10px; margin: 2px 0; }
           .open span:last-child { white-space: nowrap; }
           .totals { font-size: 12px; font-weight: bold; text-align: center; margin-top: 2px; }
@@ -795,7 +927,10 @@ export const buildDayCloseDocument = (summary, { autoPrint = true, counted = nul
   const paymentRows = (s.byPayment || [])
     .filter((entry) => entry.method !== "none" || entry.count > 0)
     .map((entry) => row(`${entry.label} (${entry.count})`, money(entry.total))).join("");
-  const pointRows = (s.byPoint || []).map((entry) => row(`${entry.name} (${entry.count})`, money(entry.total))).join("");
+  const pointRows = (s.byPoint || []).map((entry) => row(`${entry.name} (${entry.count})`, money(entry.total))
+    + (entry.fee > 0 ? row("  + teslimat", money(entry.fee)) : "")).join("");
+  // Teslimat ücreti satırları yalnızca adresli/ücretli sipariş varken (yalnızca yurt siparişli gün bugünkü gibi basılır)
+  const hasFees = Number(s.deliveryFeeTotal) > 0 || Number(s.addressCount) > 0;
   const countedValue = counted === null || counted === undefined || counted === "" ? null : Number(counted);
   const hasCounted = Number.isFinite(countedValue);
   const cashRows = [
@@ -827,13 +962,16 @@ export const buildDayCloseDocument = (summary, { autoPrint = true, counted = nul
             ${row(`İptal (${s.cancelled || 0})`, money(s.cancelledTotal))}
             <div class="rule"></div>
             ${row("CİRO", money(s.revenue), "big")}
-            <div class="small">İptal edilen siparişler hariç</div>
+            <div class="small">${hasFees ? "Ürün tutarı; teslimat ücreti ayrı · iptaller hariç" : "İptal edilen siparişler hariç"}</div>
+            ${hasFees ? row(`Teslimat ücreti (${s.paidDeliveryCount || 0} ücretli)`, money(s.deliveryFeeTotal), "strong") : ""}
+            ${hasFees && s.freeAddressCount ? row("Ücretsiz teslimat", `${s.freeAddressCount} sipariş`) : ""}
+            ${hasFees ? row("Ciro + teslimat", money(s.grossTotal)) : ""}
             ${row("Ort. sepet", money(s.avgBasket))}
             ${row("Kupon indirimi", s.couponTotal ? `-${money(s.couponTotal)}` : money(0))}
             ${row("Elle eklenen tutar", money(s.manualTotal))}
             <h2>Ödeme yöntemi</h2>
             ${paymentRows}
-            ${pointRows ? `<h2>Teslimat noktası</h2>${pointRows}` : ""}
+            ${pointRows ? `<h2>${hasFees ? "Bölge" : "Teslimat noktası"}</h2>${pointRows}` : ""}
             <h2>Süreler</h2>
             ${row("Ort. hazırlık", formatMinutesShort(s.avgPrep))}
             ${row("Ort. yol", formatMinutesShort(s.avgRoad))}
@@ -885,12 +1023,23 @@ export const buildRunSheetDocument = (orders, { title, autoPrint = true } = {}) 
     const phone = formatPhoneTR(order.phone || order.user?.phone || "") || "Telefon yok";
     const note = shortText(order.note, 90);
     const tracking = shortText(order.deliveryTracking, 60);
+    const address = orderAddressLines(order);
+    const addressHtml = address ? `
+              <div class="addr">
+                ${[address.street, address.building, address.unit].filter(Boolean).map((line) => `<div>${esc(line)}</div>`).join("")}
+                ${address.directions ? `<div class="dir">Tarif: ${esc(shortText(address.directions, 120))}</div>` : ""}
+              </div>` : "";
+    const feeHtml = hasDeliveryFeeLine(order)
+      ? `<div class="fee">${esc(`Ürün ${money(orderProductTotal(order))} + teslimat ${orderDeliveryFee(order) > 0 ? money(orderDeliveryFee(order)) : "ücretsiz"}`)}</div>`
+      : "";
     return `
             <div class="stop">
               <div class="stop-head"><span class="box"></span><span>#${esc(shortOrderId(order.orderId))}</span><span class="where">${esc(orderPointName(order))}</span></div>
               <div class="name">${esc(printableCustomer(order, "Müşteri"))}</div>
+              ${addressHtml}
               <div class="phone">${esc(phone)}</div>
               <div class="pay"><span>${esc(RUN_PAY_LINE[method] || "Ödeme belirtilmemiş")}</span><span>${esc(money(amount))}</span></div>
+              ${feeHtml}
               ${note ? `<div class="note">NOT: ${esc(note)}</div>` : ""}
               ${tracking ? `<div class="note">${esc(tracking)}</div>` : ""}
             </div>`;

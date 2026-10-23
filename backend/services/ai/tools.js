@@ -12,6 +12,25 @@ import { preparingMinutes } from "./orderDelay.js";
 const normalize = (value) => String(value || "").toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
 export const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+// Siparişin teslimat yerini müşteriye okunur biçimde verir: adresli siparişte bölge + kısa adres,
+// yurt siparişinde bölge/nokta adı. "girlsDorm" gibi ham kodlar asla gösterilmez; adı olmayan eski
+// siparişlerde bilinen yurt adları kullanılır.
+const LEGACY_POINT_LABELS = { girlsDorm: "Kız KYK Yurdu", boysDorm: "Erkek KYK Yurdu" };
+const RAW_DELIVERY_CODES = new Set(["girlsDorm", "boysDorm", "address"]);
+export const orderDeliveryLabel = (order = {}) => {
+  const address = order.deliveryAddress || null;
+  const named = (value) => {
+    const text = String(value || "").trim();
+    return text && !RAW_DELIVERY_CODES.has(text) ? text.slice(0, 80) : "";
+  };
+  if (order.deliveryType === "address" || order.deliveryPoint === "address" || address?.street) {
+    const zone = named(address?.zoneName) || named(order.deliveryZone?.name);
+    const street = [address?.street, address?.buildingNo ? `No:${address.buildingNo}` : ""].map((part) => String(part || "").trim()).filter(Boolean).join(" ");
+    return [zone, street.slice(0, 80)].filter(Boolean).join(" · ") || named(order.deliveryPointName) || "Adrese teslimat";
+  }
+  return named(order.deliveryZone?.name) || named(order.deliveryPointName) || LEGACY_POINT_LABELS[order.deliveryPoint] || "";
+};
+
 export const ownedOrderFilter = (orderId, authenticatedUserId) => ({
   ...(orderId ? { _id: orderId } : {}),
   user: authenticatedUserId,
@@ -224,7 +243,7 @@ export const detectToolIntent = (query) => {
   if (/siparis.{0,18}(saat|kadar)|saat.{0,18}(siparis|kadar)|ne zamana kadar/.test(text)) return { name: "getStoreOpeningStatus" };
   if (/minimum.{0,18}(sepet|siparis)|(sepet|siparis).{0,18}minimum|en az.{0,12}(sepet|siparis)|kac tl.{0,30}(alisveris|siparis)|sepet alt limiti/.test(text)) return { name: "getStoreSettings" };
   if ((text.includes("market") || text.includes("magaza") || text.includes("siparis")) && /acik|kapan|saat|calisma/.test(text)) return { name: "getStoreOpeningStatus" };
-  if (/teslimat ucreti|ucretsiz teslimat|odeme yontem|teslimat bolgesi/.test(text)) return { name: "getStoreInfo" };
+  if (/teslimat ucreti|ucretsiz teslimat|odeme yontem|teslimat bolge|teslimat yeri|teslimat noktasi|getirme ucreti|kurye ucreti|servis ucreti|adrese teslim|eve teslim|(teslimat|getir|servis|geliyor|gelir misiniz|kurye).{0,25}(nereye|nerelere|hangi bolge|hangi mahalle|mahalle|koy|yurt|adres)|(nereye|nerelere|hangi bolge|hangi mahalle|mahalle|koy|yurd|yurt|adres).{0,25}(teslimat|getir|servis|geliyor|gelir|kurye)/.test(text)) return { name: "getStoreInfo" };
   if (/kampanya|indirim|firsat|haftanin urun/.test(text)) return { name: "getActiveCampaigns" };
   if (/en cok (ne )?al|sik aldigim|her zamanki|genelde ne al|surekli aldigim|daha once (ne )?al/.test(text)) return { name: "getMyFrequentProducts" };
   const category = extractCategoryTerm(query);
@@ -274,7 +293,8 @@ export const runAiTool = async (intent, authenticatedUserId) => {
     const orderId = intent.orderId || null;
     if (orderId && !mongoose.isValidObjectId(orderId)) return { tool: intent.name, found: false };
     const filter = ownedOrderFilter(orderId, authenticatedUserId);
-    const projection = intent.name === "getOrderDetails" ? "status totalAmount subtotalAmount couponDiscount deliveryPointName deliveryTracking createdAt products.name products.quantity products.price" : "status totalAmount deliveryPointName deliveryTracking createdAt";
+    const deliveryFields = "deliveryPoint deliveryPointName deliveryType deliveryZone deliveryAddress.zoneName deliveryAddress.street deliveryAddress.buildingNo deliveryFee";
+    const projection = intent.name === "getOrderDetails" ? `status totalAmount subtotalAmount couponDiscount ${deliveryFields} deliveryTracking createdAt products.name products.quantity products.price` : `status totalAmount ${deliveryFields} deliveryTracking createdAt`;
     const orders = intent.name === "getMyActiveOrders"
       ? await Order.find({ ...filter, status: { $in: ["Hazırlanıyor", "Yolda"] } }).sort({ createdAt: -1 }).select(projection).limit(5).lean()
       : await Order.find(filter).sort({ createdAt: -1 }).select(projection).limit(1).lean();
@@ -282,7 +302,7 @@ export const runAiTool = async (intent, authenticatedUserId) => {
       const exists = await Order.exists({ _id: orderId });
       return { tool: intent.name, found: false, ownershipDenied: Boolean(exists) };
     }
-    return { tool: intent.name, found: orders.length > 0, orders: orders.map((order) => ({ id: String(order._id), status: order.status, totalAmount: order.totalAmount, deliveryPoint: order.deliveryPointName, createdAt: order.createdAt, ...(order.status === "Hazırlanıyor" ? { preparingMinutes: preparingMinutes(order) } : {}), ...(order.deliveryTracking ? { deliveryTracking: order.deliveryTracking } : {}), ...(order.products ? { products: order.products.map((item) => ({ name: item.name, quantity: item.quantity, price: item.price })) } : {}), ...(order.couponDiscount ? { couponDiscount: order.couponDiscount } : {}) })) };
+    return { tool: intent.name, found: orders.length > 0, orders: orders.map((order) => ({ id: String(order._id), status: order.status, totalAmount: order.totalAmount, deliveryPoint: orderDeliveryLabel(order), ...(Number(order.deliveryFee) > 0 ? { deliveryFee: Number(order.deliveryFee) } : {}), createdAt: order.createdAt, ...(order.status === "Hazırlanıyor" ? { preparingMinutes: preparingMinutes(order) } : {}), ...(order.deliveryTracking ? { deliveryTracking: order.deliveryTracking } : {}), ...(order.products ? { products: order.products.map((item) => ({ name: item.name, quantity: item.quantity, price: item.price })) } : {}), ...(order.couponDiscount ? { couponDiscount: order.couponDiscount } : {}) })) };
   }
   if (intent.name === "getActiveCampaigns") {
     const campaigns = await FlashSale.find({ isActive: true, startDate: { $lte: now }, endDate: { $gte: now } }).populate({ path: "product", match: { isHidden: { $ne: true } }, select: "name price isOutOfStock" }).sort({ endDate: 1 }).limit(10).lean();
@@ -430,6 +450,21 @@ export const toolResponseWithoutModel = (result) => {
 const formatMoney = (value) => `${Number(value || 0).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL`;
 const formatDate = (value) => new Date(value).toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Istanbul" });
 const formatDateTime = (value) => new Date(value).toLocaleString("tr-TR", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Istanbul" });
+// Bölge satırı: yalnızca paneldeki değerler; ücret 0 ise "ücretsiz teslimat".
+const zoneSummary = (zone, info = {}) => {
+  const fee = Number(zone.deliveryFee) || 0;
+  const threshold = zone.freeDeliveryThreshold === null || zone.freeDeliveryThreshold === undefined ? null : Number(zone.freeDeliveryThreshold);
+  const parts = [];
+  if (info.freeDeliveryEverywhere || zone.isFree || fee === 0) parts.push("ücretsiz teslimat");
+  else {
+    parts.push(`teslimat ücreti ${formatMoney(fee)}`);
+    if (threshold !== null && Number.isFinite(threshold)) parts.push(`${formatMoney(threshold)} ve üstü ücretsiz`);
+  }
+  const minimum = zone.minimumOrderAmount === null || zone.minimumOrderAmount === undefined ? null : Number(zone.minimumOrderAmount);
+  if (minimum !== null && Number.isFinite(minimum) && minimum !== Number(info.minimumOrderAmount)) parts.push(minimum > 0 ? `minimum sepet ${formatMoney(minimum)}` : "minimum sepet yok");
+  if (zone.etaText) parts.push(String(zone.etaText));
+  return `${zone.name} (${parts.join(", ")})`;
+};
 const productLine = (product) => `• ${product.name} — ${formatMoney(product.price)}${product.inStock ? "" : " (şu anda tükendi)"}`;
 
 export const formatToolResult = (result) => {
@@ -450,8 +485,9 @@ export const formatToolResult = (result) => {
       const point = order.deliveryPoint ? ` (${order.deliveryPoint})` : "";
       const head = `• ${formatDateTime(order.createdAt)} tarihli siparişiniz: ${order.status} — ${formatMoney(order.totalAmount)}${point}`;
       const items = order.products?.length ? `\n  ${order.products.map((item) => `${item.quantity} × ${item.name}`).join(", ")}` : "";
+      const fee = Number(order.deliveryFee) > 0 ? `\n  Teslimat ücreti: ${formatMoney(order.deliveryFee)} (toplama dahil)` : "";
       const tracking = order.deliveryTracking ? `\n  Teslimat notu: ${order.deliveryTracking}` : "";
-      return head + items + tracking;
+      return head + items + fee + tracking;
     }).join("\n");
   }
   if (result.tool === "getActiveCampaigns" && (result.campaigns?.length || result.weeklyDeals?.length)) {
@@ -483,11 +519,14 @@ export const formatToolResult = (result) => {
     return `Hesabınıza tanımlı kuponlar:\n${lines.join("\n")}`;
   }
   if (["getStoreInfo", "getStoreSettings", "getStoreOpeningStatus"].includes(result.tool) && result.orderStartTime) {
-    const points = (result.deliveryPoints || []).filter((point) => point.enabled).map((point) => point.name).filter(Boolean);
+    const zones = Array.isArray(result.deliveryZones)
+      ? result.deliveryZones.filter((zone) => zone?.name)
+      : (result.deliveryPoints || []).filter((point) => point.enabled && point.name).map((point) => ({ name: point.name, isFree: true, deliveryFee: 0 }));
     return [
       `Sipariş saatlerimiz ${result.orderStartTime} – ${result.orderEndTime}. Şu anda sipariş ${result.orderingOpen ? "alıyoruz" : "almıyoruz"}.`,
-      `Minimum sepet tutarı ${formatMoney(result.minimumOrderAmount)}.`,
-      points.length ? `Teslimat noktaları: ${points.join(", ")}.` : "",
+      Number(result.minimumOrderAmount) > 0 ? `Minimum sepet tutarı ${formatMoney(result.minimumOrderAmount)}.` : "Minimum sepet tutarı yok.",
+      zones.length ? `Teslimat bölgelerimiz:\n${zones.slice(0, 12).map((zone) => `• ${zoneSummary(zone, result)}`).join("\n")}${zones.length > 12 ? `\n… ve ${zones.length - 12} bölge daha (tamamı uygulamada).` : ""}` : "Şu anda açık teslimat bölgesi bulunmuyor.",
+      result.freeDeliveryEverywhere ? "Şu anda tüm teslimat bölgelerinde teslimat ücretsiz." : "",
     ].filter(Boolean).join("\n");
   }
   if (result.tool === "getMyCart" && result.items?.length) {

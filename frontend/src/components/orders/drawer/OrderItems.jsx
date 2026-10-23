@@ -6,6 +6,7 @@
 import { useId } from "react";
 import { ListChecks, Lock, Minus, Package2, Pencil, Plus, Tag, Trash2 } from "lucide-react";
 import { money } from "../../admin/ui";
+import { deliveryFeeLabel, hasDeliveryFeeLine, orderDeliveryFee, orderProductTotal } from "../shared";
 import { cloudinaryImage } from "../../../lib/image";
 
 const QTY_MAX = 999;
@@ -73,6 +74,9 @@ export default function OrderItems({
   const coupon = String(order.couponCode || "").trim();
   const subtotal = Number(order.subtotalAmount) || 0;
   const discount = Number(order.couponDiscount) || 0;
+  // Adresli/ücretli siparişte ürün tutarı ve teslimat ücreti ayrı satırda (eski yurt siparişi bugünkü gibi)
+  const feeLine = hasDeliveryFeeLine(order);
+  const fee = orderDeliveryFee(order);
 
   return (
     <section className="so-d-section so-d-items" aria-labelledby={headId}>
@@ -142,8 +146,20 @@ export default function OrderItems({
             <dd className="ui-num">−{money(discount)} indirim</dd>
           </div>
         )}
+        {feeLine && (
+          <>
+            <div className="so-d-subtotal">
+              <dt>Ürün tutarı</dt>
+              <dd className="ui-num">{money(orderProductTotal(order))}</dd>
+            </div>
+            <div className="so-d-fee" data-free={fee > 0 ? undefined : "true"}>
+              <dt>Teslimat ücreti</dt>
+              <dd className="ui-num">{deliveryFeeLabel(order)}</dd>
+            </div>
+          </>
+        )}
         <div className="so-d-grand">
-          <dt>Toplam</dt>
+          <dt>{feeLine ? "Genel toplam" : "Toplam"}</dt>
           <dd className="ui-num">{money(order.totalAmount)}</dd>
         </div>
       </dl>

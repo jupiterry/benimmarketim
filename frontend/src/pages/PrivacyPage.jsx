@@ -1,7 +1,8 @@
-import React from 'react';
 import { Helmet } from 'react-helmet-async';
+import { Link } from 'react-router-dom';
 import { Shield, Eye, Lock, Database, UserCheck, AlertTriangle } from 'lucide-react';
 import LegalLayout from '../components/LegalLayout';
+import { company } from '../data/company';
 
 const sections = [
   { id: "toplanan-veriler", label: "Toplanan Veriler" },
@@ -39,11 +40,15 @@ const PrivacyPage = () => {
             </div>
             <div className="legal-card">
               <h3 className="legal-card-title">Adres Bilgileri</h3>
-              <p className="legal-text">Teslimat adresi, fatura adresi</p>
+              <p className="legal-text">Teslimat bölgesi ve kaydettiğiniz teslimat adresleri (sokak/cadde, bina no ve adı, kat, daire, adres tarifi); fatura istenirse fatura adresi</p>
+            </div>
+            <div className="legal-card">
+              <h3 className="legal-card-title">Konum Bilgisi (isteğe bağlı)</h3>
+              <p className="legal-text">Adresinizi haritada işaretlerseniz yalnızca o noktanın enlem ve boylamı. Konum izni vermeden de sipariş verebilirsiniz; arka planda konum takibi yapılmaz.</p>
             </div>
             <div className="legal-card">
               <h3 className="legal-card-title">Ödeme Bilgileri</h3>
-              <p className="legal-text">Kart bilgileri (şifrelenmiş), ödeme geçmişi</p>
+              <p className="legal-text">Seçtiğiniz ödeme yöntemi (kapıda nakit, kapıda kart, havale/EFT) ve ödeme geçmişi</p>
             </div>
             <div className="legal-card">
               <h3 className="legal-card-title">Kullanım Verileri</h3>
@@ -61,7 +66,7 @@ const PrivacyPage = () => {
           <div className="legal-grid">
             <div className="legal-card">
               <h3 className="legal-card-title">Sipariş İşleme</h3>
-              <p className="legal-text legal-text--sm">Siparişlerinizi işlemek ve teslimat yapmak için</p>
+              <p className="legal-text legal-text--sm">Siparişlerinizi hazırlamak, teslimat bölgenize göre teslimat ücretini hesaplamak ve kuryenin adresinizi bulabilmesi için</p>
             </div>
             <div className="legal-card">
               <h3 className="legal-card-title">Müşteri Hizmetleri</h3>
@@ -100,6 +105,12 @@ const PrivacyPage = () => {
             <div className="legal-item">
               <div className="legal-dot"></div>
               <p className="legal-text">Düzenli güvenlik güncellemeleri ve yedekleme yapılır</p>
+            </div>
+            <div className="legal-item">
+              <div className="legal-dot"></div>
+              <p className="legal-text">
+                Kayıtlı adresleriniz ve işaretlediğiniz konum, siz silene ya da hesabınız silinene kadar saklanır; siparişteki adres kopyası sipariş kaydıyla birlikte yasal saklama süresince tutulur. Ayrıntılar <Link className="legal-link" to="/kvkk">KVKK Aydınlatma Metni</Link>’ndedir.
+              </p>
             </div>
           </div>
         </section>
@@ -140,9 +151,9 @@ const PrivacyPage = () => {
             Gizlilik politikamız hakkında sorularınız için bizimle iletişime geçebilirsiniz:
           </p>
           <div className="legal-stack legal-stack--tight">
-            <p className="legal-strong">📧 E-posta: info@benimmarketim.com</p>
-            <p className="legal-strong">📞 Telefon: +90 (XXX) XXX XX XX</p>
-            <p className="legal-strong">📍 Adres: [Şirket Adresi]</p>
+            <p className="legal-strong">📧 E-posta: {company.email}</p>
+            <p className="legal-strong">📞 Telefon: {company.phone}</p>
+            <p className="legal-strong">📍 Adres: {company.address}</p>
           </div>
         </section>
       </LegalLayout>

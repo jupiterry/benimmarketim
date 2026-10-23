@@ -73,9 +73,10 @@ const Section = ({ icon: Icon, title, meta, children, id }) => (
 
 export default function FilterDrawer({
   filters, onChange, onClear, resultCount = 0, view = "list", sort = "newest", onSort, onClose,
-  saved = [], onSave, onApplySaved, onDeleteSaved,
+  saved = [], onSave, onApplySaved, onDeleteSaved, pointOptions,
 }) {
   const uid = useId();
+  const zoneChoices = pointOptions?.length ? pointOptions : POINT_FILTERS;
   const bodyRef = useRef(null);
   const [name, setName] = useState("");
   const [savedNote, setSavedNote] = useState("");
@@ -132,9 +133,20 @@ export default function FilterDrawer({
       footer={footer}
     >
       <div className="so-t-stack" ref={bodyRef}>
-        <Section icon={MapPin} title="Teslimat noktası" id={`${uid}-point`}>
+        <Section icon={MapPin} title={zoneChoices.length > POINT_FILTERS.length ? "Teslimat bölgesi" : "Teslimat noktası"} id={`${uid}-point`}>
           <div className="so-t-seg">
-            <Segmented options={POINT_FILTERS} value={f.point} onChange={(v) => onChange?.({ point: v })} ariaLabel="Teslimat noktası" />
+            {zoneChoices.length <= POINT_FILTERS.length ? (
+              <Segmented options={zoneChoices} value={f.point} onChange={(v) => onChange?.({ point: v })} ariaLabel="Teslimat noktası" />
+            ) : (
+              // Adresli bölgeler varken seçenek çoğalır: sarılabilen çipler
+              <div className="ui-chips so-t-chips" role="group" aria-label="Teslimat bölgesi">
+                {zoneChoices.map((opt) => (
+                  <button key={opt.value} type="button" aria-pressed={f.point === opt.value} onClick={() => onChange?.({ point: opt.value })}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </Section>
 

@@ -52,7 +52,7 @@ export const AI_TOOL_DEFINITIONS = [
   ["suggestCart", "Müşteri için sepet önerisi hazırlar: yazdığın ürün listesini katalogdaki gerçek, stokta olan ürünlerle ve güncel fiyatlarla eşleştirir, bütçe verildiyse toplamı bütçeye sığdırır. Sepete eklemez; müşteri onaylar.", { items: { type: "string", description: "Virgülle ayrılmış 'adet ürün' listesi. Örnek: '2 makarna, 1 salça, 1 ayçiçek yağı'" }, budget: { type: "number", description: "Müşterinin belirttiği bütçe (TL). Bütçe yoksa gönderme." } }, ["items"]],
   ["getCouponInfo", "Kupon kodunun giriş yapmış kullanıcı için uygunluğunu kontrol eder.", { code: { type: "string" } }, ["code"]],
   ["getMyCoupons", "Giriş yapmış kullanıcıya tanımlı, kullanılabilir kuponları listeler.", {}, []],
-  ["getStoreInfo", "Sipariş saatleri, sipariş açık durumu, minimum tutar ve public teslimat noktası ayarlarını getirir.", {}, []],
+  ["getStoreInfo", "Sipariş saatleri, sipariş açık durumu, minimum tutar ve açık teslimat bölgelerini (ad, teslimat ücreti ya da ücretsiz, ücretsiz teslimat eşiği, bölge minimumu, tahmini süre) getirir.", {}, []],
   ["getMyCart", "Giriş yapmış kullanıcının sepetini ve gerçek toplamını getirir.", {}, []],
 ].map(([name, description, properties, required]) => ({
   type: "function", function: { name, description, parameters: { type: "object", properties, required, additionalProperties: false } },

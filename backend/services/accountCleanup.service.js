@@ -479,7 +479,7 @@ const statsGroupStage = {
   $group: {
     _id: "$user",
     orderCount: { $sum: 1 },
-    totalSpent: { $sum: { $cond: [{ $eq: ["$status", CANCELLED_STATUS] }, 0, { $ifNull: ["$totalAmount", 0] }] } },
+    totalSpent: { $sum: { $cond: [{ $eq: ["$status", CANCELLED_STATUS] }, 0, { $ifNull: ["$productTotal", { $ifNull: ["$totalAmount", 0] }] }] } },
     lastOrderAt: { $max: { $ifNull: ["$createdAt", { $toDate: "$_id" }] } },
     activeOrderCount: { $sum: { $cond: [{ $in: ["$status", [...ACTIVE_ORDER_STATUSES]] }, 1, 0] } },
     deletedOrders: { $sum: { $cond: [{ $eq: ["$userDeleted", true] }, 1, 0] } },

@@ -33,6 +33,7 @@ const CookiesPage = lazy(() => import("./pages/CookiesPage"));
 const ContactPage = lazy(() => import("./pages/ContactPage"));
 const AboutPage = lazy(() => import("./pages/AboutPage"));
 const FAQPage = lazy(() => import("./pages/FAQPage"));
+const DeliveryZonesPage = lazy(() => import("./pages/DeliveryZonesPage"));
 const KVKKPage = lazy(() => import("./pages/KVKKPage"));
 const KvkkRequestPage = lazy(() => import("./pages/KvkkRequestPage"));
 const AccountDeletionPage = lazy(() => import("./pages/AccountDeletionPage"));
@@ -146,6 +147,7 @@ function App() {
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/faq" element={<FAQPage />} />
+            <Route path="/teslimat-bolgeleri" element={<DeliveryZonesPage />} />
             <Route path="/kvkk" element={<KVKKPage />} />
             <Route path="/kvkk-basvuru" element={<KvkkRequestPage />} />
             <Route

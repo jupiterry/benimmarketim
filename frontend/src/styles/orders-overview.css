@@ -496,6 +496,28 @@
   color: var(--ui-text);
   font-size: var(--ui-fs-sm);
 }
+.admin-layout .so-ov-pay-split {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  margin: 0;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .so-ov-pay-split > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.admin-layout .so-ov-pay-split svg {
+  width: 13px;
+  height: 13px;
+}
+.admin-layout .so-ov-pay-split strong {
+  color: var(--ui-text-2);
+  font-weight: 650;
+}
 .admin-layout .so-ov-pay ul {
   display: grid;
   gap: 2px;

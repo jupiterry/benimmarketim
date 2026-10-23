@@ -26,4 +26,11 @@ export const marketCategories = [
   ["dondurma", "Dondurmalar", "dondurma.png", "Tatlı molası için dondurma çeşitlerini uygulamadan keşfet ve mevcut ürünleri kontrol et."],
 ].map(([slug, name, image, description]) => ({ slug, name, image, description, path: `/category/${slug}` }));
 
-export const publicPages = ["/", "/about", "/contact", "/faq", "/privacy", "/terms", "/distance-sales", "/return-policy", "/cookies", "/kvkk", "/kvkk-basvuru", "/hesap-silme"];
+// Teslimat bölgeleri sayfası: bölgeler GET /api/delivery/zones'tan gelir; prerender ve sitemap'te yer alır.
+export const deliveryZonesPage = {
+  path: "/teslimat-bolgeleri",
+  title: "Teslimat Bölgeleri | Devrek Benim Marketim",
+  description: "Benim Marketim'in Devrek'te teslimat yaptığı bölgeler, bölge bazında teslimat ücreti, ücretsiz teslimat tutarı, minimum sepet ve tahmini teslimat süresi.",
+};
+
+export const publicPages = ["/", "/teslimat-bolgeleri", "/about", "/contact", "/faq", "/privacy", "/terms", "/distance-sales", "/return-policy", "/cookies", "/kvkk", "/kvkk-basvuru", "/hesap-silme"];

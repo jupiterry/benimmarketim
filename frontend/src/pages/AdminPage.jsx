@@ -26,6 +26,7 @@ import SettingsTab from "../components/SettingsTab";
 import DashboardWidgets from "../components/DashboardWidgets";
 import UsersTab from "../components/UsersTab";
 import AccountCleanupTab from "../components/AccountCleanupTab";
+import DeliveryZonesTab from "../components/DeliveryZonesTab";
 import PhotocopyTab from "../components/PhotocopyTab";
 import BannerTab from "../components/BannerTab";
 import CouponsTab from "../components/CouponsTab";
@@ -158,6 +159,7 @@ const AdminPage = () => {
       "price-watch": "Fiyat bekçisi",
       users: "Müşteriler",
       "account-cleanup": "Pasif hesap temizliği",
+      "delivery-zones": "Teslimat bölgeleri",
       coupons: "Kuponlar",
       referrals: "Davet sistemi",
       feedback: "Geri Bildirimler",
@@ -665,6 +667,8 @@ const AdminPage = () => {
         return <AdvancedAnalyticsTab />;
       case "orders":
         return <OrdersList />;
+      case "delivery-zones":
+        return <DeliveryZonesTab users={users} />;
       case "chat":
         return <ChatTab />;
       case "support-queue":

@@ -40,6 +40,26 @@ test("every piece fits the lock screen and follows the copy rules", () => {
   }
 });
 
+test("library texts point to the delivery zones, not to dorms or the whole district", () => {
+  for (const theme of PUSH_LIBRARY) {
+    for (const text of [...theme.titles, ...theme.bodies]) {
+      assert.ok(!/yurd|yurda/i.test(text), `yurt vaadi: ${text}`);
+      assert.ok(!/(?<!\p{L})(yurt|kyk|öğrenci)/iu.test(text), `yalnızca yurt/öğrenci kitlesi: ${text}`);
+      assert.ok(!/tüm devrek|devrek'in (her|tamam)|her yere/iu.test(text), `tüm ilçe vaadi: ${text}`);
+    }
+  }
+  const all = PUSH_LIBRARY.flatMap((t) => t.bodies).join("\n");
+  assert.match(all, /kapına (kadar )?gel/);
+});
+
+const draftSystem = () => buildDraftMessages({ prompt: "x" })[0].content;
+test("the AI draft prompt does not describe a dorm-only store", () => {
+  const system = draftSystem();
+  assert.doesNotMatch(system, /yurtlarda kalanlara|öğrencilere ve/);
+  assert.match(system, /teslimat bölgelerimize/);
+  assert.doesNotMatch(REWRITE_INSTRUCTIONS.funnier, /öğrenci/);
+});
+
 test("library examples follow the prompt's topic", () => {
   const exam = PUSH_LIBRARY.find((t) => t.id === "exam");
   const examples = pickLibraryExamples("Sınav haftasında moral veren bir bildirim", { count: 3, seed: 1 });

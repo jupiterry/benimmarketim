@@ -1,13 +1,15 @@
-import React from 'react';
 import { Helmet } from 'react-helmet-async';
+import { Link } from 'react-router-dom';
 import { Heart, Target, Users, Award, Truck, Shield, Star, Clock } from 'lucide-react';
 import LegalLayout from '../components/LegalLayout';
+import { useSettingsStore } from '../stores/useSettingsStore';
+import { orderHoursText, DELIVERY_ZONES_PATH } from '../data/company';
 
-const features = [
-  { icon: Truck, title: "Hızlı Teslimat", text: "45 dakika içinde kapınızda" },
+const buildFeatures = (hours) => [
+  { icon: Truck, title: "Kapınıza Kadar", text: "Teslimat bölgelerimizde siparişiniz kapınıza gelir" },
   { icon: Shield, title: "Güvenli Alışveriş", text: "SSL şifreleme ile korumalı" },
   { icon: Star, title: "Kaliteli Ürünler", text: "Seçilmiş tedarikçilerden" },
-  { icon: Clock, title: "7/24 Hizmet", text: "Her zaman yanınızdayız" },
+  { icon: Clock, title: "Her Gün Sipariş", text: `Her gün ${hours} arası sipariş alıyoruz` },
   { icon: Heart, title: "Müşteri Odaklı", text: "Memnuniyet önceliğimiz" },
   { icon: Users, title: "Güvenilir Ekip", text: "Deneyimli ve profesyonel" },
 ];
@@ -20,6 +22,8 @@ const stats = [
 ];
 
 const AboutPage = () => {
+  const settings = useSettingsStore((state) => state.settings);
+  const features = buildFeatures(orderHoursText(settings));
   return (
     <>
       <Helmet>
@@ -46,8 +50,11 @@ const AboutPage = () => {
             </p>
             <p className="legal-text">
               Bugün, binlerce mutlu müşterimizle büyüyen bir aile haline geldik.
-              Özellikle üniversite öğrencilerinin ve markete uzak yaşayan kişilerin, yağmurlu havalarda, gece karanlığında veya yorgun bir günün ardından dışarı çıkmak zorunda kalmadan ihtiyaçlarını karşılamalarını sağlıyoruz.
-              Sadece birkaç dokunuşla, diledikleri ürünleri kapılarına kadar ulaştırıyoruz.
+              Markete gitmeye vakti olmayanların ve markete uzak yaşayanların, yağmurlu havalarda, gece karanlığında veya yorgun bir günün ardından dışarı çıkmak zorunda kalmadan ihtiyaçlarını karşılamalarını sağlıyoruz.
+              Mobil uygulamamızdan birkaç dokunuşla verilen siparişleri teslimat bölgelerimizde kapıya kadar ulaştırıyoruz.
+            </p>
+            <p className="legal-text">
+              Devrek’te teslimat yaptığımız bölgeleri, bölge bazındaki teslimat ücretleriyle birlikte <Link className="legal-link" to={DELIVERY_ZONES_PATH}>Teslimat bölgeleri</Link> sayfasında görebilirsiniz.
             </p>
             <p className="legal-text">
               Misyonumuz; herkesin, her koşulda, en taze ürünlere en hızlı şekilde ve en uygun fiyatlarla ulaşmasını sağlamak.
@@ -74,7 +81,7 @@ const AboutPage = () => {
               <h2>Vizyonumuz</h2>
             </div>
             <p className="legal-text">
-              Türkiye'nin en güvenilir ve tercih edilen online marketi olmak,
+              Türkiye’nin en güvenilir ve tercih edilen online marketi olmak,
               teknoloji ile geleneksel değerleri birleştirmek.
             </p>
           </section>

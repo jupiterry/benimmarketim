@@ -45,6 +45,8 @@ import priceWatchRoutes from "./routes/priceWatch.route.js";
 import adminFeedRoutes from "./routes/adminFeed.route.js";
 import orderAlarmRoutes from "./routes/orderAlarm.route.js";
 import accountCleanupRoutes from "./routes/accountCleanup.route.js";
+import deliveryRoutes from "./routes/delivery.route.js";
+import addressRoutes from "./routes/address.route.js";
 import Product from "./models/product.model.js";
 import User from "./models/user.model.js";
 import Chat from "./models/chat.model.js";
@@ -336,6 +338,9 @@ app.use("/api/price-watch", priceWatchRoutes);
 app.use("/api/admin-notifications", adminFeedRoutes);
 app.use("/api/order-alarm", orderAlarmRoutes);
 app.use("/api/account-cleanup", accountCleanupRoutes);
+// Teslimat bölgeleri / ücret teklifi / adrese sipariş bayrağı ve kayıtlı adresler (istek sınırları rotalarda)
+app.use("/api/delivery", deliveryRoutes);
+app.use("/api/addresses", addressRoutes);
 
 // robots.txt ve sitemap.xml frontend build'i tarafından üretilir (frontend/scripts/prerender-seo.mjs) ve
 // production'da aşağıdaki express.static ile frontend/dist içinden sunulur; burada ayrıca üretilmez.

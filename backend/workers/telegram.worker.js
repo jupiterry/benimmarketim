@@ -141,7 +141,7 @@ export class TelegramWorker {
     if (job.kind === 'summary' || job.kind === 'today') {
       const day = job.day || localDay();
       const { start, end } = dayRange(day);
-      const orders = await this.orders.find({ createdAt: { $gte: start, $lt: end } }, { projection: { totalAmount: 1, status: 1 } }).toArray();
+      const orders = await this.orders.find({ createdAt: { $gte: start, $lt: end } }, { projection: { totalAmount: 1, productTotal: 1, deliveryFee: 1, status: 1 } }).toArray();
       return { text: summaryText(day, orders) };
     }
     if (job.kind === 'waiting' || job.kind === 'legacyWaiting') {

@@ -23,7 +23,11 @@ const completionOf = (mission, userId) =>
 export const countQualifyingOrders = (mission, userId) => Order.countDocuments({
   user: userId,
   status: "Teslim Edildi",
-  totalAmount: { $gte: Number(mission.minOrderAmount) || 0 },
+  // Alt tutar ürün tutarına uygulanır (teslimat ücreti hariç); eski siparişlerde productTotal yok → totalAmount
+  $or: [
+    { productTotal: { $gte: Number(mission.minOrderAmount) || 0 } },
+    { productTotal: null, totalAmount: { $gte: Number(mission.minOrderAmount) || 0 } },
+  ],
   createdAt: { $gte: mission.startsAt, $lte: mission.endsAt },
 });
 
@@ -56,7 +60,7 @@ const awardMission = async (mission, userId, now) => {
   return code;
 };
 
-const orderCountsFor = (mission, order) => Number(order?.totalAmount) >= (Number(mission.minOrderAmount) || 0)
+const orderCountsFor = (mission, order) => Number(order?.productTotal ?? order?.totalAmount) >= (Number(mission.minOrderAmount) || 0)
   && new Date(order.createdAt) >= new Date(mission.startsAt) && new Date(order.createdAt) <= new Date(mission.endsAt);
 
 export const missionProgressMessage = (mission, count) => {

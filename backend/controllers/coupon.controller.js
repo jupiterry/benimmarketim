@@ -1,10 +1,36 @@
 import Coupon from "../models/coupon.model.js";
 import Order from "../models/order.model.js";
+import Settings from "../models/settings.model.js";
 import { buildOrderProducts } from "../services/order.service.js";
 import {
+  canUserOrderToAddress,
   couponPublicData,
   evaluateCoupon,
+  isAddressOnlyCoupon,
+  splitZoneTargets,
 } from "../services/coupon.service.js";
+
+const cleanZoneId = (value) => (typeof value === "string" ? value.trim().slice(0, 80) : "");
+
+// İstemcinin bölge bağlamı. Eski uygulama bölge göndermez → adrese sipariş veremez sayılır ve
+// yalnızca yurt dışı bölgelere özel kuponlar ona gösterilmez. Yeni uygulama deliveryZone ya da
+// zoneAware gönderir; o zaman kullanıcının adrese sipariş izni ayarlardan okunur.
+const resolveZoneContext = async (req, userId) => {
+  const source = { ...(req.query || {}), ...(req.body || {}) };
+  const deliveryZone = cleanZoneId(source.deliveryZone);
+  const zoneAware = Boolean(deliveryZone) || source.zoneAware === true || source.zoneAware === "1" || source.zoneAware === "true";
+  if (!zoneAware || !userId) return { deliveryZone: deliveryZone || undefined, canOrderToAddress: false };
+  const settings = await Settings.getSettings();
+  return { deliveryZone: deliveryZone || undefined, canOrderToAddress: canUserOrderToAddress(settings, userId) };
+};
+
+// Panelden gelen bölge seçimini (deliveryZones) yurtlar → deliveryPoints, diğerleri → deliveryZones
+// olarak ayırır. Yalnızca deliveryPoints gönderen eski panel sürümü bugünkü gibi çalışır.
+const zoneTargetFields = (body = {}) => {
+  if (Array.isArray(body.deliveryZones)) return splitZoneTargets(body.deliveryZones);
+  if (body.deliveryPoints !== undefined) return { deliveryPoints: body.deliveryPoints || [] };
+  return {};
+};
 
 const findUserCoupons = async (userId) => {
   const now = new Date();
@@ -21,7 +47,14 @@ export const getCoupon = async (req, res) => {
     const userId = req.user._id;
     const now = new Date();
     
-    const coupons = await findUserCoupons(userId);
+    const allUserCoupons = await findUserCoupons(userId);
+    const hasAddressOnly = allUserCoupons.some(isAddressOnlyCoupon);
+    const { canOrderToAddress } = hasAddressOnly
+      ? await resolveZoneContext(req, userId)
+      : { canOrderToAddress: false };
+    const coupons = canOrderToAddress
+      ? allUserCoupons
+      : allUserCoupons.filter((coupon) => !isAddressOnlyCoupon(coupon));
     const hasOrder = coupons.some((coupon) => coupon.firstOrderOnly)
       ? Boolean(await Order.exists({ user: userId }))
       : false;
@@ -141,11 +174,13 @@ export const validateCoupon = async (req, res) => {
       verifiedAmount = built.totalAmount;
     }
 
+    const zoneContext = await resolveZoneContext(req, userId);
     const validation = await evaluateCoupon(coupon, {
       userId,
       totalAmount: verifiedAmount,
       orderProducts,
       deliveryPoint,
+      ...zoneContext,
       channel,
       deferDeliveryPoint: true,
     });
@@ -181,7 +216,12 @@ export const recommendCoupons = async (req, res) => {
       verifiedAmount = built.totalAmount;
     }
 
-    const coupons = await findUserCoupons(userId);
+    const zoneContext = await resolveZoneContext(req, userId);
+    const allUserCoupons = await findUserCoupons(userId);
+    // Adrese sipariş veremeyen istemciye yurt dışı bölgelere özel kuponlar hiç gösterilmez.
+    const coupons = zoneContext.canOrderToAddress
+      ? allUserCoupons
+      : allUserCoupons.filter((coupon) => !isAddressOnlyCoupon(coupon));
     const evaluated = await Promise.all(
       coupons.map(async (coupon) => {
         const evaluation = await evaluateCoupon(coupon, {
@@ -189,6 +229,7 @@ export const recommendCoupons = async (req, res) => {
           totalAmount: verifiedAmount,
           orderProducts,
           deliveryPoint,
+          ...zoneContext,
           channel,
           deferDeliveryPoint: true,
         });
@@ -225,7 +266,7 @@ export const getCouponAnalytics = async (req, res) => {
             _id: "$couponCode",
             orders: { $sum: 1 },
             discount: { $sum: "$couponDiscount" },
-            revenue: { $sum: "$totalAmount" },
+            revenue: { $sum: { $ifNull: ["$productTotal", "$totalAmount"] } },
             grossRevenue: { $sum: "$subtotalAmount" },
             lastUsedAt: { $max: "$createdAt" },
           },
@@ -342,6 +383,8 @@ export const createCoupon = async (req, res) => {
       startTime: startTime || "",
       endTime: endTime || "",
       deliveryPoints: deliveryPoints || [],
+      deliveryZones: [],
+      ...zoneTargetFields(req.body),
       channels: channels || [],
       newUserDays: newUserDays || 30
     });
@@ -388,6 +431,12 @@ export const updateCoupon = async (req, res) => {
         coupon[field] = updateData[field];
       }
     });
+    // Bölge hedeflemesi: deliveryZones gelirse yurtlar deliveryPoints'e, diğerleri deliveryZones'a yazılır.
+    if (Array.isArray(updateData.deliveryZones)) {
+      const targets = splitZoneTargets(updateData.deliveryZones);
+      coupon.deliveryPoints = targets.deliveryPoints;
+      coupon.deliveryZones = targets.deliveryZones;
+    }
 
     coupon.code = coupon.code.toUpperCase().trim();
     if (coupon.firstOrderOnly) coupon.userUsageLimit = 1;

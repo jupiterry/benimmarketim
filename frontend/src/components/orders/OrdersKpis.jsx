@@ -3,11 +3,11 @@
 // Stil: styles/orders-overview.css (önek so-ov-). Sözleşme: scratchpad/orders-design/CONTRACTS.md §7.2
 import { useId, useMemo } from "react";
 import {
-  AlertTriangle, CheckCircle2, ChevronDown, Clock, MapPin, ShoppingBag, Timer, Truck, Wallet,
+  AlertTriangle, Bike, CheckCircle2, ChevronDown, Clock, Home, MapPin, ShoppingBag, Timer, Truck, Wallet,
 } from "lucide-react";
 import { KpiGrid, SkeletonCards, money } from "../admin/ui";
 import {
-  DELAY_HINT, PAYMENT, STATUS, activeByPoint, formatMinutes, hourlyToday, startOfDay, statusDistribution, summarizeOrders,
+  DELAY_HINT, PAYMENT, STATUS, activeByPoint, formatMinutes, hasZoneOrders, hourlyToday, startOfDay, statusDistribution, summarizeOrders,
 } from "./shared";
 import "../../styles/orders-overview.css";
 
@@ -104,10 +104,13 @@ const PointsPanel = ({ orders, now, pointFilter, onPointFilter }) => {
   );
   const prep = points.reduce((s, p) => s + p.prep, 0);
   const road = points.reduce((s, p) => s + p.road, 0);
+  // Adresli bölge siparişi varsa başlık "bölgeler" olur; yalnızca yurt varsa bugünkü metin
+  const zones = useMemo(() => hasZoneOrders(orders), [orders]);
+  const isDorm = (code) => code === "girlsDorm" || code === "boysDorm";
   return (
-    <section className="ui-panel so-ov-panel" aria-label="Aktif teslimat noktaları ve bugünkü ödemeler">
+    <section className="ui-panel so-ov-panel" aria-label={zones ? "Aktif teslimat bölgeleri ve bugünkü ödemeler" : "Aktif teslimat noktaları ve bugünkü ödemeler"}>
       <header className="so-ov-panel-head">
-        <h3>Aktif teslimat noktaları</h3>
+        <h3>{zones ? "Aktif teslimat bölgeleri" : "Aktif teslimat noktaları"}</h3>
         <p>{prep + road ? `${count(prep)} hazırlanıyor · ${count(road)} yolda` : "Şu an aktif sipariş yok"}</p>
       </header>
       <div className="so-ov-points">
@@ -115,7 +118,9 @@ const PointsPanel = ({ orders, now, pointFilter, onPointFilter }) => {
         {points.map((p) => {
           const content = (
             <>
-              <MapPin className="so-ov-point-pin" aria-hidden="true" />
+              {p.code && !isDorm(p.code)
+                ? <Home className="so-ov-point-pin" aria-hidden="true" />
+                : <MapPin className="so-ov-point-pin" aria-hidden="true" />}
               <span className="so-ov-point-name">{p.name}</span>
               <span className="so-ov-point-stats">
                 {p.prep > 0 && <span data-tone="warn">{count(p.prep)} hazırlanıyor</span>}
@@ -127,7 +132,7 @@ const PointsPanel = ({ orders, now, pointFilter, onPointFilter }) => {
           const on = pointFilter === p.code;
           return (
             <button key={p.code} type="button" className="so-ov-point" aria-pressed={on} onClick={() => onPointFilter?.(p.code)}
-              title={on ? "Filtreyi kaldır" : "Bu teslimat noktasına göre filtrele"}>
+              title={on ? "Filtreyi kaldır" : zones ? "Bu bölgeye göre filtrele" : "Bu teslimat noktasına göre filtrele"}>
               {content}
             </button>
           );
@@ -136,8 +141,15 @@ const PointsPanel = ({ orders, now, pointFilter, onPointFilter }) => {
       <div className="so-ov-pay">
         <h4>
           <span>Bugünkü ödemeler</span>
-          <span className="ui-num" title="İptal edilen siparişler hariç">{money(pay.total)}</span>
+          <span className="ui-num" title={pay.deliveryFee > 0 ? "Müşterinin ödediği tutar (teslimat ücreti dahil) · iptaller hariç" : "İptal edilen siparişler hariç"}>{money(pay.total)}</span>
         </h4>
+        {pay.deliveryFee > 0 && (
+          <p className="so-ov-pay-split">
+            <span>Ürün <strong className="ui-num">{money(pay.productTotal)}</strong></span>
+            <span aria-hidden="true">·</span>
+            <span><Bike aria-hidden="true" />Teslimat <strong className="ui-num">{money(pay.deliveryFee)}</strong></span>
+          </p>
+        )}
         <ul>
           {PAYMENT_ROWS.map(({ key, label, icon: Icon, tone }) => {
             const bucket = pay[key];
@@ -199,8 +211,14 @@ export default function OrdersKpis({
 
   const lateNote = k.late > 0 ? `${count(k.latePrep)}\u00a0hazırlıkta\u00a0· ${count(k.lateRoad)}\u00a0yolda` : "Hazırlıkta 20+, yolda 25+ dk";
 
+  // Ciro ürün tutarıdır; teslimat ücreti varsa ayrı yazılır (yalnızca yurt siparişli günde bugünkü not)
+  const feeToday = Number(k.todayDeliveryFee) > 0;
   const todayNote = k.todayCount > 0
-    ? <span title="İptal edilen siparişler hariç">{money(k.todayRevenue)} ciro{"\u00a0"}· ort.{"\u00a0"}{money(k.todayAvgBasket)}</span>
+    ? (feeToday ? (
+      <span title={`İptal edilen siparişler hariç · ort. sepet ${money(k.todayAvgBasket)} · ${count(k.todayPaidDelivery)} ücretli teslimat`}>
+        {money(k.todayRevenue)} ciro{"\u00a0"}· +{money(k.todayDeliveryFee)}{"\u00a0"}teslimat
+      </span>
+    ) : <span title="İptal edilen siparişler hariç">{money(k.todayRevenue)} ciro{"\u00a0"}· ort.{"\u00a0"}{money(k.todayAvgBasket)}</span>)
     : "Henüz sipariş yok";
 
   const avgValue = k.avgDeliveryMinutes !== null && k.avgDeliveryMinutes !== undefined ? formatMinutes(k.avgDeliveryMinutes) || "—" : "—";

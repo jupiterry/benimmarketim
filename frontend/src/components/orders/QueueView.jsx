@@ -4,7 +4,7 @@
 // Sözleşme: CONTRACTS.md §7.4 / §7.5. Stil: styles/orders-queue.css (önek so-q-).
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import {
-  ArrowDown, CheckCheck, CheckCircle2, ChevronRight, ClipboardList, Clock, ListChecks, MapPin, PackageCheck, Printer,
+  ArrowDown, CheckCheck, CheckCircle2, ChevronRight, ClipboardList, Clock, Home, ListChecks, MapPin, PackageCheck, Printer,
   SearchX, Truck,
 } from "lucide-react";
 import { EmptyState, Skeleton, formatDateTime, formatTime, money, useIsMobile } from "../admin/ui";
@@ -13,7 +13,7 @@ import {
   useStepGuard,
 } from "./atoms";
 import {
-  LANE_IDS, completedAt, customerName, orderAriaLabel, pointGroups, statusUi, summarizeOrders,
+  LANE_IDS, completedAt, customerName, orderAriaLabel, orderDeliveryFee, orderProductTotal, pointGroups, statusUi, summarizeOrders,
 } from "./shared";
 import QueueCard from "./QueueCard";
 import "../../styles/orders-queue.css";
@@ -98,7 +98,7 @@ const PointGroup = ({ group, status, ui, actions, laneKey }) => {
           onChange={(checked) => actions?.selectMany?.(ids, checked)}
         />
         <div className="so-q-group-text">
-          <h3 id={titleId} className="so-q-group-title"><MapPin aria-hidden="true" />{group.label}</h3>
+          <h3 id={titleId} className="so-q-group-title">{group.zone ? <Home aria-hidden="true" /> : <MapPin aria-hidden="true" />}{group.label}</h3>
           <p className="so-q-group-sum">
             <span className="so-q-pay-part"><b className="ui-num">{n}</b> sipariş</span>
             <span className="so-q-sep" aria-hidden="true">·</span>
@@ -238,15 +238,18 @@ const DoneSection = ({ done, open, onToggle, forceOpen = false, hasFilter, ui, a
     let delivered = 0;
     let cancelled = 0;
     let revenue = 0;
+    let fee = 0;
     for (const o of done) {
       if (o.status === "Teslim Edildi") {
         delivered += 1;
-        revenue += Number(o.totalAmount) || 0;
+        // Ciro ürün tutarıdır; teslimat ücreti ayrı yazılır (yalnızca yurt siparişi varsa bugünkü gibi)
+        revenue += orderProductTotal(o);
+        fee += orderDeliveryFee(o);
       } else if (o.status === "İptal Edildi") {
         cancelled += 1;
       }
     }
-    return { delivered, cancelled, revenue };
+    return { delivered, cancelled, revenue, fee: Math.round(fee * 100) / 100 };
   }, [done]);
   const expanded = forceOpen || open;
   const summary = done.length ? (
@@ -255,7 +258,10 @@ const DoneSection = ({ done, open, onToggle, forceOpen = false, hasFilter, ui, a
       <span className="so-q-sep" aria-hidden="true">·</span>
       <span><b className="ui-num">{stats.cancelled}</b> iptal</span>
       <span className="so-q-sep" aria-hidden="true">·</span>
-      <span title="Teslim edilenlerin toplamı"><b className="ui-num">{money(stats.revenue)}</b></span>
+      <span title={stats.fee > 0 ? "Teslim edilenlerin ürün tutarı (teslimat ücreti ayrı)" : "Teslim edilenlerin toplamı"}><b className="ui-num">{money(stats.revenue)}</b></span>
+      {stats.fee > 0 && (
+        <span className="so-q-done-fee" title="Teslim edilenlerin teslimat ücreti">+ <b className="ui-num">{money(stats.fee)}</b> teslimat</span>
+      )}
     </span>
   ) : (
     <span className="so-q-done-sum">{hasFilter ? "Filtreye uyan yok" : "Henüz yok"}</span>
