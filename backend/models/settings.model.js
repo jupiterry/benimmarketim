@@ -1,7 +1,19 @@
 import mongoose from "mongoose";
 
+// Varsayılan yapay zekâ ayarlarının tek kaynağı. Bu ücretsiz modelin OpenRouter'da kalacağı garanti değildir;
+// bulunamazsa sağlayıcı katmanı (services/ai/providers.js) canlı model listesinden ücretsiz bir yedek seçer.
+export const DEFAULT_AI_PROVIDER = "openrouter";
 export const DEFAULT_AI_MODEL = "google/gemma-4-26b-a4b-it:free";
 const LEGACY_AI_MODEL = "openai/gpt-4o";
+
+export const defaultAiProvider = () => process.env.AI_DEFAULT_PROVIDER || DEFAULT_AI_PROVIDER;
+export const defaultAiModel = () => process.env.AI_DEFAULT_MODEL || DEFAULT_AI_MODEL;
+
+/** Kayıtlı ai ayarından kullanılacak sağlayıcı/model: boş alanlar ortam değişkenine, o da yoksa varsayılana düşer. */
+export const resolveAiConfig = (ai = {}) => ({
+  provider: ai?.provider || defaultAiProvider(),
+  model: String(ai?.model || "").trim() || defaultAiModel(),
+});
 
 const settingsSchema = new mongoose.Schema(
   {
@@ -156,8 +168,8 @@ const settingsSchema = new mongoose.Schema(
     },
     ai: {
       enabled: { type: Boolean, default: true },
-      provider: { type: String, enum: ["groq", "openrouter", "gemini"], default: () => process.env.AI_DEFAULT_PROVIDER || "openrouter" },
-      model: { type: String, default: () => process.env.AI_DEFAULT_MODEL || DEFAULT_AI_MODEL },
+      provider: { type: String, enum: ["groq", "openrouter", "gemini"], default: defaultAiProvider },
+      model: { type: String, default: defaultAiModel },
       maxHistoryMessages: { type: Number, default: 12, min: 2, max: 30 },
     }
   },

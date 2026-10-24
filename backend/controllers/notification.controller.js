@@ -2,8 +2,8 @@ import mongoose from "mongoose";
 import User from "../models/user.model.js";
 import Order from "../models/order.model.js";
 import PushBroadcast from "../models/pushBroadcast.model.js";
-import Settings from "../models/settings.model.js";
-import { createAiProvider } from "../services/ai/providers.js";
+import Settings, { resolveAiConfig } from "../models/settings.model.js";
+import { createAiProvider, isDataPolicyError, isModelUnavailableError } from "../services/ai/providers.js";
 import { REWRITE_INSTRUCTIONS, buildDraftMessages, parseDraftOptions } from "../services/pushDraft.service.js";
 import { PUSH_LIBRARY, PUSH_LIBRARY_SIZE, pickLibraryExamples } from "../services/pushLibrary.js";
 import WeeklyProduct from "../models/weeklyProduct.model.js";
@@ -37,7 +37,13 @@ export const describeAiDraftFailure = (error, providerName = "", model = "") => 
   if (code === "AI_API_KEY_MISSING") return { status: 503, message: `Yapay zekâ anahtarı sunucuda tanımlı değil (${where}). .env dosyasındaki ilgili API anahtarını kontrol edin.` };
   if (status === 401 || status === 403) return { status: 502, message: `Yapay zekâ sağlayıcısı API anahtarını kabul etmedi (${where}, HTTP ${status}). Anahtarın geçerli olduğunu kontrol edin.` };
   if (status === 402) return { status: 502, message: `Yapay zekâ hesabında yeterli kredi yok (${where}, HTTP 402). Sağlayıcı hesabına kredi yükleyin.` };
-  if (status === 404 || status === 400) return { status: 502, message: `Yapay zekâ sağlayıcısı isteği reddetti (${where}, HTTP ${status}). Ayarlardaki model adının bu sağlayıcıda geçerli olduğunu kontrol edin.` };
+  if (status === 404 && isDataPolicyError(error)) {
+    return { status: 502, message: `OpenRouter ücretsiz modellere erişime izin vermiyor (${where}, HTTP 404: veri politikası). OpenRouter hesabınızda Ayarlar › Privacy bölümünde ücretsiz modellere izin verin (Enable free endpoints that may train on inputs / publish prompts).` };
+  }
+  if (status === 404 || (status === 400 && isModelUnavailableError(error))) {
+    return { status: 502, message: `Yapay zekâ modeli bulunamadı (${where}, HTTP ${status}). Seçili model ve denenen yedek modeller bu sağlayıcıda şu an kullanılamıyor; Ayarlar › Yapay zekâ bölümünden canlı listedeki bir modeli seçin.` };
+  }
+  if (status === 400) return { status: 502, message: `Yapay zekâ sağlayıcısı isteği reddetti (${where}, HTTP ${status}). Ayarlardaki model adının bu sağlayıcıda geçerli olduğunu kontrol edin.` };
   if (status === 429) return { status: 502, message: `Yapay zekâ sağlayıcısının istek limiti doldu (${where}, HTTP 429). Birkaç dakika sonra tekrar deneyin.` };
   if (status >= 500) return { status: 502, message: `Yapay zekâ sağlayıcısı şu anda yanıt vermiyor (${where}, HTTP ${status}). Biraz sonra tekrar deneyin.` };
   if (code === "AI_EMPTY_RESPONSE") return { status: 502, message: `Yapay zekâ boş yanıt döndürdü (${where}). Tekrar deneyin.` };
@@ -109,8 +115,7 @@ export const generateBroadcastDraft = async (req, res) => {
   try {
     const settings = await Settings.getSettings();
     const ai = settings.ai || {};
-    providerName = ai.provider || process.env.AI_DEFAULT_PROVIDER || "openrouter";
-    model = ai.model || process.env.AI_DEFAULT_MODEL || "google/gemma-4-26b-a4b-it:free";
+    ({ provider: providerName, model } = resolveAiConfig(ai));
     // Son başlıklar modele verilir ki aynı kalıpları tekrar etmesin
     let recent = [];
     try {
@@ -135,7 +140,7 @@ export const generateBroadcastDraft = async (req, res) => {
     return res.json({ success: true, title: options[0].title, body: options[0].body, options, facts });
   } catch (error) {
     // Gerçek sebep sunucu kaydına yazılır (önceden sessizce yutuluyordu)
-    console.error(`Bildirim taslağı üretilemedi [${providerName} / ${model}]:`, error?.name === "AbortError" ? "zaman aşımı" : error?.message);
+    console.error(`Bildirim taslağı üretilemedi [${providerName} / ${model}]:`, error?.name === "AbortError" ? "zaman aşımı" : error?.message, error?.providerMessage || "");
     const { status, message } = describeAiDraftFailure(error, providerName, model);
     return res.status(status).json({ success: false, message });
   }

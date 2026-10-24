@@ -1,14 +1,35 @@
+import { DEFAULT_AI_MODEL } from "../../models/settings.model.js";
+import { getOpenRouterModels, rankFreeModels } from "./openrouterModels.service.js";
+
 const DEFAULT_TIMEOUT_MS = 15000;
 
 const RETRY_DELAY_MS = 600;
 
+// OpenRouter `models` dizisinde en fazla 3 model kabul edilir.
+const MAX_OPENROUTER_MODELS = 3;
+// Hata sonrası yeniden keşifte bundan eski liste tazelenir (model listede görünüp yine 404 verdiyse).
+const REDISCOVERY_MAX_AGE_MS = 10 * 60 * 1000;
+
+const unique = (list) => [...new Set(list.filter(Boolean))];
+
 // OpenRouter free-tier model havuzu: seçili model limitteyse ücretsiz yedekler denenir.
+// Yalnızca canlı model listesi (openrouterModels.service.js) alınamadığında son çare olarak kullanılır.
 // Kişisel verileri üçüncü taraf ücretsiz araştırma uç noktasına yönlendirmemek için Inkling eklenmedi.
-const OPENROUTER_FREE_FALLBACKS = [
-  "google/gemma-4-26b-a4b-it:free",
+export const OPENROUTER_FREE_FALLBACKS = unique([
+  ...(DEFAULT_AI_MODEL.endsWith(":free") ? [DEFAULT_AI_MODEL] : []),
   "google/gemma-4-31b-it:free",
   "nvidia/nemotron-3-super-120b-a12b:free",
-];
+]);
+
+// HTTP durumunu mesajda korur (AI_PROVIDER_404 gibi; mevcut eşlemeler buna bakar) ve sağlayıcının
+// açıklamasını ayrıca taşır: OpenRouter "No endpoints found…", "data policy" gibi nedenleri burada bildirir.
+const providerError = (status, body) => {
+  const error = new Error(`AI_PROVIDER_${status}`);
+  error.status = status;
+  const message = body?.error?.message;
+  if (typeof message === "string" && message.trim()) error.providerMessage = message.trim().slice(0, 500);
+  return error;
+};
 
 const requestOnce = async (url, options) => {
   const controller = new AbortController();
@@ -16,10 +37,12 @@ const requestOnce = async (url, options) => {
   try {
     const response = await fetch(url, { ...options, signal: controller.signal });
     const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(`AI_PROVIDER_${response.status}`);
+    if (!response.ok) throw providerError(response.status, body);
     return body;
   } finally { clearTimeout(timeout); }
 };
+
+const statusOf = (error) => Number(error?.status) || Number(String(error?.message || "").match(/^AI_PROVIDER_(\d{3})$/)?.[1]) || 0;
 
 // Geçici sağlayıcı sorunlarında (yoğunluk sınırı, 5xx, ağ kopması, zaman aşımı) bir kez daha dener.
 // Kimlik/istek hataları (400, 401, 403, 404) yeniden denenmez.
@@ -36,6 +59,19 @@ const requestJson = async (url, options) => {
     return requestOnce(url, options);
   }
 };
+
+/** OpenRouter hesabının gizlilik ayarı ücretsiz uç noktaları engelliyor mu ("No endpoints found matching your data policy"). */
+export const isDataPolicyError = (error) => /data policy/i.test(String(error?.providerMessage || ""));
+
+/** Model bulunamadı / uç nokta yok / araç desteği yok türünden, başka modelle düzelebilecek hata mı. */
+export const isModelUnavailableError = (error) => {
+  const status = statusOf(error);
+  if (status === 404) return true;
+  if (status !== 400) return false;
+  return /no endpoints|not a valid model|invalid model|model.{0,40}(not found|does not exist|unavailable|not available)|tool/i.test(String(error?.providerMessage || ""));
+};
+
+const sameModel = (a, b) => String(a || "").replace(/:free$/, "") === String(b || "").replace(/:free$/, "");
 
 export const AI_TOOL_DEFINITIONS = [
   ["searchProducts", "Ürün adıyla canlı ürün, stok ve güncel fiyat arar.", { query: { type: "string", description: "Ürün adı veya arama terimi" } }, ["query"]],
@@ -59,31 +95,84 @@ export const AI_TOOL_DEFINITIONS = [
 }));
 
 // options: { temperature, maxTokens } — verilmezse asistanın kullandığı değerler (0.15 / 450) geçerlidir.
+// OpenRouter'da (yalnızca orada) model listesi canlı keşifle doğrulanır: önbellekteki listede olmayan ya da
+// araç gerektiren istekte araç desteklemeyen modeller gönderilmez; model bulunamazsa (404, "No endpoints found…",
+// araç desteği yok) keşfedilen ücretsiz modellerle bir kez daha denenir. Groq/Gemini davranışı değişmez.
 export class OpenAiCompatibleProvider {
   constructor({ name, url, apiKey, model, extraHeaders = {} }) { Object.assign(this, { name, url, apiKey, model, extraHeaders }); }
+
+  // İlk denemede gönderilecek modeller. Ağa çıkmaz: yalnızca bellek/Redis önbelleğindeki listeye bakar.
+  async planOpenRouterModels(needsTools) {
+    const free = this.model.endsWith(":free");
+    const base = unique(free ? [this.model, ...OPENROUTER_FREE_FALLBACKS] : [this.model]);
+    const cached = await getOpenRouterModels({ cachedOnly: true });
+    if (!cached) return base.slice(0, MAX_OPENROUTER_MODELS);
+    const byId = new Map(cached.models.map((model) => [model.id, model]));
+    const usable = (id) => Boolean(byId.get(id)) && (!needsTools || byId.get(id).tools);
+    const configuredOk = usable(this.model);
+    // Ücretli bir model seçildiyse ve geçerliyse ücretsiz yedek eklenmez (mevcut davranış)
+    if (configuredOk && !free) return [this.model];
+    const discovered = rankFreeModels(cached.models, { needsTools }).map((model) => model.id);
+    const list = unique([...base.filter(usable), ...discovered]).slice(0, MAX_OPENROUTER_MODELS);
+    if (!configuredOk) {
+      console.warn(`OpenRouter: ayarlardaki model ${byId.has(this.model) ? "araç çağrısını desteklemiyor" : "bulunamadı"} (${this.model}); yerine denenecek: ${list.join(", ") || "—"}`);
+    }
+    return list.length ? list : base.slice(0, MAX_OPENROUTER_MODELS);
+  }
+
+  // Hata sonrası: canlı listeden (gerekirse tazelenmiş) denenmemiş ücretsiz modeller. Liste alınamazsa null.
+  async rediscoverOpenRouterModels(needsTools, tried) {
+    const entry = await getOpenRouterModels({ maxAgeMs: REDISCOVERY_MAX_AGE_MS });
+    if (!entry) return null;
+    const list = rankFreeModels(entry.models, { needsTools }).map((model) => model.id).filter((id) => !tried.has(id)).slice(0, MAX_OPENROUTER_MODELS);
+    return list.length ? list : null;
+  }
+
   async complete(messages, tools = AI_TOOL_DEFINITIONS, { temperature = 0.15, maxTokens = 450, reasoning, retryEmpty = false } = {}) {
     if (!this.apiKey) throw new Error("AI_API_KEY_MISSING");
-    const freeModels = this.name === "openrouter" && this.model.endsWith(":free")
-      ? [this.model, ...OPENROUTER_FREE_FALLBACKS.filter((model) => model !== this.model)]
-      : null;
-    let remainingModels = freeModels;
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const body = await requestJson(this.url, {
-        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.apiKey}`, ...this.extraHeaders },
-        body: JSON.stringify({ ...(remainingModels ? { models: remainingModels } : { model: this.model }), messages, ...(tools.length ? { tools, tool_choice: "auto" } : {}), temperature, max_tokens: maxTokens, ...(this.name === "openrouter" && reasoning === false ? { reasoning: { enabled: false } } : {}) }),
-      });
-      if (body.error) throw new Error(Number.isInteger(body.error.code) ? `AI_PROVIDER_${body.error.code}` : "AI_PROVIDER_INVALID_RESPONSE");
+    const isOpenRouter = this.name === "openrouter";
+    const needsTools = tools.length > 0;
+    let models = isOpenRouter ? await this.planOpenRouterModels(needsTools) : null;
+    const tried = new Set();
+    let rediscovered = false;
+    let emptyRetried = false;
+    for (;;) {
+      let body;
+      try {
+        body = await requestJson(this.url, {
+          method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.apiKey}`, ...this.extraHeaders },
+          body: JSON.stringify({ ...(models?.length > 1 ? { models } : { model: models?.[0] || this.model }), messages, ...(tools.length ? { tools, tool_choice: "auto" } : {}), temperature, max_tokens: maxTokens, ...(isOpenRouter && reasoning === false ? { reasoning: { enabled: false } } : {}) }),
+        });
+        if (body.error) throw Number.isInteger(body.error.code) ? providerError(body.error.code, body) : new Error("AI_PROVIDER_INVALID_RESPONSE");
+      } catch (error) {
+        if (isOpenRouter && !rediscovered && isModelUnavailableError(error)) {
+          // Bir kez: denenen modelleri dışarıda bırakıp canlı listeden yeni ücretsiz modellerle tekrar dene
+          rediscovered = true;
+          for (const id of models || [this.model]) tried.add(id);
+          const next = await this.rediscoverOpenRouterModels(needsTools, tried);
+          if (next) {
+            console.warn(`OpenRouter ${error.message}${error.providerMessage ? ` (${error.providerMessage.slice(0, 160)})` : ""}; keşfedilen modellerle yeniden deneniyor: ${next.join(", ")}`);
+            models = next;
+            continue;
+          }
+        }
+        throw error;
+      }
       const message = body.choices?.[0]?.message;
       if (message?.refusal || body.choices?.[0]?.finish_reason === "content_filter") throw new Error("AI_RESPONSE_REFUSED");
       if (!message || (!message.content?.trim() && !message.tool_calls?.length)) {
-        if (retryEmpty && remainingModels && attempt === 0) {
+        if (retryEmpty && isOpenRouter && models?.length > 1 && !emptyRetried) {
           // HTTP 200 boş yanıtı OpenRouter'ın HTTP hata yedeklemesini tetiklemez.
           // Yalnızca bir ek deneme yap; boş dönen modeli tekrar listeye koyma.
-          const failedModel = remainingModels.includes(body.model) ? body.model : remainingModels[0];
-          remainingModels = remainingModels.filter((model) => model !== failedModel);
-          if (remainingModels.length) continue;
+          emptyRetried = true;
+          const failedModel = models.includes(body.model) ? body.model : models[0];
+          models = models.filter((model) => model !== failedModel);
+          if (models.length) continue;
         }
         throw new Error("AI_EMPTY_RESPONSE");
+      }
+      if (isOpenRouter && body.model && (!sameModel(body.model, this.model) || rediscovered)) {
+        console.info(`OpenRouter yanıtı ${body.model} modelinden geldi (ayarlardaki: ${this.model}).`);
       }
       return { role: "assistant", content: message.content?.trim() || "", ...(message.tool_calls?.length ? { tool_calls: message.tool_calls } : {}) };
     }

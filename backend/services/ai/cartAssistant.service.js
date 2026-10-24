@@ -2,7 +2,7 @@
 // göre sepet önerisi hazırlar. Canlı destek sohbetinden bağımsızdır; mobil uygulamadaki ayrı ekran kullanır.
 // Ürün listesini yapay zekâ planlar; sağlayıcıya ulaşılamazsa veya asistan kapalıysa hazır listelere düşülür,
 // böylece müşteri her durumda bir öneri alır. Ürünler ve fiyatlar her zaman katalogdan gelir.
-import Settings from "../../models/settings.model.js";
+import Settings, { resolveAiConfig } from "../../models/settings.model.js";
 import Order from "../../models/order.model.js";
 import Product from "../../models/product.model.js";
 import { createAiProvider, AI_TOOL_DEFINITIONS } from "./providers.js";
@@ -75,7 +75,7 @@ const planWithAi = async (prompt, budget) => {
     const settings = await Settings.getSettings();
     const ai = settings?.ai || {};
     if (ai.enabled === false) return null;
-    const provider = createAiProvider({ provider: ai.provider || process.env.AI_DEFAULT_PROVIDER || "openrouter", model: ai.model || process.env.AI_DEFAULT_MODEL || "google/gemma-4-26b-a4b-it:free" });
+    const provider = createAiProvider(resolveAiConfig(ai));
     const userMessage = budget ? `${prompt}\n(Bütçe: ${budget} TL)` : prompt;
     const response = await provider.complete([{ role: "system", content: PLANNER_PROMPT }, { role: "user", content: userMessage }], PLANNER_TOOL);
     const call = (response.tool_calls || []).find((item) => item.function?.name === "suggestCart");
