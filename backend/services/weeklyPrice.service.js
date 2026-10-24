@@ -1,19 +1,32 @@
-// Ürün listelerine haftalık fırsat fiyatını ekler. Aktif haftalık ürünler her istekte
-// veritabanından okunmasın diye 1 dakika bellekte tutulur; yönetici haftalık ürünleri
-// değiştirdiğinde invalidateWeeklyPriceCache() önbelleği hemen temizler.
+// Ürün listelerine müşteriye gösterilecek fiyatı ekler (tüm ürün uç noktaları bunu kullanır).
+//   - actualPrice: siparişte alınacak birim fiyat (services/productPricing.js: haftalık fırsat,
+//     ürün indirimi/flash sale ve liste fiyatının en düşüğü). Her üründe bulunur.
+//   - haftalık üründe: isWeeklyProduct, weeklyPrice, weeklyDiscountPercentage, originalPrice
+//   - flash sale sürüyorsa: flashSale { _id, discountPercentage, price, startDate, endDate }
+//     (fiyat haftalık fırsattan düşükse; değilse alan gönderilmez)
+// Aktif haftalık ürünler her istekte veritabanından okunmasın diye 1 dakika bellekte tutulur;
+// ürünler/haftalık fırsatlar değişince productCache.service bu önbelleği de temizler.
 // Sipariş fiyatı order.service.js'de her zaman veritabanından hesaplanır (bu önbellek kullanılmaz).
 import WeeklyProduct from "../models/weeklyProduct.model.js";
+import { liveFlashInfo, resolveUnitPrice } from "./productPricing.js";
+import { invalidateProductCaches, onProductCachesInvalidated } from "./productCache.service.js";
 
 const TTL_MS = 60 * 1000;
 let cache = { map: null, at: 0, pending: null };
 
 let version = 0;
-// Haftalık fiyatlar değiştiğinde artar; hazır ürün listesi yanıtları bununla geçersiz olur
+// Haftalık fiyatlar/ürünler değiştiğinde artar; hazır ürün listesi yanıtları bununla geçersiz olur
 export const getWeeklyPriceVersion = () => version;
 
-export const invalidateWeeklyPriceCache = () => {
+const clearLocalWeeklyCache = () => {
   cache = { map: null, at: 0, pending: null };
   version++;
+};
+onProductCachesInvalidated(clearLocalWeeklyCache);
+
+/** Haftalık fırsatlar değişince: bu süreçteki ve diğer süreçlerdeki ürün önbellekleri temizlenir */
+export const invalidateWeeklyPriceCache = () => {
+  invalidateProductCaches();
 };
 
 const loadWeeklyPriceMap = async () => {
@@ -46,28 +59,37 @@ const loadWeeklyPriceMap = async () => {
 
 const plain = (product) => (product?.toObject ? product.toObject() : product);
 
-// Helper: Ürünlere haftalık fiyat bilgisi ekle (önceki product.controller davranışıyla birebir)
-export async function applyWeeklyPricesToProducts(products) {
-  try {
-    const weeklyPriceMap = await loadWeeklyPriceMap();
-    return products.map((product) => {
-      const productId = product._id ? product._id.toString() : product.id?.toString();
-      const weeklyInfo = weeklyPriceMap.get(productId);
-      if (weeklyInfo) {
-        return {
-          ...plain(product),
-          isWeeklyProduct: true,
-          weeklyPrice: weeklyInfo.weeklyPrice,
-          weeklyDiscountPercentage: weeklyInfo.discountPercentage,
-          originalPrice: weeklyInfo.originalPrice,
-          // actualPrice alanını güncelle (sepet ve diğer hesaplamalar için)
-          actualPrice: weeklyInfo.weeklyPrice,
-        };
+/** Tek ürün: actualPrice + (varsa) haftalık ve flash sale alanları */
+export const decorateProduct = (product, weeklyInfo, now = new Date()) => {
+  const base = { ...plain(product) };
+  delete base.flashSale; // ham alan dışarı verilmez; yalnızca geçerliyse aşağıda yeniden eklenir
+  const unit = resolveUnitPrice(base, weeklyInfo?.weeklyPrice);
+  const out = weeklyInfo
+    ? {
+        ...base,
+        isWeeklyProduct: true,
+        weeklyPrice: weeklyInfo.weeklyPrice,
+        weeklyDiscountPercentage: weeklyInfo.discountPercentage,
+        originalPrice: weeklyInfo.originalPrice,
       }
-      return plain(product);
-    });
+    : base;
+  if (base.price !== undefined) out.actualPrice = unit.price;
+  const flash = unit.source === "discount" ? liveFlashInfo(plain(product), now) : null;
+  if (flash) out.flashSale = flash;
+  return out;
+};
+
+// Helper: Ürünlere haftalık fiyat, actualPrice ve flash sale bilgisi ekle
+export async function applyWeeklyPricesToProducts(products) {
+  const now = new Date();
+  let weeklyPriceMap = new Map();
+  try {
+    weeklyPriceMap = await loadWeeklyPriceMap();
   } catch (error) {
     console.error("Haftalık fiyat uygulama hatası:", error);
-    return products.map(plain);
   }
+  return products.map((product) => {
+    const productId = product._id ? product._id.toString() : product.id?.toString();
+    return decorateProduct(product, weeklyPriceMap.get(productId), now);
+  });
 }

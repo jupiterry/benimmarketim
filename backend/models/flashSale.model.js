@@ -47,6 +47,15 @@ const flashSaleSchema = new mongoose.Schema(
       type: Number,
       default: null,
     },
+    // Yönetici kampanyayı zamanından önce bitirdi / planlıyken iptal etti
+    cancelledAt: {
+      type: Date,
+      default: null,
+    },
+    cancelledBy: {
+      type: String,
+      default: "",
+    },
   },
   {
     timestamps: true,

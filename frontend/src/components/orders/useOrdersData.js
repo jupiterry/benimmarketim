@@ -93,14 +93,15 @@ const withStatusStack = (order, stack) => {
   return next;
 };
 
-/** Katalog ürününün geçerli birim fiyatı (haftalık > geçerli indirim > fiyat) */
+/** Katalog ürününün geçerli birim fiyatı: sunucunun kuralı (haftalık / indirim-flash sale / liste fiyatının en düşüğü) */
 const unitPrice = (product) => {
   const price = Number(product?.price) || 0;
-  const weekly = Number(product?.weeklyPrice);
-  if (product?.weeklyPrice != null && Number.isFinite(weekly)) return weekly;
+  let best = price;
   const discounted = Number(product?.discountedPrice);
-  if (product?.isDiscounted && Number.isFinite(discounted) && discounted < price) return discounted;
-  return price;
+  if (product?.isDiscounted && Number.isFinite(discounted) && discounted >= 0 && discounted < best) best = discounted;
+  const weekly = Number(product?.weeklyPrice);
+  if (product?.weeklyPrice != null && Number.isFinite(weekly) && weekly >= 0 && weekly < best) best = weekly;
+  return best;
 };
 
 /**

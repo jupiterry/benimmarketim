@@ -1,8 +1,10 @@
 import mongoose from "mongoose";
 import FlashSale from "../models/flashSale.model.js";
 import Product from "../models/product.model.js";
-import { rangesOverlap, releaseSale, saleStatus, syncFlashSales, syncSale } from "../services/flashSale.service.js";
-import { recordAdminAction } from "../services/adminAudit.service.js";
+import { ensureFlashSalesSynced, rangesOverlap, releaseSale, saleStatus, syncFlashSales, syncSale } from "../services/flashSale.service.js";
+import { money, recordAdminAction } from "../services/adminAudit.service.js";
+import { applyWeeklyPricesToProducts } from "../services/weeklyPrice.service.js";
+import { resolveUnitPrice } from "../services/productPricing.js";
 
 const trDate = (d) => new Date(d).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 const auditSale = (req, sale, productName, action, changes = []) =>
@@ -10,7 +12,22 @@ const auditSale = (req, sale, productName, action, changes = []) =>
 
 const withStatus = (sale, now = new Date()) => {
   const obj = typeof sale.toObject === "function" ? sale.toObject() : sale;
-  return { ...obj, status: saleStatus(obj, now) };
+  return { ...obj, status: saleStatus(obj, now), cancelled: Boolean(obj.cancelledAt) };
+};
+
+// Kampanyanın ürününü diğer ürün uç noktalarıyla aynı fiyat alanlarıyla döndür (actualPrice vb.)
+const withPricedProducts = async (sales) => {
+  const products = sales.map((sale) => (sale.product && typeof sale.product === "object" && sale.product.price !== undefined ? sale.product : null));
+  const priced = await applyWeeklyPricesToProducts(products.filter(Boolean));
+  let i = 0;
+  return sales.map((sale, index) => (products[index] ? { ...sale, product: priced[i++] } : sale));
+};
+
+// İstek gövdesinde süre (saat) verildiyse bitiş sunucu saatine göre hesaplanır
+const parseDurationHours = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+  const hours = Number(value);
+  return Number.isFinite(hours) && hours > 0 && hours <= 24 * 60 ? hours : NaN;
 };
 
 const parseDate = (value) => {
@@ -52,7 +69,9 @@ export const getAllFlashSales = async (req, res) => {
   try {
     const flashSales = await FlashSale.find().populate("product").sort({ startDate: -1 });
     const now = new Date();
-    res.json({ flashSales: flashSales.map((sale) => withStatus(sale, now)) });
+    // serverTime: panel durumları (Yayında/Planlı/Bitti) bilgisayarın saati yanlış olsa da
+    // sunucu saatine göre hesaplasın
+    res.json({ flashSales: flashSales.map((sale) => withStatus(sale, now)), serverTime: now.toISOString() });
   } catch (error) {
     console.error("Flash sale'ler getirilirken hata:", error);
     res.status(500).json({ message: "Sunucu hatası" });
@@ -62,16 +81,22 @@ export const getAllFlashSales = async (req, res) => {
 // Aktif flash sale'leri getir
 export const getActiveFlashSales = async (req, res) => {
   try {
+    // Zamanı gelen kampanyayı uygula / biteni geri al (zamanlayıcıyı beklemeden)
+    await ensureFlashSalesSynced();
     const now = new Date();
+    // Yalnızca fiyatı ürüne gerçekten uygulanmış kampanyalar: rozet görünüp fiyat eski kalmaz
     const flashSales = await FlashSale.find({
       isActive: true,
+      applied: true,
       startDate: { $lte: now },
-      endDate: { $gte: now },
+      endDate: { $gt: now },
     })
       .populate("product")
       .sort({ endDate: 1 });
 
-    res.json({ flashSales: flashSales.map((sale) => withStatus(sale, now)) });
+    const live = flashSales.filter((sale) => sale.product).map((sale) => withStatus(sale, now));
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ flashSales: await withPricedProducts(live), serverTime: now.toISOString() });
   } catch (error) {
     console.error("Aktif flash sale'ler getirilirken hata:", error);
     res.status(500).json({ message: "Sunucu hatası" });
@@ -89,6 +114,12 @@ export const createFlashSale = async (req, res) => {
     if (error) return res.status(400).json({ message: error });
 
     const now = new Date();
+    // "Hemen başlat": başlangıç ve bitiş sunucu saatine göre (yöneticinin bilgisayar saati
+    // ileri/geri ya da saat dilimi yanlışsa kampanya saatlerce "planlı" kalmasın)
+    const durationHours = parseDurationHours(req.body.durationHours);
+    if (Number.isNaN(durationHours)) return res.status(400).json({ message: "Süre geçersiz" });
+    if (req.body.startNow === true || req.body.startNow === "true") data.startDate = now;
+    if (durationHours) data.endDate = new Date(data.startDate.getTime() + durationHours * 3600 * 1000);
     if (data.startDate >= data.endDate) {
       return res.status(400).json({ message: "Bitiş tarihi başlangıç tarihinden sonra olmalı" });
     }
@@ -119,14 +150,21 @@ export const createFlashSale = async (req, res) => {
       name: (name || "").trim() || `${product.name} - Flash Sale`,
     });
     await flashSale.save();
-    await syncSale(flashSale, now);
+    let warning;
+    try {
+      await syncSale(flashSale, now);
+    } catch (syncError) {
+      // Kayıt durur; zamanlayıcı bir dakika içinde yeniden dener
+      console.error("Flash sale ürüne uygulanamadı:", syncError.message);
+      warning = "Kampanya kaydedildi ama ürüne henüz uygulanamadı; bir dakika içinde yeniden denenecek.";
+    }
     auditSale(req, flashSale, product.name, "Flash sale oluşturuldu", [
       { label: "İndirim", from: "—", to: `%${flashSale.discountPercentage}` },
       { label: "Tarih", from: "—", to: `${trDate(flashSale.startDate)} – ${trDate(flashSale.endDate)}` },
     ]);
 
     await flashSale.populate("product");
-    res.status(201).json({ message: "Flash sale başarıyla oluşturuldu", flashSale: withStatus(flashSale, now) });
+    res.status(201).json({ message: "Flash sale başarıyla oluşturuldu", flashSale: withStatus(flashSale, now), ...(warning ? { warning } : {}) });
   } catch (error) {
     console.error("Flash sale oluşturulurken hata:", error);
     res.status(500).json({ message: "Sunucu hatası" });
@@ -165,6 +203,7 @@ export const updateFlashSale = async (req, res) => {
     flashSale.endDate = end;
     if (req.body.name !== undefined) flashSale.name = String(req.body.name).trim();
     if (req.body.isActive !== undefined) flashSale.isActive = Boolean(req.body.isActive);
+    if (flashSale.isActive) { flashSale.cancelledAt = null; flashSale.cancelledBy = ""; }
     await flashSale.save();
     await syncSale(flashSale);
     const productDoc = await Product.findById(flashSale.product).select("name").lean();
@@ -183,7 +222,9 @@ export const updateFlashSale = async (req, res) => {
   }
 };
 
-// Flash sale'i hemen bitir (kayıt geçmiş olarak kalır)
+// Flash sale'i hemen bitir (yayındaysa) ya da iptal et (planlıysa). Kayıt geçmişte
+// "İptal edildi" olarak kalır; ürün kampanyadan önceki fiyatına hemen döner.
+// POST /api/flash-sales/:id/end  (eş: /:id/cancel)
 export const endFlashSale = async (req, res) => {
   try {
     const flashSale = await FlashSale.findById(req.params.id);
@@ -191,14 +232,31 @@ export const endFlashSale = async (req, res) => {
       return res.status(404).json({ message: "Flash sale bulunamadı" });
     }
     const now = new Date();
+    const status = saleStatus(flashSale, now);
+    if (status === "ended" && !flashSale.applied) {
+      return res.status(400).json({ message: "Bu kampanya zaten bitmiş" });
+    }
     if (flashSale.applied) await releaseSale(flashSale);
     flashSale.isActive = false;
-    if (flashSale.endDate > now) flashSale.endDate = now;
-    if (flashSale.startDate > now) flashSale.startDate = now;
+    // Yayındaki kampanyanın gerçek bitişi şimdi; planlı kampanyanın tarihleri plan olarak kalır
+    if (status === "active" && flashSale.endDate > now) flashSale.endDate = now;
+    flashSale.cancelledAt = now;
+    flashSale.cancelledBy = String(req.user?.name || req.user?.email || "");
     await flashSale.save();
     await flashSale.populate("product");
-    auditSale(req, flashSale, flashSale.product?.name, "Flash sale erkenden bitirildi", [{ label: "İndirim", from: `%${flashSale.discountPercentage}`, to: "Bitti" }]);
-    res.json({ message: "Flash sale bitirildi", flashSale: withStatus(flashSale, now) });
+
+    const product = flashSale.product && typeof flashSale.product === "object" ? flashSale.product : null;
+    const restored = product ? resolveUnitPrice(product).price : null;
+    auditSale(req, flashSale, product?.name,
+      status === "upcoming" ? "Planlı flash sale iptal edildi" : "Flash sale erkenden bitirildi", [
+        { label: "Flash sale", from: `%${flashSale.discountPercentage}`, to: "İptal edildi" },
+        ...(status === "active" && restored != null ? [{ label: "Fiyat", from: money(flashSale.appliedPrice ?? restored), to: money(restored) }] : []),
+      ]);
+    const [priced] = product ? await applyWeeklyPricesToProducts([product]) : [null];
+    res.json({
+      message: status === "upcoming" ? "Planlı kampanya iptal edildi" : "Kampanya bitirildi, ürün eski fiyatına döndü",
+      flashSale: { ...withStatus(flashSale, now), ...(priced ? { product: priced } : {}) },
+    });
   } catch (error) {
     console.error("Flash sale bitirilirken hata:", error);
     res.status(500).json({ message: "Sunucu hatası" });
