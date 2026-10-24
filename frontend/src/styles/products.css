@@ -1064,3 +1064,12 @@
     margin-left: auto;
   }
 }
+
+/* İptal edilen kampanya: oran üstü çizili, satır sönük */
+.admin-layout .prd-flash-row[data-cancelled="true"] .prd-flash-pct {
+  color: var(--ui-text-3);
+  text-decoration: line-through;
+}
+.admin-layout .prd-flash-skew {
+  margin-bottom: var(--ui-s3);
+}

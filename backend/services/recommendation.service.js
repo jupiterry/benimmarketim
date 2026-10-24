@@ -10,6 +10,7 @@ import Order from "../models/order.model.js";
 import Product from "../models/product.model.js";
 import FlashSale from "../models/flashSale.model.js";
 import { isLive } from "./flashSale.service.js";
+import { onProductCachesInvalidated } from "./productCache.service.js";
 import { RECO_CACHE, RECO_RULES, RECO_WEIGHTS } from "./recommendation.config.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -21,6 +22,8 @@ export const DELIVERY_POINTS = ["girlsDorm", "boysDorm"];
 export const CARD_FIELDS = [
   "_id", "name", "price", "isDiscounted", "discountedPrice", "image", "thumbnail", "category",
   "isOutOfStock", "isFeatured", "isHidden", "order", "createdAt", "updatedAt",
+  // Ham kampanya alanı; weeklyPrice.service yalnızca geçerliyse `flashSale` olarak dışarı verir
+  "flashSale",
 ];
 export const CARD_SELECT = CARD_FIELDS.join(" ");
 
@@ -554,6 +557,8 @@ export const resetRecommendationCaches = () => {
   invalidateCatalogCache();
   flashCache = { at: 0, ids: null };
 };
+// Ürün fiyatı/görünürlüğü ya da flash sale değişince katalog ve kampanya önbellekleri hemen atılır
+onProductCachesInvalidated(resetRecommendationCaches);
 
 let job = null;
 export const startRecommendationJob = () => {

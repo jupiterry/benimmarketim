@@ -1,6 +1,7 @@
 import Order from "../models/order.model.js";
 import { applyWeeklyPricesToProducts } from "../services/weeklyPrice.service.js";
 import { RECO_CACHE } from "../services/recommendation.config.js";
+import { onProductCachesInvalidated, syncProductCacheVersion } from "../services/productCache.service.js";
 import {
   buildShelves,
   getLiveFlashProductIds,
@@ -23,6 +24,8 @@ const formatProducts = (products, withDescription) =>
 // Misafir yanıtları yurt + saat dilimi + limit + alan seçimine göre 5 dk bellekte
 const guestFeedCache = new Map();
 export const clearGuestFeedCache = () => guestFeedCache.clear();
+// Ürün fiyatı ya da flash sale değişince (bu veya başka bir sunucu sürecinde) misafir rafları atılır
+onProductCachesInvalidated(clearGuestFeedCache);
 
 /** Raflar için ortak hazırlık */
 const prepareShelves = async ({ userId, deliveryPoint, limit, now, separateDeals = true }) => {
@@ -51,6 +54,7 @@ export const getHomeFeed = async (req, res) => {
     const now = new Date();
     const userId = req.user?._id || null;
     res.setHeader("Cache-Control", "private, max-age=60");
+    await syncProductCacheVersion();
 
     const cacheKey = !userId && `${deliveryPoint || "all"}:${hourBucket(now)}:${limit}:${withDescription ? "full" : "card"}`;
     if (cacheKey) {
@@ -91,6 +95,7 @@ export const getPopularProducts = async (req, res) => {
     const limit = clampInt(req.query.limit, 24, 1, 40);
     const deliveryPoint = normalizeDeliveryPoint(req.query.deliveryPoint);
     const withDescription = req.query.fields !== "card";
+    await syncProductCacheVersion();
     const shelves = await prepareShelves({ userId: null, deliveryPoint, limit, now: new Date() });
     res.setHeader("Cache-Control", "public, max-age=300");
     return res.json({ success: true, products: await formatProducts(shelves.popular, withDescription) });
@@ -105,6 +110,7 @@ export const getPersonalizedProducts = async (req, res) => {
   try {
     const limit = clampInt(req.query.limit, 12, 4, 24);
     const deliveryPoint = normalizeDeliveryPoint(req.query.deliveryPoint);
+    await syncProductCacheVersion();
     const shelves = await prepareShelves({ userId: req.user._id, deliveryPoint, limit, now: new Date(), separateDeals: false });
     const products = await applyWeeklyPricesToProducts(shelves.forYou);
     return res.json({

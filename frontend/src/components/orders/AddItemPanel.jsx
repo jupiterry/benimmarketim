@@ -23,14 +23,15 @@ const TABS = [
 ];
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
-/** Sunucunun resolveEffectiveUnitPrice kuralı: haftalık fiyat > geçerli indirim > liste fiyatı */
+/** Sunucunun resolveEffectiveUnitPrice kuralı: haftalık fiyat, geçerli indirim (flash sale dahil) ve liste fiyatının en düşüğü */
 const effectivePrice = (product) => {
   const price = Number(product?.price) || 0;
-  const weekly = product?.weeklyPrice;
-  if (weekly !== null && weekly !== undefined && Number.isFinite(Number(weekly))) return Number(weekly);
+  let best = price;
   const discounted = Number(product?.discountedPrice);
-  if (product?.isDiscounted && Number.isFinite(discounted) && discounted > 0 && discounted < price) return discounted;
-  return price;
+  if (product?.isDiscounted && Number.isFinite(discounted) && discounted >= 0 && discounted < best) best = discounted;
+  const weekly = product?.weeklyPrice;
+  if (weekly !== null && weekly !== undefined && Number.isFinite(Number(weekly)) && Number(weekly) >= 0 && Number(weekly) < best) best = Number(weekly);
+  return best;
 };
 const isPlaceholder = (product) => Boolean(product?.isHidden) && normalizeSearch(product?.name) === PLACEHOLDER_NAME;
 

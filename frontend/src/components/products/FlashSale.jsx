@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { X, Zap, Square, Trash2, Package, RefreshCw } from "lucide-react";
+import { X, Zap, Square, Ban, Trash2, Package, RefreshCw, AlertTriangle } from "lucide-react";
 import {
   DURATIONS, flashStatus, formatDateTime, localInputToIso, money, remaining, roundMoney, toLocalInput
 } from "./productUtils";
@@ -9,6 +9,8 @@ const QUICK_PCTS = [10, 15, 20, 25, 30, 40];
 
 /**
  * Flash sale formu. Tarihler yerel saatle girilir, sunucuya ISO (saat dilimli) gider.
+ * "Hemen" seçiliyse başlangıç ve (hazır sürelerde) bitiş sunucu saatine göre hesaplanır
+ * (startNow + durationHours); bilgisayarın saati yanlış olsa da kampanya hemen başlar.
  * `products` önizleme içindir: tek ürünse eski → yeni fiyat gösterilir.
  */
 export const FlashSaleForm = ({ products = [], busy, submitLabel = "Flash sale başlat", onSubmit, onCancel }) => {
@@ -34,8 +36,10 @@ export const FlashSaleForm = ({ products = [], busy, submitLabel = "Flash sale b
     if (error || busy) return;
     onSubmit({
       discountPercentage: roundMoney(pctNum),
+      startNow: startMode === "now",
       startDate: startMode === "now" ? new Date().toISOString() : localInputToIso(start),
       endDate: endDate.toISOString(),
+      ...(hours !== "custom" ? { durationHours: hours } : {}),
     });
   };
 
@@ -128,13 +132,18 @@ export const FlashBadge = ({ entry, now }) => {
 const STATUS_LABEL = { active: "Yayında", upcoming: "Planlandı", ended: "Bitti" };
 const STATUS_TONE = { active: "ok", upcoming: "info", ended: "" };
 
-/** Tek kampanya satırı (çekmecede ve yöneticide ortak) */
+/**
+ * Tek kampanya satırı (çekmecede ve yöneticide ortak).
+ * Yayında → "Bitir", planlı → "İptal et" (ikisi de onay ister, ürün eski fiyatına hemen döner);
+ * biten/iptal edilen kayıt → yalnızca "Kaydı sil".
+ */
 export const FlashSaleRow = ({ sale, now, onEnd, onDelete, onOpenProduct, showProduct = true, busy }) => {
   const status = flashStatus(sale, now);
+  const cancelled = status === "ended" && Boolean(sale.cancelledAt);
   const product = typeof sale.product === "object" ? sale.product : null;
   const price = product ? Number(product.price) : null;
   return (
-    <li className="prd-flash-row" data-status={status}>
+    <li className="prd-flash-row" data-status={status} data-cancelled={cancelled || undefined}>
       {showProduct && (
         <button type="button" className="ui-thumb prd-flash-thumb" onClick={() => product && onOpenProduct?.(product._id)}
           aria-label={product ? `${product.name} ürününü aç` : "Ürün silinmiş"}>
@@ -144,7 +153,11 @@ export const FlashSaleRow = ({ sale, now, onEnd, onDelete, onOpenProduct, showPr
       <div className="prd-flash-main">
         {showProduct && <strong className="ui-truncate">{product?.name || "Silinmiş ürün"}</strong>}
         <span className="prd-flash-meta">
-          <span className={`ui-badge ${STATUS_TONE[status] ? `ui-badge--${STATUS_TONE[status]}` : ""}`}>{STATUS_LABEL[status]}</span>
+          {cancelled ? (
+            <span className="ui-badge ui-badge--danger">İptal edildi</span>
+          ) : (
+            <span className={`ui-badge ${STATUS_TONE[status] ? `ui-badge--${STATUS_TONE[status]}` : ""}`}>{STATUS_LABEL[status]}</span>
+          )}
           <span className="prd-flash-pct">%{sale.discountPercentage}</span>
           {price != null && <span>{money(price * (1 - sale.discountPercentage / 100))}</span>}
         </span>
@@ -153,22 +166,36 @@ export const FlashSaleRow = ({ sale, now, onEnd, onDelete, onOpenProduct, showPr
           {status === "active" && ` · ${remaining(sale.endDate, now)} kaldı`}
           {status === "upcoming" && ` · ${remaining(sale.startDate, now)} sonra başlar`}
         </span>
+        {cancelled && (
+          <span className="ui-muted ui-text-xs">
+            İptal: {formatDateTime(sale.cancelledAt)}{sale.cancelledBy ? ` · ${sale.cancelledBy}` : ""}
+          </span>
+        )}
       </div>
       <div className="prd-flash-actions">
-        {status !== "ended" && (
-          <button type="button" className="ui-btn ui-btn--sm" onClick={() => onEnd(sale)} disabled={busy}>
-            <Square />{status === "active" ? "Bitir" : "İptal"}
+        {status === "active" && (
+          <button type="button" className="ui-btn ui-btn--sm" onClick={() => onEnd(sale)} disabled={busy}
+            title="Kampanyayı şimdi bitir; ürün eski fiyatına döner">
+            <Square />Bitir
           </button>
         )}
-        <button type="button" className="ui-icon-btn ui-icon-btn--sm ui-icon-btn--danger" onClick={() => onDelete(sale)}
-          disabled={busy} aria-label="Kaydı sil" title="Kaydı sil"><Trash2 /></button>
+        {status === "upcoming" && (
+          <button type="button" className="ui-btn ui-btn--sm" onClick={() => onEnd(sale)} disabled={busy}
+            title="Planlı kampanyayı iptal et">
+            <Ban />İptal et
+          </button>
+        )}
+        {status === "ended" && (
+          <button type="button" className="ui-icon-btn ui-icon-btn--sm ui-icon-btn--danger" onClick={() => onDelete(sale)}
+            disabled={busy} aria-label="Kaydı sil" title="Kaydı sil"><Trash2 /></button>
+        )}
       </div>
     </li>
   );
 };
 
 /** Tüm kampanyaları durumlarına göre listeleyen çekmece */
-export const FlashSaleManager = ({ sales, loading, now, busyId, onClose, onEnd, onDelete, onOpenProduct, onRefresh }) => {
+export const FlashSaleManager = ({ sales, loading, now, clockSkew = 0, busyId, onClose, onEnd, onDelete, onOpenProduct, onRefresh }) => {
   const groups = useMemo(() => {
     const g = { active: [], upcoming: [], ended: [] };
     for (const sale of sales) g[flashStatus(sale, now)].push(sale);
@@ -213,6 +240,15 @@ export const FlashSaleManager = ({ sales, loading, now, busyId, onClose, onEnd, 
           </div>
         </div>
         <div className="ui-drawer-body">
+          {Math.abs(clockSkew) > 2 * 60 * 1000 && (
+            <div className="ui-banner ui-banner--warn prd-flash-skew" role="status">
+              <AlertTriangle />
+              <span>
+                Bilgisayarınızın saati sunucudan {Math.round(Math.abs(clockSkew) / 60000)} dk {clockSkew > 0 ? "geri" : "ileri"}.
+                Kampanya saatleri sunucu saatine göre gösterilir.
+              </span>
+            </div>
+          )}
           {list.length === 0 ? (
             <div className="ui-empty">
               <Zap />

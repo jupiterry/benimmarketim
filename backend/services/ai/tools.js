@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Product from "../../models/product.model.js";
 import WeeklyProduct from "../../models/weeklyProduct.model.js";
+import { resolveUnitPrice } from "../productPricing.js";
 import FlashSale from "../../models/flashSale.model.js";
 import Coupon from "../../models/coupon.model.js";
 import Order from "../../models/order.model.js";
@@ -259,8 +260,9 @@ export const effectivePriceMap = async (products) => {
   const weekly = await WeeklyProduct.find({ isActive: true, product: { $in: ids } }).select("product weeklyPrice").lean();
   const map = new Map(weekly.map((item) => [String(item.product), Number(item.weeklyPrice)]));
   return products.map((product) => {
-    const discount = product.isDiscounted && Number(product.discountedPrice) >= 0 && Number(product.discountedPrice) < Number(product.price) ? Number(product.discountedPrice) : Number(product.price);
-    return { id: String(product._id), name: product.name, category: product.category, inStock: !product.isOutOfStock, price: map.get(String(product._id)) ?? discount, currency: "TRY" };
+    // Sipariş fiyatıyla aynı kural (haftalık / indirim-flash sale / liste fiyatının en düşüğü)
+    const { price } = resolveUnitPrice(product, map.get(String(product._id)));
+    return { id: String(product._id), name: product.name, category: product.category, inStock: !product.isOutOfStock, price, currency: "TRY" };
   });
 };
 

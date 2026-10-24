@@ -11,6 +11,7 @@ import WeeklyProduct from "../models/weeklyProduct.model.js";
 import Coupon from "../models/coupon.model.js";
 import Order from "../models/order.model.js";
 import { notifyAdmins } from "./adminFeed.service.js";
+import { resolveUnitPrice } from "./productPricing.js";
 import { paymentMethodLabel } from "../lib/paymentMethods.js";
 import { signalOrderAlarm } from "./orderAlarm.service.js";
 import { notifyOrderStatusChange } from "./orderStatusNotifier.js";
@@ -83,19 +84,10 @@ export async function buildOrderProducts(cartProducts, { checkAvailability = tru
       throw Object.assign(new Error(`"${product.name}" stokta yok, lütfen sepetinizden çıkarın.`), { statusCode: 400 });
     }
 
+    // Haftalık fırsat, ürün indirimi (flash sale dahil) ve liste fiyatının en düşüğü
+    // (services/productPricing.js — ürün listelerindeki actualPrice ile aynı kural)
     const weeklyPrice = weeklyPriceMap.get(product._id.toString());
-    const productDiscountPrice =
-      product.isDiscounted &&
-      Number.isFinite(Number(product.discountedPrice)) &&
-      Number(product.discountedPrice) >= 0 &&
-      Number(product.discountedPrice) < Number(product.price)
-        ? Number(product.discountedPrice)
-        : undefined;
-    const effectivePrice = weeklyPrice !== undefined
-      ? weeklyPrice
-      : productDiscountPrice !== undefined
-        ? productDiscountPrice
-        : product.price;
+    const { price: effectivePrice, source: priceSource } = resolveUnitPrice(product, weeklyPrice);
 
     totalAmount += effectivePrice * quantity;
 
@@ -105,8 +97,8 @@ export async function buildOrderProducts(cartProducts, { checkAvailability = tru
       quantity,
       price: effectivePrice,
       originalPrice: product.price,
-      isWeeklyDiscount: weeklyPrice !== undefined,
-      isProductDiscount: weeklyPrice === undefined && productDiscountPrice !== undefined,
+      isWeeklyDiscount: priceSource === "weekly",
+      isProductDiscount: priceSource === "discount",
       category: product.category,
       ...(normalizeOrderSource(cartItem.source) ? { source: normalizeOrderSource(cartItem.source) } : {}),
     };
@@ -119,7 +111,7 @@ const OBJECT_ID_PATTERN = /^[0-9a-f]{24}$/i;
 
 /**
  * Yönetici siparişe katalog ürünü eklerken birim fiyat: ödeme adımıyla aynı kural
- * (haftalık fırsat > geçerli ürün indirimi > liste fiyatı). Gizli/stoksuz ürün de eklenebilir.
+ * (haftalık fırsat, geçerli ürün indirimi/flash sale ve liste fiyatının en düşüğü). Gizli/stoksuz ürün de eklenebilir.
  *
  * @param {string} productId
  * @returns {Promise<{ product: { _id, name: string, category?: string }, price: number }>}

@@ -50,6 +50,21 @@ const productSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    // Şu an ürüne uygulanmış flash sale (flashSale.service yazar ve kampanya bitince temizler).
+    // İstemciye ham hâliyle değil, weeklyPrice.service üzerinden yalnızca geçerliyken gider.
+    flashSale: {
+      type: new mongoose.Schema(
+        {
+          sale: { type: mongoose.Schema.Types.ObjectId, ref: "FlashSale" },
+          discountPercentage: Number,
+          price: Number,
+          startDate: Date,
+          endDate: Date,
+        },
+        { _id: false }
+      ),
+      default: null,
+    },
   },
   {
     timestamps: true,

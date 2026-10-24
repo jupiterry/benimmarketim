@@ -6,6 +6,7 @@ import fs from "fs";
 import Product from "../models/product.model.js";
 import { adminRoute, optionalAuth, protectRoute } from "../middleware/auth.middleware.js";
 import { money, recordAdminAction } from "../services/adminAudit.service.js";
+import { invalidateProductCaches } from "../services/productCache.service.js";
 import { getHomeFeed, getPersonalizedProducts, getPopularProducts, getShelfPerformance } from "../controllers/recommendation.controller.js";
 import {
   createProduct,
@@ -34,6 +35,18 @@ import {
 } from "../controllers/product.controller.js"; // Tüm kontrolörleri import et
 
 const router = express.Router();
+
+// Ürünü değiştiren her başarılı istekten sonra (fiyat, indirim, görünürlük, stok, toplu işlemler,
+// CSV yükleme, sıralama...) ürün önbellekleri bu ve diğer sunucu süreçlerinde temizlenir; ana
+// sayfa rafları ve listeler eski fiyatı göstermez.
+router.use((req, res, next) => {
+  if (req.method !== "GET" && req.method !== "HEAD" && req.method !== "OPTIONS") {
+    res.on("finish", () => {
+      if (res.statusCode < 400) invalidateProductCaches();
+    });
+  }
+  next();
+});
 // CSV toplu yükleme: yalnızca .csv, en fazla 5 MB; dosyalar "uploads" klasörüne geçici yazılır
 const upload = multer({
   dest: "uploads/",

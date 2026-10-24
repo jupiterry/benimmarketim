@@ -290,7 +290,10 @@ const ProductsList = ({ onCreate }) => {
   const products = useProductStore((s) => s.products);
   const fetchAllProducts = useProductStore((s) => s.fetchAllProducts);
   const { confirm } = useConfirm();
-  const now = useNow(30000);
+  // Kampanya durumları sunucu saatine göre: bilgisayarın saati yanlışsa panel "Yayında" derken
+  // sunucu kampanyayı henüz başlatmamış olabiliyordu
+  const [clockSkew, setClockSkew] = useState(0);
+  const now = useNow(30000) + clockSkew;
 
   const prefs = useMemo(readPrefs, []);
   const [loading, setLoading] = useState(true);
@@ -329,6 +332,8 @@ const ProductsList = ({ onCreate }) => {
     try {
       const res = await axios.get("/flash-sales");
       setSales(res.data.flashSales || []);
+      const serverTime = Date.parse(res.data.serverTime);
+      if (Number.isFinite(serverTime)) setClockSkew(serverTime - Date.now());
     } catch (error) {
       toast.error(errorMessage(error, "Flash sale'ler yüklenemedi"));
     } finally {
@@ -513,9 +518,11 @@ const ProductsList = ({ onCreate }) => {
 
   const createFlash = async (productIds, payload) => {
     const failures = [];
+    const warnings = [];
     const { ok, fail } = await runPool(productIds, async (productId) => {
       try {
-        await axios.post("/flash-sales", { productId, ...payload });
+        const res = await axios.post("/flash-sales", { productId, ...payload });
+        if (res.data?.warning) warnings.push(res.data.warning);
       } catch (error) {
         failures.push(errorMessage(error, "Hata"));
         throw error;
@@ -524,25 +531,35 @@ const ProductsList = ({ onCreate }) => {
     await refreshAfterFlash();
     if (ok) toast.success(ok === 1 ? "Flash sale oluşturuldu" : `${ok} ürün için flash sale oluşturuldu`);
     if (fail) toast.error(fail === 1 ? failures[0] : `${fail} ürün atlandı (çakışan kampanya ya da hata)`);
+    if (warnings.length) toast(warnings[0], { duration: 6000 });
     return ok > 0;
   };
 
+  // Yayındaki kampanyayı bitirir / planlı kampanyayı iptal eder; ürün eski fiyatına hemen döner
   const endFlash = async (sale) => {
+    const upcoming = flashStatus(sale, now) === "upcoming";
+    const product = typeof sale.product === "object" ? sale.product : catalog.find((p) => p._id === sale.product);
+    const restorePrice = sale.previousIsDiscounted && Number(sale.previousDiscountedPrice) < Number(product?.price)
+      ? Number(sale.previousDiscountedPrice)
+      : Number(product?.price);
+    const name = product?.name ? `“${product.name}”` : "Ürün";
     const ok = await confirm({
-      title: flashStatus(sale) === "upcoming" ? "Planlı kampanya iptal edilsin mi?" : "Kampanya bitirilsin mi?",
-      message: "Ürün kampanyadan önceki fiyatına döner. Kayıt geçmişte kalır.",
-      confirmText: "Bitir",
+      title: upcoming ? "Planlı kampanya iptal edilsin mi?" : "Kampanya şimdi bitirilsin mi?",
+      message: upcoming
+        ? `%${sale.discountPercentage} kampanya başlamayacak; ürünün fiyatı değişmez. Kayıt geçmişte “İptal edildi” olarak kalır.`
+        : `${name} hemen${Number.isFinite(restorePrice) ? ` ${money(restorePrice)}` : " eski"} fiyatına döner; uygulama ve sitede de güncellenir. Kayıt geçmişte “İptal edildi” olarak kalır.`,
+      confirmText: upcoming ? "İptal et" : "Bitir",
       cancelText: "Vazgeç",
       type: "warning",
     });
     if (!ok) return;
     setSalesBusyId(sale._id);
     try {
-      await axios.post(`/flash-sales/${sale._id}/end`);
+      const res = await axios.post(`/flash-sales/${sale._id}/end`);
       await refreshAfterFlash();
-      toast.success("Kampanya bitirildi");
+      toast.success(res.data?.message || (upcoming ? "Kampanya iptal edildi" : "Kampanya bitirildi"));
     } catch (error) {
-      toast.error(errorMessage(error, "Kampanya bitirilemedi"));
+      toast.error(errorMessage(error, upcoming ? "Kampanya iptal edilemedi" : "Kampanya bitirilemedi"));
     } finally {
       setSalesBusyId(null);
     }
@@ -551,7 +568,9 @@ const ProductsList = ({ onCreate }) => {
   const deleteFlash = async (sale) => {
     const ok = await confirm({
       title: "Kampanya kaydı silinsin mi?",
-      message: "Kampanya yayındaysa önce sonlandırılır ve ürün eski fiyatına döner.",
+      message: flashStatus(sale, now) === "ended"
+        ? "Kayıt geçmişten kalıcı olarak silinir. Ürünün fiyatı değişmez."
+        : "Kampanya yayındaysa önce sonlandırılır ve ürün eski fiyatına döner.",
       confirmText: "Sil",
       cancelText: "Vazgeç",
       type: "danger",
@@ -985,7 +1004,7 @@ const ProductsList = ({ onCreate }) => {
       )}
 
       {managerOpen && (
-        <FlashSaleManager sales={sales} loading={salesLoading} now={now} busyId={salesBusyId}
+        <FlashSaleManager sales={sales} loading={salesLoading} now={now} clockSkew={clockSkew} busyId={salesBusyId}
           onClose={() => setManagerOpen(false)} onRefresh={loadSales} onEnd={endFlash} onDelete={deleteFlash}
           onOpenProduct={(id) => { setManagerOpen(false); setDetailId(id); }} />
       )}

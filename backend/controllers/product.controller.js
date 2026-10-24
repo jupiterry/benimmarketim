@@ -2,6 +2,7 @@ import { redis } from "../lib/redis.js";
 import cloudinary from "../lib/cloudinary.js";
 import Product from "../models/product.model.js";
 import { applyWeeklyPricesToProducts, getWeeklyPriceVersion } from "../services/weeklyPrice.service.js";
+import { getProductCacheStamp, onProductCachesInvalidated, syncProductCacheVersion } from "../services/productCache.service.js";
 import { diffFields, money, recordAdminAction, yesNo } from "../services/adminAudit.service.js";
 import { RECO_WEIGHTS } from "../services/recommendation.config.js";
 import { CARD_SELECT, discountPercent, getStats, hourBucket, hourFitScore, normalizeDeliveryPoint, popularityScore } from "../services/recommendation.service.js";
@@ -24,6 +25,23 @@ const auditBulk = (req, action, products, changes = [], meta = {}) => {
   });
 };
 
+// Last-Modified: en yeni ürün güncellemesi ile son önbellek geçersiz kılma zamanının büyüğü
+// (saniyeye yuvarlanır; If-Modified-Since başlığı saniye hassasiyetindedir). Haftalık fiyat
+// değişimi ya da indirimi biten ürünün listeden düşmesi updatedAt'i değiştirmeyebilir.
+const lastModifiedMs = (updatedAt) => {
+  const ms = Math.max(updatedAt ? new Date(updatedAt).getTime() : 0, getProductCacheStamp());
+  return Math.floor((ms || Date.now()) / 1000) * 1000;
+};
+const notModifiedSince = (req, lastModified) => {
+  const header = req.headers?.["if-modified-since"];
+  if (!header) return false;
+  const since = new Date(header).getTime();
+  return Number.isFinite(since) && lastModified <= since;
+};
+// Fiyatlar (flash sale, haftalık fırsat) dakikalar içinde değişebilir: istemci yanıtı saklayabilir
+// ama her kullanımda doğrulatmalı (304 ile ucuz). Eskiden max-age=300 tarayıcıda 5 dk eski fiyat gösteriyordu.
+const PRICE_CACHE_CONTROL = "private, no-cache";
+
 export const getAllProducts = async (req, res) => {
   try {
     console.log("Get all products request received for admin"); // Debug log
@@ -42,10 +60,8 @@ export const getAllProducts = async (req, res) => {
 
 export const getFeaturedProducts = async (req, res) => {
   try {
-    // Offline Sync Support: Check If-Modified-Since header
-    const ifModifiedSince = req.headers['if-modified-since'];
-    // Son güncelleme zamanını tek sorguda al; hem cache kontrolünde hem header
-    // üretiminde aynı sonucu kullan.
+    await syncProductCacheVersion();
+    // Son güncelleme zamanını tek sorguda al; hem 304 kontrolünde hem header üretiminde kullan.
     const latestProduct = await Product.findOne({
       $or: [
         { isDiscounted: true, isHidden: false },
@@ -55,17 +71,13 @@ export const getFeaturedProducts = async (req, res) => {
       .sort({ updatedAt: -1 })
       .select('updatedAt')
       .lean();
+    const lastModifiedAt = lastModifiedMs(latestProduct?.updatedAt);
 
-    if (ifModifiedSince && latestProduct?.updatedAt) {
-      const modifiedSinceDate = new Date(ifModifiedSince);
-      const lastModifiedDate = new Date(latestProduct.updatedAt);
-
-      // If data hasn't changed, return 304 Not Modified
-      if (lastModifiedDate <= modifiedSinceDate) {
-        res.setHeader('Last-Modified', lastModifiedDate.toUTCString());
-        res.setHeader('ETag', `"${lastModifiedDate.getTime()}"`);
-        return res.status(304).end();
-      }
+    if (notModifiedSince(req, lastModifiedAt)) {
+      res.setHeader('Last-Modified', new Date(lastModifiedAt).toUTCString());
+      res.setHeader('ETag', `"${lastModifiedAt}"`);
+      res.setHeader('Cache-Control', PRICE_CACHE_CONTROL);
+      return res.status(304).end();
     }
 
     // Önce indirimli ürünler: "en ucuz önce" yerine indirim derinliği + popülerlik + saat uyumu.
@@ -91,19 +103,10 @@ export const getFeaturedProducts = async (req, res) => {
     // Tüm ürünleri birleştir (önce indirimli sonra öne çıkan)
     const allFeaturedProducts = [...discountedProducts, ...featuredProducts];
 
-    // Aynı latestProduct sorgusunu tekrar çalıştırma.
-    const lastModified = latestProduct?.updatedAt 
-      ? new Date(latestProduct.updatedAt).toUTCString()
-      : new Date().toUTCString();
-    
-    const etag = latestProduct?.updatedAt
-      ? `"${new Date(latestProduct.updatedAt).getTime()}"`
-      : `"${Date.now()}"`;
-
     // Set caching headers
-    res.setHeader('Last-Modified', lastModified);
-    res.setHeader('ETag', etag);
-    res.setHeader('Cache-Control', 'private, max-age=300'); // 5 minutes cache
+    res.setHeader('Last-Modified', new Date(lastModifiedAt).toUTCString());
+    res.setHeader('ETag', `"${lastModifiedAt}"`);
+    res.setHeader('Cache-Control', PRICE_CACHE_CONTROL);
 
     // Haftalık fiyatları uygula
     const productsWithWeeklyPrices = await applyWeeklyPricesToProducts(allFeaturedProducts);
@@ -284,6 +287,8 @@ const CATEGORY_COLLATION = { locale: "en", strength: 2 };
 // Hazır ürün listesi yanıtları (anahtar: sorgu + ürün sayısı + son güncelleme + haftalık fiyat sürümü)
 const PRODUCT_LIST_CACHE_MS = 60 * 1000;
 const productListCache = new Map();
+// Ürün/kampanya değişince (bu ya da başka bir süreçte) hazır yanıtlar hemen atılır
+onProductCachesInvalidated(() => productListCache.clear());
 
 export const getProducts = async (req, res) => {
   try {
@@ -314,53 +319,27 @@ export const getProducts = async (req, res) => {
       query.isHidden = { $ne: true };
     }
 
-    // Offline Sync Support: Check If-Modified-Since header
-    const ifModifiedSince = req.headers['if-modified-since'];
-    if (ifModifiedSince) {
-      const modifiedSinceDate = new Date(ifModifiedSince);
-      
-      // Get the latest product update time
-      const latestProduct = await Product.findOne(query)
-        .collation(CATEGORY_COLLATION)
-        .sort({ updatedAt: -1 })
-        .select('updatedAt')
-        .lean();
+    // Başka bir sunucu süreci ürünleri/kampanyaları değiştirdiyse yerel önbelleği at
+    await syncProductCacheVersion();
 
-      if (latestProduct && latestProduct.updatedAt) {
-        const lastModified = new Date(latestProduct.updatedAt);
-        
-        // If data hasn't changed, return 304 Not Modified
-        if (lastModified <= modifiedSinceDate) {
-          res.setHeader('Last-Modified', lastModified.toUTCString());
-          res.setHeader('ETag', `"${lastModified.getTime()}"`);
-          return res.status(304).end();
-        }
-      }
-    }
-
-    // Toplam ürün sayısını al
+    // Toplam ürün sayısı ve son güncelleme zamanı (Last-Modified / 304 / önbellek anahtarı)
     const [total, latestProduct] = await Promise.all([
       Product.countDocuments(query).collation(CATEGORY_COLLATION),
-      // Get the latest update time for Last-Modified header
       Product.findOne(query)
         .collation(CATEGORY_COLLATION)
         .sort({ updatedAt: -1 })
         .select('updatedAt')
         .lean(),
     ]);
+    const lastModifiedAt = lastModifiedMs(latestProduct?.updatedAt);
 
-    const lastModified = latestProduct?.updatedAt
-      ? new Date(latestProduct.updatedAt).toUTCString()
-      : new Date().toUTCString();
-
-    const etag = latestProduct?.updatedAt
-      ? `"${new Date(latestProduct.updatedAt).getTime()}"`
-      : `"${Date.now()}"`;
-
-    // Set caching headers
-    res.setHeader('Last-Modified', lastModified);
-    res.setHeader('ETag', etag);
-    res.setHeader('Cache-Control', 'private, max-age=300'); // 5 minutes cache
+    res.setHeader('Last-Modified', new Date(lastModifiedAt).toUTCString());
+    res.setHeader('ETag', `"${lastModifiedAt}"`);
+    res.setHeader('Cache-Control', PRICE_CACHE_CONTROL);
+    // Offline Sync Support: If-Modified-Since
+    if (notModifiedSince(req, lastModifiedAt)) {
+      return res.status(304).end();
+    }
 
     // Ürünler (sayı + son güncelleme) ve haftalık fiyatlar değişmediyse hazır yanıtı tekrar
     // kullan. Tüm katalog (~1500 ürün) her istekte yeniden okunup serileştirilmez.
@@ -882,7 +861,7 @@ export const bulkAddFlashSale = async (req, res) => {
     const products = await Product.find({ _id: { $in: productIds } });
     
     for (const product of products) {
-      const discountedPrice = product.price * (1 - discountPercentage / 100);
+      const discountedPrice = Math.round(product.price * (1 - discountPercentage / 100) * 100) / 100;
       product.discountedPrice = discountedPrice;
       product.isDiscounted = true;
       await product.save();
@@ -1080,10 +1059,12 @@ export const getSimilarProducts = async (req, res) => {
       similarProducts.push(...priceRangeProducts);
     }
 
+    // Diğer ürün uç noktalarıyla aynı fiyat alanları (actualPrice, haftalık fırsat, flash sale)
+    const products = await applyWeeklyPricesToProducts(similarProducts);
     res.status(200).json({
       success: true,
-      products: similarProducts,
-      count: similarProducts.length,
+      products,
+      count: products.length,
     });
   } catch (error) {
     console.error("Error in getSimilarProducts:", error);
