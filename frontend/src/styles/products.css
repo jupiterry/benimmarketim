@@ -212,7 +212,7 @@
 }
 .admin-layout .prd-row {
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) 160px 72px 72px 150px;
+  grid-template-columns: 40px minmax(0, 1fr) 160px 72px 72px 196px;
   align-items: center;
   min-height: 64px;
   border-top: 1px solid var(--ui-line);
@@ -1072,4 +1072,18 @@
 }
 .admin-layout .prd-flash-skew {
   margin-bottom: var(--ui-s3);
+}
+
+/* Yayındaki/planlı flaş indirimi süre dolmadan bitirme düğmesi (satır ve detay) */
+.admin-layout .prd-flash-end {
+  white-space: nowrap;
+  color: var(--ui-warn-ink);
+  background: var(--ui-warn-bg);
+  border-color: color-mix(in srgb, var(--ui-warn) 35%, transparent);
+}
+.admin-layout .prd-flash-end:hover {
+  background: color-mix(in srgb, var(--ui-warn-bg) 70%, var(--ui-warn) 30%);
+}
+.admin-layout .prd-hero .prd-flash-end {
+  align-self: flex-start;
 }

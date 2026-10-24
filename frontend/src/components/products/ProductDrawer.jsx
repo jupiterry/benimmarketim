@@ -137,6 +137,11 @@ const ProductDrawer = ({
                 {product.isFeatured && <span className="ui-badge ui-badge--brand">Öne çıkan</span>}
                 {activeFlash && <span className="ui-badge ui-badge--ok">Flash %{activeFlash.discountPercentage}</span>}
               </div>
+              {activeFlash && (
+                <button type="button" className="ui-btn ui-btn--sm prd-flash-end" onClick={() => onEndFlash(activeFlash)} disabled={busy.flash}>
+                  Flaş indirimi şimdi bitir
+                </button>
+              )}
               <input ref={fileRef} type="file" accept="image/*" hidden onChange={pickFile} />
               <button type="button" className="ui-btn ui-btn--sm" onClick={() => fileRef.current?.click()} disabled={busy.image}>
                 <Upload />{product.image ? "Görseli değiştir" : "Görsel yükle"}

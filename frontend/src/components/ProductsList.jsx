@@ -2,7 +2,7 @@ import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useSta
 import {
   Search, Plus, Download, RefreshCw, X, Star, Zap, Pencil, Trash2, Eye, EyeOff, Package, PackageX, ImageOff,
   Percent, Tag, GripVertical, ArrowUpToLine, ArrowDownToLine, ChevronUp, ChevronDown, ListOrdered, Check,
-  ToggleLeft, ToggleRight, Layers, FolderInput, AlertTriangle, Boxes
+  ToggleLeft, ToggleRight, Layers, FolderInput, AlertTriangle, Boxes, ZapOff
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
@@ -111,7 +111,7 @@ const PriceCell = ({ product, editing, busy, onStart, onCancel, onCommit }) => {
 
 const ProductRow = memo(({
   product, selected, flash, now, editingPrice, busy, onSelect, onOpen, onToggle, onPriceStart, onPriceCancel,
-  onPriceCommit, onFlash, onDelete
+  onPriceCommit, onFlash, onEndFlash, onDelete
 }) => {
   const pct = discountPct(product);
   return (
@@ -156,8 +156,17 @@ const ProductRow = memo(({
           aria-label={product.isFeatured ? "Öne çıkarmayı kaldır" : "Öne çıkar"} title={product.isFeatured ? "Öne çıkarmayı kaldır" : "Öne çıkar"}>
           <Star />
         </button>
-        <button type="button" className="ui-icon-btn ui-icon-btn--sm prd-zap" data-on={Boolean(flash)} onClick={() => onFlash(product)}
-          aria-label="Flash sale başlat" title="Flash sale başlat"><Zap /></button>
+        {flash ? (
+          // Yayındaki ya da planlı flaş indirim: süre dolmadan buradan bitirilir / iptal edilir
+          <button type="button" className="ui-btn ui-btn--sm prd-flash-end" onClick={() => onEndFlash(flash.sale)}
+            aria-label={flash.status === "upcoming" ? `${product.name} planlı flaş indirimini iptal et` : `${product.name} flaş indirimini bitir`}
+            title={flash.status === "upcoming" ? "Planlı flaş indirimi iptal et" : "Flaş indirimi şimdi bitir"}>
+            <ZapOff />{flash.status === "upcoming" ? "İptal et" : "Bitir"}
+          </button>
+        ) : (
+          <button type="button" className="ui-icon-btn ui-icon-btn--sm prd-zap" onClick={() => onFlash(product)}
+            aria-label="Flash sale başlat" title="Flash sale başlat"><Zap /></button>
+        )}
         <button type="button" className="ui-icon-btn ui-icon-btn--sm" onClick={() => onOpen(product._id)} aria-label="Düzenle" title="Düzenle">
           <Pencil />
         </button>
@@ -536,14 +545,14 @@ const ProductsList = ({ onCreate }) => {
   };
 
   // Yayındaki kampanyayı bitirir / planlı kampanyayı iptal eder; ürün eski fiyatına hemen döner
-  const endFlash = async (sale) => {
+  const endFlash = async (sale, { silent = false } = {}) => {
     const upcoming = flashStatus(sale, now) === "upcoming";
     const product = typeof sale.product === "object" ? sale.product : catalog.find((p) => p._id === sale.product);
     const restorePrice = sale.previousIsDiscounted && Number(sale.previousDiscountedPrice) < Number(product?.price)
       ? Number(sale.previousDiscountedPrice)
       : Number(product?.price);
     const name = product?.name ? `“${product.name}”` : "Ürün";
-    const ok = await confirm({
+    const ok = silent || await confirm({
       title: upcoming ? "Planlı kampanya iptal edilsin mi?" : "Kampanya şimdi bitirilsin mi?",
       message: upcoming
         ? `%${sale.discountPercentage} kampanya başlamayacak; ürünün fiyatı değişmez. Kayıt geçmişte “İptal edildi” olarak kalır.`
@@ -556,14 +565,37 @@ const ProductsList = ({ onCreate }) => {
     setSalesBusyId(sale._id);
     try {
       const res = await axios.post(`/flash-sales/${sale._id}/end`);
+      if (silent) return true;
       await refreshAfterFlash();
       toast.success(res.data?.message || (upcoming ? "Kampanya iptal edildi" : "Kampanya bitirildi"));
+      return true;
     } catch (error) {
-      toast.error(errorMessage(error, upcoming ? "Kampanya iptal edilemedi" : "Kampanya bitirilemedi"));
+      if (!silent) toast.error(errorMessage(error, upcoming ? "Kampanya iptal edilemedi" : "Kampanya bitirilemedi"));
+      return false;
     } finally {
       setSalesBusyId(null);
     }
   };
+
+  // Seçili ürünlerin yayındaki/planlı flaş indirimlerini tek onayla bitirir
+  const bulkEndFlash = async () => {
+    const targets = selectedRows.map((p) => flashByProduct.get(p._id)).filter(Boolean);
+    if (!targets.length) return;
+    const ok = await confirm({
+      title: `${targets.length} flaş indirim bitirilsin mi?`,
+      message: "Yayındaki indirimler hemen biter ve ürünler eski fiyatlarına döner; planlı olanlar iptal edilir. Uygulama ve sitede de güncellenir.",
+      confirmText: "Bitir",
+      cancelText: "Vazgeç",
+      type: "warning",
+    });
+    if (!ok) return;
+    let done = 0;
+    for (const entry of targets) if (await endFlash(entry.sale, { silent: true })) done += 1;
+    await refreshAfterFlash();
+    if (done === targets.length) toast.success(`${done} flaş indirim bitirildi`);
+    else toast.error(`${done}/${targets.length} flaş indirim bitirildi; kalanlar için tekrar deneyin`);
+  };
+  const selectedFlashCount = useMemo(() => selectedRows.filter((p) => flashByProduct.has(p._id)).length, [selectedRows, flashByProduct]);
 
   const deleteFlash = async (sale) => {
     const ok = await confirm({
@@ -872,6 +904,9 @@ const ProductsList = ({ onCreate }) => {
                 <button type="button" className="ui-btn ui-btn--sm" onClick={() => setBulk({ mode: "price", ids: selectedRows.map((p) => p._id) })}><Tag />Fiyat</button>
                 <button type="button" className="ui-btn ui-btn--sm" onClick={() => setBulk({ mode: "discount", ids: selectedRows.map((p) => p._id) })}><Percent />İndirim</button>
                 <button type="button" className="ui-btn ui-btn--sm" onClick={() => setBulk({ mode: "flash", ids: selectedRows.map((p) => p._id) })}><Zap />Flash sale</button>
+                {selectedFlashCount > 0 && (
+                  <button type="button" className="ui-btn ui-btn--sm" onClick={bulkEndFlash}><ZapOff />Flaş indirimi bitir ({selectedFlashCount})</button>
+                )}
                 <button type="button" className="ui-btn ui-btn--sm" onClick={() => setBulk({ mode: "category", ids: selectedRows.map((p) => p._id) })}><FolderInput />Kategori</button>
                 <button type="button" className="ui-btn ui-btn--sm" onClick={() => exportCsv(selectedRows)}><Download />CSV</button>
                 <button type="button" className="ui-btn ui-btn--sm ui-btn--danger" onClick={bulkDelete}><Trash2 />Sil</button>
@@ -918,7 +953,7 @@ const ProductsList = ({ onCreate }) => {
                 <ProductRow key={p._id} product={p} selected={selected.has(p._id)} flash={flashByProduct.get(p._id)} now={now}
                   editingPrice={priceEditId === p._id} busy={busy[p._id]} onSelect={onSelect} onOpen={setDetailId}
                   onToggle={onToggle} onPriceStart={onPriceStart} onPriceCancel={onPriceCancel} onPriceCommit={savePrice}
-                  onFlash={openFlash} onDelete={deleteOne} />
+                  onFlash={openFlash} onEndFlash={endFlash} onDelete={deleteOne} />
               ))
             )}
             {visible < rows.length && (
