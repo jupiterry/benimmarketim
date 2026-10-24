@@ -25,6 +25,7 @@ import settingsRoutes from "./routes/settings.route.js";
 import flashSaleRoutes from "./routes/flashSale.route.js";
 import { startFlashSaleJob } from "./services/flashSale.service.js";
 import { startRecommendationJob } from "./services/recommendation.service.js";
+import { startOpenRouterModelRefresh } from "./services/ai/openrouterModels.service.js";
 import photocopyRoutes from "./routes/photocopy.route.js";
 import bannerRoutes from "./routes/banner.route.js";
 import categoryRoutes from "./routes/category.route.js";
@@ -385,4 +386,6 @@ httpServer.listen(PORT, () => {
   // Flash sale'leri zamanında başlat ve bitir (dakikada bir)
   startFlashSaleJob();
   startRecommendationJob();
+  // OpenRouter'daki güncel model listesi (geçersiz/kaldırılmış ücretsiz modeller istekten önce elensin diye)
+  startOpenRouterModelRefresh();
 });

@@ -1,5 +1,5 @@
 import express from "express";
-import { getSettings, updateSettings } from "../controllers/settings.controller.js";
+import { getAiModels, getSettings, updateSettings } from "../controllers/settings.controller.js";
 import { protectRoute, adminRoute } from "../middleware/auth.middleware.js";
 import { refreshOrderHoursCache } from "../controllers/cart.controller.js";
 import { auditAdminAction } from "../middleware/adminAudit.js";
@@ -11,6 +11,9 @@ router.get("/", getSettings);
 
 // Ayarları güncelle - sadece admin erişebilir
 router.put("/", protectRoute, adminRoute, auditAdminAction("Ayar değişikliği", "Mağaza ayarları"), updateSettings);
+
+// Yapay zekâ model seçicisi için sağlayıcıdaki canlı model listesi - sadece admin
+router.get("/ai-models", protectRoute, adminRoute, getAiModels);
 
 // Test amaçlı - önbelleği temizle ve durumu kontrol et
 router.get("/refresh-cache", protectRoute, adminRoute, async (req, res) => {

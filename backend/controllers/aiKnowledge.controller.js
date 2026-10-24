@@ -1,5 +1,5 @@
 import AiKnowledge from "../models/aiKnowledge.model.js";
-import Settings from "../models/settings.model.js";
+import Settings, { defaultAiProvider } from "../models/settings.model.js";
 
 // Stable, user-facing facts taken from the actual photocopy flow and support UI.
 // Live values (prices, hours, campaigns, stock and order status) intentionally
@@ -75,7 +75,7 @@ export const getAiConfig = async (req, res) => {
 
 export const updateAiConfig = async (req, res) => {
   const allowedProviders = ["groq", "openrouter", "gemini"];
-  const provider = allowedProviders.includes(req.body.provider) ? req.body.provider : (process.env.AI_DEFAULT_PROVIDER || "openrouter");
+  const provider = allowedProviders.includes(req.body.provider) ? req.body.provider : defaultAiProvider();
   const config = { enabled: req.body.enabled !== false, provider, model: String(req.body.model || "").trim(), maxHistoryMessages: Math.max(2, Math.min(Number(req.body.maxHistoryMessages) || 12, 30)) };
   if (!config.model) return res.status(400).json({ message: "Model adı zorunludur." });
   const settings = await Settings.getSettings();

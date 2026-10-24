@@ -1,4 +1,5 @@
-import Settings, { DEFAULT_AI_MODEL } from "../models/settings.model.js";
+import Settings, { defaultAiModel, resolveAiConfig } from "../models/settings.model.js";
+import { listModelsForAdmin } from "../services/ai/openrouterModels.service.js";
 import { refreshOrderHoursCache } from "./cart.controller.js";
 import { diffFields, money, recordAdminAction, yesNo } from "../services/adminAudit.service.js";
 import { syncYurtZonesFromSettings } from "../services/delivery.service.js";
@@ -166,7 +167,7 @@ export const updateSettings = async (req, res) => {
       if (!settings.ai) settings.ai = {};
       if (ai.enabled !== undefined) settings.ai.enabled = ai.enabled !== false;
       if (ai.provider !== undefined) settings.ai.provider = ai.provider;
-      if (ai.model !== undefined) settings.ai.model = String(ai.model).trim() || DEFAULT_AI_MODEL;
+      if (ai.model !== undefined) settings.ai.model = String(ai.model).trim() || defaultAiModel();
       if (ai.maxHistoryMessages !== undefined) settings.ai.maxHistoryMessages = Math.max(2, Math.min(Number(ai.maxHistoryMessages), 30));
     }
 
@@ -220,5 +221,23 @@ export const updateSettings = async (req, res) => {
   } catch (error) {
     console.error("Ayarlar güncellenirken hata oluştu:", error);
     res.status(500).json({ message: "Ayarlar güncellenirken hata oluştu", error: error.message });
+  }
+};
+
+// Panel model seçicisi: OpenRouter'daki canlı model listesi (ücretsizler önce). Diğer sağlayıcılarda canlı liste
+// yoktur; boş liste döner ve panel kendi örnek adlarını gösterir. Liste alınamazsa da boş liste döner (hata değil).
+export const getAiModels = async (req, res) => {
+  try {
+    const requested = typeof req.query?.provider === "string" ? req.query.provider : "";
+    let provider = AI_PROVIDERS.includes(requested) ? requested : "";
+    if (!provider) provider = resolveAiConfig((await Settings.getSettings())?.ai).provider;
+    if (provider !== "openrouter") return res.json({ provider, models: [], fetchedAt: null });
+    const refresh = req.query?.refresh === "1" || req.query?.refresh === "true";
+    const result = await listModelsForAdmin({ refresh });
+    res.setHeader("Cache-Control", "private, no-store");
+    return res.json({ provider, models: result?.models || [], fetchedAt: result?.fetchedAt || null });
+  } catch (error) {
+    console.error("Yapay zekâ model listesi alınamadı:", error?.message);
+    return res.status(500).json({ message: "Model listesi alınamadı" });
   }
 };

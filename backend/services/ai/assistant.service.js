@@ -3,7 +3,7 @@ import AiRequestLog from "../../models/aiRequestLog.model.js";
 import Chat from "../../models/chat.model.js";
 import Message from "../../models/message.model.js";
 import Order from "../../models/order.model.js";
-import Settings from "../../models/settings.model.js";
+import Settings, { resolveAiConfig } from "../../models/settings.model.js";
 import SupportRequest from "../../models/supportRequest.model.js";
 import User from "../../models/user.model.js";
 import { createAiProvider } from "./providers.js";
@@ -208,8 +208,7 @@ export const answerUserMessage = async ({ chat, query, io }) => {
     const smallTalk = smallTalkReply(query);
     if (smallTalk) return saveAiReply({ chat, content: smallTalk, io });
   }
-  const providerName = aiSettings.provider || process.env.AI_DEFAULT_PROVIDER || "openrouter";
-  const model = aiSettings.model || process.env.AI_DEFAULT_MODEL || "google/gemma-4-26b-a4b-it:free";
+  const { provider: providerName, model } = resolveAiConfig(aiSettings);
   // Canlı veri aracı çalışmadıysa bilgi merkezi baştan aranır; model tek çağrıda hem araçları hem kayıtları görür.
   const knowledge = toolResult ? [] : await findKnowledge(query);
   logAiDebug(`knowledge=${knowledge.length}`);

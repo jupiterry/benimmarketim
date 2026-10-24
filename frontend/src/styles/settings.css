@@ -1075,3 +1075,35 @@
 @media (max-width: 760px) {
   .admin-layout .stg-pay-methods { grid-template-columns: 1fr; }
 }
+
+/* ── Yapay zekâ: canlı model seçici ─────────────────────────────────── */
+.admin-layout .stg-model-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.admin-layout .stg-model-input > .ui-field {
+  flex: 1;
+  min-width: 0;
+}
+.admin-layout .stg-model-meta,
+.admin-layout .stg-model-picks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+.admin-layout .stg-model-meta + .ui-banner,
+.admin-layout .stg-model-input ~ .ui-banner {
+  margin-top: 8px;
+}
+.admin-layout .stg-model-picks .ui-btn {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-layout .stg-model-input ~ .stg-field-hint {
+  margin-top: 6px;
+}
