@@ -4,7 +4,7 @@ import Order from "../models/order.model.js";
 import PushBroadcast from "../models/pushBroadcast.model.js";
 import Settings, { resolveAiConfig } from "../models/settings.model.js";
 import { createAiProvider, isDataPolicyError, isModelUnavailableError } from "../services/ai/providers.js";
-import { REWRITE_INSTRUCTIONS, buildDraftMessages, parseDraftOptions } from "../services/pushDraft.service.js";
+import { REWRITE_INSTRUCTIONS, buildDraftMessages, buildProofreadMessages, mergeProofread, parseDraftOptions } from "../services/pushDraft.service.js";
 import { PUSH_LIBRARY, PUSH_LIBRARY_SIZE, pickLibraryExamples } from "../services/pushLibrary.js";
 import WeeklyProduct from "../models/weeklyProduct.model.js";
 import FlashSale from "../models/flashSale.model.js";
@@ -71,7 +71,7 @@ export const gatherStoreFacts = async (now = new Date()) => {
     for (const sale of flash) {
       if (!sale.product) continue;
       const hours = Math.max(1, Math.round((new Date(sale.endDate) - now) / 3600000));
-      facts.push(`Flash sale: ${sale.product.name} %${sale.discountPercentage} indirimli, yaklaşık ${hours} saat sonra bitiyor`);
+      facts.push(`Flaş indirim: ${sale.product.name} ürününde %${sale.discountPercentage} indirim, yaklaşık ${hours} saat sonra bitiyor`);
     }
     // Bu haftanın çok satanları (öneri istatistiğinden; yoksa atlanır)
     const stats = getStatsSnapshot();
@@ -137,6 +137,13 @@ export const generateBroadcastDraft = async (req, res) => {
       options = parseDraftOptions(response.content);
     }
     if (!options.length) return res.status(502).json({ success: false, message: "Üretilen metin karakter sınırına uymadı. Yeniden deneyin." });
+    // Türkçe editör geçişi: ekleri ve söz dizimini düzeltir; başarısız olursa özgün metinler kalır
+    try {
+      const proof = await provider.complete(buildProofreadMessages(options, { prompt: mode === "rewrite" ? instruction || prompt : prompt }), [], { temperature: 0.2, maxTokens: 1800, reasoning: false });
+      options = mergeProofread(options, proof.content);
+    } catch (proofError) {
+      console.warn("Bildirim taslağı editör geçişi atlandı:", proofError?.message);
+    }
     return res.json({ success: true, title: options[0].title, body: options[0].body, options, facts });
   } catch (error) {
     // Gerçek sebep sunucu kaydına yazılır (önceden sessizce yutuluyordu)

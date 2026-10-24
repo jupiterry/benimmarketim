@@ -88,6 +88,18 @@ export const buildDraftMessages = ({
     `- Mesajın sonunda, bildirime dokununca açılacak ${screen} doğal bir cümleyle ima edilsin (ör. "sepetine göz at", "ürünlere bak"); "tıkla" kelimesini kullanma.`,
     "- Müşteriye \"sen\" diye hitap et. Günlük, akıcı ve dilbilgisi doğru Türkçe kullan; İngilizce kelime, BÜYÜK HARFLE bağırma ve resmi dil (\"değerli müşterimiz\", \"siz\") yok.",
     "- Reklam klişelerinden kaçın: \"kaçırma\", \"hemen tıkla\", \"muhteşem fırsat\", \"inanılmaz\", \"acele et\".",
+    "",
+    "TÜRKÇE YAZIM (çok önemli):",
+    "- Her cümle tam ve doğal Türkçe olsun: özne-nesne-yüklem sırası, gerekli ekler yerinde. Kelimeleri ek almadan yan yana dizme (telgraf dili yok).",
+    "- Ürün ya da kategori adı cümlede ek alır: \"Hamburger menüde %10 indirim\" (\"Hamburger menü %10 indirimle\" değil), \"gözlemelerde\", \"menüye\", \"yiyeceklerde\". Kesme işaretini yalnızca özel adlarda ve rakamlarda kullan: \"%10'a varan\", \"Benim Marketim'de\".",
+    "- İngilizceden çeviri gibi duran kalıpları kullanma: \"senin olabilir\", \"raflara bak\", \"favorini yakala\", \"çözüm kapında\". Uygulamadan sipariş verildiği için \"rafa/mağazaya gel\" deme; \"ürünlere göz at\", \"sepetine ekle\", \"siparişini ver\" de.",
+    "- \"flash sale\" yerine \"flaş indirim\" ya da \"sınırlı süreli indirim\" yaz.",
+    "- Doğru/yanlış örnekleri: DOĞRU \"Yiyeceklerde %10'a varan indirim başladı\" / YANLIŞ \"Yiyecekler %10 indirim başladı\"; DOĞRU \"Gözlemeler bu akşam indirimde\" / YANLIŞ \"Gözleme indirim akşam\"; DOĞRU \"Sipariş saati bitmeden sepetini tamamla\" / YANLIŞ \"Sipariş saatleri dolmadan sepetini tamamla\".",
+    "",
+    "İSTEĞE SADAKAT:",
+    "- Yöneticinin isteği ana mesajdır. Genel bir kampanyayı (ör. \"yiyeceklerde indirim\") tek bir ürüne indirgeme; mağaza bilgilerinden ürün adı kullanacaksan yalnızca örnek olarak ver (\"hamburger menüden gözlemeye\").",
+    "- \"varan\", \"başlayan\", \"kadar\", \"seçili ürünlerde\" gibi sınırlayıcı ifadeleri mutlaka koru: \"%10'a varan indirim\" yazıldıysa \"%10 indirim\" yazma.",
+    "- \"Sınırlı süre\" denildiyse süre uydurma; \"sınırlı süre\" ya da \"indirim bitmeden\" de.",
     "- Ünlem işaretini en fazla bir kez kullan; art arda \"!!\" ya da \"??\" yazma. Başlığın sonuna nokta koyma.",
     "- Emoji kullan: başlıkta 1-2, mesajda 1-2 tane, konuya uygun olsun (ör. kahvaltı ☕🥐🍳, gece 🌙🍿, indirim 🎁🔥, sepet 🛒, sınav 📚). Emojiler süslesin, kelimelerin yerine geçmesin; aynı emojiyi tekrarlama.",
     `- Şu an ${dayPart(now)}. Saate uymayan ifadeler kullanma (gece "günaydın" deme). Saat bilgisini yalnızca istekle ilgiliyse kullan.`,
@@ -189,4 +201,46 @@ export const parseDraftOptions = (raw) => {
     .map((option, index) => ({ option, index, score: flawScore(option) }))
     .sort((a, b) => a.score - b.score || a.index - b.index)
     .map(({ option }) => option);
+};
+
+
+// ── Türkçe editör geçişi ─────────────────────────────────────────────────────
+// Küçük modeller Türkçe eklerde ve söz diziminde sık hata yapar. Üretilen seçenekler ikinci bir
+// çağrıda yalnızca dil bilgisi açısından düzeltilir; anlam, rakamlar ve ton korunur.
+
+/** Editör çağrısının mesajları */
+export const buildProofreadMessages = (options = [], { prompt = "" } = {}) => {
+  const system = [
+    "Sen titiz bir Türkçe editörsün. Sana push bildirimi seçenekleri JSON olarak verilecek.",
+    "GÖREV: Her seçeneğin başlığını ve mesajını yalnızca Türkçe dil bilgisi ve doğallık açısından düzelt:",
+    "- Eksik ya da yanlış ekleri düzelt (ör. \"Hamburger menü %10 indirimle\" → \"Hamburger menüde %10 indirim\"), kelimeleri ek almadan yan yana dizme.",
+    "- Söz dizimini doğal Türkçeye çevir; çeviri kokan kalıpları (\"senin olabilir\", \"raflara bak\", \"favorini yakala\") doğal karşılıklarıyla değiştir.",
+    "- \"flash sale\" yerine \"flaş indirim\" yaz.",
+    "- Rakamları, yüzdeleri, ürün adlarını, \"varan/başlayan/kadar\" gibi sınırlayıcıları ve emojileri AYNEN koru; yeni bilgi, rakam ya da vaat EKLEME.",
+    `- Tonu ve uzunluğu koru: başlık en fazla ${TARGET_TITLE}, mesaj en fazla ${TARGET_BODY} karakter.`,
+    "- Metin zaten doğruysa olduğu gibi bırak.",
+    prompt ? `Yöneticinin asıl isteği (anlamı bu): ${prompt}` : "",
+    "Sadece geçerli JSON döndür, aynı sırada ve aynı \"tone\" değerleriyle: {\"options\":[{\"tone\":\"...\",\"title\":\"...\",\"body\":\"...\"}]}",
+  ].filter(Boolean).join("\n");
+  const user = JSON.stringify({ options: options.map(({ tone, title, body }) => ({ tone, title, body })) });
+  return [{ role: "system", content: system }, { role: "user", content: user }];
+};
+
+// Metindeki rakam/yüzde belirteçleri (editörün bilgi değiştirmediğini doğrulamak için)
+const numberTokens = (text) => (String(text).match(/%?\d+(?:[.,]\d+)?%?/g) || []).map((token) => token.replace(/%/g, "")).sort().join("|");
+
+/**
+ * Editör çıktısını özgün seçeneklerle birleştirir. Bir seçenek yalnızca geçerliyse ve rakamları
+ * değişmediyse düzeltilmiş haliyle alınır; aksi halde özgün metin kalır.
+ */
+export const mergeProofread = (original = [], raw = "") => {
+  const edited = parseDraftOptions(raw);
+  if (!edited.length) return original;
+  const byTone = new Map(edited.map((option) => [option.tone, option]));
+  return original.map((option, index) => {
+    const candidate = (option.tone && byTone.get(option.tone)) || edited[index];
+    if (!candidate) return option;
+    const sameNumbers = numberTokens(`${option.title} ${option.body}`) === numberTokens(`${candidate.title} ${candidate.body}`);
+    return sameNumbers ? { ...option, title: candidate.title, body: candidate.body } : option;
+  });
 };

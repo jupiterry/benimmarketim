@@ -213,7 +213,7 @@ test("push draft endpoint recovers from a removed default model with the same re
   assert.equal(res.statusCode, 200);
   assert.deepEqual(Object.keys(res.body).sort(), ["body", "facts", "options", "success", "title"]);
   assert.equal(res.body.title, "Akşam molası 🌙");
-  assert.equal(calls.chat.length, 2);
+  assert.equal(calls.chat.length, 3); // 404 → keşfedilen modelle yeniden deneme → Türkçe editör geçişi
 });
 
 test("groq and gemini keep their behaviour: no discovery, no model swap, 404 not retried", async (t) => {
