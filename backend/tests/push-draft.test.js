@@ -98,9 +98,9 @@ test("draft endpoint returns options with the first one as title/body", async (t
   t.after(() => { if (previousKey === undefined) delete process.env.OPENROUTER_API_KEY; else process.env.OPENROUTER_API_KEY = previousKey; });
   t.mock.method(Settings, "getSettings", async () => ({ ai: { provider: "openrouter", model: "test" } }));
   t.mock.method(PushBroadcast, "find", () => chain([{ title: "Eski başlık" }]));
-  let payload;
+  const payloads = [];
   t.mock.method(globalThis, "fetch", async (url, options) => {
-    payload = JSON.parse(options.body);
+    payloads.push(JSON.parse(options.body));
     return aiReply(JSON.stringify({ options: [{ tone: "Eğlenceli", title: "Günaydın ☕", body: "Kahvaltın yolda olabilir 🥐" }, { tone: "Samimi", title: "Sabah keyfi 🍳", body: "Yurtta güne güzel başla ☀️" }] }));
   });
   const res = response();
@@ -108,6 +108,10 @@ test("draft endpoint returns options with the first one as title/body", async (t
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.title, "Günaydın ☕");
   assert.equal(res.body.options.length, 2);
+  const [payload, proof] = payloads;
+  assert.equal(payloads.length, 2); // taslak + Türkçe editör geçişi
+  assert.equal(proof.temperature, 0.2);
+  assert.match(proof.messages[0].content, /Türkçe editör/);
   assert.equal(payload.temperature, 0.9);
   assert.equal(payload.max_tokens, 1800);
   assert.deepEqual(payload.reasoning, { enabled: false });
@@ -141,4 +145,38 @@ test("draft copy is polished and the least flawed option is offered first", () =
   assert.equal(options[0].title, "Gece acıktın mı? 🌙🍿");
   assert.equal(options[0].body, "Saat 23:00'e kadar %20 indirim, 1,5 litre kola dahil! 🛒🎁🍕");
   assert.equal(options[1].title, "MUHTEŞEM FIRSAT! Hemen tıkla 🔥");
+});
+
+// ── Türkçe editör geçişi ──
+import { buildProofreadMessages, mergeProofread } from "../services/pushDraft.service.js";
+
+test("draft prompt includes Turkish grammar and fidelity rules", () => {
+  const [system] = buildDraftMessages({ prompt: "Yiyeceklerde %10'a varan indirim" });
+  assert.match(system.content, /TÜRKÇE YAZIM/);
+  assert.match(system.content, /Hamburger menüde %10 indirim/);
+  assert.match(system.content, /varan/);
+  assert.match(system.content, /flaş indirim/);
+});
+
+test("proofread messages carry options and the original request", () => {
+  const options = [{ tone: "Samimi", title: "Hamburger menü %10 indirimle 🍔", body: "Senin olabilir" }];
+  const [system, user] = buildProofreadMessages(options, { prompt: "Yiyeceklerde %10'a varan indirim" });
+  assert.match(system.content, /Türkçe editör/);
+  assert.match(system.content, /Yiyeceklerde %10'a varan indirim/);
+  assert.deepEqual(JSON.parse(user.content).options[0].title, "Hamburger menü %10 indirimle 🍔");
+});
+
+test("mergeProofread takes corrected text only when numbers are unchanged", () => {
+  const original = [
+    { tone: "Samimi", title: "Hamburger menü %10 indirimle 🍔", body: "Sepetine ekle 🛒" },
+    { tone: "Eğlenceli", title: "Gözleme %7 indirim 🥞", body: "Akşam keyfi 🌙" },
+  ];
+  const raw = JSON.stringify({ options: [
+    { tone: "Samimi", title: "Hamburger menüde %10 indirim 🍔", body: "Sepetine ekle 🛒" },
+    { tone: "Eğlenceli", title: "Gözlemelerde %20 indirim 🥞", body: "Akşam keyfi 🌙" },
+  ] });
+  const merged = mergeProofread(original, raw);
+  assert.equal(merged[0].title, "Hamburger menüde %10 indirim 🍔");
+  assert.equal(merged[1].title, "Gözleme %7 indirim 🥞"); // rakam değişti → özgün kalır
+  assert.deepEqual(mergeProofread(original, "bozuk"), original);
 });
