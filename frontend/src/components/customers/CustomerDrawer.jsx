@@ -256,7 +256,7 @@ const AccountTab = ({ user, profile, now, form, setForm, dirty, saving, onSave, 
 };
 
 // ── Çekmece ──────────────────────────────────────────────────────────
-const CustomerDrawer = ({ user, orderMap, now, initialTab = "orders", focusPassword = false, onClose, onOpenChat, onSaved, onRoleChanged, onDelete }) => {
+const CustomerDrawer = ({ user, now, initialTab = "orders", focusPassword = false, onClose, onOpenChat, onSaved, onRoleChanged, onDelete }) => {
   const { confirm } = useConfirm();
   const [tab, setTab] = useState(initialTab);
   const [profile, setProfile] = useState(null);
@@ -343,7 +343,7 @@ const CustomerDrawer = ({ user, orderMap, now, initialTab = "orders", focusPassw
 
   const latestChat = chats[0];
   const joined = registeredAt(user);
-  const tags = customerTags(user, orderMap, now);
+  const tags = customerTags(user, now);
   const wa = whatsappLink(user.phone);
   const stats = profile?.stats;
 

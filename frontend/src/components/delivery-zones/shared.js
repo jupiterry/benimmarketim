@@ -1,4 +1,4 @@
-// Teslimat bölgeleri ekranının ortak sabitleri ve yardımcıları (biçimlendirme, doğrulama, sıralama).
+// Teslimat bölgeleri ekranının ortak sabitleri ve yardımcıları (biçimlendirme, doğrulama).
 // Bölgeler sabittir: girlsDorm, boysDorm (yurt) ve devrek (ilce). Eski mahalle/köy türleri yalnızca okunur.
 /* global Intl */
 import { Building2, Home, Landmark, Trees } from "lucide-react";
@@ -10,7 +10,6 @@ export const TYPES = {
   mahalle: { label: "Mahalle", plural: "Mahalleler", icon: Home, tone: "brand" },
   koy: { label: "Köy", plural: "Köyler", icon: Trees, tone: "warn" },
 };
-export const TYPE_ORDER = ["yurt", "ilce", "mahalle", "koy"];
 
 // Sabit üç bölge (sunucu da yalnızca bunları döndürür): kart başlığı ve açıklaması
 export const FIXED_ZONES = [
@@ -30,14 +29,6 @@ export const CLOSE_REASONS = ["Yoğunluk nedeniyle geçici olarak kapalı", "Hav
 export const ETA_PRESETS = ["20-40 dk", "30-60 dk", "45-90 dk"];
 
 export const LIMITS = { name: 60, closedReason: 120, etaText: 40, maxMoney: 100000 };
-
-export const SORTS = [
-  { value: "sortOrder", label: "Liste sırası", dir: "asc" },
-  { value: "name", label: "Ad (A→Z)", dir: "asc" },
-  { value: "orders", label: "Bu ay en çok sipariş", dir: "desc" },
-  { value: "fee", label: "Ücret (yüksekten)", dir: "desc" },
-];
-export const FIRST_DIR = { sortOrder: "asc", name: "asc", orders: "desc", fee: "desc", minimum: "desc" };
 
 const NUM = new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 2 });
 /** 40 → "40 TL", 12.5 → "12,5 TL" */
@@ -79,13 +70,6 @@ export const normalizeZone = (z = {}) => ({
   areaCandidates: Array.isArray(z.areaCandidates) ? z.areaCandidates : [],
 });
 
-/** Silinebilir mi: yurt değil ve hiç siparişi yok */
-export const deleteBlock = (zone) => {
-  if (zone.type === "yurt") return "Yurt bölgeleri silinemez; kapatabilirsiniz.";
-  if (zone.ordersTotal > 0) return `${num(zone.ordersTotal)} siparişi olduğu için silinemez; kapatabilirsiniz.`;
-  return null;
-};
-
 /** Müşterinin göreceği kısa özet: "40 TL · 300 TL üstü ücretsiz" */
 export const feeSummary = (zone, campaign) => {
   if (campaign || zone.deliveryFee === 0) return "Ücretsiz teslimat";
@@ -94,35 +78,7 @@ export const feeSummary = (zone, campaign) => {
     : tl(zone.deliveryFee);
 };
 
-export const matchesQuery = (zone, q) => {
-  if (!q) return true;
-  return fold(`${zone.name} ${TYPES[zone.type]?.label} ${zone.etaText} ${zone.closedReason} ${zone._id}`).includes(q);
-};
-
-const collator = new Intl.Collator("tr", { sensitivity: "base", numeric: true });
-export const sortZones = (list, key, dir) => {
-  const m = dir === "asc" ? 1 : -1;
-  const by = {
-    sortOrder: (a, b) => a.sortOrder - b.sortOrder || TYPE_ORDER.indexOf(a.type) - TYPE_ORDER.indexOf(b.type) || collator.compare(a.name, b.name),
-    name: (a, b) => collator.compare(a.name, b.name),
-    orders: (a, b) => a.ordersThisMonth - b.ordersThisMonth || collator.compare(b.name, a.name),
-    fee: (a, b) => a.deliveryFee - b.deliveryFee || (a.freeDeliveryThreshold ?? Infinity) - (b.freeDeliveryThreshold ?? Infinity),
-    minimum: (a, b) => (a.minimumOrderAmount ?? -1) - (b.minimumOrderAmount ?? -1),
-  }[key] || (() => 0);
-  return [...list].sort((a, b) => by(a, b) * m);
-};
-
 // ── Form ──────────────────────────────────────────────────────────────────
-export const emptyForm = (nextSort = 0) => ({
-  name: "", type: "mahalle", enabled: false, closedReason: "",
-  feeMode: "free", fee: "", threshold: "", minimum: "", etaText: "", sortOrder: String(nextSort), callback: false,
-});
-export const formFromZone = (z) => ({
-  name: z.name, type: z.type, enabled: z.enabled, closedReason: z.closedReason,
-  feeMode: z.deliveryFee > 0 ? "paid" : "free", fee: z.deliveryFee > 0 ? moneyText(z.deliveryFee) : "",
-  threshold: moneyText(z.freeDeliveryThreshold), minimum: moneyText(z.minimumOrderAmount),
-  etaText: z.etaText, sortOrder: String(z.sortOrder), callback: Boolean(z.requireFirstOrderCallback),
-});
 export const sameForm = (a, b) => Object.keys(a).every((k) => String(a[k]) === String(b[k]));
 
 /** Formu doğrular; { errors, payload } döner. payload sunucuya gidecek gövdedir. */

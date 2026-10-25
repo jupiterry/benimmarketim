@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Bot, MessageCircle, Send, Sparkles, X } from "lucide-react";
 import toast from "react-hot-toast";
 import axios from "../lib/axios";
@@ -14,7 +14,7 @@ export default function CustomerAiChatWidget() {
   const [sending, setSending] = useState(false);
   const bottomRef = useRef(null);
 
-  const start = async () => {
+  const start = useCallback(async () => {
     if (chat) return;
     try {
       const { data } = await axios.post("/chat/create", { type: "general" });
@@ -24,17 +24,19 @@ export default function CustomerAiChatWidget() {
       const socket = socketService.connect();
       socket.emit("joinChat", data.chat._id);
     } catch { toast.error("Canlı destek açılamadı"); }
-  };
-  useEffect(() => { if (open) start(); }, [open]);
+  }, [chat]);
+  // Sohbet açılınca bir kez oluşturulur; oluştuktan sonra start erken döner
+  useEffect(() => { if (open) start(); }, [open, start]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, sending]);
+  const activeChatId = chat?._id;
   useEffect(() => {
-    if (!chat) return;
+    if (!activeChatId) return;
     const socket = socketService.connect();
-    const onMessage = ({ chatId, message }) => { if (chatId === chat._id && message.sender !== "user") setMessages((current) => current.some((item) => item._id === message._id) ? current : [...current, message]); };
-    const onClosed = ({ chatId }) => { if (chatId === chat._id) setChat((current) => current ? { ...current, status: "closed", mode: "CLOSED" } : current); };
+    const onMessage = ({ chatId, message }) => { if (chatId === activeChatId && message.sender !== "user") setMessages((current) => current.some((item) => item._id === message._id) ? current : [...current, message]); };
+    const onClosed = ({ chatId }) => { if (chatId === activeChatId) setChat((current) => current ? { ...current, status: "closed", mode: "CLOSED" } : current); };
     socket.on("newMessage", onMessage); socket.on("chatClosed", onClosed);
-    return () => { socket.off("newMessage", onMessage); socket.off("chatClosed", onClosed); socket.emit("leaveChat", chat._id); };
-  }, [chat?._id]);
+    return () => { socket.off("newMessage", onMessage); socket.off("chatClosed", onClosed); socket.emit("leaveChat", activeChatId); };
+  }, [activeChatId]);
 
   const send = async (value = text) => {
     const content = value.trim(); if (!content || !chat || sending || chat.status === "closed") return;

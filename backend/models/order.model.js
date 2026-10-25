@@ -52,7 +52,7 @@ const orderSchema = new mongoose.Schema(
       validate: {
         validator: function (v) {
           // En az 10 karakter ve sadece rakam, boşluk, +, -, (, ) karakterleri
-          const cleaned = v.replace(/[\s\-\(\)\+]/g, '');
+          const cleaned = v.replace(/[\s\-()+]/g, '');
           return cleaned.length >= 10 && /^\d+$/.test(cleaned);
         },
         message: "Geçerli bir telefon numarası girin! (En az 10 rakam)",

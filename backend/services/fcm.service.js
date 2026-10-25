@@ -4,6 +4,12 @@ import admin from 'firebase-admin';
 // Initialize Firebase Admin SDK if not already initialized
 let firebaseInitialized = false;
 
+// Bildirim anahtarı (FCM token) loglara açık yazılmaz; yalnızca son 6 karakter
+const maskToken = (token) => {
+  const value = String(token || '');
+  return value ? `…${value.slice(-6)}` : '-';
+};
+
 export const initializeFirebase = () => {
   if (firebaseInitialized) {
     return;
@@ -102,7 +108,7 @@ export const sendPushNotification = async (fcmToken, notification, data = {}) =>
     // Handle invalid token errors
     if (error.code === 'messaging/invalid-registration-token' || 
         error.code === 'messaging/registration-token-not-registered') {
-      console.warn('Invalid or unregistered FCM token:', fcmToken);
+      console.warn('Invalid or unregistered FCM token:', maskToken(fcmToken));
       // You might want to remove this token from the database
       return false;
     }
@@ -173,7 +179,7 @@ export const sendBulkPushNotifications = async (fcmTokens, notification, data = 
     if (response.failureCount > 0) {
       response.responses.forEach((resp, idx) => {
         if (!resp.success) {
-          console.warn(`Failed to send to token ${fcmTokens[idx]}:`, resp.error);
+          console.warn(`Failed to send to token ${maskToken(fcmTokens[idx])}:`, resp.error?.code || resp.error?.message || resp.error);
         }
       });
     }

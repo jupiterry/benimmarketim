@@ -17,11 +17,11 @@ export const uploadFile = async (req, res) => {
 		const { copies = 1, color = "black_white", paperSize = "A4", notes = "" } = req.body;
 		const parsedCopies = Number.parseInt(copies, 10);
 		if (!Number.isInteger(parsedCopies) || parsedCopies < 1 || parsedCopies > 100) {
-			try { fs.unlinkSync(req.file.path); } catch {}
+			try { fs.unlinkSync(req.file.path); } catch { /* geçici dosya zaten silinmiş olabilir */ }
 			return res.status(400).json({ success: false, message: "Kopya sayısı 1-100 arasında olmalıdır" });
 		}
 		if (!["black_white", "color"].includes(color) || !["A4", "A3", "A5", "Letter"].includes(paperSize)) {
-			try { fs.unlinkSync(req.file.path); } catch {}
+			try { fs.unlinkSync(req.file.path); } catch { /* geçici dosya zaten silinmiş olabilir */ }
 			return res.status(400).json({ success: false, message: "Geçersiz fotokopi ayarı" });
 		}
 
@@ -75,7 +75,7 @@ export const deleteFile = async (req, res) => {
 		const file = await PhotocopyFile.findOne(query);
 		if (!file) return res.status(404).json({ success: false, message: "Dosya bulunamadı" });
 
-		try { fs.unlinkSync(file.filePath); } catch {}
+		try { fs.unlinkSync(file.filePath); } catch { /* dosya diskte yoksa kayıt yine silinir */ }
 		await file.deleteOne();
 		res.json({ success: true, message: "Silindi" });
 	} catch (error) {

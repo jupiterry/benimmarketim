@@ -24,6 +24,17 @@ const AVATAR_DATA_URL = /^data:image\/(jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=\
 const AVATAR_MAX_BASE64_LENGTH = 5 * 1024 * 1024;
 const AVATAR_FOLDER = "avatars";
 
+// Sunucu loglarına kişisel veri (e-posta, telefon, parola özeti, kupon kodu) yazılmaz; kayıtlarda
+// yalnızca kullanıcı kimliği geçer. Hatalarda türü ve takılan alan adları yazılır: Mongo'nun
+// "duplicate key" ve Mongoose'un CastError iletileri gönderilen değeri (e-posta/telefon) içerir.
+export const safeErrorSummary = (error) => {
+	if (!error) return "bilinmeyen hata";
+	const fields = (obj) => Object.keys(obj || {}).join(", ") || "?";
+	if (error.code === 11000) return `E11000 yinelenen kayıt (alan: ${fields(error.keyPattern || error.keyValue)})`;
+	if (error.name === "ValidationError" && error.errors) return `ValidationError (alan: ${fields(error.errors)})`;
+	if (error.name === "CastError") return `CastError (alan: ${error.path || "?"})`;
+	return `${error.name || "Error"}: ${error.message}`;
+};
 
 const generateTokens = (userId) => {
 	// Access token artık çok uzun süreli (1 yıl) - kullanıcı kendisi çıkış yapana kadar geçerli
@@ -73,14 +84,13 @@ export const signup = async (req, res) => {
 		if (referralCode !== undefined && referralCode !== null && typeof referralCode !== "string") {
 			return res.status(400).json({ message: "Geçersiz referral kodu" });
 		}
-		console.log("Kayıt isteği alındı:", { email, name, phone, deviceType, referralCode }); // Debug log
 		const userExists = await User.findOne({ email: email.trim().toLowerCase() });
 
 		if (userExists) {
 			return res.status(400).json({ message: "Kullanıcı zaten mevcut" });
 		}
 		const user = await User.create({ name, email, password, phone, deviceType });
-		console.log("Oluşturulan kullanıcı:", user); // Debug log
+		console.log(`Yeni kullanıcı kaydı: ${user._id}`);
 
 		// Referral kodu işleme
 		let referralResult = null;
@@ -88,10 +98,10 @@ export const signup = async (req, res) => {
 			try {
 				referralResult = await processReferralSignup(referralCode, user._id);
 				if (referralResult.success) {
-					console.log("Referral işlemi başarılı:", referralResult);
+					console.log(`Referral işlemi başarılı (kullanıcı ${user._id})`);
 				}
 			} catch (refError) {
-				console.error("Referral işlemi hatası:", refError);
+				console.error(`Referral işlemi hatası (kullanıcı ${user._id}):`, safeErrorSummary(refError));
 			}
 		}
 
@@ -113,7 +123,7 @@ export const signup = async (req, res) => {
 			referralCoupon: referralResult?.couponCode || null // Referral kuponu
 		});
 	} catch (error) {
-		console.log("Error in signup controller", error.message);
+		console.log("Error in signup controller", safeErrorSummary(error));
 		res.status(500).json({ message: error.message });
 	}
 };
@@ -124,8 +134,6 @@ export const login = async (req, res) => {
 		if (typeof email !== "string" || typeof password !== "string") {
 			return res.status(400).json({ message: "Geçersiz E-posta veya Şifre" });
 		}
-		console.log("Login request:", { email, deviceType }); // Debug log
-		
 		const user = await User.findOne({ email: email.trim().toLowerCase() });
 
 		if (user && (await user.comparePassword(password))) {
@@ -144,7 +152,7 @@ export const login = async (req, res) => {
 			await storeRefreshToken(user._id, refreshToken);
 			setCookies(res, accessToken, refreshToken);
 
-			console.log("Login successful, tokens generated"); // Debug log
+			console.log(`Giriş başarılı: ${user._id}`);
 
 			// Uygulamadan giriş yapıldıysa yönetici paneline "uygulamayı açtı" bildirimi düşer
 			noteAppRequest(req, null, user);
@@ -163,7 +171,7 @@ export const login = async (req, res) => {
 			res.status(400).json({ message: "Geçersiz E-posta veya Şifre" });
 		}
 	} catch (error) {
-		console.log("Error in login controller", error.message);
+		console.log("Error in login controller", safeErrorSummary(error));
 		res.status(500).json({ message: error.message });
 	}
 };
@@ -247,18 +255,6 @@ export const getProfile = async (req, res) => {
 };
 
 // Test endpoint'leri
-export const testApi = async (req, res) => {
-	res.json({ message: "API çalışıyor", timestamp: new Date().toISOString() });
-};
-
-export const testAuth = async (req, res) => {
-	res.json({ 
-		message: "Auth çalışıyor", 
-		user: req.user,
-		timestamp: new Date().toISOString()
-	});
-};
-
 // Kullanıcı kendi hesabını silme
 export const deleteMyAccount = async (req, res) => {
 	try {
@@ -283,7 +279,7 @@ export const deleteMyAccount = async (req, res) => {
 			deletedAt: new Date().toISOString()
 		});
 	} catch (error) {
-		console.error("Hesap silme hatası:", error);
+		console.error(`Hesap silme hatası (kullanıcı ${req.user?._id}):`, safeErrorSummary(error));
 		res.status(500).json({ message: "Hesap silinirken hata oluştu", error: error.message });
 	}
 };
@@ -299,7 +295,7 @@ export const updatePhone = async (req, res) => {
 		await req.user.save({ validateModifiedOnly: true });
 		res.json({ message: "Telefon numarası güncellendi", phone });
 	} catch (error) {
-		console.error("Telefon güncelleme hatası:", error.message);
+		console.error(`Telefon güncelleme hatası (kullanıcı ${req.user?._id}):`, safeErrorSummary(error));
 		res.status(500).json({ message: "Telefon numarası güncellenemedi", error: error.message });
 	}
 };

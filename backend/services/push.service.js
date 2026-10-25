@@ -153,7 +153,8 @@ const sendViaFcm = async (fcmToken, message, data) => {
  * @param {{category?: "orders"|"messages"|"campaigns", collapseId?: string}} options
  * @returns {Promise<{targeted: number, sent: boolean, reason: string|null, detail: string, unreachable: number}>}
  *   targeted: izinli kullanıcı sayısı; sent: en az bir kanal bildirimi kabul etti;
- *   reason: gönderilemediyse nedeni ("not_configured" | "auth" | "rejected" | "network" | "no_devices");
+ *   reason: gönderilemediyse nedeni ("not_configured" | "auth" | "rejected" | "network" | "no_devices" | "error");
+ *   "error": beklenmeyen sunucu hatası (ör. veritabanı zaman aşımı); null: izinli kullanıcı yok (bildirimleri kapalı)
  *   unreachable: OneSignal'ın kayıtlı cihazı olmadığını bildirdiği kullanıcı sayısı
  */
 export const sendPushToUsers = async (userIds, message, data = {}, { category = "orders", collapseId } = {}) => {
@@ -186,7 +187,8 @@ export const sendPushToUsers = async (userIds, message, data = {}, { category = 
     };
   } catch (error) {
     console.error("Bildirim gönderilemedi:", error.message);
-    return empty;
+    // Geçici hata, kullanıcının bildirimleri kapatmasıyla (reason: null) karıştırılmasın
+    return { ...empty, reason: "error", detail: error.message };
   }
 };
 

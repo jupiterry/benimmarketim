@@ -10,6 +10,7 @@ import WeeklyProduct from "../models/weeklyProduct.model.js";
 import FlashSale from "../models/flashSale.model.js";
 import Product from "../models/product.model.js";
 import { getStatsSnapshot } from "../services/recommendation.service.js";
+import { activeWeeklyFilter, isWeeklyDealLive } from "../services/productPricing.js";
 import { PUSH_CATEGORIES, inspectPushUser, isPushConfigured, normalizePreferences, sendPushToUsers } from "../services/push.service.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -61,11 +62,12 @@ export const gatherStoreFacts = async (now = new Date()) => {
   if (mongoose.connection.readyState !== 1) return facts;
   try {
     const [weekly, flash] = await Promise.all([
-      WeeklyProduct.find({ isActive: true }).populate("product", "name price isHidden isOutOfStock").sort({ order: 1 }).limit(6).lean(),
+      // Yalnızca şu an geçerli haftalık fırsatlar (süresi dolmuş fiyat taslağa girmez)
+      WeeklyProduct.find(activeWeeklyFilter(now)).populate("product", "name price isHidden isOutOfStock").sort({ order: 1 }).limit(6).lean(),
       FlashSale.find({ isActive: true, startDate: { $lte: now }, endDate: { $gt: now } }).populate("product", "name price").limit(4).lean(),
     ]);
     for (const item of weekly) {
-      if (!item.product || item.product.isHidden || item.product.isOutOfStock) continue;
+      if (!item.product || item.product.isHidden || item.product.isOutOfStock || !isWeeklyDealLive(item, now)) continue;
       facts.push(`Haftalık fırsat: ${item.product.name} ${formatTl(item.weeklyPrice)}${item.discountPercentage ? ` (%${item.discountPercentage} indirimli)` : ""}`);
     }
     for (const sale of flash) {
@@ -161,6 +163,7 @@ export const describePushFailure = (result) => {
     case "rejected": return { status: 502, message: `OneSignal isteği reddetti${detail}. Sunucu ayarlarındaki OneSignal bilgilerini kontrol edin.` };
     case "network": return { status: 502, message: `OneSignal'a ulaşılamadı${detail}. Sunucunun internet bağlantısını kontrol edip birkaç dakika sonra tekrar deneyin.` };
     case "not_configured": return { status: 503, message: "Bildirim servisi yapılandırılmamış (OneSignal anahtarları eksik)" };
+    case "error": return { status: 500, message: "Bildirim gönderilirken sunucu hatası oluştu. Birkaç dakika sonra tekrar deneyin." };
     case "no_devices": return { status: 422, message: "Bildirim gönderilemedi: bu kitledeki müşterilerin hiçbiri bildirimleri destekleyen uygulama sürümünde oturum açmamış. Müşteriler yeni sürümü kurup giriş yaptıkça ulaşılabilir olurlar." };
     default: return { status: 422, message: "Bildirim gönderilemedi: seçilen kişiler bildirim almaya izin vermiyor." };
   }

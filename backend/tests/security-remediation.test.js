@@ -11,7 +11,7 @@ import {
   getUserOrders,
   updateOrderStatus as updateAnalyticsOrderStatus,
 } from "../controllers/ordersAnalytics.controller.js";
-import { updateOrderStatus as updateLegacyAnalyticsOrderStatus } from "../controllers/analytics.controller.js";
+import analyticsRoutes from "../routes/analytics.route.js";
 import { createChat } from "../controllers/chat.controller.js";
 import { loginRateLimiter } from "../middleware/loginRateLimit.js";
 
@@ -44,13 +44,9 @@ function targetedIo() {
   };
 }
 
-test("add-phone-field route requires authentication and admin middleware", () => {
-  const route = userRoutes.stack.find((layer) => layer.route?.path === "/add-phone-field")?.route;
-  assert.ok(route);
-  assert.deepEqual(
-    route.stack.map((layer) => layer.handle.name),
-    ["protectRoute", "adminRoute", "addPhoneFieldToAllUsers"],
-  );
+test("add-phone-field maintenance route is removed", () => {
+  const route = userRoutes.stack.find((layer) => layer.route?.path === "/add-phone-field");
+  assert.equal(route, undefined);
 });
 
 test("profile lookup allows self/admin and rejects another normal user", async (t) => {
@@ -125,16 +121,15 @@ test("order status updates emit only to owner and admin rooms", async (t) => {
   assert.equal(current.global.length, 0);
   assert.deepEqual(current.targeted[0].rooms, ["user_user-1", "adminRoom"]);
   assert.equal(current.targeted[0].event, "orderStatusUpdated");
+});
 
-  const legacy = targetedIo();
-  const legacyRes = response();
-  await updateLegacyAnalyticsOrderStatus({
-    body: { orderId: "order-1", newStatus: "Teslim Edildi" },
-    app: { get: () => legacy.io },
-  }, legacyRes);
-  assert.equal(legacyRes.code, 200);
-  assert.equal(legacy.global.length, 0);
-  assert.deepEqual(legacy.targeted[0].rooms, ["user_user-1", "adminRoom"]);
+test("legacy PUT /api/analytics/update-order-status is removed (status changes go through /orders-analytics)", () => {
+  const route = analyticsRoutes.stack.find((layer) => layer.route?.path === "/update-order-status");
+  assert.equal(route, undefined);
+  for (const layer of analyticsRoutes.stack.filter((l) => l.route)) {
+    const names = layer.route.stack.map((l) => l.handle.name);
+    assert.deepEqual(names.slice(0, 2), ["protectRoute", "adminRoute"], `${layer.route.path} must be admin-only`);
+  }
 });
 
 test("login limiter: 10 attempts per IP, separate and more lenient bucket per email", () => {

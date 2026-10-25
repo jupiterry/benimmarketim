@@ -12,7 +12,6 @@ import { useUserStore } from "../stores/useUserStore";
 // --- Design Constants (Shared with ChatTab) ---
 const GLASS_PANEL = "bg-gray-900/80 backdrop-blur-xl border border-white/10 shadow-2xl";
 const GRADIENT_PRIMARY = "bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500";
-const BUTTON_GLASS = "bg-white/5 hover:bg-white/10 border border-white/5 transition-all duration-300";
 
 // --- Helper: Play Sound ---
 const playNotificationSound = () => {
@@ -154,17 +153,21 @@ const FloatingChatWidget = () => {
     socketService.joinChat(chat._id);
   }, [fetchMessages]);
 
+  const selectedChatId = selectedChat?._id;
   useEffect(() => {
-    if (!selectedChat || isLoading) return;
+    if (!selectedChatId || isLoading) return;
     const frame = requestAnimationFrame(scrollWidgetMessagesToBottom);
     return () => cancelAnimationFrame(frame);
-  }, [selectedChat?._id, messages.length, isLoading]);
+  }, [selectedChatId, messages.length, isLoading]);
 
   // Refs for stable access in socket listeners
   const selectedChatRef = useRef(selectedChat);
   const soundEnabledRef = useRef(soundEnabled);
   const chatsRef = useRef(chats);
   const messagesRef = useRef(messages);
+  // Oturum yenilenince soket dinleyicileri yeniden kurulmasın; odaya katılırken güncel anahtar okunur
+  const accessTokenRef = useRef(accessToken);
+  accessTokenRef.current = accessToken;
 
   useEffect(() => {
     selectedChatRef.current = selectedChat;
@@ -176,7 +179,7 @@ const FloatingChatWidget = () => {
   // Socket
   useEffect(() => {
     socketService.connect();
-    socketService.joinAdminRoom(accessToken);
+    socketService.joinAdminRoom(accessTokenRef.current);
     fetchChats();
 
     const handleNewMessage = (data) => {

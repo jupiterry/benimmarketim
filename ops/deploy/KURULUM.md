@@ -24,6 +24,15 @@ bash -n /tmp/benimmarketim-deploy.sh && install -o root -g root -m 755 /tmp/beni
 
 Ardından GitHub Actions'ta "Web production deploy" iş akışını main için yeniden çalıştırın (Re-run all jobs).
 
+## 25 Ekim 2026: Telegram botu kaldırıldı
+
+Sahibin talimatıyla Telegram sipariş bildirim botu projeden tamamen çıkarıldı (PM2 süreci `benimmarketim-telegram`, `backend/workers/telegram.*`, yönetici uç noktası, panel kartı ve testleri). Sipariş ve sohbet bildirimleri panel ve sipariş alarmı üzerinden sürer.
+
+- **Süreç her yayında otomatik kaldırılır.** `deploy.sh`, PM2'de `benimmarketim-telegram` adlı süreç varsa onu durdurur, siler ve `pm2 save` ile listeyi kaydeder (sunucu yeniden başlasa da geri gelmez). Süreç yoksa hiçbir şey yapmaz; bu adım yayını asla başarısız etmez. Çıktısı yalnızca root'a ait yayın loguna gider.
+- **Sunucudaki betik kopyası güncellenmeden bu adım çalışmaz** (bkz. 16 Ekim notu). Yönetici yukarıdaki `install` komutlarıyla betiği bir kez yeniden kurmalıdır. Beklemeden durdurmak için root oturumunda: `pm2 delete benimmarketim-telegram; pm2 save`. Süreç zaten yoksa ilk komutun verdiği uyarı önemsizdir.
+- **Bot anahtarını iptal edin.** Kod silinse de anahtar Telegram tarafında geçerli kalır. Sahip, BotFather'da botu seçip anahtarı iptal etmeli (`/revoke`) ya da botu tamamen silmelidir (`/deletebot`). Ardından sunucudaki `/var/www/benimmarketim/.telegram.env` dosyası silinebilir. `.gitignore` içindeki `.telegram.env` satırı bilerek bırakıldı: kalan bir dosya temiz checkout kontrolünü bozup yayını durdurmasın.
+- **Veritabanına dokunulmadı.** `telegram_state`, `telegram_jobs` ve `telegram_subscribers` koleksiyonları olduğu gibi duruyor. Artık hiçbir kod bunları okumuyor. İstenirse yedek alındıktan sonra yönetici elle silebilir.
+
 ## İncelemede doğrulanan yapı
 
 - Kök `package.json`: `start` → `node backend/server.js`; test → `npm run test:ai-support`.
@@ -40,11 +49,11 @@ Ardından GitHub Actions'ta "Web production deploy" iş akışını main için y
 3. Sunucuda `flock` kilidi, temiz Git checkout ve test edilen commit kontrolü. Sunucuda elle değişiklik varsa yayın durur.
 4. Aday kod ayrı dizine çıkarılır; canlı `.env` dosyaları oraya kopyalanmaz. Kilit dosyası değişmişse `npm ci`, değişmemişse mevcut bağımlılıklar kopyalanır. Frontend bağımlılıkları ilk kez yoksa da kurulur. Bu istisna ilk kuruluma aittir.
 5. Gereken frontend derlemesi canlı dizinin dışında yapılır. Derleme başarısızsa canlı dosyalar değişmez. Ardından `git pull --ff-only` ile **tam olarak test edilen main commit'i** alınır.
-6. Backend/kök package dosyaları değiştiyse `pm2 reload benimmarketim-api`. Yalnızca frontend değiştiyse PM2'ye dokunulmaz. Nginx ayarları değişmediği için Nginx reload gerekmez.
-7. Site ve `/api/products` HTTP 200 kontrolü yaklaşık 60 saniye boyunca tekrar denenir. Başarısızlıkta önceki commit, derleme ve değişmiş bağımlılıklar geri alınır; işlem hata koduyla biter.
+6. Backend/kök package dosyaları değiştiyse `pm2 reload benimmarketim-api`. Yalnızca frontend değiştiyse API'ye dokunulmaz (her yayında yalnızca, varsa, kaldırılan Telegram süreci silinir). Nginx ayarları değişmediği için Nginx reload gerekmez.
+7. Site ve `/api/version-check` HTTP 200 kontrolü yaklaşık 60 saniye boyunca tekrar denenir. Başarısızlıkta önceki commit, derleme ve değişmiş bağımlılıklar geri alınır; işlem hata koduyla biter.
 8. GitHub ayrıca dışarıdan aynı adresleri kontrol eder. **Sadece bu son dış kontrol başarısızsa otomatik geri alma olmaz**; sunucu kontrolü ve bağlantı durumu incelenir.
 
-Fork modunda `reload` kısa kesinti yaratabilir. Cluster'a otomatik geçilmez: zamanlanmış sepet bildirimlerinin çoğalması ve Socket.IO bağlantıları ayrıca tasarlanmalıdır. Frontend klasör değişimi de iki rename işlemidir; bu nedenle mutlak sıfır kesinti garantisi yoktur.
+Fork modunda `reload` kısa kesinti yaratabilir. Cluster'a otomatik geçilmez: zamanlanmış sepet bildirimlerinin çoğalması ve Socket.IO bağlantıları ayrıca tasarlanmalıdır. Tek süreçte Socket.IO bellek içi adapter ile çalışır; Redis adapter yalnızca `.env` içinde `SOCKET_REDIS_ADAPTER=1` verilirse açılır (cluster'a geçilirse gerekir). Redis bağlantısı koparsa API çökmez: en fazla 5 sn arayla yeniden bağlanır, bu sırada önbellek ve oturum anahtarları için bellek yedeği kullanılır. Frontend klasör değişimi de iki rename işlemidir; bu nedenle mutlak sıfır kesinti garantisi yoktur.
 
 Eski hash'li asset'ler korunur; otomatik 30 günlük silme uygulanmaz. Geri dönüş dizinleri ve bağımlılık kopyaları da korunur. Disk alanını izleyin; eski yedekleri çalışan bir yayın dışında yönetici temizleyebilir.
 

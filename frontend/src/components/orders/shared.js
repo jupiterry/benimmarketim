@@ -130,8 +130,6 @@ export const dateRange = (value, now = Date.now()) => {
 
 // ── Durumlar ──────────────────────────────────────────────────────────────
 export const ORDER_STATUSES = ["Hazırlanıyor", "Yolda", "Teslim Edildi", "İptal Edildi"];
-export const ACTIVE_STATUSES = ["Hazırlanıyor", "Yolda"];
-export const DONE_STATUSES = ["Teslim Edildi", "İptal Edildi"];
 export const isActiveStatus = (status) => status === "Hazırlanıyor" || status === "Yolda";
 export const isDoneStatus = (status) => status === "Teslim Edildi" || status === "İptal Edildi";
 
@@ -160,7 +158,6 @@ export const statusUi = (status) =>
     key: "unknown", label: status || "Bilinmiyor", tab: status || "—", lane: status || "—", tone: undefined, icon: Circle,
     verb: "güncellendi", timeline: status || "Durum değişti", waiting: null,
   };
-export const STATUS_DONE_VERB = Object.fromEntries(ORDER_STATUSES.map((s) => [s, STATUS[s].verb]));
 
 /** Aktif siparişin tek sonraki adımı */
 export const NEXT_ACTION = {
@@ -404,19 +401,6 @@ export const prepMinutes = (order) => {
   const onWay = getStatusTime(order, "Yolda");
   if (!onWay || !Number.isFinite(created)) return null;
   return withinDay(Math.round((onWay.getTime() - created) / MINUTE));
-};
-/** Yol süresi: teslimden önceki son "Yolda" → son "Teslim Edildi" (dk | null) */
-export const roadMinutes = (order) => {
-  if (order?.status !== "Teslim Edildi") return null;
-  const delivered = lastStatusTime(order, "Teslim Edildi");
-  if (!delivered) return null;
-  let onWay = null;
-  for (const entry of order.statusHistory || []) {
-    const ms = toMs(entry?.changedAt);
-    if (entry?.status === "Yolda" && Number.isFinite(ms) && ms <= delivered.getTime() && (onWay === null || ms > onWay)) onWay = ms;
-  }
-  if (onWay === null) return null;
-  return withinDay(Math.round((delivered.getTime() - onWay) / MINUTE));
 };
 /** Toplam teslim süresi: createdAt → son "Teslim Edildi" (dk | null; 24 sa üstü yok sayılır) */
 export const deliveryMinutes = (order) => {
@@ -709,7 +693,6 @@ export const createOrderFilter = (filters, { now = Date.now(), view = "list", ig
     return true;
   };
 };
-export const matchesFilters = (order, filters, options) => createOrderFilter(filters, options)(order);
 
 /** Kaldırılabilir etiketler (arama ve durum çipi zaten görünür olduğundan etiket olmaz) */
 export const filterTags = (filters, { view = "list" } = {}) => {

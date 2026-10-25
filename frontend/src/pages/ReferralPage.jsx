@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Gift, Share2, Copy, Users, Check, Clock, RefreshCw,
-  Award, Link2, Smartphone, QrCode, ChevronRight
+  Award, Link2, Smartphone, ChevronRight
 } from "lucide-react";
 import toast from "react-hot-toast";
 import axios from "../lib/axios";

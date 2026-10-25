@@ -89,9 +89,11 @@ const num = (v) => {
 };
 
 /** live | paused | expired */
+// Süresi dolan fırsatı sunucu dakikada bir kapatır (isActive:false); bitiş tarihi önce bakılır ki
+// "Durduruldu" değil "Süresi doldu" görünsün.
 const statusOf = (wp, now) => {
-  if (!wp.isActive) return "paused";
   if (wp.endDate && new Date(wp.endDate).getTime() <= now) return "expired";
+  if (!wp.isActive) return "paused";
   return "live";
 };
 

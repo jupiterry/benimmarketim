@@ -54,7 +54,7 @@ Bu aşama bitince sistem adresli siparişe hazır olur. Bir bayrakla kapalı ba�
 ### 1.5 Yönetici paneli: mevcut ekranların uyarlanması
 - **Siparişler:** adres ve "Haritada aç" linki, yurt çipleri yerine bölge filtresi ve bölgeye göre gruplama, çekmecede teslimat ücreti satırı.
 - **Çıktılar:** fiş, kurye fişi, toplama listesi, gün sonu ve CSV'de adres ve teslimat ücreti.
-- **Analitik ve raporlar:** ciro ürün tutarından hesaplanır, teslimat ücreti ayrı raporlanır (müşteri harcaması, kupon raporu ve Telegram özeti de buna göre).
+- **Analitik ve raporlar:** ciro ürün tutarından hesaplanır, teslimat ücreti ayrı raporlanır (müşteri harcaması ve kupon raporu da buna göre).
 - **Kuponlar:** yurt hedefleme yerine bölge hedefleme.
 - **Ayarlar:** genel minimum sepet ve sipariş saatleri burada kalır; bölge ayarları yeni ekranda.
 

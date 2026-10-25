@@ -1,0 +1,544 @@
+/* Otomatik bildirimler sekmesi (components/push/AutomationPanel.jsx, AutomationCard.jsx) — önek: au- */
+.admin-layout .au-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.admin-layout .au-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.admin-layout .au-intro {
+  max-width: 76ch;
+  margin: 0;
+  font-size: var(--ui-fs-sm);
+  line-height: 1.5;
+  color: var(--ui-text-2);
+}
+.admin-layout .au-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.admin-layout .au-last-tick {
+  margin: 0;
+}
+.admin-layout .au-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+/* ── Ortak gönderim kuralları ─────────────────────────────────────────── */
+.admin-layout .au-global {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 16px 24px;
+  padding: 16px;
+}
+.admin-layout .au-global-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.admin-layout .au-global-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.admin-layout .au-global-head h3 {
+  margin: 0;
+  font-size: var(--ui-fs-lg);
+  font-weight: 650;
+  color: var(--ui-text);
+}
+.admin-layout .au-global-head .ui-hint {
+  margin-top: 2px;
+}
+.admin-layout .au-global-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  align-items: end;
+  gap: 12px;
+}
+.admin-layout .au-global-save {
+  min-height: 34px;
+}
+.admin-layout .au-rules {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-2);
+  list-style: none;
+}
+.admin-layout .au-rules li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: var(--ui-fs-sm);
+  line-height: 1.45;
+  color: var(--ui-text-2);
+}
+.admin-layout .au-rules svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--ui-brand);
+}
+
+/* ── Otomasyon kartı ──────────────────────────────────────────────────── */
+.admin-layout .au-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  transition: border-color var(--ui-ease);
+}
+.admin-layout .au-card[data-on="true"] {
+  border-color: var(--ui-brand);
+}
+.admin-layout .au-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 16px 12px;
+}
+.admin-layout .au-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+}
+.admin-layout .au-card-icon svg {
+  width: 18px;
+  height: 18px;
+}
+.admin-layout .au-card[data-on="false"] .au-card-icon {
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+}
+.admin-layout .au-card-heading {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.admin-layout .au-card-titleline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+.admin-layout .au-card-titleline h3 {
+  margin: 0;
+  font-size: var(--ui-fs-lg);
+  font-weight: 650;
+  color: var(--ui-text);
+}
+.admin-layout .au-card-heading p {
+  margin: 4px 0 0;
+  font-size: var(--ui-fs-sm);
+  line-height: 1.45;
+  color: var(--ui-text-2);
+}
+.admin-layout .au-card-switch {
+  flex-shrink: 0;
+  margin: -4px -6px 0 0;
+}
+
+.admin-layout .au-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 16px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-2);
+}
+.admin-layout .au-stats > div {
+  min-width: 0;
+  padding: 8px 12px;
+}
+.admin-layout .au-stats > div + div {
+  border-left: 1px solid var(--ui-line);
+}
+.admin-layout .au-stats dt {
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  color: var(--ui-text-3);
+}
+.admin-layout .au-stats dd {
+  margin: 2px 0 0;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text-2);
+}
+.admin-layout .au-stats strong {
+  font-weight: 650;
+  color: var(--ui-text);
+}
+
+.admin-layout .au-card-body {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 16px 4px;
+}
+.admin-layout .au-section {
+  padding: 14px 0;
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .au-section:first-child {
+  border-top: 0;
+}
+.admin-layout .au-section-title {
+  margin: 0 0 10px;
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+  color: var(--ui-text);
+}
+.admin-layout .au-timing {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  align-items: start;
+  gap: 12px;
+}
+.admin-layout .au-field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.admin-layout .au-field > .ui-between {
+  margin-bottom: 6px;
+}
+.admin-layout .au-field > .ui-between .ui-label {
+  margin-bottom: 0;
+}
+.admin-layout .au-input-unit {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.admin-layout .au-input-unit .ui-field {
+  padding-right: 64px;
+}
+.admin-layout .au-input-unit > span {
+  position: absolute;
+  right: 10px;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text-3);
+  pointer-events: none;
+}
+.admin-layout .au-field .ui-field[aria-invalid="true"] {
+  border-color: var(--ui-danger);
+}
+.admin-layout .au-error {
+  margin-top: 5px;
+  font-size: var(--ui-fs-xs);
+  line-height: 1.4;
+  color: var(--ui-danger-ink);
+}
+
+.admin-layout .au-text-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+.admin-layout .au-text-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.admin-layout .au-textarea {
+  min-height: 84px;
+}
+.admin-layout .au-counter {
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+}
+.admin-layout .au-counter[data-state="near"] {
+  color: var(--ui-warn-ink);
+}
+.admin-layout .au-counter[data-state="over"] {
+  font-weight: 650;
+  color: var(--ui-danger-ink);
+}
+.admin-layout .au-placeholders {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.admin-layout .au-placeholders .ui-hint {
+  margin: 0;
+}
+.admin-layout .au-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  max-width: 100%;
+  padding: 0 9px;
+  border: 1px dashed var(--ui-line-strong);
+  border-radius: 999px;
+  background: var(--ui-surface);
+  color: var(--ui-brand-ink);
+  font: inherit;
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    border-color var(--ui-ease),
+    background var(--ui-ease);
+}
+.admin-layout .au-chip:hover:not(:disabled) {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand-soft);
+}
+.admin-layout .au-chip:disabled {
+  color: var(--ui-text-3);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.admin-layout .au-chip-hint {
+  overflow: hidden;
+  font-weight: 500;
+  color: var(--ui-text-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Telefonda görünüm */
+.admin-layout .au-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-3);
+}
+.admin-layout .au-preview-label {
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ui-text-3);
+}
+.admin-layout .au-notification {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-pop);
+}
+.admin-layout .au-notification-icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: var(--ui-surface);
+  object-fit: cover;
+}
+.admin-layout .au-notification-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.admin-layout .au-notification-app,
+.admin-layout .au-notification-time {
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  color: var(--ui-text-3);
+}
+.admin-layout .au-notification strong {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text);
+  overflow-wrap: anywhere;
+}
+.admin-layout .au-notification p {
+  margin: 2px 0 0;
+  font-size: var(--ui-fs-sm);
+  line-height: 1.4;
+  color: var(--ui-text-2);
+  overflow-wrap: anywhere;
+}
+.admin-layout .au-preview .ui-hint {
+  margin: 0;
+}
+
+/* Kupon */
+.admin-layout .au-toggle-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.admin-layout .au-toggle-row .au-section-title {
+  margin-bottom: 0;
+}
+.admin-layout .au-toggle-row .ui-hint {
+  margin-top: 3px;
+}
+.admin-layout .au-coupon {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+.admin-layout .au-coupon .ui-segmented {
+  align-self: flex-start;
+}
+.admin-layout .au-coupon-tip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-info-bg);
+}
+.admin-layout .au-coupon-tip .ui-hint {
+  margin: 0;
+  color: var(--ui-info-ink);
+}
+
+/* "Kaç kişiye gider?" sonucu */
+.admin-layout .au-reach {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 16px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-brand-soft);
+}
+.admin-layout .au-reach-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text);
+}
+.admin-layout .au-reach-main svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ui-brand-ink);
+}
+.admin-layout .au-reach-main strong {
+  font-size: var(--ui-fs-lg);
+  color: var(--ui-brand-ink);
+}
+.admin-layout .au-reach-samples {
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text-2);
+  overflow-wrap: anywhere;
+}
+.admin-layout .au-reach .ui-hint {
+  margin: 0;
+}
+
+.admin-layout .au-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-top: auto;
+  padding: 12px 16px;
+  border-top: 1px solid var(--ui-line);
+  background: var(--ui-surface-2);
+}
+.admin-layout .au-card-foot-meta .ui-hint {
+  margin: 0;
+}
+.admin-layout .au-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 1100px) {
+  .admin-layout .au-global {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .admin-layout .au-global {
+    padding: 14px;
+  }
+  .admin-layout .au-global-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .admin-layout .au-global-fields > .au-field:nth-child(3),
+  .admin-layout .au-global-save {
+    grid-column: 1 / -1;
+  }
+  .admin-layout .au-global-save {
+    min-height: 40px;
+    justify-content: center;
+  }
+  .admin-layout .au-card-head {
+    padding: 14px 14px 10px;
+  }
+  .admin-layout .au-card-switch,
+  .admin-layout .au-toggle-row .ui-switch {
+    width: 44px;
+    height: 40px;
+  }
+  .admin-layout .au-stats {
+    grid-template-columns: minmax(0, 1fr);
+    margin: 0 14px;
+  }
+  .admin-layout .au-stats > div + div {
+    border-top: 1px solid var(--ui-line);
+    border-left: 0;
+  }
+  .admin-layout .au-card-body {
+    padding: 4px 14px;
+  }
+  .admin-layout .au-timing {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .admin-layout .au-text-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-layout .au-chip {
+    min-height: 36px;
+  }
+  .admin-layout .au-reach {
+    margin: 0 14px 12px;
+  }
+  .admin-layout .au-card-foot {
+    padding: 12px 14px;
+  }
+  .admin-layout .au-card-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+  .admin-layout .au-card-actions .ui-btn {
+    min-height: 40px;
+    justify-content: center;
+  }
+}

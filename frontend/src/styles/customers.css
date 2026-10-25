@@ -466,11 +466,6 @@
   gap: 6px;
   font-weight: 550;
 }
-.admin-layout .cus-skel {
-  display: block;
-  width: 70%;
-  height: 14px;
-}
 .admin-layout .cus-device {
   display: flex;
   flex-wrap: wrap;

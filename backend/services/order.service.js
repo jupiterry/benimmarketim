@@ -11,7 +11,7 @@ import WeeklyProduct from "../models/weeklyProduct.model.js";
 import Coupon from "../models/coupon.model.js";
 import Order from "../models/order.model.js";
 import { notifyAdmins } from "./adminFeed.service.js";
-import { resolveUnitPrice } from "./productPricing.js";
+import { activeWeeklyFilter, isWeeklyDealLive, resolveUnitPrice, roundMoney, toKurus } from "./productPricing.js";
 import { paymentMethodLabel } from "../lib/paymentMethods.js";
 import { signalOrderAlarm } from "./orderAlarm.service.js";
 import { notifyOrderStatusChange } from "./orderStatusNotifier.js";
@@ -46,21 +46,25 @@ export const normalizeOrderSource = (value) => {
 };
 
 export async function buildOrderProducts(cartProducts, { checkAvailability = true } = {}) {
-  // Haftalık indirimli ürünleri tek sorguda al
-  const weeklyProducts = await WeeklyProduct.find({ isActive: true }).lean();
+  const now = new Date();
+  const productIds = cartProducts.map((item) => item.product).filter(Boolean);
+
+  // Sepetteki ürünlerin şu an geçerli haftalık fırsatları tek sorguda (başlamamış ya da süresi
+  // dolmuş fırsat uygulanmaz — productPricing.activeWeeklyFilter)
+  const weeklyProducts = await WeeklyProduct.find({ ...activeWeeklyFilter(now), product: { $in: productIds } }).lean();
   const weeklyPriceMap = new Map();
   for (const wp of weeklyProducts) {
-    if (wp.product) {
+    if (wp.product && isWeeklyDealLive(wp, now)) {
       weeklyPriceMap.set(wp.product.toString(), wp.weeklyPrice);
     }
   }
 
   // Ürün bilgilerini tek sorguda al (N+1'i önler)
-  const productIds = cartProducts.map((item) => item.product).filter(Boolean);
   const dbProducts = await Product.find({ _id: { $in: productIds } }).lean();
   const productMap = new Map(dbProducts.map((p) => [p._id.toString(), p]));
 
-  let totalAmount = 0;
+  // Toplam tam sayı kuruş olarak biriktirilir (ondalık toplama hatası: 38.699999)
+  let totalKurus = 0;
 
   const orderProducts = cartProducts.map((cartItem) => {
     if (!cartItem.product) {
@@ -87,9 +91,10 @@ export async function buildOrderProducts(cartProducts, { checkAvailability = tru
     // Haftalık fırsat, ürün indirimi (flash sale dahil) ve liste fiyatının en düşüğü
     // (services/productPricing.js — ürün listelerindeki actualPrice ile aynı kural)
     const weeklyPrice = weeklyPriceMap.get(product._id.toString());
+    // Birim fiyat kuruşa yuvarlanmış gelir; satır toplamı da kuruş üzerinden
     const { price: effectivePrice, source: priceSource } = resolveUnitPrice(product, weeklyPrice);
 
-    totalAmount += effectivePrice * quantity;
+    totalKurus += toKurus(effectivePrice * quantity);
 
     return {
       product: product._id,
@@ -104,7 +109,7 @@ export async function buildOrderProducts(cartProducts, { checkAvailability = tru
     };
   });
 
-  return { orderProducts, totalAmount };
+  return { orderProducts, totalAmount: totalKurus / 100 };
 }
 
 const OBJECT_ID_PATTERN = /^[0-9a-f]{24}$/i;
@@ -304,7 +309,8 @@ export async function validateAndCalculateCoupon(
   if (!validation.valid) {
     throw Object.assign(new Error(validation.message), { statusCode: 400 });
   }
-  const couponDiscount = validation.calculatedDiscount;
+  // Yüzdelik indirim 12.345 gibi çıkabilir: kuruşa yuvarlanır (siparişe yuvarlanmış tutar yazılır)
+  const couponDiscount = roundMoney(validation.calculatedDiscount);
   return { appliedCoupon: coupon, couponDiscount };
 }
 

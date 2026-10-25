@@ -24,6 +24,7 @@ import mongoose from "mongoose";
 import DeliveryZone, { DEVREK_ZONE_ID, FIXED_ZONE_IDS, LEGACY_POINTS, ZONE_TYPES } from "../models/deliveryZone.model.js";
 import Order from "../models/order.model.js";
 import Settings from "../models/settings.model.js";
+import { meetsMinimumAmount, roundMoney, toKurus } from "./productPricing.js";
 
 export { DEVREK_ZONE_ID, FIXED_ZONE_IDS, LEGACY_POINTS, ZONE_TYPES };
 export const ADDRESS_ORDERING_MODES = ["off", "pilot", "public"];
@@ -35,7 +36,8 @@ export const STORE_POINT = Object.freeze({ lat: 41.2207, lng: 31.9563 });
 export const OUT_OF_AREA_MESSAGE = "Bu adres teslimat alanımızın dışında. Haritada Devrek sınırı içinde bir nokta seç.";
 export const isFixedZoneId = (id) => FIXED_ZONE_IDS.includes(id);
 
-export const roundMoney = (value) => Math.round(Number(value || 0) * 100) / 100;
+// Kuruş yuvarlaması tek yerde (productPricing.js); eski içe aktarımlar için buradan da dışa aktarılır
+export { roundMoney };
 const isNum = (value) => typeof value === "number" && Number.isFinite(value);
 const plain = (doc) => (doc && typeof doc.toObject === "function" ? doc.toObject() : doc || {});
 
@@ -57,7 +59,8 @@ export const resolveMinimumOrderAmount = (zone, settings) => {
 /**
  * Teslimat ücreti ve minimum sepet hesabı (tek fonksiyon).
  * @param {{ zone: object, subtotal: number, settings: object }} input
- *   subtotal = kupon öncesi ürün tutarı (minimum kontrolüyle aynı taban)
+ *   subtotal = kupon öncesi ürün tutarı (minimum kontrolüyle aynı taban). Tüm tutarlar kuruşa
+ *   yuvarlanır; eşik ve minimum kuruş üzerinden karşılaştırılır.
  * @returns {{ zoneId, zoneName, subtotal, deliveryFee, isFree, freeReason, remainingForFree,
  *   minimumOrderAmount, meetsMinimum, total }}
  */
@@ -75,7 +78,7 @@ export const computeDeliveryQuote = ({ zone, subtotal, settings }) => {
   } else if (zoneFee === 0) {
     deliveryFee = 0;
     freeReason = "zone";
-  } else if (threshold !== null && amount >= threshold) {
+  } else if (threshold !== null && toKurus(amount) >= toKurus(threshold)) {
     deliveryFee = 0;
     freeReason = "threshold";
   }
@@ -91,7 +94,8 @@ export const computeDeliveryQuote = ({ zone, subtotal, settings }) => {
     freeReason,
     remainingForFree: threshold !== null && deliveryFee > 0 ? roundMoney(threshold - amount) : null,
     minimumOrderAmount,
-    meetsMinimum: minimumOrderAmount <= 0 || amount >= minimumOrderAmount,
+    // Kuruş üzerinden: tam 250,00 TL'lik sepet 250 TL minimumu geçer
+    meetsMinimum: meetsMinimumAmount(amount, minimumOrderAmount),
     total: roundMoney(amount + deliveryFee),
   };
 };

@@ -644,21 +644,6 @@ export const buildOrderSummaryText = (order) => {
   return lines.join("\n");
 };
 
-// Müşteriye WhatsApp'tan gönderilecek hazır mesaj (duruma göre)
-export const buildWhatsAppMessage = (order) => {
-  // Silinmiş hesapta "Silinmiş" diye selamlanmasın: ad kullanılmaz
-  const firstName = isDeletedAccount(order) ? "" : String(order.user?.name || "").trim().split(/\s+/)[0] || "";
-  const greeting = firstName ? `Merhaba ${firstName},` : "Merhaba,";
-  const no = `#${shortOrderId(order.orderId)}`;
-  const byStatus = {
-    "Hazırlanıyor": `${no} numaralı siparişinizi hazırlıyoruz.`,
-    "Yolda": `${no} numaralı siparişiniz yola çıktı, birazdan ${isAddressOrder(order) ? "adresinizde" : order.deliveryPointName || "teslimat noktanızda"} olacak.`,
-    "Teslim Edildi": `${no} numaralı siparişiniz teslim edildi. Afiyet olsun!`,
-    "İptal Edildi": `${no} numaralı siparişiniz hakkında yazıyoruz.`,
-  };
-  return `${greeting} Benim Marketim'den yazıyoruz. ${byStatus[order.status] || `${no} numaralı siparişiniz hakkında yazıyoruz.`}`;
-};
-
 // ── Gün sonu ve kurye fişi ────────────────────────────────────────────────────
 // "Bugün" İstanbul günüdür (sabit UTC+3, backend startOfTrDay ve shared.startOfDay ile aynı hesap).
 // shared.js bu dosyayı içe aktardığı için zaman yardımcıları burada yerel olarak tekrarlanır.

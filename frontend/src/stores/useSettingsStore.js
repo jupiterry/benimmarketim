@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import axios from "../lib/axios";
 
-export const useSettingsStore = create((set, get) => ({
+export const useSettingsStore = create((set) => ({
   settings: {
     orderStartHour: 10,
     orderStartMinute: 0,
@@ -88,41 +88,5 @@ export const useSettingsStore = create((set, get) => ({
       set({ loading: false });
       return null;
     }
-  },
-  
-  updateSettings: async (newSettings) => {
-    try {
-      set({ loading: true });
-      const res = await axios.put("/settings", newSettings);
-      set({ 
-        settings: res.data.settings,
-        loading: false 
-      });
-      return true;
-    } catch (error) {
-      console.error("Error updating settings:", error);
-      set({ loading: false });
-      return false;
-    }
-  },
-  
-  // Helper function to get formatted order hours
-  getFormattedOrderHours: () => {
-    const { orderStartHour, orderStartMinute, orderEndHour, orderEndMinute } = get().settings;
-    
-    const formatTime = (hour, minute) => {
-      return `${hour}:${minute.toString().padStart(2, '0')}`;
-    };
-    
-    return {
-      start: formatTime(orderStartHour, orderStartMinute),
-      end: formatTime(orderEndHour, orderEndMinute),
-      isNextDay: orderStartHour > orderEndHour
-    };
-  },
-  
-  // Helper to get minimum order amount
-  getMinimumOrderAmount: () => {
-    return get().settings.minimumOrderAmount;
   }
 }));

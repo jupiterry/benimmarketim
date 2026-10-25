@@ -54,7 +54,7 @@ const KvkkRequestPage = () => {
             </div>
           </div>
           <p className="legal-text legal-text--sm legal-text--top">
-            Haklarınızın tamamı için <Link className="legal-link" to="/kvkk">KVKK Aydınlatma Metni</Link>'ne bakabilirsiniz.
+            Haklarınızın tamamı için <Link className="legal-link" to="/kvkk">KVKK Aydınlatma Metni</Link>&apos;ne bakabilirsiniz.
             Yalnızca hesabınızı silmek istiyorsanız <Link className="legal-link" to="/hesap-silme">Hesap ve Veri Silme</Link> sayfasını kullanabilirsiniz.
           </p>
         </section>
