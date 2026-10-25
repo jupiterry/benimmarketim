@@ -12,6 +12,7 @@ import Product from "../models/product.model.js";
 import { getStatsSnapshot } from "../services/recommendation.service.js";
 import { activeWeeklyFilter, isWeeklyDealLive } from "../services/productPricing.js";
 import { PUSH_CATEGORIES, inspectPushUser, isPushConfigured, normalizePreferences, sendPushToUsers } from "../services/push.service.js";
+import { describeTestSend, resolveTestRecipient, toTestRecipient } from "../services/notificationAutomation.service.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DUPLICATE_WINDOW_MS = 10 * 60 * 1000;
@@ -26,7 +27,8 @@ export const BROADCAST_AUDIENCES = {
   noOrder: "Hiç sipariş vermeyenler",
 };
 
-// Yöneticinin bildirimi önce yalnızca kendi telefonunda denemesi için
+// Bildirimi herkese göndermeden önce tek bir telefonda denemek için. Adı geriye uyumluluk için "self" kalır;
+// deneme, paneldeki test alıcısına gider (bkz. resolveTestRecipient: seçilen hesap > kayıtlı alıcı > gönderen yönetici).
 export const TEST_AUDIENCE = "self";
 
 // Yapay zekâ sağlayıcısı hatasını yöneticinin anlayacağı bir açıklamaya çevirir.
@@ -213,7 +215,7 @@ export const getBroadcastOverview = async (_req, res) => {
     const [total, reachable] = await Promise.all([User.countDocuments(filter), User.countDocuments({ ...filter, ...campaignOptIn })]);
     return { id, label, total, reachable };
   }));
-  const history = await PushBroadcast.find().sort({ createdAt: -1 }).limit(20).populate("sentBy", "name").lean();
+  const history = await PushBroadcast.find().sort({ createdAt: -1 }).limit(20).populate("sentBy", "name").populate("testRecipient", "name email").lean();
   res.json({ success: true, configured: isPushConfigured(), audiences, history });
 };
 
@@ -284,9 +286,16 @@ export const sendBroadcast = async (req, res) => {
   if (!isPushConfigured()) return res.status(503).json({ success: false, message: "Bildirim servisi yapılandırılmamış (OneSignal anahtarları eksik)" });
 
   let userIds;
+  let recipient = null;
   if (isTest) {
-    // Deneme: yalnızca gönderen yöneticinin kendi hesabına gider
-    userIds = [req.user._id];
+    // Deneme: yalnızca test alıcısına gider (gövdedeki recipientId > kayıtlı test alıcısı > gönderen yönetici)
+    try {
+      ({ user: recipient } = await resolveTestRecipient({ recipientId: req.body?.recipientId, requester: req.user }));
+    } catch (error) {
+      if (error.status === 400 || error.status === 404) return res.status(error.status).json({ success: false, message: error.message });
+      throw error;
+    }
+    userIds = [recipient._id];
   } else {
     // Yanlışlıkla çift gönderimi engelle (başarısız denemeler yeniden gönderilebilir)
     const duplicate = await PushBroadcast.findOne({ title, body, sent: true, audience: { $ne: TEST_AUDIENCE }, createdAt: { $gte: new Date(Date.now() - DUPLICATE_WINDOW_MS) } }).select("_id").lean();
@@ -297,22 +306,32 @@ export const sendBroadcast = async (req, res) => {
     userIds = users.map((user) => user._id);
   }
 
-  const record = await PushBroadcast.create({ title, body, audience, route, audienceSize: userIds.length, sentBy: req.user._id });
-  const result = await sendPushToUsers(userIds, { title, body }, { type: "broadcast", broadcastId: String(record._id), route }, { category: "campaigns" });
+  // Deneme de kayda "self" kitlesiyle yazılır (gerçek gönderim sayılmaz) ve alıcısı saklanır
+  const record = await PushBroadcast.create({
+    title, body, audience, route, audienceSize: userIds.length, sentBy: req.user._id,
+    ...(isTest ? { testRecipient: recipient._id } : {}),
+  });
+  const data = { type: "broadcast", broadcastId: String(record._id), route };
+  // Denemede kampanya tercihi atlanır (kapalı tercih denemeyi sessizce engellemesin); bildirimler tamamen kapalıysa gönderilmez
+  const result = isTest && recipient.pushNotificationsEnabled === false
+    ? { targeted: 0, sent: false, reason: "push_disabled", detail: "", unreachable: 0 }
+    : await sendPushToUsers(userIds, { title, body }, data, isTest ? { category: "campaigns", respectCategory: false } : { category: "campaigns" });
   await PushBroadcast.updateOne({ _id: record._id }, { $set: { targetedCount: result.targeted, sent: result.sent, failureReason: result.sent ? null : result.reason || "unknown", unreachableCount: result.unreachable || 0 } });
+  if (isTest) {
+    const outcome = describeTestSend(result, recipient, { systemMessage: result.sent ? "" : describePushFailure(result).message });
+    const summary = toTestRecipient(recipient);
+    if (!outcome.success) return res.status(outcome.status).json({ success: false, reason: outcome.reason, message: outcome.message, recipient: summary });
+    return res.json({ success: true, targeted: result.targeted, unreachable: result.unreachable || 0, message: outcome.message, recipient: summary });
+  }
   if (!result.sent) {
     const failure = describePushFailure(result);
-    const message = isTest && result.reason === "no_devices"
-      ? "Deneme bildirimi gönderilemedi: bu yönetici hesabıyla mobil uygulamanın güncel sürümünde oturum açılmamış. Telefonunuzda uygulamaya bu hesapla girip bildirimlere izin verin."
-      : isTest && !result.reason ? "Deneme bildirimi gönderilemedi: hesabınızda bildirimler ya da kampanya bildirimleri kapalı." : failure.message;
-    return res.status(failure.status).json({ success: false, reason: result.reason || "opted_out", message });
+    return res.status(failure.status).json({ success: false, reason: result.reason || "opted_out", message: failure.message });
   }
   const reached = Math.max(0, result.targeted - (result.unreachable || 0));
   res.json({
     success: true,
     targeted: result.targeted,
     unreachable: result.unreachable || 0,
-    message: isTest ? "Deneme bildirimi telefonunuza gönderildi"
-      : result.unreachable ? `${reached} müşteriye gönderildi (${result.unreachable} müşterinin kayıtlı cihazı yok)` : `${result.targeted} müşteriye gönderildi`,
+    message: result.unreachable ? `${reached} müşteriye gönderildi (${result.unreachable} müşterinin kayıtlı cihazı yok)` : `${result.targeted} müşteriye gönderildi`,
   });
 };

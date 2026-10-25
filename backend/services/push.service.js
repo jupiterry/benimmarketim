@@ -150,20 +150,24 @@ const sendViaFcm = async (fcmToken, message, data) => {
  * @param {Array<string|object>} userIds
  * @param {{title: string, body: string}} message
  * @param {object} data - Uygulamaya taşınan ek veri (type, route, ...)
- * @param {{category?: "orders"|"messages"|"campaigns", collapseId?: string}} options
+ * @param {{category?: "orders"|"messages"|"campaigns", collapseId?: string, respectCategory?: boolean}} options
+ *   respectCategory: false yalnızca yöneticinin test gönderimleri içindir; kategori tercihi (ör. kampanya bildirimleri
+ *   kapalı) atlanır, "bildirimler tamamen kapalı" (pushNotificationsEnabled: false) yine de uygulanır.
  * @returns {Promise<{targeted: number, sent: boolean, reason: string|null, detail: string, unreachable: number}>}
  *   targeted: izinli kullanıcı sayısı; sent: en az bir kanal bildirimi kabul etti;
  *   reason: gönderilemediyse nedeni ("not_configured" | "auth" | "rejected" | "network" | "no_devices" | "error");
  *   "error": beklenmeyen sunucu hatası (ör. veritabanı zaman aşımı); null: izinli kullanıcı yok (bildirimleri kapalı)
  *   unreachable: OneSignal'ın kayıtlı cihazı olmadığını bildirdiği kullanıcı sayısı
  */
-export const sendPushToUsers = async (userIds, message, data = {}, { category = "orders", collapseId } = {}) => {
+export const sendPushToUsers = async (userIds, message, data = {}, { category = "orders", collapseId, respectCategory = true } = {}) => {
   const empty = { targeted: 0, sent: false, reason: null, detail: "", unreachable: 0 };
   try {
     if (!PUSH_CATEGORIES.includes(category)) throw new Error("PUSH_CATEGORY_INVALID");
     const ids = [...new Set((userIds || []).filter(Boolean).map(String))];
     if (!ids.length || !message?.title || !message?.body) return empty;
-    const users = await User.find({ _id: { $in: ids }, pushNotificationsEnabled: { $ne: false }, [`notificationPreferences.${category}`]: { $ne: false } })
+    const filter = { _id: { $in: ids }, pushNotificationsEnabled: { $ne: false } };
+    if (respectCategory !== false) filter[`notificationPreferences.${category}`] = { $ne: false };
+    const users = await User.find(filter)
       .select("_id fcmToken").lean();
     if (!users.length) return empty;
     const payload = cleanData(data);

@@ -57,6 +57,8 @@ const DEFAULT_COUPON = { enabled: false, type: "percentage", value: 10, validDay
 export const DEFAULT_AUTOMATION_SETTINGS = Object.freeze({
   window: { start: "10:00", end: "21:30" },
   minHoursBetween: 24,
+  // Paneldeki test gönderimlerinin alıcısı (User kimliği); null → isteyen yöneticinin kendisi
+  testRecipientId: null,
   secondOrder: {
     enabled: false,
     title: "İlk siparişin nasıldı, {ad}? 🛒",
@@ -121,6 +123,9 @@ const COUPON_RANGES = {
 };
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
+const OBJECT_ID = /^[0-9a-f]{24}$/i;
+/** 24 karakterlik onaltılı MongoDB kimliği mi? (ObjectId nesnesi de metne çevrilip denetlenir) */
+export const isObjectIdString = (value) => value !== null && value !== undefined && OBJECT_ID.test(String(value));
 const isPlainObject = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 const getPath = (obj, path) => path.split(".").reduce((acc, key) => (acc == null ? undefined : acc[key]), obj);
 const clamp = (value, [min, max], fallback, decimals = 0) => {
@@ -157,6 +162,7 @@ export const normalizeAutomationSettings = (raw) => {
   const end = CLOCK.test(src.window?.end || "") ? src.window.end : out.window.end;
   out.window = clockToMinutes(start) < clockToMinutes(end) ? { start, end } : out.window;
   out.minHoursBetween = clamp(src.minHoursBetween, RANGES.minHoursBetween, out.minHoursBetween);
+  out.testRecipientId = isObjectIdString(src.testRecipientId) ? String(src.testRecipientId).toLowerCase() : null;
   for (const type of AUTOMATION_TYPES) {
     const stored = isPlainObject(src[type]) ? src[type] : {};
     const target = out[type];
@@ -194,6 +200,12 @@ export const validateAutomationSettingsInput = (body, current) => {
     merged.window = { start: String(start), end: String(end) };
   }
   if (body.minHoursBetween !== undefined) merged.minHoursBetween = body.minHoursBetween;
+  // Test alıcısı: kimlik biçimi burada, hesabın varlığı denetleyicide (veritabanı) doğrulanır; null/"" → kendim
+  if (body.testRecipientId !== undefined) {
+    if (body.testRecipientId === null || body.testRecipientId === "") merged.testRecipientId = null;
+    else if (typeof body.testRecipientId === "string" && isObjectIdString(body.testRecipientId)) merged.testRecipientId = body.testRecipientId.toLowerCase();
+    else return { error: "Test alıcısı geçersiz" };
+  }
   for (const type of AUTOMATION_TYPES) {
     const input = body[type];
     if (input === undefined) continue;
@@ -259,6 +271,8 @@ export const validateAutomationSettingsInput = (body, current) => {
 };
 
 const onOff = (value) => (value ? "Açık" : "Kapalı");
+export const SELF_RECIPIENT_LABEL = "Giriş yapan yönetici";
+export const TEST_RECIPIENT_LABEL = "Test bildirimi alıcısı";
 const couponText = (c) => (c?.enabled ? `${c.type === "fixed" ? `${c.value} TL` : `%${c.value}`} · ${c.validDays} gün · alt tutar ${c.minOrderAmount} TL` : "Kapalı");
 /** İşlem kaydı için "etiket: eski → yeni" listesi */
 export const describeSettingsChanges = (before, after) => {
@@ -266,6 +280,8 @@ export const describeSettingsChanges = (before, after) => {
   const push = (label, from, to) => { if (String(from) !== String(to)) changes.push({ label, from, to }); };
   push("Gönderim saatleri", `${before.window.start}–${before.window.end}`, `${after.window.start}–${after.window.end}`);
   push(RANGES.minHoursBetween[2], before.minHoursBetween, after.minHoursBetween);
+  // Denetleyici kimlikleri işlem kaydında hesap adıyla değiştirir
+  push(TEST_RECIPIENT_LABEL, before.testRecipientId || SELF_RECIPIENT_LABEL, after.testRecipientId || SELF_RECIPIENT_LABEL);
   for (const type of AUTOMATION_TYPES) {
     const label = AUTOMATION_LABELS[type];
     push(label, onOff(before[type].enabled), onOff(after[type].enabled));
@@ -543,12 +559,15 @@ export const pickClosedCartCandidates = (users, period, now = new Date(), until 
   return out;
 };
 
+/** Bildirim alabilecek bir cihazı görünüyor mu? (PUSH_TARGET sorgusunun JS karşılığı) */
+export const hasPushTarget = (user) => Boolean(user?.appActivity?.lastSeenAt || (typeof user?.fcmToken === "string" && user.fcmToken.trim()));
+
 /** Bildirim alabilir mi? (sorgu filtresinin JS karşılığı; eski/eksik kayıtlara karşı ikinci kontrol) */
 export const isReachableUser = (user) => Boolean(user)
   && user.role !== "admin"
   && user.pushNotificationsEnabled !== false
   && user.notificationPreferences?.campaigns !== false
-  && Boolean(user.appActivity?.lastSeenAt || (typeof user.fcmToken === "string" && user.fcmToken.trim()));
+  && hasPushTarget(user);
 
 // Mobil uygulamayı bildirim destekli sürümden beri açmış (OneSignal kimliği eşlenir) ya da FCM adresi olan
 const PUSH_TARGET = { $or: [{ "appActivity.lastSeenAt": { $ne: null } }, { fcmToken: { $nin: [null, ""] } }] };
@@ -994,16 +1013,106 @@ export const previewAutomation = async (type, { now = new Date(), override } = {
   };
 };
 
-/** Panelde "Bana test gönder": yalnızca isteyen yöneticiye, örnek değerlerle. Kayıt ya da kupon oluşturmaz. */
-export const sendAutomationTest = async (type, adminUser, { override, send = sendPushToUsers } = {}) => {
-  const settings = applyOverride(await getAutomationSettings(), type, override);
+// ── Test alıcısı ──────────────────────────────────────────────────────────
+// Paneldeki iki test gönderimi (otomasyon kartı ve tek seferlik bildirim denemesi) aynı alıcıyı kullanır:
+// istekte seçilen hesap (recipientId) > ayarlarda kayıtlı test alıcısı > isteyen yönetici.
+const RECIPIENT_FIELDS = "_id name email phone role pushNotificationsEnabled notificationPreferences appActivity.lastSeenAt fcmToken";
+const httpError = (status, message) => Object.assign(new Error(message), { status });
+
+/** Panelde gösterilen alıcı özeti; cihaz adresi gibi alanlar dışarı verilmez. */
+export const toTestRecipient = (user) => (user ? {
+  _id: String(user._id),
+  name: user.name || "",
+  email: user.email || "",
+  phone: user.phone || "",
+  role: user.role === "admin" ? "admin" : "customer",
+  hasPushTarget: hasPushTarget(user),
+  pushEnabled: user.pushNotificationsEnabled !== false,
+  campaignsEnabled: user.notificationPreferences?.campaigns !== false,
+} : null);
+
+/** "Benim Marketim (benimmarketim@gmail.com)" */
+export const recipientLabel = (user) => {
+  const name = String(user?.name || "").trim();
+  const contact = String(user?.email || user?.phone || "").trim();
+  if (name && contact) return `${name} (${contact})`;
+  return name || contact || "Seçili";
+};
+
+export const findTestRecipient = async (id) => (isObjectIdString(id) ? User.findById(String(id)).select(RECIPIENT_FIELDS).lean() : null);
+
+/**
+ * Test gönderiminin alıcısını bulur. Geçersiz ya da bulunamayan recipientId için status'lu (400/404) hata fırlatır.
+ * Kayıtlı alıcı silinmişse (ya da ayar okunamazsa) isteyen yöneticiye düşülür; yanıt mesajı hesabı adıyla söyler.
+ * @returns {Promise<{ user: object, source: "request"|"saved"|"self" }>}
+ */
+export const resolveTestRecipient = async ({ recipientId, requester, settings } = {}) => {
+  if (recipientId !== undefined && recipientId !== null && recipientId !== "") {
+    if (typeof recipientId !== "string" || !isObjectIdString(recipientId)) throw httpError(400, "Test alıcısı geçersiz");
+    const user = await findTestRecipient(recipientId);
+    if (!user) throw httpError(404, "Test alıcısı bulunamadı; hesap silinmiş olabilir");
+    return { user, source: "request" };
+  }
+  let savedId = null;
+  try {
+    savedId = (settings || await getAutomationSettings()).testRecipientId;
+  } catch (error) {
+    console.error("Test alıcısı ayarı okunamadı:", error.message);
+  }
+  if (savedId && savedId !== String(requester?._id || "")) {
+    const user = await findTestRecipient(savedId);
+    if (user) return { user, source: "saved" };
+  }
+  return { user: requester, source: "self" };
+};
+
+const TEST_SYSTEM_MESSAGES = {
+  network: "OneSignal'a ulaşılamadı. Birkaç dakika sonra tekrar deneyin.",
+  error: "Test bildirimi gönderilirken sunucu hatası oluştu. Birkaç dakika sonra tekrar deneyin.",
+  not_configured: "Bildirim servisi yapılandırılmamış (OneSignal anahtarları eksik)",
+  auth: "OneSignal anahtarı kabul edilmedi. Sunucudaki OneSignal ayarlarını kontrol edin.",
+  rejected: "OneSignal bildirimi kabul etmedi. Sunucudaki OneSignal ayarlarını kontrol edin.",
+};
+
+/**
+ * Test gönderiminin sonucunu yöneticiye gösterilecek yanıta çevirir; mesaj alıcı hesabı adıyla söyler.
+ * systemMessage: servis hatalarında (anahtar, ağ…) kullanılacak daha ayrıntılı açıklama (isteğe bağlı).
+ * @returns {{ status: number, success: boolean, reason?: string, message: string }}
+ */
+export const describeTestSend = (result, user, { systemMessage } = {}) => {
+  const who = recipientLabel(user);
+  if (result?.sent) {
+    const note = user?.notificationPreferences?.campaigns === false
+      ? ". Not: bu hesapta kampanya bildirimleri kapalı; test yine de gönderildi ama gerçek gönderimler bu hesaba gitmez."
+      : "";
+    return { status: 200, success: true, message: `Test bildirimi ${who} hesabının telefonuna gönderildi${note}` };
+  }
+  const reason = result?.reason || "opted_out";
+  const recipientMessages = {
+    push_disabled: `Test bildirimi gönderilemedi: ${who} hesabında bildirimler kapalı. Telefonda uygulamanın bildirim ayarından bildirimleri açın ya da test alıcısını değiştirin.`,
+    no_devices: `Test bildirimi gönderilemedi: ${who} hesabıyla mobil uygulamada oturum açılmamış ya da bildirim izni verilmemiş. Telefonda uygulamaya bu hesapla girip bildirimlere izin verin ya da test alıcısını değiştirin.`,
+    opted_out: `Test bildirimi gönderilemedi: ${who} hesabı bildirim almaya izin vermiyor.`,
+  };
+  const status = reason === "error" ? 500 : reason === "not_configured" ? 503 : ["network", "auth", "rejected"].includes(reason) ? 502 : 422;
+  const message = recipientMessages[reason] || systemMessage || TEST_SYSTEM_MESSAGES[reason] || TEST_SYSTEM_MESSAGES.rejected;
+  return { status, success: false, reason, message };
+};
+
+/**
+ * Panelde "Test gönder": yalnızca test alıcısına (bkz. resolveTestRecipient), alıcının adı ve örnek değerlerle.
+ * Kayıt ya da kupon oluşturmaz. Kampanya kategorisi tercihi atlanır (kapalı tercih testi sessizce engellemesin);
+ * hesapta bildirimler tamamen kapalıysa gönderilmez ve reason "push_disabled" döner.
+ */
+export const sendAutomationTest = async (type, recipient, { override, send = sendPushToUsers, settings: loaded } = {}) => {
+  const settings = applyOverride(loaded || await getAutomationSettings(), type, override);
   const config = settings[type];
-  const vars = { ad: firstName(adminUser?.name) };
+  const vars = { ad: firstName(recipient?.name) };
   if (config.coupon?.enabled) Object.assign(vars, { kupon: `${COUPON_PREFIX[type]}ORNEK`, indirim: discountText(config.coupon.type, config.coupon.value), gun: config.coupon.validDays });
   if (type === "couponExpiry") Object.assign(vars, { kupon: "ORNEK10", indirim: "%10", saat: Math.min(config.hoursBefore, 12) });
   if (type === "closedCart") Object.assign(vars, { adet: 3, urun: "Süt, Ekmek ve 1 ürün daha" });
   const message = renderMessage(config, vars);
-  const result = await send([adminUser._id], message, { type: "automation_test", automation: type, route: ROUTES[type] }, { category: "campaigns" });
+  if (recipient?.pushNotificationsEnabled === false) return { targeted: 0, sent: false, reason: "push_disabled", detail: "", unreachable: 0, message };
+  const result = await send([recipient._id], message, { type: "automation_test", automation: type, route: ROUTES[type] }, { category: "campaigns", respectCategory: false });
   return { ...result, message };
 };
 

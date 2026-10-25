@@ -14,6 +14,8 @@ const pushBroadcastSchema = new mongoose.Schema({
   // OneSignal'ın kayıtlı cihazı olmadığını bildirdiği müşteri sayısı
   unreachableCount: { type: Number, default: 0 },
   sentBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  // Deneme gönderiminde (audience "self") bildirimin gittiği hesap; gönderen yöneticiden farklı olabilir
+  testRecipient: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
 }, { timestamps: true });
 
 pushBroadcastSchema.index({ createdAt: -1 });

@@ -5,6 +5,8 @@ import axios from "../lib/axios";
 import { useConfirm } from "./ConfirmModal";
 import PushLibrary from "./push/PushLibrary";
 import AutomationPanel from "./push/AutomationPanel";
+import TestRecipientPicker, { RecipientTag } from "./push/TestRecipientPicker";
+import useTestRecipient, { testRecipientName } from "./push/useTestRecipient";
 import { Tabs, usePref } from "./admin/ui";
 
 const TITLE_LIMIT = 60;
@@ -37,6 +39,7 @@ const REWRITES = [
   { id: "emoji", label: "✨ Emoji düzenle" },
   { id: "calmer", label: "🧘 Sadeleştir" },
 ];
+// Deneme gönderimi: kitle adı geriye uyumluluk için "self"; bildirim ekranın test alıcısına gider
 const TEST_AUDIENCE = "self";
 // Ekranın iki bölümü: elle gönderilen toplu bildirim ve kurallara göre kendiliğinden giden bildirimler
 const SCREEN_TABS = [
@@ -50,6 +53,7 @@ const FAILURE_LABELS = {
   network: "Bağlantı hatası",
   not_configured: "Yapılandırılmamış",
   error: "Sunucu hatası",
+  push_disabled: "Bildirimler kapalı",
 };
 const formatDate = (value) => new Date(value).toLocaleString("tr-TR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
@@ -92,6 +96,13 @@ export default function PushBroadcastTab() {
   const titleRef = useRef(null);
   const bodyRef = useRef(null);
   const lastField = useRef("title");
+  // Test alıcısı iki sekmede ortak: burada bir kez kurulur, Otomatik bildirimler sekmesine de verilir
+  const testRecipient = useTestRecipient();
+  const ensureTestRecipient = testRecipient.ensure;
+  useEffect(() => {
+    // Otomatik bildirimler sekmesi alıcıyı kendi ayar yüklemesinden alır; burada yalnızca bu sekmede yüklenir
+    if (tab === "broadcast") ensureTestRecipient();
+  }, [tab, ensureTestRecipient]);
 
   const load = useCallback(async () => {
     try {
@@ -107,14 +118,24 @@ export default function PushBroadcastTab() {
   useEffect(() => { load(); }, [load]);
 
   const audience = useMemo(() => overview.audiences.find((item) => item.id === form.audience), [overview.audiences, form.audience]);
-  const audienceLabel = (id) => (id === TEST_AUDIENCE ? "Deneme (yalnızca ben)" : overview.audiences.find((item) => item.id === id)?.label || id);
+  const audienceLabel = (item) => {
+    if (item.audience !== TEST_AUDIENCE) return overview.audiences.find((entry) => entry.id === item.audience)?.label || item.audience;
+    const to = item.testRecipient?.name || item.testRecipient?.email;
+    return to ? `Alıcı: ${to}` : "Alıcı: gönderen yönetici"; // "Deneme" rozeti ayrıca gösterilir
+  };
   const everyone = overview.audiences.find((item) => item.id === "all");
   const lastSend = overview.history.find((item) => item.audience !== TEST_AUDIENCE);
+  // Kütüphanede "gönderildi" sayılanlar: yalnızca müşterilere başarıyla giden gerçek gönderimler (denemeler ve başarısızlar değil)
+  const sentTitles = useMemo(
+    () => overview.history.filter((item) => item.audience !== TEST_AUDIENCE && item.sent).map((item) => item.title).filter(Boolean),
+    [overview.history],
+  );
   const title = form.title.trim();
   const body = form.body.trim();
   const busy = sending || testing;
   const canSend = overview.configured && !busy && title && body && (audience?.reachable || 0) > 0;
-  const canTest = overview.configured && !busy && title && body;
+  const canTest = overview.configured && !busy && !testRecipient.saving && title && body;
+  const testTo = testRecipient.loaded ? testRecipientName(testRecipient) : "";
 
   const runDiagnosis = async (event) => {
     event?.preventDefault();
@@ -209,19 +230,19 @@ export default function PushBroadcastTab() {
     }
   };
 
-  // Bildirimi herkese göndermeden önce yalnızca kendi telefonunda dene
+  // Bildirimi herkese göndermeden önce yalnızca test alıcısının telefonunda dene (sunucu kayıtlı alıcıyı kullanır)
   const sendTest = async () => {
     if (!canTest) return;
     try {
       setTesting(true);
       setFailure("");
       const { data } = await axios.post("/notifications/broadcasts", { ...form, title, body, audience: TEST_AUDIENCE });
-      toast.success(data.message || "Deneme bildirimi gönderildi");
+      toast.success(data.message || "Test bildirimi gönderildi");
       await load();
     } catch (error) {
-      const message = error.response?.data?.message || "Deneme bildirimi gönderilemedi";
+      const message = error.response?.data?.message || "Test bildirimi gönderilemedi";
       setFailure(message);
-      toast.error("Deneme bildirimi gönderilemedi");
+      toast.error("Test bildirimi gönderilemedi");
       await load();
     } finally {
       setTesting(false);
@@ -275,7 +296,7 @@ export default function PushBroadcastTab() {
 
       <Tabs ariaLabel="Bildirim türü" tabs={SCREEN_TABS} value={tab} onChange={setScreenTab} />
 
-      {tab === "auto" ? <AutomationPanel /> : (<>
+      {tab === "auto" ? <AutomationPanel testRecipient={testRecipient} /> : (<>
 
       {!overview.configured && (
         <div className="ui-banner ui-banner--warn" role="status">
@@ -373,7 +394,7 @@ export default function PushBroadcastTab() {
           </section>
 
           {/* Hazır bildirim kütüphanesi */}
-          <PushLibrary onPick={pickFromLibrary} sentTitles={overview.history.map((item) => item.title).filter(Boolean)} />
+          <PushLibrary onPick={pickFromLibrary} sentTitles={sentTitles} />
 
           {/* 2. Metin */}
           <section className="ui-panel" aria-labelledby="push-text-title">
@@ -503,9 +524,11 @@ export default function PushBroadcastTab() {
                 <Send />
                 {sending ? "Gönderiliyor…" : audience?.reachable ? `${audience.reachable} kişiye gönder` : "Gönder"}
               </button>
-              <button type="button" className="ui-btn push-test" disabled={!canTest} onClick={sendTest}>
+              <TestRecipientPicker state={testRecipient} compact />
+              <button type="button" className="ui-btn push-test" disabled={!canTest} onClick={sendTest}
+                title={testTo ? `Yalnızca test alıcısının telefonuna gider (${testTo})` : "Yalnızca test alıcısının telefonuna gider"}>
                 <FlaskConical />
-                {testing ? "Gönderiliyor…" : "Önce kendime gönder"}
+                {testing ? "Gönderiliyor…" : <>Önce test gönder<RecipientTag name={testTo} /></>}
               </button>
               <p className="push-send-note">Aynı bildirim 10 dakika içinde ikinci kez gönderilemez.</p>
             </div>
@@ -531,7 +554,7 @@ export default function PushBroadcastTab() {
                       <div className="push-history-meta">
                         <span className={`ui-badge ${item.sent ? "ui-badge--ok" : "ui-badge--danger"}`}>{item.sent ? "Gönderildi" : FAILURE_LABELS[item.failureReason] || "Başarısız"}</span>
                         {item.audience === TEST_AUDIENCE && <span className="ui-badge ui-badge--info">Deneme</span>}
-                        <span>{audienceLabel(item.audience)} · {item.targetedCount || 0} kişi{item.unreachableCount ? ` (${item.unreachableCount} kişinin kayıtlı cihazı yok)` : ""}</span>
+                        <span>{audienceLabel(item)} · {item.targetedCount || 0} kişi{item.unreachableCount ? ` (${item.unreachableCount} kişinin kayıtlı cihazı yok)` : ""}</span>
                         <span>{formatDate(item.createdAt)}{item.sentBy?.name ? ` · ${item.sentBy.name}` : ""}</span>
                       </div>
                     </div>

@@ -5,6 +5,8 @@ import axios from "../../lib/axios";
 import { useConfirm } from "../ConfirmModal";
 import { KpiCard, KpiGrid, SkeletonBlock, SkeletonCards, formatTime, money } from "../admin/ui";
 import AutomationCard from "./AutomationCard";
+import TestRecipientPicker from "./TestRecipientPicker";
+import useTestRecipient, { testRecipientName } from "./useTestRecipient";
 import { INFO, SKIP_LABELS, TYPES } from "./automationShared";
 import "../../styles/automations.css";
 
@@ -19,9 +21,15 @@ const RULES = [
 
 const percent = (part, whole) => (whole ? Math.round((part / whole) * 100) : 0);
 
-/** "Bildirim gönder" ekranındaki "Otomatik bildirimler" sekmesi */
-export default function AutomationPanel() {
+/**
+ * "Bildirim gönder" ekranındaki "Otomatik bildirimler" sekmesi.
+ * testRecipient: ekranın ortak test alıcısı (useTestRecipient); verilmezse panel kendi kancasını kullanır.
+ */
+export default function AutomationPanel({ testRecipient: sharedRecipient }) {
   const { confirm } = useConfirm();
+  const ownRecipient = useTestRecipient();
+  const recipient = sharedRecipient || ownRecipient;
+  const syncRecipient = recipient.sync;
   const [data, setData] = useState({ loading: true, error: "", settings: null, meta: null, configured: true });
   const [stats, setStats] = useState(null);
   const [globalDraft, setGlobalDraft] = useState(null);
@@ -39,9 +47,10 @@ export default function AutomationPanel() {
     }
     const body = settingsRes.value.data;
     setData({ loading: false, error: "", settings: body.settings, meta: body.meta, configured: body.configured !== false });
+    syncRecipient(body); // aynı yanıttaki test alıcısı; ayrı istek atılmaz
     setGlobalDraft({ start: body.settings.window.start, end: body.settings.window.end, minHoursBetween: body.settings.minHoursBetween });
     setStats(statsRes.status === "fulfilled" ? statsRes.value.data : null);
-  }, []);
+  }, [syncRecipient]);
   useEffect(() => { load(); }, [load]);
 
   const save = async (patch) => {
@@ -146,12 +155,13 @@ export default function AutomationPanel() {
   const enabledCount = TYPES.filter((type) => settings[type]?.enabled).length;
   const lastTick = stats?.lastTick;
   const lastTickSent = lastTick ? Object.values(lastTick.types || {}).reduce((sum, item) => sum + (item.sent || 0), 0) : 0;
+  const testTo = recipient.loaded ? testRecipientName(recipient) : "";
 
   return (
     <div className="au-panel">
       <div className="au-toolbar">
         <p className="au-intro">
-          Kurallara uyan müşterilere bildirim kendiliğinden gider. Hepsi başlangıçta kapalıdır; açmadan önce “Kaç kişiye gider?” ile kontrol edip kendinize test gönderin.
+          Kurallara uyan müşterilere bildirim kendiliğinden gider. Hepsi başlangıçta kapalıdır; açmadan önce “Kaç kişiye gider?” ile kontrol edip test alıcısının telefonuna test gönderin.
         </p>
         <div className="au-toolbar-actions">
           {lastTick?.at && (
@@ -164,6 +174,8 @@ export default function AutomationPanel() {
           </button>
         </div>
       </div>
+
+      <TestRecipientPicker state={recipient} />
 
       {!data.configured && (
         <div className="ui-banner ui-banner--warn" role="status">
@@ -229,6 +241,7 @@ export default function AutomationPanel() {
             stats={stats?.types?.[type]}
             defaults={data.meta?.defaults?.[type] || settings[type]}
             configured={data.configured}
+            testTo={testTo}
             saving={savingKey === type}
             onSave={saveCard}
             onToggle={toggle}
