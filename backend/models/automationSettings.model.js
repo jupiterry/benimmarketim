@@ -67,6 +67,10 @@ const automationSettingsSchema = new mongoose.Schema(
       },
       { _id: false },
     ),
+    // Paneldeki "Test gönder" düğmelerinin (otomasyon ve tek seferlik bildirim denemesi) gideceği hesap.
+    // null: isteyen yöneticinin kendi hesabı. Yöneticinin panelde kullandığı hesap telefonda hiç açılmamışsa
+    // testler başka bir hesabın (ör. mağaza telefonundaki hesap) telefonuna gönderilebilsin diye.
+    testRecipientId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   },
   { timestamps: true, minimize: false },

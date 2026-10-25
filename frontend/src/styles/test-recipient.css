@@ -1,0 +1,265 @@
+/* "Test alıcısı" seçici (components/push/TestRecipientPicker.jsx) — önek: tr-
+   Otomatik bildirimler sekmesinde tam genişlik, tek seferlik bildirimin gönderim kartında sıkı (data-compact) düzen. */
+.admin-layout .tr-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s3);
+  min-width: 0;
+  padding: var(--ui-s3) var(--ui-s4);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+}
+.admin-layout .tr-picker[data-compact="true"] {
+  gap: var(--ui-s2);
+  padding: var(--ui-s3);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-2);
+}
+.admin-layout .tr-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-s2) var(--ui-s3);
+  min-width: 0;
+}
+.admin-layout .tr-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: var(--ui-radius);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+}
+.admin-layout .tr-icon svg {
+  width: 18px;
+  height: 18px;
+}
+.admin-layout .tr-who {
+  display: flex;
+  flex: 1 1 180px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.admin-layout .tr-label {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+}
+.admin-layout .tr-name-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-s1) var(--ui-s2);
+  min-width: 0;
+}
+.admin-layout .tr-name {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-md);
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-layout .tr-contact {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-layout .tr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-s2);
+  flex-shrink: 0;
+}
+.admin-layout .tr-picker[data-compact="true"] .tr-actions {
+  margin-left: auto;
+}
+.admin-layout .tr-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-s2);
+  margin: 0;
+  padding: var(--ui-s2) var(--ui-s3);
+  border-radius: var(--ui-radius);
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+  font-size: var(--ui-fs-xs);
+  line-height: 1.45;
+}
+.admin-layout .tr-hint[data-tone="danger"] {
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+}
+.admin-layout .tr-hint svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.admin-layout .tr-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-s2);
+  color: var(--ui-danger-ink);
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .tr-error > svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.admin-layout .tr-error-text {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+/* Arama paneli (satır içinde açılır; dar sütunda taşmaz) */
+.admin-layout .tr-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s2);
+  min-width: 0;
+}
+.admin-layout .tr-panel .ui-search .ui-field {
+  width: 100%;
+}
+.admin-layout .tr-note {
+  margin: 0;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  line-height: 1.45;
+}
+.admin-layout .tr-note[data-tone="danger"] {
+  color: var(--ui-danger-ink);
+}
+.admin-layout .tr-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.admin-layout .tr-results {
+  max-height: 300px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  list-style: none;
+}
+.admin-layout .tr-picker[data-compact="true"] .tr-results {
+  max-height: 240px;
+}
+.admin-layout .tr-results > li + li {
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .tr-option {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-s3);
+  width: 100%;
+  min-height: 48px;
+  padding: var(--ui-s2) var(--ui-s3);
+  border: 0;
+  background: transparent;
+  color: var(--ui-text);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--ui-ease);
+}
+.admin-layout .tr-option:hover,
+.admin-layout .tr-option:focus-visible {
+  background: var(--ui-surface-2);
+}
+.admin-layout .tr-option[aria-current="true"] {
+  background: var(--ui-brand-soft);
+}
+.admin-layout .tr-option:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+.admin-layout .tr-avatar {
+  width: 32px;
+  height: 32px;
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .tr-option-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.admin-layout .tr-option-name {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-s2);
+  min-width: 0;
+}
+.admin-layout .tr-option-title {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-layout .tr-option-sub {
+  overflow: hidden;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-layout .tr-option-check {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--ui-brand);
+}
+
+/* Düğme metnindeki alıcı adı: "Test gönder · Benim Marketim" */
+.admin-layout .tr-tag {
+  display: inline-block;
+  min-width: 0;
+  max-width: 16ch;
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .admin-layout .tr-picker {
+    padding: var(--ui-s3);
+  }
+  .admin-layout .tr-actions {
+    width: 100%;
+  }
+  .admin-layout .tr-actions .ui-btn {
+    flex: 1 1 0;
+    justify-content: center;
+    min-height: 40px;
+  }
+  .admin-layout .tr-picker[data-compact="true"] .tr-actions {
+    margin-left: 0;
+  }
+  .admin-layout .tr-tag {
+    max-width: 12ch;
+  }
+}

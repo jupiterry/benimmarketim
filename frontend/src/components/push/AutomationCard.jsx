@@ -3,6 +3,7 @@ import { Eye, FlaskConical, RotateCcw, Save, ToggleLeft, ToggleRight, Users } fr
 import toast from "react-hot-toast";
 import axios from "../../lib/axios";
 import { InlineLoading, Segmented, formatDateTime } from "../admin/ui";
+import { RecipientTag } from "./TestRecipientPicker";
 import {
   BODY_LIMIT, COUPON_ONLY, COUPON_SUFFIX, INFO, PLACEHOLDER_HINTS, TIMING, TITLE_LIMIT,
   placeholdersIn, renderTemplate, sameDraft, sampleVars, toPayload, validateDraft,
@@ -19,7 +20,7 @@ const Counter = ({ value, limit }) => (
  * Tek otomasyon kartı: aç/kapat, zamanlama, metin (canlı önizleme), kupon, "Kaç kişiye gider?", test, istatistik.
  * Kaydetme ve aç/kapat üst bileşende (onSave / onToggle) yapılır.
  */
-export default function AutomationCard({ type, saved, stats, defaults, configured, saving, onSave, onToggle }) {
+export default function AutomationCard({ type, saved, stats, defaults, configured, testTo = "", saving, onSave, onToggle }) {
   const info = INFO[type];
   const Icon = info.icon;
   const uid = useId();
@@ -310,8 +311,8 @@ export default function AutomationCard({ type, saved, stats, defaults, configure
             <Eye />Kaç kişiye gider?
           </button>
           <button type="button" className="ui-btn ui-btn--sm" onClick={sendTest} disabled={testing || !configured || hasErrors}
-            title={!configured ? "Bildirim servisi yapılandırılmamış" : "Yalnızca sizin telefonunuza, örnek değerlerle gider"}>
-            <FlaskConical className={testing ? "ui-spin" : ""} />{testing ? "Gönderiliyor…" : "Bana test gönder"}
+            title={!configured ? "Bildirim servisi yapılandırılmamış" : `Örnek değerlerle yalnızca test alıcısının telefonuna gider${testTo ? ` (${testTo})` : ""}. Alıcıyı sayfanın üstünden değiştirebilirsiniz.`}>
+            <FlaskConical className={testing ? "ui-spin" : ""} />{testing ? "Gönderiliyor…" : <>Test gönder<RecipientTag name={testTo} /></>}
           </button>
           <button type="button" className="ui-btn ui-btn--primary ui-btn--sm" onClick={() => onSave(type, toPayload(type, draft))} disabled={!dirty || hasErrors || saving}>
             <Save />{saving ? "Kaydediliyor…" : "Kaydet"}

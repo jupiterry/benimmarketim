@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import User from "../models/user.model.js";
 import Order from "../models/order.model.js";
 import PushBroadcast from "../models/pushBroadcast.model.js";
+import AutomationSettings from "../models/automationSettings.model.js";
 import { normalizePreferences, sendPushToUsers } from "../services/push.service.js";
 import { buildCartReminderFilter, checkAndSendCartReminders } from "../services/cartReminder.service.js";
 import { buildAudienceFilter, describePushFailure, diagnosePush, sendBroadcast, updateNotificationPreferences } from "../controllers/notification.controller.js";
@@ -246,6 +247,7 @@ test("a failed broadcast tells the admin the real reason instead of a generic me
 test("new-style OneSignal keys use the Key scheme and a test push goes only to the sending admin", async (t) => {
   withKeys(t);
   process.env.ONESIGNAL_REST_API_KEY = "os_v2_app_test";
+  t.mock.method(AutomationSettings, "findOne", () => ({ lean: async () => null })); // kayıtlı test alıcısı yok
   const sent = [];
   t.mock.method(globalThis, "fetch", async (_url, options) => { sent.push({ auth: options.headers.Authorization, body: JSON.parse(options.body) }); return { ok: true, status: 200, json: async () => ({ id: "n1" }) }; });
   const duplicate = t.mock.method(PushBroadcast, "findOne", () => chain({ _id: "old" }));
@@ -255,14 +257,93 @@ test("new-style OneSignal keys use the Key scheme and a test push goes only to t
   t.mock.method(PushBroadcast, "create", async (doc) => { created.push(doc); return { _id: id(51), ...doc }; });
   t.mock.method(PushBroadcast, "updateOne", async () => ({}));
   const res = response();
-  await sendBroadcast({ body: { title: "Deneme", body: "Merhaba", audience: "self" }, user: { _id: id(99) } }, res);
+  await sendBroadcast({ body: { title: "Deneme", body: "Merhaba", audience: "self" }, user: { _id: id(99), name: "Deniz", email: "deniz@example.com" } }, res);
   assert.equal(res.statusCode, 200);
-  assert.equal(res.body.message, "Deneme bildirimi telefonunuza gönderildi");
+  assert.equal(res.body.message, "Test bildirimi Deniz (deniz@example.com) hesabının telefonuna gönderildi");
+  assert.equal(res.body.recipient.email, "deniz@example.com");
   assert.equal(duplicate.mock.callCount(), 0); // deneme, çift gönderim korumasına takılmaz
   assert.deepEqual(query._id.$in, [id(99)]);
+  assert.equal(query["notificationPreferences.campaigns"], undefined); // denemede kampanya tercihi atlanır
+  assert.deepEqual(query.pushNotificationsEnabled, { $ne: false });
   assert.deepEqual(sent[0].body.include_aliases.external_id, [id(99)]);
   assert.equal(sent[0].auth, "Key os_v2_app_test");
   assert.equal(created[0].audience, "self");
+  assert.equal(created[0].testRecipient, id(99));
+  assert.equal(created[0].sentBy, id(99));
+});
+
+test("push can skip the category preference for admin tests but never an account-wide opt-out", async (t) => {
+  withKeys(t);
+  let filter;
+  t.mock.method(User, "find", (query) => { filter = query; return chain([{ _id: id(1) }]); });
+  mockFetch(t);
+  await sendPushToUsers([id(1)], { title: "a", body: "b" }, {}, { category: "campaigns", respectCategory: false });
+  assert.equal(filter["notificationPreferences.campaigns"], undefined);
+  assert.deepEqual(filter.pushNotificationsEnabled, { $ne: false });
+  await sendPushToUsers([id(1)], { title: "a", body: "b" }, {}, { category: "campaigns" });
+  assert.deepEqual(filter["notificationPreferences.campaigns"], { $ne: false });
+});
+
+test("a broadcast test goes to the chosen or saved test recipient and names that account", async (t) => {
+  withKeys(t);
+  const store = { _id: id(70), name: "Benim Marketim", email: "benimmarketim@gmail.com", appActivity: { lastSeenAt: new Date() }, notificationPreferences: { campaigns: false } };
+  const other = { _id: id(72), name: "Ayşe", email: "ayse@example.com" };
+  const muted = { _id: id(73), name: "Ali", email: "ali@example.com", pushNotificationsEnabled: false };
+  const owner = { _id: id(99), name: "Jüpiter", email: "jupiterryhd@gmail.com", role: "admin" };
+  let saved = { testRecipientId: id(70) };
+  t.mock.method(AutomationSettings, "findOne", () => ({ lean: async () => saved }));
+  t.mock.method(User, "findById", (userId) => chain([store, other, muted].find((user) => user._id === String(userId)) || null));
+  const filters = [];
+  t.mock.method(User, "find", (query) => { filters.push(query); return chain(query._id.$in.map((value) => ({ _id: value }))); });
+  const duplicate = t.mock.method(PushBroadcast, "findOne", () => chain(null));
+  const created = []; const updates = [];
+  t.mock.method(PushBroadcast, "create", async (doc) => { created.push(doc); return { _id: id(50), ...doc }; });
+  t.mock.method(PushBroadcast, "updateOne", async (_query, update) => { updates.push(update.$set); return {}; });
+  const pushes = [];
+  const fetchMock = t.mock.method(globalThis, "fetch", async (_url, options) => { pushes.push(JSON.parse(options.body)); return { ok: true, status: 200, json: async () => ({ id: "n1" }) }; });
+  const sendTest = async (extra = {}) => { const res = response(); await sendBroadcast({ body: { title: "Deneme", body: "Merhaba", audience: "self", ...extra }, user: owner }, res); return res; };
+
+  // Kayıtlı test alıcısı: kampanya bildirimi kapalı olsa da deneme gider, not düşülür
+  let res = await sendTest();
+  assert.equal(res.statusCode, 200);
+  assert.match(res.body.message, /^Test bildirimi Benim Marketim \(benimmarketim@gmail\.com\) hesabının telefonuna gönderildi\. Not: bu hesapta kampanya bildirimleri kapalı/);
+  assert.equal(res.body.recipient.hasPushTarget, true);
+  assert.deepEqual(pushes.at(-1).include_aliases.external_id, [id(70)]);
+  assert.equal(filters.at(-1)["notificationPreferences.campaigns"], undefined);
+  assert.deepEqual(created.at(-1), { title: "Deneme", body: "Merhaba", audience: "self", route: "/home", audienceSize: 1, sentBy: id(99), testRecipient: id(70) });
+  assert.equal(duplicate.mock.callCount(), 0);
+
+  // İstekte seçilen hesap kayıtlı alıcının önüne geçer
+  res = await sendTest({ recipientId: id(72) });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.message, "Test bildirimi Ayşe (ayse@example.com) hesabının telefonuna gönderildi");
+  assert.deepEqual(pushes.at(-1).include_aliases.external_id, [id(72)]);
+  assert.equal(created.at(-1).testRecipient, id(72));
+
+  // Geçersiz / bulunamayan seçim: kayıt oluşmaz, bildirim gitmez
+  const before = { created: created.length, pushes: pushes.length };
+  assert.equal((await sendTest({ recipientId: "benimmarketim@gmail.com" })).statusCode, 400);
+  assert.equal((await sendTest({ recipientId: id(79) })).statusCode, 404);
+  assert.deepEqual({ created: created.length, pushes: pushes.length }, before);
+
+  // Hesapta bildirimler tamamen kapalı: gönderilmez, kayıtta nedeni yazılır
+  res = await sendTest({ recipientId: id(73) });
+  assert.equal(res.statusCode, 422);
+  assert.equal(res.body.reason, "push_disabled");
+  assert.match(res.body.message, /Ali \(ali@example\.com\) hesabında bildirimler kapalı/);
+  assert.equal(pushes.length, before.pushes);
+  assert.deepEqual(updates.at(-1), { targetedCount: 0, sent: false, failureReason: "push_disabled", unreachableCount: 0 });
+  assert.equal(created.at(-1).audience, "self");
+
+  // Kayıtlı alıcı yok (ya da silinmiş): gönderen yöneticiye gider; cihazı yoksa mesaj hesabı adıyla söyler
+  saved = { testRecipientId: id(78) };
+  fetchMock.mock.mockImplementation(async (_url, options) => { pushes.push(JSON.parse(options.body)); return { ok: true, status: 200, json: async () => ({ id: "", errors: { invalid_aliases: { external_id: [id(99)] } } }) }; });
+  res = await sendTest();
+  assert.equal(res.statusCode, 422);
+  assert.equal(res.body.reason, "no_devices");
+  assert.match(res.body.message, /Jüpiter \(jupiterryhd@gmail\.com\) hesabıyla mobil uygulamada oturum açılmamış ya da bildirim izni verilmemiş/);
+  assert.deepEqual(pushes.at(-1).include_aliases.external_id, [id(99)]);
+  assert.equal(created.at(-1).testRecipient, id(99));
 });
 
 test("the diagnosis explains why an account cannot receive pushes", async (t) => {

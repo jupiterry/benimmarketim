@@ -10,6 +10,7 @@ import AdminAudit from "../models/adminAudit.model.js";
 import {
   DEFAULT_AUTOMATION_SETTINGS,
   LOCK_KEY,
+  TEST_RECIPIENT_LABEL,
   acquireAutomationLock,
   attributeConversions,
   automationCouponCode,
@@ -19,9 +20,11 @@ import {
   computeRelevantClosedPeriod,
   deliverAutomation,
   deliveredAtOf,
+  describeTestSend,
   ensureAutomationCoupon,
   filterReachableCandidates,
   getAutomationStats,
+  hasPushTarget,
   isCouponUsableByOwner,
   isReachableUser,
   isWithinSendWindow,
@@ -32,12 +35,16 @@ import {
   pickSecondOrderCandidates,
   pickWinBackCandidates,
   previewAutomation,
+  recipientLabel,
   renderTemplate,
+  resolveTestRecipient,
   runAutomationTick,
   runAutomationTickLocked,
+  sendAutomationTest,
+  toTestRecipient,
   validateAutomationSettingsInput,
 } from "../services/notificationAutomation.service.js";
-import { previewType, updateSettings } from "../controllers/notificationAutomation.controller.js";
+import { getSettings, previewType, testType, updateSettings } from "../controllers/notificationAutomation.controller.js";
 
 const MIN = 60 * 1000;
 const H = 60 * MIN;
@@ -683,4 +690,232 @@ test("settings endpoint validates input and writes an audit record for changes",
   const unknown = response();
   await previewType({ ...req, params: { type: "spam" }, body: {} }, unknown);
   assert.equal(unknown.statusCode, 400);
+});
+
+// ── Test alıcısı ───────────────────────────────────────────────────────────
+const STORE = { _id: id(70), name: "Benim Marketim", email: "benimmarketim@gmail.com", phone: "05550000000", role: "customer", appActivity: { lastSeenAt: new Date("2026-10-20T10:00:00Z") }, fcmToken: "secret-fcm" };
+const OWNER = { _id: id(71), name: "Jüpiter Yönetici", email: "jupiterryhd@gmail.com", role: "admin" };
+const withPushKeys = (t) => {
+  const previous = { key: process.env.ONESIGNAL_REST_API_KEY, app: process.env.ONESIGNAL_APP_ID };
+  process.env.ONESIGNAL_REST_API_KEY = "test-only";
+  process.env.ONESIGNAL_APP_ID = "app-test";
+  t.after(() => {
+    if (previous.key === undefined) delete process.env.ONESIGNAL_REST_API_KEY; else process.env.ONESIGNAL_REST_API_KEY = previous.key;
+    if (previous.app === undefined) delete process.env.ONESIGNAL_APP_ID; else process.env.ONESIGNAL_APP_ID = previous.app;
+  });
+};
+// User.findById(id).select().lean() → kimliğe göre tablodan
+const mockUsersById = (t, users) => t.mock.method(User, "findById", (userId) => chain(users.find((user) => String(user._id) === String(userId)) || null));
+
+test("test recipient: id is stored lower-case, validated, cleared with null and listed as a change", () => {
+  const current = normalizeAutomationSettings({});
+  assert.equal(current.testRecipientId, null);
+  assert.equal(normalizeAutomationSettings({ testRecipientId: "nope" }).testRecipientId, null);
+  const set = validateAutomationSettingsInput({ testRecipientId: id(70).toUpperCase() }, current);
+  assert.equal(set.data.testRecipientId, id(70));
+  assert.deepEqual(set.changes, [{ label: TEST_RECIPIENT_LABEL, from: "Giriş yapan yönetici", to: id(70) }]);
+  // Başka bir alanın kaydı alıcıyı korur
+  const other = validateAutomationSettingsInput({ winBack: { enabled: true } }, set.data);
+  assert.equal(other.data.testRecipientId, id(70));
+  assert.equal(other.changes.some((change) => change.label === TEST_RECIPIENT_LABEL), false);
+  assert.equal(validateAutomationSettingsInput({ testRecipientId: null }, set.data).data.testRecipientId, null);
+  assert.equal(validateAutomationSettingsInput({ testRecipientId: "" }, set.data).data.testRecipientId, null);
+  for (const bad of ["123", "zzzzzzzzzzzzzzzzzzzzzzzz", 42, { $ne: null }, [id(70)]]) {
+    assert.match(validateAutomationSettingsInput({ testRecipientId: bad }, current).error, /Test alıcısı geçersiz/);
+  }
+});
+
+test("test recipient summary: push target heuristic, label, no device token leaked", () => {
+  assert.equal(hasPushTarget(STORE), true);
+  assert.equal(hasPushTarget({ fcmToken: "  " }), false);
+  assert.equal(hasPushTarget({ fcmToken: "tok" }), true);
+  assert.equal(hasPushTarget(OWNER), false);
+  const summary = toTestRecipient({ ...STORE, notificationPreferences: { campaigns: false } });
+  assert.deepEqual(summary, { _id: id(70), name: "Benim Marketim", email: "benimmarketim@gmail.com", phone: "05550000000", role: "customer", hasPushTarget: true, pushEnabled: true, campaignsEnabled: false });
+  assert.doesNotMatch(JSON.stringify(summary), /secret-fcm/);
+  assert.equal(toTestRecipient(null), null);
+  assert.equal(recipientLabel(STORE), "Benim Marketim (benimmarketim@gmail.com)");
+  assert.equal(recipientLabel({ phone: "0555" }), "0555");
+});
+
+test("test recipient resolution: chosen account > saved recipient > requesting admin", async (t) => {
+  const other = { ...STORE, _id: id(72), name: "Ayşe", email: "ayse@example.com" };
+  const findById = mockUsersById(t, [STORE, other]);
+  const saved = settingsWith({ testRecipientId: id(70) });
+  // İstekte seçilen hesap kayıtlı alıcının önüne geçer
+  let resolved = await resolveTestRecipient({ recipientId: id(72), requester: OWNER, settings: saved });
+  assert.equal(resolved.source, "request");
+  assert.equal(resolved.user.email, "ayse@example.com");
+  resolved = await resolveTestRecipient({ requester: OWNER, settings: saved });
+  assert.equal(resolved.source, "saved");
+  assert.equal(resolved.user.email, "benimmarketim@gmail.com");
+  resolved = await resolveTestRecipient({ requester: OWNER, settings: settingsWith({}) });
+  assert.equal(resolved.source, "self");
+  assert.equal(resolved.user, OWNER);
+  // Kayıtlı alıcı yöneticinin kendisiyse sorgu yapılmaz
+  const calls = findById.mock.callCount();
+  resolved = await resolveTestRecipient({ requester: OWNER, settings: settingsWith({ testRecipientId: id(71) }) });
+  assert.equal(resolved.source, "self");
+  assert.equal(findById.mock.callCount(), calls);
+  // Kayıtlı alıcı silinmişse isteyen yöneticiye düşer
+  resolved = await resolveTestRecipient({ requester: OWNER, settings: settingsWith({ testRecipientId: id(79) }) });
+  assert.equal(resolved.source, "self");
+  // Ayar verilmezse veritabanından okunur
+  mockSettings(t, { testRecipientId: id(70) });
+  assert.equal((await resolveTestRecipient({ requester: OWNER })).source, "saved");
+  // Geçersiz ya da bulunamayan seçim açıkça reddedilir
+  await assert.rejects(resolveTestRecipient({ recipientId: "abc", requester: OWNER, settings: saved }), (error) => error.status === 400 && /geçersiz/.test(error.message));
+  await assert.rejects(resolveTestRecipient({ recipientId: { $ne: null }, requester: OWNER, settings: saved }), (error) => error.status === 400);
+  await assert.rejects(resolveTestRecipient({ recipientId: id(79), requester: OWNER, settings: saved }), (error) => error.status === 404 && /bulunamadı/.test(error.message));
+});
+
+test("automation test: recipient's first name, campaign preference skipped, disabled pushes not sent", async (t) => {
+  mockSettings(t, null);
+  const sends = [];
+  const send = async (ids, message, data, options) => { sends.push({ ids, message, data, options }); return { targeted: 1, sent: true, reason: null, detail: "", unreachable: 0 }; };
+  const result = await sendAutomationTest("closedCart", { ...STORE, notificationPreferences: { campaigns: false } }, { send });
+  assert.equal(result.sent, true);
+  assert.deepEqual(sends[0].ids, [id(70)]);
+  assert.match(sends[0].message.body, /Benim!/); // {ad} → alıcının adı
+  assert.deepEqual(sends[0].options, { category: "campaigns", respectCategory: false });
+  assert.equal(sends[0].data.type, "automation_test");
+  // Hesapta bildirimler tamamen kapalı: gönderilmez, nedeni açıkça döner
+  const off = await sendAutomationTest("secondOrder", { ...STORE, pushNotificationsEnabled: false }, { send, settings: settingsWith({}) });
+  assert.equal(off.sent, false);
+  assert.equal(off.reason, "push_disabled");
+  assert.match(off.message.title, /Benim/);
+  assert.equal(sends.length, 1);
+});
+
+test("test send messages name the receiving account", () => {
+  const store = { ...STORE };
+  assert.deepEqual(describeTestSend({ sent: true }, store), { status: 200, success: true, message: "Test bildirimi Benim Marketim (benimmarketim@gmail.com) hesabının telefonuna gönderildi" });
+  assert.match(describeTestSend({ sent: true }, { ...store, notificationPreferences: { campaigns: false } }).message, /kampanya bildirimleri kapalı; test yine de gönderildi/);
+  const none = describeTestSend({ sent: false, reason: "no_devices" }, store);
+  assert.equal(none.status, 422);
+  assert.equal(none.reason, "no_devices");
+  assert.match(none.message, /Benim Marketim \(benimmarketim@gmail\.com\) hesabıyla mobil uygulamada oturum açılmamış ya da bildirim izni verilmemiş/);
+  const disabled = describeTestSend({ sent: false, reason: "push_disabled" }, store);
+  assert.equal(disabled.status, 422);
+  assert.match(disabled.message, /Benim Marketim \(benimmarketim@gmail\.com\) hesabında bildirimler kapalı/);
+  assert.match(describeTestSend({ sent: false, reason: null }, store).message, /bildirim almaya izin vermiyor/);
+  assert.equal(describeTestSend({ sent: false, reason: "error" }, store).status, 500);
+  assert.equal(describeTestSend({ sent: false, reason: "network" }, store).status, 502);
+  assert.equal(describeTestSend({ sent: false, reason: "auth" }, store, { systemMessage: "Anahtar reddedildi" }).message, "Anahtar reddedildi");
+});
+
+test("settings endpoint returns the saved test recipient with its push readiness", async (t) => {
+  mockSettings(t, { testRecipientId: id(70) });
+  mockUsersById(t, [STORE]);
+  let res = response();
+  await getSettings({ user: OWNER }, res);
+  assert.equal(res.body.settings.testRecipientId, id(70));
+  assert.deepEqual(res.body.testRecipient, { _id: id(70), name: "Benim Marketim", email: "benimmarketim@gmail.com", phone: "05550000000", role: "customer", hasPushTarget: true, pushEnabled: true, campaignsEnabled: true });
+  assert.equal(res.body.testRecipientMissing, false);
+  assert.equal(res.body.testRecipientSelf.email, "jupiterryhd@gmail.com");
+  assert.equal(res.body.testRecipientSelf.hasPushTarget, false);
+  // Kayıtlı hesap silinmiş: alıcı yok, panel uyarır
+  AutomationSettings.findOne.mock.mockImplementation(() => ({ lean: async () => ({ testRecipientId: id(79) }) }));
+  res = response();
+  await getSettings({ user: OWNER }, res);
+  assert.equal(res.body.testRecipient, null);
+  assert.equal(res.body.testRecipientMissing, true);
+  AutomationSettings.findOne.mock.mockImplementation(() => ({ lean: async () => null }));
+  res = response();
+  await getSettings({ user: OWNER }, res);
+  assert.equal(res.body.testRecipient, null);
+  assert.equal(res.body.testRecipientMissing, false);
+});
+
+test("settings endpoint saves, validates and audits the test recipient", async (t) => {
+  let stored = null;
+  t.mock.method(AutomationSettings, "findOne", () => ({ lean: async () => stored }));
+  const saves = [];
+  t.mock.method(AutomationSettings, "findOneAndUpdate", async (_f, update) => { saves.push(update.$set); stored = update.$set; return update.$set; });
+  const audits = [];
+  t.mock.method(AdminAudit, "create", async (doc) => { audits.push(doc); return doc; });
+  mockUsersById(t, [STORE]);
+  const req = (body) => ({ user: OWNER, method: "PUT", originalUrl: "/api/notification-automations/settings", body });
+
+  let res = response();
+  await updateSettings(req({ testRecipientId: id(70) }), res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(saves.at(-1).testRecipientId, id(70));
+  assert.equal(res.body.testRecipient.email, "benimmarketim@gmail.com");
+  assert.equal(res.body.testRecipient.hasPushTarget, true);
+  assert.equal(audits.at(-1).action, "Test bildirimi alıcısı değiştirildi");
+  assert.deepEqual(audits.at(-1).changes, [{ label: TEST_RECIPIENT_LABEL, from: "Giriş yapan yönetici", to: "Benim Marketim (benimmarketim@gmail.com)" }]);
+
+  // Var olmayan hesap ve bozuk kimlik kaydedilmez
+  const before = saves.length;
+  res = response();
+  await updateSettings(req({ testRecipientId: id(79) }), res);
+  assert.equal(res.statusCode, 404);
+  res = response();
+  await updateSettings(req({ testRecipientId: "benimmarketim@gmail.com" }), res);
+  assert.equal(res.statusCode, 400);
+  assert.equal(saves.length, before);
+
+  // Kart kaydı alıcıyı korur ve yanıtta alıcı dönmez
+  res = response();
+  await updateSettings(req({ winBack: { enabled: true } }), res);
+  assert.equal(saves.at(-1).testRecipientId, id(70));
+  assert.equal("testRecipient" in res.body, false);
+
+  // "Kendim": null → isteyen yönetici
+  res = response();
+  await updateSettings(req({ testRecipientId: null }), res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(saves.at(-1).testRecipientId, null);
+  assert.equal(res.body.testRecipient, null);
+  assert.equal(res.body.testRecipientSelf.email, "jupiterryhd@gmail.com");
+  assert.deepEqual(audits.at(-1).changes, [{ label: TEST_RECIPIENT_LABEL, from: "Benim Marketim (benimmarketim@gmail.com)", to: "Giriş yapan yönetici" }]);
+});
+
+test("test endpoint sends to the saved recipient, names it, and rate-limits per requesting admin", async (t) => {
+  withPushKeys(t);
+  mockSettings(t, { testRecipientId: id(70) });
+  const people = [STORE, { ...STORE, _id: id(73), name: "Ali Veli", email: "ali@example.com", pushNotificationsEnabled: false }];
+  mockUsersById(t, people);
+  const filters = [];
+  t.mock.method(User, "find", (filter) => { filters.push(filter); return chain(filter._id.$in.map((value) => ({ _id: value }))); });
+  const pushes = [];
+  const fetchMock = t.mock.method(globalThis, "fetch", async (_url, options) => { pushes.push(JSON.parse(options.body)); return { ok: true, status: 200, json: async () => ({ id: "n1" }) }; });
+  const audits = [];
+  t.mock.method(AdminAudit, "create", async (doc) => { audits.push(doc); return doc; });
+  const admin = (n) => ({ _id: id(n), name: `Yönetici${n}`, email: `y${n}@example.com`, role: "admin" });
+  const call = async (user, body = {}) => {
+    const res = response();
+    await testType({ user, params: { type: "secondOrder" }, body, method: "POST", originalUrl: "/api/notification-automations/secondOrder/test" }, res);
+    return res;
+  };
+
+  let res = await call(admin(80));
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.message, "Test bildirimi Benim Marketim (benimmarketim@gmail.com) hesabının telefonuna gönderildi");
+  assert.equal(res.body.recipient.email, "benimmarketim@gmail.com");
+  assert.deepEqual(pushes[0].include_aliases.external_id, [id(70)]);
+  assert.match(pushes[0].headings.tr, /Benim/);
+  assert.equal(filters[0]["notificationPreferences.campaigns"], undefined); // test: kampanya tercihi atlanır
+  assert.deepEqual(filters[0].pushNotificationsEnabled, { $ne: false });
+  assert.deepEqual(audits.at(-1).changes[0], { label: "Alıcı", from: "—", to: "Benim Marketim (benimmarketim@gmail.com)" });
+
+  // Sıklık sınırı isteyen yönetici başına: aynı yönetici beklemeli, başka yönetici hemen gönderebilir
+  assert.equal((await call(admin(80), { recipientId: id(73) })).statusCode, 429);
+  // Seçilen hesapta bildirimler kapalı: gönderilmez ve açıkça söylenir
+  res = await call(admin(81), { recipientId: id(73) });
+  assert.equal(res.statusCode, 422);
+  assert.equal(res.body.reason, "push_disabled");
+  assert.match(res.body.message, /Ali Veli \(ali@example\.com\) hesabında bildirimler kapalı/);
+  assert.equal(pushes.length, 1);
+
+  // Geçersiz / bulunamayan seçim: 400 / 404 ve sıklık sınırı harcanmaz
+  assert.equal((await call(admin(82), { recipientId: "x" })).statusCode, 400);
+  assert.equal((await call(admin(82), { recipientId: id(79) })).statusCode, 404);
+  // Kayıtlı cihaz yok: mesaj hesabı adıyla söyler
+  fetchMock.mock.mockImplementation(async () => ({ ok: true, status: 200, json: async () => ({ id: "", errors: { invalid_aliases: { external_id: [id(70)] } } }) }));
+  res = await call(admin(82));
+  assert.equal(res.statusCode, 422);
+  assert.equal(res.body.reason, "no_devices");
+  assert.match(res.body.message, /Benim Marketim \(benimmarketim@gmail\.com\) hesabıyla mobil uygulamada oturum açılmamış ya da bildirim izni verilmemiş/);
 });
