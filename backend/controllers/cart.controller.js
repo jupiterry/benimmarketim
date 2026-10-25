@@ -10,6 +10,7 @@ import {
   dispatchOrderNotifications,
 } from "../services/order.service.js";
 import { applyCartSync, normalizeSyncedCart } from "../services/cartSync.service.js";
+import { meetsMinimumAmount } from "../services/productPricing.js";
 import UserAddress from "../models/userAddress.model.js";
 import {
   DEVREK_CITY,
@@ -430,8 +431,10 @@ const placeAddressOrder = async (req, res, { products, phone, note, couponCode, 
   const areaCheck = validateAddressForZone(address, zone);
   if (areaCheck.error) return fail(res, 400, areaCheck.error, { code: areaCheck.code });
 
-  // Fiyat hesaplama (order.service) ve teslimat ücreti (delivery.service) — istemci değerleri kullanılmaz
-  const { orderProducts, totalAmount: subtotal } = await buildOrderProducts(products);
+  // Fiyat hesaplama (order.service) ve teslimat ücreti (delivery.service) — istemci değerleri kullanılmaz.
+  // Tüm tutarlar kuruşa yuvarlanır; minimum kuruş üzerinden karşılaştırılır (tam 250,00 TL geçer).
+  const { orderProducts, totalAmount: rawSubtotal } = await buildOrderProducts(products);
+  const subtotal = roundMoney(rawSubtotal);
   const quote = computeDeliveryQuote({ zone, subtotal, settings });
   if (!quote.meetsMinimum) {
     return fail(res, 400, `${zone.name} için sipariş tutarı minimum ${quote.minimumOrderAmount} TL olmalıdır!`, {
@@ -448,8 +451,8 @@ const placeAddressOrder = async (req, res, { products, phone, note, couponCode, 
     channel: orderChannel(body),
   });
 
-  const productTotal = roundMoney(Math.max(0, subtotal - couponDiscount));
-  const deliveryFee = quote.deliveryFee;
+  const productTotal = roundMoney(Math.max(0, subtotal - roundMoney(couponDiscount)));
+  const deliveryFee = roundMoney(quote.deliveryFee);
   // Bölgede "ilk siparişte telefonla teyit" açıksa ve müşterinin teslim edilmiş siparişi yoksa
   const needsCallback = await needsFirstOrderCallback(zone, req.user._id);
 
@@ -469,7 +472,7 @@ const placeAddressOrder = async (req, res, { products, phone, note, couponCode, 
     deliveryZone: zoneSnapshot(zone),
     deliveryAddress: buildOrderAddress(zone, address),
     couponCode: appliedCoupon?.code || null,
-    couponDiscount,
+    couponDiscount: roundMoney(couponDiscount),
     paymentMethod,
     needsCallback,
     // Devrek: alan yüklüyse ve konum içindeyse true, alan yüklenmemişken false; yurtta alan yok
@@ -535,10 +538,11 @@ export const placeOrder = async (req, res) => {
       return fail(res, 400, "Seçilen teslimat noktası şu anda aktif değil!");
     }
 
-    // Fiyat hesaplama (order.service)
-    const { orderProducts, totalAmount } = await buildOrderProducts(products);
+    // Fiyat hesaplama (order.service) — kuruşa yuvarlanmış; minimum kuruş üzerinden karşılaştırılır
+    const { orderProducts, totalAmount: rawTotalAmount } = await buildOrderProducts(products);
+    const totalAmount = roundMoney(rawTotalAmount);
 
-    if (totalAmount < minimumOrderAmount) {
+    if (!meetsMinimumAmount(totalAmount, minimumOrderAmount)) {
       return fail(res, 400, `Sipariş tutarı minimum ${minimumOrderAmount} TL olmalıdır!`);
     }
 
@@ -555,7 +559,7 @@ export const placeOrder = async (req, res) => {
       }
     );
 
-    const finalTotalAmount = Math.max(0, totalAmount - couponDiscount);
+    const finalTotalAmount = roundMoney(Math.max(0, totalAmount - roundMoney(couponDiscount)));
     // Yurt bölgesinde "ilk siparişte telefonla teyit" açıksa (bölge okunamazsa teyitsiz alınır)
     const needsCallback = await legacyZoneNeedsCallback(deliveryPoint, req.user._id);
 
@@ -575,7 +579,7 @@ export const placeOrder = async (req, res) => {
       deliveryType: "point",
       deliveryZone: { id: deliveryPoint, name: selectedPoint.name || "", type: "yurt" },
       couponCode: appliedCoupon?.code || null,
-      couponDiscount,
+      couponDiscount: roundMoney(couponDiscount),
       paymentMethod,
       needsCallback,
     });

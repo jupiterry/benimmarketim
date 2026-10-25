@@ -1,13 +1,14 @@
 // Müşteri listesi satırı: geniş ekranda tablo satırı, mobilde kart (CSS ile dönüşür).
+// Sipariş özeti (orderCount / totalSpent) satırla birlikte sunucudan gelir (GET /users).
 import { memo } from "react";
 import { Eye, Key, Pencil, Trash2 } from "lucide-react";
 import { formatDateTime, money } from "../admin/ui";
 import { relativeTime } from "../../lib/customers";
 import { APP_STAGE_BADGES, Avatar, DeviceIcon, TagBadges, appStage, customerTags, deviceLabel, isInAppNow, lastSeenAt, orderInfoOf, registeredAt } from "./shared";
 
-const CustomerRow = memo(function CustomerRow({ user, orderMap, ordersLoaded, now, appSince, selected, cursor, onSelect, onOpen, onEdit, onResetPw, onDelete }) {
-  const tags = customerTags(user, orderMap, now);
-  const info = orderInfoOf(orderMap, user);
+const CustomerRow = memo(function CustomerRow({ user, now, appSince, selected, cursor, onSelect, onOpen, onEdit, onResetPw, onDelete }) {
+  const tags = customerTags(user, now);
+  const info = orderInfoOf(user);
   const seen = lastSeenAt(user);
   const joined = registeredAt(user);
   const online = isInAppNow(user, now) || (seen && now - seen.getTime() < 5 * 60000);
@@ -48,9 +49,7 @@ const CustomerRow = memo(function CustomerRow({ user, orderMap, ordersLoaded, no
       </div>
       <div className="cus-cell">
         <span className="ui-cell-label">Siparişler</span>
-        {!ordersLoaded ? (
-          <span className="ui-skeleton cus-skel" aria-hidden="true" />
-        ) : info ? (
+        {info ? (
           <span className="cus-when">
             <span className="ui-num"><strong>{info.orderCount}</strong> sipariş</span>
             <span className="cus-when-sub ui-num">{money(info.totalSpent)}</span>

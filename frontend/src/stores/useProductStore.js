@@ -7,7 +7,6 @@ export const useProductStore = create((set) => ({
     loading: false,
 
     setProducts: (products) => set({ products }),
-    reorderProducts: (newProducts) => set({ products: newProducts }),
 
     // Ürün oluşturma
     createProduct: async (productData) => {
@@ -34,81 +33,6 @@ export const useProductStore = create((set) => ({
         } catch (error) {
             set({ error: "Ürünleri getirirken hata oluştu", loading: false });
             toast.error(error.response?.data?.error || "Ürünleri getirme başarısız");
-        }
-    },
-
-    // Kategoriye göre ürünleri getir
-    fetchProductsByCategory: async (category) => {
-        try {
-            const response = await axios.get(`/products?category=${encodeURIComponent(category)}`);
-            set({ products: response.data.products || [] });
-        } catch (error) {
-            console.error("Ürünleri çekerken hata:", error.response?.data?.message || error.message);
-            set({ products: [] });
-        }
-    },
-
-    // Ürünü sil
-    deleteProduct: async (productId) => {
-        set({ loading: true });
-        try {
-            await axios.delete(`/products/${productId}`);
-            set((prevProducts) => {
-                const currentProducts = Array.isArray(prevProducts.products) ? prevProducts.products : [];
-                return {
-                    products: currentProducts.filter((product) => product._id !== productId),
-                    loading: false,
-                };
-            });
-            toast.success("Ürün başarıyla silindi");
-        } catch (error) {
-            set({ loading: false });
-            toast.error(error.response?.data?.error || "Ürün silinemedi");
-        }
-    },
-
-    // Öne çıkan ürünü güncelle
-    toggleFeaturedProduct: async (productId) => {
-        set({ loading: true });
-        try {
-            const response = await axios.patch(`/products/${productId}`);
-            set((prevProducts) => ({
-                products: prevProducts.products.map((product) =>
-                    product._id === productId ? { ...product, isFeatured: response.data.isFeatured } : product
-                ),
-                loading: false,
-            }));
-            toast.success(response.data.isFeatured ? "Ürün öne çıkarıldı" : "Ürün öne çıkarılanlardan kaldırıldı");
-        } catch (error) {
-            set({ loading: false });
-            toast.error(error.response?.data?.error || "İşlem başarısız oldu");
-        }
-    },
-
-    // Öne çıkan ürünleri getir
-    fetchFeaturedProducts: async () => {
-        set({ loading: true });
-        try {
-            const response = await axios.get("/products/featured");
-            
-            // Backend'ten gelen response yapısını kontrol et
-            let featuredProducts = [];
-            
-            if (response.data && response.data.success && Array.isArray(response.data.products)) {
-                // Yeni format: { success: true, products: [...], count: number }
-                featuredProducts = response.data.products;
-            } else if (Array.isArray(response.data)) {
-                // Eski format: direkt array
-                featuredProducts = response.data;
-            } else if (response.data && Array.isArray(response.data.products)) {
-                // Alternatif format: { products: [...] }
-                featuredProducts = response.data.products;
-            }
-            
-            set({ products: featuredProducts, loading: false });
-        } catch (error) {
-            set({ error: "Öne çıkan ürünleri getirirken hata oluştu", loading: false, products: [] });
-            console.log("Öne çıkan ürünleri getirirken hata:", error);
         }
     },
 
@@ -139,30 +63,6 @@ export const useProductStore = create((set) => ({
         } catch (error) {
             set({ loading: false });
             throw error; // Hata'yı yukarı fırlat, çağıran yerde handle edilsin
-        }
-    },
-
-    // Ürün stok durumunu güncelle
-    toggleOutOfStock: async (productId) => {
-        set({ loading: true });
-        try {
-            const response = await axios.patch(`/products/toggle-out-of-stock/${productId}`, {}, {
-                headers: {
-                    Authorization: `Bearer ${localStorage.getItem("token")}`,
-                },
-            });
-
-            set((prevProducts) => ({
-                products: prevProducts.products.map((product) =>
-                    product._id === productId ? { ...product, isOutOfStock: response.data.product.isOutOfStock } : product
-                ),
-                loading: false,
-            }));
-
-            toast.success(response.data.message);
-        } catch (error) {
-            set({ loading: false });
-            toast.error(error.response?.data?.message || "Tükendi durumu değiştirilirken hata oluştu.");
         }
     },
 }));

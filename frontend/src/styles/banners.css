@@ -669,13 +669,6 @@
   font-size: var(--ui-fs-xs);
   color: var(--ui-text-3);
 }
-.admin-layout .bnr-progress {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--ui-text-2);
-  font-size: var(--ui-fs-xs);
-}
 
 /* ── Kırılımlar ─────────────────────────────────────────────────────── */
 @media (max-width: 1100px) {

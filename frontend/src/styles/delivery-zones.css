@@ -3,14 +3,6 @@
 .admin-layout .dz {
   min-width: 0;
 }
-.admin-layout .dz-sr {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
 .admin-layout .dz-h2 {
   margin: 0;
   font-size: var(--ui-fs-lg);
@@ -347,242 +339,9 @@
   color: var(--ui-brand-ink);
 }
 
-/* ── Liste ────────────────────────────────────────────────────────── */
-.admin-layout .dz-list {
-  overflow: visible;
-}
-.admin-layout .dz-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--ui-s2) var(--ui-s3);
-  padding: var(--ui-s3) var(--ui-s4);
-}
-.admin-layout .dz-search {
-  flex: 1 1 220px;
-  max-width: 320px;
-}
-.admin-layout .dz-search .ui-field {
-  padding-left: 36px;
-}
-.admin-layout .dz-chips-wrap {
-  display: flex;
-  align-items: center;
-  gap: var(--ui-s2);
-  min-width: 0;
-}
-.admin-layout .dz-chips-wrap > .ui-chips {
-  flex-shrink: 0;
-}
-.admin-layout .dz-table[data-campaign] .dz-cell--threshold .dz-main {
-  color: var(--ui-text-3);
-  text-decoration: line-through;
-}
-.admin-layout .dz-chips-sep {
-  width: 1px;
-  height: 20px;
-  background: var(--ui-line);
-}
-.admin-layout .dz-sort {
-  margin-left: auto;
-}
-.admin-layout .dz-result {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--ui-s2);
-  min-height: 40px;
-  padding: 4px var(--ui-s4);
-  border-top: 1px solid var(--ui-line);
-}
-.admin-layout .dz-list-banner {
-  margin: 0 var(--ui-s4) var(--ui-s3);
-}
-.admin-layout .dz-skel {
-  padding: var(--ui-s3) var(--ui-s4) var(--ui-s4);
-  border-top: 1px solid var(--ui-line);
-}
-.admin-layout .dz-list > .ui-empty {
-  border-top: 1px solid var(--ui-line);
-}
-
 /* Tablo (div ızgarası; ≤900 px'te kart) */
-.admin-layout .dz-table {
-  --dz-cols: 28px minmax(0, 2fr) minmax(0, 1.25fr) minmax(0, 0.85fr) minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 0.7fr) 116px;
-  border-top: 1px solid var(--ui-line);
-}
-.admin-layout .dz-row {
-  display: grid;
-  grid-template-columns: var(--dz-cols);
-  align-items: center;
-  gap: var(--ui-s3);
-  min-height: 58px;
-  padding: 8px var(--ui-s4);
-  border-bottom: 1px solid var(--ui-line);
-  background: var(--ui-surface);
-  transition:
-    background-color var(--ui-ease),
-    box-shadow var(--ui-ease);
-}
-.admin-layout .dz-head {
-  position: sticky;
-  top: var(--app-top, 52px);
-  z-index: 3;
-  min-height: 40px;
-  padding-top: 0;
-  padding-bottom: 0;
-  background: var(--ui-surface-2);
-  color: var(--ui-text-2);
-  font-size: var(--ui-fs-xs);
-  font-weight: 650;
-}
-.admin-layout .dz-head .dz-cell {
-  flex-direction: row;
-  align-items: center;
-}
-.admin-layout .dz-body .dz-row:last-child {
-  border-bottom: 0;
-}
-.admin-layout .dz-body .dz-row:hover {
-  background: var(--ui-surface-2);
-}
-.admin-layout .dz-body .dz-row[data-selected] {
-  background: var(--ui-brand-soft);
-}
-.admin-layout .dz-body .dz-row[data-cursor] {
-  box-shadow: inset 3px 0 0 var(--ui-brand);
-}
-.admin-layout .dz-body .dz-row[data-closed] .dz-name,
-.admin-layout .dz-body .dz-row[data-closed] .dz-fee,
-.admin-layout .dz-body .dz-row[data-closed] .dz-main {
-  color: var(--ui-text-2);
-}
-.admin-layout .dz-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
-  min-width: 0;
-  font-size: var(--ui-fs-sm);
-}
-.admin-layout .dz-cell--check {
-  align-items: center;
-}
-.admin-layout .dz-check {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  cursor: pointer;
-}
-.admin-layout .dz-cell--actions {
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 2px;
-}
-.admin-layout .dz-name {
-  display: flex;
-  max-width: 100%;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--ui-text);
-  font-size: var(--ui-fs-md);
-  font-weight: 650;
-  text-align: left;
-  cursor: pointer;
-}
-.admin-layout .dz-name:hover {
-  color: var(--ui-brand-ink);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.admin-layout .dz-name-sub {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-.admin-layout .dz-type {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 20px;
-  padding: 0 7px;
-  border-radius: 999px;
-  background: var(--ui-surface-3);
-  color: var(--ui-text-2);
-  font-size: 11px;
-  font-weight: 650;
-  white-space: nowrap;
-}
-.admin-layout .dz-type svg {
-  width: 12px;
-  height: 12px;
-}
-.admin-layout .dz-type[data-type="yurt"] {
-  background: var(--ui-info-bg);
-  color: var(--ui-info-ink);
-}
-.admin-layout .dz-type[data-type="mahalle"] {
-  background: var(--ui-brand-soft);
-  color: var(--ui-brand-ink);
-}
-.admin-layout .dz-type[data-type="koy"] {
-  background: var(--ui-warn-bg);
-  color: var(--ui-warn-ink);
-}
-.admin-layout .dz-legacy {
-  font-size: 11px;
-  color: var(--ui-text-3);
-}
-.admin-layout .dz-reason {
-  display: -webkit-box;
-  max-width: 100%;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-height: 1.35;
-}
-.admin-layout .dz-fee-wrap {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 8px;
-}
-.admin-layout .dz-fee {
-  font-weight: 700;
-  color: var(--ui-text);
-  white-space: nowrap;
-}
-.admin-layout .dz-fee[data-free] {
-  color: var(--ui-ok-ink);
-}
-.admin-layout .dz-strike {
-  text-decoration: line-through;
-}
-.admin-layout .dz-main {
-  color: var(--ui-text);
-}
-.admin-layout .dz-main.ui-muted {
-  color: var(--ui-text-3);
-}
 .admin-layout .dz-switch {
   margin-right: 2px;
-}
-
-.admin-layout .dz-foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ui-s2) var(--ui-s4);
-  padding: 10px var(--ui-s4);
-  border-top: 1px solid var(--ui-line);
-  background: var(--ui-surface-2);
-  border-radius: 0 0 var(--ui-radius-lg) var(--ui-radius-lg);
 }
 .admin-layout .dz-foot-note {
   display: inline-flex;
@@ -592,56 +351,6 @@
 .admin-layout .dz-foot-note svg {
   width: 14px;
   height: 14px;
-}
-
-/* ── Toplu işlem çubuğu ───────────────────────────────────────────── */
-.admin-layout .dz-bulk {
-  top: auto;
-  bottom: 12px;
-  margin: var(--ui-s3);
-  box-shadow: var(--ui-shadow-pop);
-}
-.admin-layout .dz-bulk-actions {
-  display: flex;
-  flex: 1 1 auto;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-.admin-layout .dz-bulk-sep {
-  width: 1px;
-  height: 22px;
-  margin: 0 4px;
-  background: color-mix(in srgb, var(--ui-brand) 30%, var(--ui-line));
-}
-.admin-layout .dz-bulk-clear {
-  margin-left: auto;
-}
-.admin-layout .dz-bulk-form {
-  display: flex;
-  flex: 1 1 auto;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 8px;
-  min-width: 0;
-}
-.admin-layout .dz-bulk-label {
-  font-size: var(--ui-fs-sm);
-  font-weight: 650;
-  color: var(--ui-brand-ink);
-}
-.admin-layout .dz-bulk-money {
-  width: 180px;
-}
-.admin-layout .dz-bulk-hint {
-  flex-basis: 100%;
-  font-size: var(--ui-fs-xs);
-  color: var(--ui-text-2);
-}
-.admin-layout .dz-bulk-hint.is-error {
-  color: var(--ui-danger-ink);
-  font-weight: 600;
 }
 
 /* TL son ekli tutar alanı */
@@ -664,11 +373,6 @@
 }
 
 /* ── Çekmece formu ────────────────────────────────────────────────── */
-.admin-layout .dz-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ui-s4);
-}
 .admin-layout .dz-fieldset {
   display: flex;
   flex-direction: column;
@@ -704,9 +408,6 @@
   font-size: var(--ui-fs-xs);
   font-weight: 600;
   color: var(--ui-danger-ink);
-}
-.admin-layout .dz-form .ui-field[aria-invalid="true"] {
-  border-color: var(--ui-danger);
 }
 .admin-layout .dz-box {
   gap: var(--ui-s3);
@@ -767,10 +468,6 @@
   text-transform: uppercase;
   color: var(--ui-text-3);
 }
-.admin-layout .dz-preview-name {
-  font-size: var(--ui-fs-md);
-  color: var(--ui-text);
-}
 .admin-layout .dz-preview-line {
   font-size: var(--ui-fs-sm);
   color: var(--ui-text-2);
@@ -779,38 +476,8 @@
   font-size: var(--ui-fs-xs);
   color: var(--ui-warn-ink);
 }
-.admin-layout .dz-danger {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ui-s3);
-  padding: var(--ui-s3);
-  border: 1px solid color-mix(in srgb, var(--ui-danger) 25%, var(--ui-line));
-  border-radius: var(--ui-radius-lg);
-}
-.admin-layout .dz-danger strong {
-  font-size: var(--ui-fs-sm);
-  color: var(--ui-text);
-}
-.admin-layout .dz-danger .ui-hint {
-  margin: 2px 0 0;
-}
-.admin-layout .dz-danger .ui-btn {
-  flex-shrink: 0;
-}
-.admin-layout .dz-kbd-hint {
-  margin: 0;
-}
 
 /* ── Duyarlı düzen ────────────────────────────────────────────────── */
-@media (max-width: 1280px) {
-  .admin-layout .dz-table {
-    --dz-cols: 28px minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 0.9fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 0.7fr) 116px;
-  }
-  .admin-layout .dz-cell--eta {
-    display: none;
-  }
-}
 @media (max-width: 1100px) {
   .admin-layout .dz-rollout {
     grid-template-columns: minmax(0, 1fr);
@@ -819,37 +486,6 @@
     border-left: 0;
     border-top: 1px solid var(--ui-line);
     border-radius: 0 0 var(--ui-radius-lg) var(--ui-radius-lg);
-  }
-}
-@media (max-width: 900px) {
-  .admin-layout .dz-head {
-    display: none;
-  }
-  .admin-layout .dz-row {
-    grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr) auto;
-    grid-template-areas:
-      "check name name actions"
-      ". status fee fee"
-      ". threshold minimum minimum"
-      ". eta orders orders";
-    align-items: start;
-    gap: 10px var(--ui-s3);
-    padding: var(--ui-s3);
-  }
-  .admin-layout .dz-cell--check { grid-area: check; }
-  .admin-layout .dz-cell--name { grid-area: name; align-self: center; }
-  .admin-layout .dz-cell--status { grid-area: status; }
-  .admin-layout .dz-cell--fee { grid-area: fee; }
-  .admin-layout .dz-cell--threshold { grid-area: threshold; }
-  .admin-layout .dz-cell--minimum { grid-area: minimum; }
-  .admin-layout .dz-cell--eta { grid-area: eta; display: flex; }
-  .admin-layout .dz-cell--orders { grid-area: orders; }
-  .admin-layout .dz-cell--actions { grid-area: actions; align-self: center; }
-  .admin-layout .dz-row .ui-cell-label {
-    display: block;
-  }
-  .admin-layout .dz-body .dz-row[data-cursor] {
-    box-shadow: inset 3px 0 0 var(--ui-brand);
   }
 }
 @media (max-width: 760px) {
@@ -863,11 +499,6 @@
     flex: 1 1 100%;
     justify-content: center;
     min-height: 36px;
-  }
-  .admin-layout .dz-help-btn,
-  .admin-layout .dz-kbd,
-  .admin-layout .dz-kbd-hint {
-    display: none;
   }
   .admin-layout .dz-rollout-main,
   .admin-layout .dz-rollout-side {
@@ -886,104 +517,13 @@
   .admin-layout .dz-pilot-chip {
     max-width: 100%;
   }
-  .admin-layout .dz-toolbar {
-    padding: var(--ui-s3);
-  }
-  .admin-layout .dz-search {
-    flex-basis: 100%;
-    max-width: none;
-  }
-  .admin-layout .dz-chips-wrap {
-    flex: 1 1 100%;
-    margin: 0 calc(-1 * var(--ui-s3));
-    padding: 2px var(--ui-s3);
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .admin-layout .dz-chips-wrap::-webkit-scrollbar {
-    display: none;
-  }
-  .admin-layout .dz-chips-wrap .ui-chips > button {
-    height: 34px;
-  }
-  .admin-layout .dz-sort {
-    flex: 1 1 100%;
-    width: 100%;
-    margin-left: 0;
-  }
-  .admin-layout .dz-result {
-    padding: 4px var(--ui-s3);
-  }
-  .admin-layout .dz-bulk {
-    bottom: 8px;
-    margin: 8px;
-    padding: 10px;
-  }
-  .admin-layout .dz-bulk .ui-bulkbar-count {
-    flex: 1 1 auto;
-  }
-  .admin-layout .dz-bulk-actions {
-    order: 3;
-    flex-basis: 100%;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .admin-layout .dz-bulk-actions .ui-btn {
-    justify-content: center;
-    min-height: 36px;
-  }
-  .admin-layout .dz-bulk-sep {
-    display: none;
-  }
-  .admin-layout .dz-bulk-form {
-    order: 3;
-    flex-basis: 100%;
-  }
-  .admin-layout .dz-bulk-label {
-    flex-basis: 100%;
-  }
-  .admin-layout .dz-bulk-money {
-    flex: 1 1 120px;
-    width: auto;
-  }
-  .admin-layout .dz-cell--actions .ui-icon-btn--sm {
-    width: 36px;
-    height: 36px;
-  }
   /* Kart: üst satırda ad + aç/kapat + düzenle; silme çekmecede */
-  .admin-layout .dz-row {
-    grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr) auto;
-    grid-template-areas:
-      "check name name actions"
-      ". status fee fee"
-      ". threshold minimum minimum"
-      ". eta orders orders";
-    gap: 8px 10px;
-    padding: 12px var(--ui-s3);
-  }
-  .admin-layout .dz-cell--actions .ui-icon-btn--danger {
-    display: none;
-  }
-  .admin-layout .dz-row .dz-cell {
-    gap: 1px;
-  }
-  .admin-layout .dz-row .dz-cell .ui-badge {
-    margin-top: 1px;
-  }
-  .admin-layout .dz-foot {
-    padding: 10px var(--ui-s3);
-  }
   .admin-layout .dz-money-grid,
   .admin-layout .dz-grid-2 {
     grid-template-columns: minmax(0, 1fr);
   }
-  .admin-layout .dz-danger {
-    flex-direction: column;
-    align-items: stretch;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .admin-layout .dz-row,
   .admin-layout .dz-mode,
   .admin-layout .dz-rollout-side {
     transition: none;
@@ -991,22 +531,6 @@
 }
 
 /* ── İlk sipariş telefon teyidi (satır rozeti, çekmece anahtarı) ───────── */
-.admin-layout .dz-callback {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: var(--ui-warn-bg);
-  color: var(--ui-warn-ink);
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-.admin-layout .dz-callback svg {
-  width: 11px;
-  height: 11px;
-}
 .admin-layout .dz-toggle-title .dz-toggle-icon {
   width: 15px;
   height: 15px;

@@ -20,7 +20,7 @@ import CreateProductForm from "../components/CreateProductForm";
 import ProductAssistTab from "../components/ProductAssistTab";
 import PriceWatchTab from "../components/PriceWatchTab";
 import ProductsList from "../components/ProductsList";
-import OrdersList from "../components/OrdersList";
+import OrdersScreen from "../components/orders/OrdersScreen";
 import FeedbackList from "../components/FeedbackList";
 import SettingsTab from "../components/SettingsTab";
 import DashboardWidgets from "../components/DashboardWidgets";
@@ -139,10 +139,8 @@ const AdminPage = () => {
   // Product edit state
   const [editingProduct, setEditingProduct] = useState(null);
 
-  // Users state
-  const [users, setUsers] = useState([]);
-  const [loadingUsers, setLoadingUsers] = useState(false);
-  const [errorUsers, setErrorUsers] = useState(null);
+  // Müşteri listesi panel açılışında ön yüklenmez: Müşteriler ekranı kendi sayfasını sunucudan ister
+  // (GET /users sayfalı), komut paleti ve pilot seçici GET /users/search ile arar.
 
   // Tab labels for breadcrumbs
   const tabLabels = useMemo(
@@ -265,7 +263,6 @@ const AdminPage = () => {
   // Fetch data on mount
   useEffect(() => {
     fetchAllProducts();
-    fetchUsers();
     fetchAdminBadges();
     updateLastSync();
   }, [fetchAllProducts]);
@@ -311,28 +308,12 @@ const AdminPage = () => {
     );
   };
 
-  const fetchUsers = async () => {
-    setLoadingUsers(true);
-    try {
-      const response = await axios.get("/users");
-      setUsers(response.data.users || []);
-      setErrorUsers(null);
-    } catch (error) {
-      console.error("Kullanıcılar getirilirken hata:", error);
-      setErrorUsers("Kullanıcılar yüklenemedi.");
-      toast.error(
-        error.response?.data?.message ||
-          "Kullanıcılar yüklenirken hata oluştu.",
-      );
-    } finally {
-      setLoadingUsers(false);
-    }
-  };
-
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await Promise.all([fetchAllProducts(), fetchUsers(), fetchAdminBadges()]);
+      await Promise.all([fetchAllProducts(), fetchAdminBadges()]);
+      // Açık ekran (ör. Müşteriler) kendi verisini yeniler
+      window.dispatchEvent(new CustomEvent("admin-refresh"));
       updateLastSync();
       toast.success("Veriler güncellendi");
     } catch (error) {
@@ -442,14 +423,9 @@ const AdminPage = () => {
         userId: String(data.userId),
         time: nowLabel(),
       });
+      // Müşteriler ekranı açıksa satır anında güncellenir (UsersTab bu olayı dinler)
       if (data.appActivity) {
-        setUsers((current) =>
-          current.map((item) =>
-            item._id === data.userId
-              ? { ...item, appActivity: data.appActivity }
-              : item,
-          ),
-        );
+        window.dispatchEvent(new CustomEvent("admin-user-activity", { detail: { userId: String(data.userId), appActivity: data.appActivity } }));
       }
       toast(`${customer} uygulamayı açtı`, { id: key, icon: "📱", duration: 4000, position: "top-right" });
     };
@@ -457,13 +433,7 @@ const AdminPage = () => {
     const handleAppSeen = (data) => {
       if (!data?.userId) return;
       const { userId, ...fields } = data;
-      setUsers((current) =>
-        current.map((item) =>
-          item._id === userId
-            ? { ...item, appActivity: { ...item.appActivity, ...fields } }
-            : item,
-        ),
-      );
+      window.dispatchEvent(new CustomEvent("admin-user-activity", { detail: { userId: String(userId), patch: fields } }));
     };
     const handleNewOrder = (data) => {
       if (!data?.order || data.order.id === "test") return;
@@ -666,9 +636,9 @@ const AdminPage = () => {
       case "analytics":
         return <AdvancedAnalyticsTab />;
       case "orders":
-        return <OrdersList />;
+        return <OrdersScreen />;
       case "delivery-zones":
-        return <DeliveryZonesTab users={users} />;
+        return <DeliveryZonesTab />;
       case "chat":
         return <ChatTab />;
       case "support-queue":
@@ -696,14 +666,10 @@ const AdminPage = () => {
         return (
           <UsersTab
             onOpenChat={(chatId) => { const url = new URL(window.location.href); url.searchParams.set("tab", "chat"); url.searchParams.set("chatId", chatId); window.history.replaceState({}, "", url); setActiveTab("chat"); }}
-            users={users}
-            loading={loadingUsers}
-            error={errorUsers}
-            onRefresh={fetchUsers}
           />
         );
       case "account-cleanup":
-        return <AccountCleanupTab onAccountsDeleted={fetchUsers} />;
+        return <AccountCleanupTab />;
       case "feedback":
         return <FeedbackList />;
       case "photocopy":
@@ -743,7 +709,6 @@ const AdminPage = () => {
         onNavigate={handleTabChange}
         currentTab={activeTab}
         products={products}
-        users={users}
         onToggleTheme={toggleTheme}
       />
 
@@ -773,7 +738,11 @@ const AdminPage = () => {
           onClearNotifications={clearNotifications}
           onViewNotifications={(notification) => {
             if (notification?.kind === "support") return setActiveTab("support-queue");
-            if (notification?.kind === "app-open") return setActiveTab("users");
+            if (notification?.kind === "app-open") {
+              // Müşteriler ekranı bu müşterinin profil çekmecesini açar (UsersTab HANDOFF.user dinler)
+              if (notification.userId) setHandoff(HANDOFF.user, notification.userId);
+              return setActiveTab("users");
+            }
             if (notification?.kind === "message") {
               if (notification.chatId) {
                 const url = new URL(window.location.href);

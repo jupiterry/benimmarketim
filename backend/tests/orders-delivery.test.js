@@ -24,7 +24,6 @@ import { summarizeCompareOrders, zoneBreakdown, dormBreakdown, buildCompareRespo
 import { buildCustomerProfile, getBestCustomers } from "../controllers/user.controller.js";
 import { fetchCleanupDataset } from "../services/accountCleanup.service.js";
 import { countQualifyingOrders } from "../services/mission.service.js";
-import { summaryText, orderText } from "../services/telegram.helpers.js";
 
 const hex = (prefix, n) => `${prefix}${String(n).padStart(24 - prefix.length, "0")}`;
 const ORDER = (n) => hex("6ac8bc", n);
@@ -307,24 +306,4 @@ test("görev alt tutarı ürün tutarına uygulanır (eski siparişte totalAmoun
   await countQualifyingOrders({ minOrderAmount: 150, startsAt: NOW, endsAt: NOW }, USER(1));
   assert.deepEqual(filter.$or, [{ productTotal: { $gte: 150 } }, { productTotal: null, totalAmount: { $gte: 150 } }]);
   assert.equal(filter.totalAmount, undefined);
-});
-
-// ── Telegram ────────────────────────────────────────────────────────────────
-
-test("Telegram günlük özeti: ciro ürün tutarı, teslimat ücreti ayrı satır", () => {
-  const text = summaryText("2026-10-20", compareOrders);
-  assert.match(text, /Ciro: .*220,00/);
-  assert.match(text, /Teslimat ücreti: .*40,00/);
-  assert.match(text, /Sipariş: 3/);
-  assert.match(text, /İptal: 1/);
-});
-
-test("Telegram yeni sipariş: adresli siparişte ücret satırı, yurt siparişinde yok", () => {
-  const paid = orderText({ _id: ORDER(2), createdAt: NOW, products: [], totalAmount: 120, deliveryFee: 40, deliveryType: "address", deliveryPointName: "Cumhuriyet Mah. · Atatürk Cd. No:5" });
-  assert.match(paid, /Teslimat ücreti: .*40,00/);
-  assert.match(paid, /Toplam: .*120,00/);
-  const free = orderText({ _id: ORDER(3), createdAt: NOW, products: [], totalAmount: 60, deliveryFee: 0, deliveryType: "address" });
-  assert.match(free, /Teslimat ücreti: Ücretsiz/);
-  const dorm = orderText({ _id: ORDER(1), createdAt: NOW, products: [], totalAmount: 80, deliveryPoint: "girlsDorm" });
-  assert.ok(!dorm.includes("Teslimat ücreti"));
 });

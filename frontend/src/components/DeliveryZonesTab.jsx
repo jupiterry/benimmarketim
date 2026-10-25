@@ -6,7 +6,8 @@
 // Kuryeler kartı. Anahtar "Kapalı" iken mevcut uygulama bugünkü gibi çalışır.
 // Uç noktalar: GET /delivery/admin/zones, PUT /delivery/admin/zones/:id, POST /delivery/admin/zones/devrek/area/fetch,
 // PUT/DELETE /delivery/admin/zones/devrek/area, GET/PUT /delivery/admin/settings, GET /settings (genel minimum sepet),
-// GET/PUT /delivery/admin/couriers (Kuryeler kartı). Değişiklikler sunucuda işlem kaydına yazılır.
+// GET/PUT /delivery/admin/couriers (Kuryeler kartı), GET /users/search (pilot kullanıcı araması).
+// Değişiklikler sunucuda işlem kaydına yazılır.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Building2, Gift, Landmark, MapPin, RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
@@ -39,7 +40,7 @@ const CardSkeleton = ({ wide }) => (
   </div>
 );
 
-const DeliveryZonesTab = ({ users: usersProp }) => {
+const DeliveryZonesTab = () => {
   const { confirm } = useConfirm();
   // ── Veri ──
   const [zones, setZones] = useState(null);
@@ -49,8 +50,6 @@ const DeliveryZonesTab = ({ users: usersProp }) => {
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [settingsError, setSettingsError] = useState("");
   const [generalMinimum, setGeneralMinimum] = useState(null);
-  const [fallbackUsers, setFallbackUsers] = useState(null);
-  const [usersLoading, setUsersLoading] = useState(false);
   const [busy, setBusy] = useState(""); // "mode" | "campaign"
   const [pilotBusyId, setPilotBusyId] = useState("");
 
@@ -89,21 +88,6 @@ const DeliveryZonesTab = ({ users: usersProp }) => {
   }, []);
   const refreshAll = useCallback(() => { loadZones(); loadSettings(); loadGeneral(); }, [loadZones, loadSettings, loadGeneral]);
   useEffect(() => { refreshAll(); }, [refreshAll]);
-
-  // Müşteri listesi AdminPage'den gelir; gelmezse pilot aramasında ilk odakta bir kez çekilir
-  const users = usersProp ?? fallbackUsers;
-  const needUsers = useCallback(async () => {
-    if (usersProp !== undefined || fallbackUsers || usersLoading) return;
-    setUsersLoading(true);
-    try {
-      const { data } = await axios.get("/users");
-      setFallbackUsers(data?.users || []);
-    } catch (error) {
-      toast.error(errorMessage(error, "Müşteri listesi yüklenemedi"));
-    } finally {
-      setUsersLoading(false);
-    }
-  }, [usersProp, fallbackUsers, usersLoading]);
 
   // ── Türetilmiş ──
   const byId = useMemo(() => new Map((zones || []).map((z) => [z._id, z])), [zones]);
@@ -257,9 +241,10 @@ const DeliveryZonesTab = ({ users: usersProp }) => {
         </div>
       )}
 
-      <RolloutCard settings={settings} loading={settingsLoading} error={settingsError} busy={busy} users={users} usersLoading={usersLoading}
+      {/* Pilot kullanıcı araması PilotPicker içinde sunucuda yapılır (GET /users/search); müşteri listesi indirilmez */}
+      <RolloutCard settings={settings} loading={settingsLoading} error={settingsError} busy={busy}
         openZones={totals.open} pilotBusyId={pilotBusyId} onRetry={loadSettings} onChangeMode={changeMode} onToggleCampaign={toggleCampaign}
-        onAddPilot={addPilot} onRemovePilot={removePilot} onNeedUsers={needUsers} />
+        onAddPilot={addPilot} onRemovePilot={removePilot} />
       {settingsError && settings && (
         <div className="ui-banner ui-banner--danger" role="alert">
           <AlertTriangle /><span className="ui-grow">Ayarlar yenilenemedi: {settingsError}. Gösterilen değerler son başarılı yüklemeden.</span>

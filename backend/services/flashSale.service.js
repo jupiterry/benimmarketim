@@ -9,6 +9,7 @@ import FlashSale from "../models/flashSale.model.js";
 import Product from "../models/product.model.js";
 import { redis } from "../lib/redis.js";
 import { invalidateProductCaches } from "./productCache.service.js";
+import { syncWeeklyDealSchedule } from "./weeklyPrice.service.js";
 
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
 
@@ -230,15 +231,33 @@ export const resetFlashSyncState = () => {
   lazyPending = null;
 };
 
+/**
+ * Dakikalık zamanlanmış işin tek adımı: flash sale senkronu ve ardından haftalık fırsat takvimi
+ * (süresi dolanı kapatır, başlayan/biten olursa ürün önbelleklerini temizler). Biri hata verirse
+ * diğeri yine çalışır.
+ */
+export const runScheduledPricingJob = async (now = new Date()) => {
+  let flash = null;
+  let weekly = null;
+  try {
+    flash = await syncFlashSalesLocked(now);
+    if (flash?.applied || flash?.released) console.log(`Flash sale senkronu: ${flash.applied} başladı, ${flash.released} bitti`);
+  } catch (error) {
+    console.error("Flash sale senkronu başarısız:", error.message);
+  }
+  try {
+    weekly = await syncWeeklyDealSchedule(now);
+    if (weekly.expired || weekly.started) console.log(`Haftalık fırsat takvimi: ${weekly.started} başladı, ${weekly.expired} süresi doldu`);
+  } catch (error) {
+    console.error("Haftalık fırsat takvimi senkronu başarısız:", error.message);
+  }
+  return { flash, weekly };
+};
+
 let job = null;
 export const startFlashSaleJob = () => {
   if (job) return job;
-  const run = () =>
-    syncFlashSalesLocked()
-      .then(({ applied, released }) => {
-        if (applied || released) console.log(`Flash sale senkronu: ${applied} başladı, ${released} bitti`);
-      })
-      .catch((error) => console.error("Flash sale senkronu başarısız:", error.message));
+  const run = () => runScheduledPricingJob();
   run();
   job = cron.schedule("* * * * *", run, { scheduled: true });
   return job;

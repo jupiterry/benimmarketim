@@ -1,5 +1,4 @@
 import Referral from "../models/referral.model.js";
-import User from "../models/user.model.js";
 import Coupon from "../models/coupon.model.js";
 import crypto from "crypto";
 import { sendPushToUser } from "../services/push.service.js";
@@ -307,23 +306,6 @@ export const getAllReferralStats = async (req, res) => {
     res.status(500).json({ success: false, message: "Sunucu hatası" });
   }
 };
-
-// ─────────────────────────────────────────────────────────────────
-// #10 — Referral Kodu Üreteci
-// Math.random() kriptografik olarak güvenli değildir ve çakışma
-// durumunda sessizce başarısız olabilir. crypto.randomBytes ile
-// benzersizlik döngüsü eklendi.
-// ─────────────────────────────────────────────────────────────────
-async function generateUniqueReferralCode(maxAttempts = 5) {
-  for (let i = 0; i < maxAttempts; i++) {
-    // 4 byte → 8 hex karakter, ilk 6'sını al → "REFXXXXXX"
-    const randomPart = crypto.randomBytes(4).toString("hex").toUpperCase().slice(0, 6);
-    const code = `REF${randomPart}`;
-    const exists = await Referral.exists({ referralCode: code });
-    if (!exists) return code;
-  }
-  throw new Error("Benzersiz referral kodu üretilemedi. Lütfen tekrar deneyin.");
-}
 
 // Geriye dönük uyumluluk için senkron wrapper (pre-save hook'ta kullanılır)
 // Not: pre-save hook zaten crypto kullanıyor (referral.model.js).

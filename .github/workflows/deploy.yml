@@ -37,6 +37,10 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: node --test backend/tests/*.test.js
       - run: npm ci --prefix frontend --no-audit --no-fund
+      - name: Lint frontend (ESLint, 0 hata / 0 uyarı)
+        run: npm run lint --prefix frontend
+      - name: Lint backend (ESLint, frontend'in ESLint kurulumuyla)
+        run: npm run lint:backend
       - run: npm run build --prefix frontend
       - run: node frontend/scripts/check-seo.mjs
 

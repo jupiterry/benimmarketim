@@ -27,8 +27,8 @@ const MODE_INFO = {
 };
 
 const RolloutCard = ({
-  settings, loading, error, busy, users, usersLoading, openZones, pilotBusyId,
-  onRetry, onChangeMode, onToggleCampaign, onAddPilot, onRemovePilot, onNeedUsers,
+  settings, loading, error, busy, openZones, pilotBusyId,
+  onRetry, onChangeMode, onToggleCampaign, onAddPilot, onRemovePilot,
 }) => {
   const groupRef = useRef(null);
   if (loading && !settings) {
@@ -97,8 +97,8 @@ const RolloutCard = ({
         {mode === "pilot" && settings.pilotUsers.length === 0 && (
           <p className="dz-inline-warn" role="status"><AlertTriangle aria-hidden="true" />Pilot açık ama listede kimse yok. Aşağıdan kullanıcı ekleyin.</p>
         )}
-        <PilotPicker users={users} usersLoading={usersLoading} pilotUsers={settings.pilotUsers} busyId={pilotBusyId}
-          onAdd={onAddPilot} onRemove={onRemovePilot} onNeedUsers={onNeedUsers} disabled={busy === "mode"} />
+        <PilotPicker pilotUsers={settings.pilotUsers} busyId={pilotBusyId}
+          onAdd={onAddPilot} onRemove={onRemovePilot} disabled={busy === "mode"} />
         {mode !== "pilot" && settings.pilotUsers.length > 0 && (
           <p className="ui-hint dz-pilot-note">Pilot listesi yalnızca “Pilot” seçiliyken kullanılır{mode === "public" ? "; şu an herkes sipariş verebiliyor" : ""}.</p>
         )}

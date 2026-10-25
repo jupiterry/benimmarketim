@@ -1,32 +1,42 @@
-// Pilot kullanıcı seçici: müşteri listesinde (ad, e-posta, telefon) arar; seçilenler çip olarak görünür.
-import { useId, useMemo, useRef, useState } from "react";
+// Pilot kullanıcı seçici: müşterileri sunucuda arar (GET /users/search; ad, e-posta, telefon — Türkçe duyarsız);
+// seçilenler çip olarak görünür. Tüm müşteri listesi indirilmez; yalnızca yazılan sorgu için en fazla 8 sonuç gelir.
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Loader2, Search, UserPlus, X } from "lucide-react";
-import { fold, initials } from "../admin/ui";
+import axios from "../../lib/axios";
+import { initials, useDebounced } from "../admin/ui";
 
 const MAX_RESULTS = 8;
 
-const PilotPicker = ({ users, usersLoading, pilotUsers, busyId, onAdd, onRemove, onNeedUsers, disabled }) => {
+const PilotPicker = ({ pilotUsers, busyId, onAdd, onRemove, disabled }) => {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
+  const [found, setFound] = useState({ q: "", users: [], error: false });
+  const [searching, setSearching] = useState(false);
   const inputRef = useRef(null);
   const listId = useId();
   const pilotIds = useMemo(() => new Set(pilotUsers.map((u) => String(u._id))), [pilotUsers]);
+  const term = useDebounced(query.trim(), 250);
 
-  const results = useMemo(() => {
-    const q = fold(query.trim());
-    if (!q) return [];
-    const digits = query.replace(/\D/g, "");
-    const out = [];
-    for (const u of users || []) {
-      if (pilotIds.has(String(u._id))) continue;
-      const hay = fold(`${u.name || ""} ${u.email || ""}`);
-      const phone = String(u.phone || "").replace(/\D/g, "");
-      if (hay.includes(q) || (digits.length >= 3 && phone.includes(digits))) out.push(u);
-      if (out.length >= MAX_RESULTS) break;
-    }
-    return out;
-  }, [query, users, pilotIds]);
+  // Sunucu araması (gecikmeli); eski yanıtlar iptal edilir. Pilotlar sonuçlardan çıkarılır.
+  const excludeParam = useMemo(() => [...pilotIds].slice(0, 100).join(","), [pilotIds]);
+  useEffect(() => {
+    if (!term) { setFound({ q: "", users: [], error: false }); setSearching(false); return undefined; }
+    const controller = new AbortController();
+    setSearching(true);
+    axios.get("/users/search", { params: { q: term, limit: MAX_RESULTS, exclude: excludeParam || undefined }, signal: controller.signal })
+      .then(({ data }) => setFound({ q: term, users: Array.isArray(data?.users) ? data.users : [], error: false }))
+      .catch(() => { if (!controller.signal.aborted) setFound({ q: term, users: [], error: true }); })
+      .finally(() => { if (!controller.signal.aborted) setSearching(false); });
+    return () => controller.abort();
+  }, [term, excludeParam]);
+
+  const pending = query.trim() !== found.q || searching;
+  const results = useMemo(
+    () => (found.q && found.q === query.trim() ? found.users.filter((u) => !pilotIds.has(String(u._id))).slice(0, MAX_RESULTS) : []),
+    [found, query, pilotIds],
+  );
+  useEffect(() => { setActive((i) => Math.min(i, Math.max(0, results.length - 1))); }, [results.length]);
 
   const pick = (user) => {
     if (!user) return;
@@ -52,19 +62,19 @@ const PilotPicker = ({ users, usersLoading, pilotUsers, busyId, onAdd, onRemove,
       </div>
       <div className="dz-combo">
         <label className="ui-search dz-combo-search">
-          {usersLoading ? <Loader2 className="ui-spin" /> : <Search />}
+          {searching ? <Loader2 className="ui-spin" /> : <Search />}
           <input ref={inputRef} type="search" className="ui-field" placeholder="Müşteri ara: ad, e-posta ya da telefon" value={query}
             role="combobox" aria-expanded={showList} aria-controls={listId} aria-autocomplete="list" aria-labelledby={`${listId}-label`}
             aria-activedescendant={showList && results[active] ? `${listId}-${results[active]._id}` : undefined}
             disabled={disabled} data-esc-clear="1"
-            onFocus={() => { setOpen(true); onNeedUsers?.(); }}
+            onFocus={() => setOpen(true)}
             onBlur={() => setTimeout(() => setOpen(false), 120)}
             onChange={(e) => { setQuery(e.target.value); setOpen(true); setActive(0); }} onKeyDown={onKeyDown} />
         </label>
         {showList && (
           <ul className="dz-combo-list" id={listId} role="listbox" aria-label="Eşleşen müşteriler">
             {results.length === 0 ? (
-              <li className="dz-combo-empty" role="presentation">{usersLoading ? "Müşteriler yükleniyor…" : "Eşleşen müşteri yok"}</li>
+              <li className="dz-combo-empty" role="presentation">{pending ? "Aranıyor…" : found.error ? "Arama yapılamadı. Bağlantıyı kontrol edip tekrar yazın." : "Eşleşen müşteri yok"}</li>
             ) : results.map((u, i) => (
               <li key={u._id} id={`${listId}-${u._id}`} role="option" aria-selected={i === active} className="dz-combo-item"
                 onMouseDown={(e) => { e.preventDefault(); pick(u); }} onMouseEnter={() => setActive(i)}>

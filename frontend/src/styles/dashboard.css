@@ -26,8 +26,16 @@
 }
 .admin-layout .dsh-skel-kpis {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 10px;
+}
+
+/* ── KPI satırı: 5 kart (eski sunucu) ya da "Teslim edilemedi" ile 6 kart ── */
+.admin-layout .dsh-kpis {
+  --ui-kpi-cols: 5;
+}
+.admin-layout .dsh-kpis--6 {
+  --ui-kpi-cols: 6;
 }
 
 /* ── Araç çubuğu: dönem seçici ───────────────────────────────────── */
@@ -70,23 +78,29 @@
 }
 
 /* ── Dikkat gerektirenler şeridi ─────────────────────────────────── */
+/*
+ * Öğeler tek satıra sığmazsa dengeli iki satıra (ör. 3 + 3), dar kapta alt alta dizilir; satırlar her zaman
+ * dolu kalır. Aralarındaki 1px boşluk zemin rengiyle çizgi olur. --dsh-attn-n / --dsh-attn-half bileşenden gelir;
+ * temel genişlikten n px düşülür (yuvarlama payı), kalan boşluğu flex-grow doldurur.
+ */
 .admin-layout .dsh-attn {
+  container: dsh-attn / inline-size;
   display: flex;
+  flex-wrap: wrap;
   align-items: stretch;
-  gap: 0;
-  overflow-x: auto;
+  gap: 1px;
+  overflow: hidden;
   border: 1px solid var(--ui-line);
   border-radius: var(--ui-radius-lg);
-  background: var(--ui-surface);
-  scrollbar-width: thin;
+  background: var(--ui-line);
 }
 .admin-layout .dsh-attn-ok {
   display: flex;
-  flex: 0 0 auto;
+  flex: 1 1 100%;
   align-items: center;
   gap: 8px;
-  padding: 0 16px;
-  border-right: 1px solid var(--ui-line);
+  padding: 10px 16px;
+  background: var(--ui-surface);
   color: var(--ui-ok-ink);
   font-size: var(--ui-fs-sm);
   font-weight: 600;
@@ -98,21 +112,18 @@
 }
 .admin-layout .dsh-attn-item {
   display: grid;
-  flex: 1 1 0;
+  flex: 1 1 calc((100% - var(--dsh-attn-n, 5) * 1px) / var(--dsh-attn-n, 5));
   grid-template-columns: 18px auto minmax(0, 1fr) 14px;
   align-items: center;
-  gap: 10px;
-  min-width: 200px;
+  gap: 8px;
+  min-width: 0;
   min-height: 60px;
   padding: 10px 14px;
-  border-right: 1px solid var(--ui-line);
+  background: var(--ui-surface);
   color: var(--ui-text);
   font: inherit;
   text-align: left;
   transition: background-color var(--ui-ease);
-}
-.admin-layout .dsh-attn-item:last-child {
-  border-right: 0;
 }
 .admin-layout .dsh-attn-item:hover {
   background: var(--ui-surface-2);
@@ -155,6 +166,9 @@
 .admin-layout .dsh-attn-item[data-tone="danger"] {
   background: var(--ui-danger-bg);
 }
+.admin-layout .dsh-attn-item[data-tone="danger"]:hover {
+  background: var(--ui-surface-2);
+}
 .admin-layout .dsh-attn-item[data-tone="danger"] b,
 .admin-layout .dsh-attn-item[data-tone="danger"] > svg:first-child {
   color: var(--ui-danger-ink);
@@ -166,6 +180,27 @@
 .admin-layout .dsh-attn-item[data-tone="info"] b,
 .admin-layout .dsh-attn-item[data-tone="info"] > svg:first-child {
   color: var(--ui-info-ink);
+}
+/* Öğe başına ~175px altına düşünce iki satıra böl */
+@container dsh-attn (max-width: 1060px) {
+  .admin-layout .dsh-attn[data-count="6"] > .dsh-attn-item {
+    flex-basis: calc((100% - var(--dsh-attn-half, 3) * 1px) / var(--dsh-attn-half, 3));
+  }
+}
+@container dsh-attn (max-width: 880px) {
+  .admin-layout .dsh-attn[data-count="5"] > .dsh-attn-item {
+    flex-basis: calc((100% - var(--dsh-attn-half, 3) * 1px) / var(--dsh-attn-half, 3));
+  }
+}
+@container dsh-attn (max-width: 704px) {
+  .admin-layout .dsh-attn[data-count="4"] > .dsh-attn-item {
+    flex-basis: calc((100% - var(--dsh-attn-half, 2) * 1px) / var(--dsh-attn-half, 2));
+  }
+}
+@container dsh-attn (max-width: 560px) {
+  .admin-layout .dsh-attn[data-count] > .dsh-attn-item {
+    flex-basis: 100%;
+  }
 }
 
 /* ── Kart sütunları ve sürükle-bırak ─────────────────────────────── */
@@ -413,6 +448,83 @@
   background: var(--ui-brand);
 }
 
+/* ── Teslim edilemedi kartı ──────────────────────────────────────── */
+.admin-layout .dsh-failed-total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+}
+.admin-layout .dsh-failed-total strong {
+  font-size: 26px;
+  font-weight: 650;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  color: var(--ui-danger-ink);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .dsh-failed-total span {
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .dsh-failed-total small {
+  flex-basis: 100%;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .dsh-reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-layout .dsh-reasons li {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto 48px;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .dsh-reasons span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-layout .dsh-reasons strong {
+  color: var(--ui-text);
+  font-weight: 650;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .dsh-reasons small {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .dsh-reasons li[data-empty="true"],
+.admin-layout .dsh-reasons li[data-empty="true"] strong {
+  color: var(--ui-text-3);
+  font-weight: 500;
+}
+.admin-layout .dsh-reasons li[data-empty="true"] .ui-dot {
+  opacity: 0.45;
+}
+.admin-layout .dsh-failed .dsh-meter i {
+  background: var(--ui-danger);
+}
+.admin-layout .dsh-failed .dsh-meters li[data-rest="true"] .dsh-meter i {
+  background: var(--ui-text-3);
+}
+.admin-layout .dsh-failed .dsh-meter-label {
+  overflow-wrap: anywhere;
+}
+
 /* ── Satır listeleri (son siparişler, çok satanlar) ──────────────── */
 .admin-layout .dsh-list {
   margin: 0;
@@ -638,6 +750,15 @@
 }
 
 /* ── Dar ekranlar ────────────────────────────────────────────────── */
+@media (max-width: 1280px) {
+  /* 6 KPI kenar çubuğuyla birlikte 1280 altında sığmaz: 3 + 3 */
+  .admin-layout .dsh-kpis--6 {
+    --ui-kpi-cols: 3;
+  }
+  .admin-layout .dsh-skel-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
 @media (max-width: 1100px) {
   .admin-layout .dsh-columns {
     grid-template-columns: minmax(0, 1fr);
@@ -661,33 +782,19 @@
   .admin-layout .dsh-skel-kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .admin-layout .dsh-kpis .ui-kpi:first-child {
+  .admin-layout .dsh-kpis .ui-kpi:first-child,
+  .admin-layout .dsh-kpis .ui-kpi:last-child:nth-child(even) {
     grid-column: 1 / -1;
   }
   .admin-layout .dsh-toolbar-end {
     width: 100%;
     justify-content: space-between;
   }
-  .admin-layout .dsh-attn-item {
-    min-width: 170px;
-    min-height: 56px;
-  }
   .admin-layout .dsh-attn-ok {
-    min-width: 100%;
     padding: 10px 14px;
-    border-right: 0;
-    border-bottom: 1px solid var(--ui-line);
-  }
-  .admin-layout .dsh-attn {
-    flex-wrap: wrap;
   }
   .admin-layout .dsh-attn-item {
-    flex: 1 1 100%;
-    border-right: 0;
-    border-bottom: 1px solid var(--ui-line);
-  }
-  .admin-layout .dsh-attn-item:last-child {
-    border-bottom: 0;
+    min-height: 56px;
   }
   .admin-layout .dsh-attn-item b {
     min-width: 28px;

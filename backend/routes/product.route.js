@@ -5,7 +5,7 @@ import csv from "csv-parser";
 import fs from "fs";
 import Product from "../models/product.model.js";
 import { adminRoute, optionalAuth, protectRoute } from "../middleware/auth.middleware.js";
-import { money, recordAdminAction } from "../services/adminAudit.service.js";
+import { recordAdminAction } from "../services/adminAudit.service.js";
 import { invalidateProductCaches } from "../services/productCache.service.js";
 import { getHomeFeed, getPersonalizedProducts, getPopularProducts, getShelfPerformance } from "../controllers/recommendation.controller.js";
 import {
@@ -20,17 +20,13 @@ import {
   updateProduct,
   searchProducts,
   toggleHiddenProduct,
-  exportProductsToCSV,
-  detectProductBrands,
   updateProductDiscount,
   updateProductImage,
   removeProductDiscount,
   bulkDeleteProducts,
   bulkUpdateVisibility,
   bulkUpdatePrice,
-  bulkAddFlashSale,
   getSimilarProducts,
-  bulkReplaceText,
   getProductById,
 } from "../controllers/product.controller.js"; // Tüm kontrolörleri import et
 
@@ -140,35 +136,6 @@ router.post("/reorder", protectRoute, adminRoute, async (req, res) => {
   }
 });
 
-// İndirim fiyatı güncelleme endpoint'i
-router.put("/update-discount/:id", protectRoute, adminRoute, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { discountedPrice } = req.body;
-
-    const product = await Product.findById(id);
-    if (!product) {
-      return res.status(404).json({ message: "Ürün bulunamadı" });
-    }
-
-    // İndirim fiyatı normal fiyattan yüksek olamaz
-    if (discountedPrice && discountedPrice >= product.price) {
-      return res.status(400).json({ message: "İndirim fiyatı normal fiyattan yüksek olamaz" });
-    }
-
-    const previous = product.discountedPrice;
-    product.discountedPrice = discountedPrice;
-    await product.save();
-    recordAdminAction(req, { action: "İndirimli fiyat değiştirildi", category: "product", target: String(product._id), targetName: product.name,
-      changes: [{ label: "İndirimli fiyat", from: money(previous), to: money(discountedPrice) }] });
-
-    res.json({ message: "İndirim fiyatı güncellendi", product });
-  } catch (error) {
-    console.error("İndirim fiyatı güncelleme hatası:", error);
-    res.status(500).json({ message: "İndirim fiyatı güncellenirken hata oluştu" });
-  }
-});
-
 // İndirim işlemleri için yeni route'lar
 router.patch("/:id/discount", protectRoute, adminRoute, auditAdminAction("İndirim değişikliği", req => req.params.id), updateProductDiscount);
 router.patch("/:id/image", protectRoute, adminRoute, updateProductImage);
@@ -186,8 +153,6 @@ router.get("/popular", getPopularProducts);
 router.get("/shelf-performance", protectRoute, adminRoute, getShelfPerformance);
 // Static routes must precede the dynamic /:id route.
 router.get("/search", searchProducts);
-router.get('/export-csv', protectRoute, adminRoute, exportProductsToCSV);
-router.get('/detect-brands', protectRoute, adminRoute, detectProductBrands);
 router.get("/:id/similar", getSimilarProducts); // Similar products endpoint
 router.get("/:id", getProductById);
 router.post("/", protectRoute, adminRoute, createProduct);
@@ -202,7 +167,5 @@ router.put("/:id", protectRoute, adminRoute, auditAdminAction("Ürün değişikl
 router.post("/bulk-delete", protectRoute, adminRoute, bulkDeleteProducts);
 router.post("/bulk-visibility", protectRoute, adminRoute, bulkUpdateVisibility);
 router.post("/bulk-price-update", protectRoute, adminRoute, auditAdminAction("Toplu fiyat değişikliği", "Ürünler"), bulkUpdatePrice);
-router.post("/bulk-flash-sale", protectRoute, adminRoute, bulkAddFlashSale);
-router.post("/bulk-replace-text", protectRoute, adminRoute, bulkReplaceText);
 
 export default router;

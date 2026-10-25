@@ -794,13 +794,6 @@
   color: var(--ui-text);
   overflow-wrap: anywhere;
 }
-.admin-layout .stg-live-wide {
-  grid-column: 1 / -1;
-}
-.admin-layout .stg-live-error {
-  color: var(--ui-danger-ink);
-  font-weight: 500;
-}
 
 /* ── Entegrasyon kartları ───────────────────────────────────────────── */
 .admin-layout .stg-integration {

@@ -654,7 +654,7 @@ export const buildCleanupCsv = (rows, { months }) => {
       blockReasonLabel(row.blockReason, months),
     ].map(csvCell).join(";"));
   }
-  return `﻿${lines.join("\r\n")}\r\n`;
+  return `\ufeff${lines.join("\r\n")}\r\n`;
 };
 
 export const exportCleanupCsv = async (params) => {

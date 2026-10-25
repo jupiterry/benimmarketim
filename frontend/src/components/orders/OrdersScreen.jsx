@@ -571,6 +571,11 @@ export default function OrdersScreen() {
         applyView("now", { persist: false });
         setFilters((prev) => ({ ...prev, attention: "delayed" }));
       }
+      // Genel bakıştaki "Teyit bekleyen" kutusu: arayıp teyit edilecek ilk siparişler
+      if (preset === "callback") {
+        applyView("now", { persist: false });
+        setFilters((prev) => ({ ...prev, attention: "callback" }));
+      }
     },
     runHandoff: () => {
       const value = handoffRef.current;

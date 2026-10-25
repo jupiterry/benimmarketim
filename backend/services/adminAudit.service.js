@@ -60,6 +60,7 @@ const SECTIONS = [
   ["/api/coupons", "campaign", "Kupon"],
   ["/api/missions", "campaign", "Sipariş görevi"],
   ["/api/banners", "campaign", "Vitrin görseli"],
+  ["/api/notification-automations", "campaign", "Otomatik bildirim"],
   ["/api/notifications", "campaign", "Bildirim"],
   ["/api/cart-reminders", "campaign", "Sepet hatırlatma"],
   ["/api/orders-analytics", "order", "Sipariş"],

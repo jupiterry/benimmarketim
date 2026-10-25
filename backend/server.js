@@ -24,6 +24,7 @@ import feedbackRoutes from "./routes/feedback.route.js";
 import settingsRoutes from "./routes/settings.route.js";
 import flashSaleRoutes from "./routes/flashSale.route.js";
 import { startFlashSaleJob } from "./services/flashSale.service.js";
+import { startNotificationAutomationJobs } from "./services/notificationAutomation.service.js";
 import { startRecommendationJob } from "./services/recommendation.service.js";
 import { startOpenRouterModelRefresh } from "./services/ai/openrouterModels.service.js";
 import photocopyRoutes from "./routes/photocopy.route.js";
@@ -37,6 +38,7 @@ import aiRoutes from "./routes/ai.route.js";
 import supportRequestRoutes from "./routes/supportRequest.route.js";
 import weeklyProductRoutes from "./routes/weeklyProductRoutes.js";
 import notificationRoutes from "./routes/notification.route.js";
+import notificationAutomationRoutes from "./routes/notificationAutomation.route.js";
 import siteMessageRoutes from "./routes/siteMessage.route.js";
 import missionRoutes from "./routes/mission.route.js";
 import cartAssistantRoutes from "./routes/cartAssistant.route.js";
@@ -48,14 +50,23 @@ import orderAlarmRoutes from "./routes/orderAlarm.route.js";
 import accountCleanupRoutes from "./routes/accountCleanup.route.js";
 import deliveryRoutes from "./routes/delivery.route.js";
 import addressRoutes from "./routes/address.route.js";
-import Product from "./models/product.model.js";
 import User from "./models/user.model.js";
 import Chat from "./models/chat.model.js";
 import { connectDB } from "./lib/db.js";
+import { setupSocketRedisAdapter } from "./lib/redis.js";
+import { createAdapter } from "@socket.io/redis-adapter";
 import { refreshOrderHoursCache } from "./controllers/cart.controller.js";
 import { startCartReminderJob } from "./jobs/cartReminder.job.js";
 
 dotenv.config();
+
+// Yakalanmamış bir promise reddi (ör. kopuk bir dış servisin hatası) tüm API'yi düşürmesin:
+// loglanır, süreç çalışmaya devam eder. Yakalanmamış istisnalarda (uncaughtException) Node'un
+// varsayılan davranışı korunur: süreç hata kodu ile kapanır ve PM2 temiz bir süreç başlatır.
+process.on("unhandledRejection", (reason) => {
+  const detail = reason instanceof Error ? reason.stack || reason.message : String(reason);
+  console.error("[unhandledRejection] Yakalanmamış promise reddi (süreç çalışmaya devam ediyor):", detail);
+});
 
 const corsOptions = {
   origin: [
@@ -130,10 +141,6 @@ app.use(cookieParser());
 app.use(auditFallback);
 
 // Socket.IO yapılandırması - Sağlam ve Güvenilir
-import { createAdapter } from "@socket.io/redis-adapter";
-import Redis from "ioredis";
-
-// Socket.IO yapılandırması - Sağlam ve Güvenilir
 const io = new Server(httpServer, {
   cors: {
     origin: corsOptions.origin, // Express ile aynı origin listesini kullan
@@ -144,34 +151,13 @@ const io = new Server(httpServer, {
   transports: ['websocket', 'polling'] // Websocket öncelikli, polling destekli
 });
 
-// Redis Adapter Kurulumu (PM2 Cluster Mode için)
-// Bu sayede tüm worker'lar aynı oda bilgisini paylaşır
+// API PM2'de tek fork süreç olarak çalışır: varsayılan bellek içi adapter yeterli. Redis adapter
+// yalnızca SOCKET_REDIS_ADAPTER=1 ile açılır (çok süreçli kurulum için); açıkken bağlantı kopsa da
+// yeniden bağlanır ve publish hataları API'yi çökertmez (bkz. lib/redis.js).
 try {
-  const redisUrl = process.env.UPSTASH_REDIS_URL;
-  
-  if (redisUrl && process.env.REDIS_DISABLED !== 'true') {
-    const pubClient = new Redis(redisUrl, {
-      maxRetriesPerRequest: 1,
-      retryStrategy: () => null,
-    });
-    const subClient = pubClient.duplicate();
-
-    // ioredis otomatik bağlanır, connect() çağırmaya gerek yok
-    pubClient.on('connect', () => console.log('✅ Redis Pub Client bağlandı'));
-    subClient.on('connect', () => console.log('✅ Redis Sub Client bağlandı'));
-    
-    pubClient.on('error', (err) => console.error('Redis Pub Error:', err.message));
-    subClient.on('error', (err) => console.error('Redis Sub Error:', err.message));
-
-    // Adapter'ı ayarla - PM2 cluster mode'da tüm instance'lar mesajları paylaşır
-    io.adapter(createAdapter(pubClient, subClient));
-    console.log('✅ Socket.IO Redis Adapter kuruldu (PM2 Cluster Mode Destekli)');
-  } else {
-    console.warn('⚠️ UPSTASH_REDIS_URL tanımlanmamış, Redis adapter kullanılamıyor');
-  }
+  setupSocketRedisAdapter(io, { createAdapter });
 } catch (error) {
-  console.error('❌ Redis Adapter kurulum hatası:', error.message);
-  console.log('⚠️ Sistem tekil modda (Single Instance) çalışıyor.');
+  console.error('❌ Socket.IO Redis adapter kurulamadı, bellek içi adapter kullanılıyor:', error.message);
 }
 
 // Global socket.io erişimi için
@@ -272,7 +258,7 @@ io.on('connection', (socket) => {
     if (!socket.rooms.has(`chat_${chatId}`)) return;
     // Admin odasına bildir
     socket.to('adminRoom').emit('userInChat', { chatId, userId, userName, platform, appVersion });
-    console.log(`Kullanıcı sohbete girdi: ${userName || userId} - Chat: ${chatId} - ${platform} v${appVersion}`);
+    console.log(`Kullanıcı sohbete girdi: ${userId} - Chat: ${chatId} - ${platform} v${appVersion}`);
   });
 
   // Kullanıcı sohbetten çıktı - Admin'e bildir
@@ -330,6 +316,7 @@ app.use("/api/ai", aiRoutes);
 app.use("/api/support-requests", supportRequestRoutes);
 app.use("/api/weekly-products", weeklyProductRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/notification-automations", notificationAutomationRoutes);
 app.use("/api/site-messages", siteMessageRoutes);
 app.use("/api/missions", missionRoutes);
 app.use("/api/cart-assistant", cartAssistantRoutes);
@@ -385,6 +372,8 @@ httpServer.listen(PORT, () => {
 
   // Flash sale'leri zamanında başlat ve bitir (dakikada bir)
   startFlashSaleJob();
+  // Otomatik bildirimler (ikinci sipariş, geri kazanma, kupon süresi, açılışta sepet): 10 dakikada bir
+  startNotificationAutomationJobs();
   startRecommendationJob();
   // OpenRouter'daki güncel model listesi (geçersiz/kaldırılmış ücretsiz modeller istekten önce elensin diye)
   startOpenRouterModelRefresh();

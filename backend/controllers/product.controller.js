@@ -6,8 +6,6 @@ import { getProductCacheStamp, onProductCachesInvalidated, syncProductCacheVersi
 import { diffFields, money, recordAdminAction, yesNo } from "../services/adminAudit.service.js";
 import { RECO_WEIGHTS } from "../services/recommendation.config.js";
 import { CARD_SELECT, discountPercent, getStats, hourBucket, hourFitScore, normalizeDeliveryPoint, popularityScore } from "../services/recommendation.service.js";
-import { Parser } from 'json2csv';
-import { detectBrand } from '../services/brandDetection.js';
 import mongoose from "mongoose";
 
 // İşlem kaydı yardımcıları
@@ -41,22 +39,6 @@ const notModifiedSince = (req, lastModified) => {
 // Fiyatlar (flash sale, haftalık fırsat) dakikalar içinde değişebilir: istemci yanıtı saklayabilir
 // ama her kullanımda doğrulatmalı (304 ile ucuz). Eskiden max-age=300 tarayıcıda 5 dk eski fiyat gösteriyordu.
 const PRICE_CACHE_CONTROL = "private, no-cache";
-
-export const getAllProducts = async (req, res) => {
-  try {
-    console.log("Get all products request received for admin"); // Debug log
-    const products = await Product.find({}); // Admin için tüm ürünleri getir (isHidden dahil)
-    console.log("Products fetched for admin:", products.length);
-    
-    // Haftalık fiyatları uygula (admin panelde de tutarlılık için)
-    const productsWithWeeklyPrices = await applyWeeklyPricesToProducts(products);
-    
-    res.json({ products: productsWithWeeklyPrices });
-  } catch (error) {
-    console.error("Error in getAllProducts controller:", error.message);
-    res.status(500).json({ message: "Server error", error: error.message });
-  }
-};
 
 export const getFeaturedProducts = async (req, res) => {
   try {
@@ -601,61 +583,6 @@ export const toggleOutOfStock = async (req, res) => {
   }
 };
 
-export const exportProductsToCSV = async (req, res) => {
-  try {
-    const products = await Product.find({});
-    
-    const fields = [
-      'name',
-      'price',
-      'category',
-      'image',
-      'description',
-      'isOutOfStock',
-      'isFeatured',
-      'isHidden'
-    ];
-
-    const json2csvParser = new Parser({ fields });
-    const csv = json2csvParser.parse(products);
-
-    res.header('Content-Type', 'text/csv');
-    res.attachment('products.csv');
-    return res.send(csv);
-  } catch (error) {
-    console.error('CSV dışa aktarma hatası:', error);
-    res.status(500).json({ message: 'Ürünler CSV\'ye aktarılırken hata oluştu' });
-  }
-};
-
-export const detectProductBrands = async (req, res) => {
-  try {
-    const products = await Product.find({}, 'name');
-    const results = [];
-    
-    for (const product of products) {
-      const brand = await detectBrand(product.name);
-      results.push({
-        productId: product._id,
-        productName: product.name,
-        detectedBrand: brand
-      });
-    }
-
-    // CSV olarak dışa aktar
-    const fields = ['productId', 'productName', 'detectedBrand'];
-    const json2csvParser = new Parser({ fields });
-    const csv = json2csvParser.parse(results);
-
-    res.header('Content-Type', 'text/csv');
-    res.attachment('product_brands.csv');
-    return res.send(csv);
-  } catch (error) {
-    console.error('Marka tespiti hatası:', error);
-    res.status(500).json({ message: 'Marka tespiti sırasında hata oluştu' });
-  }
-};
-
 export const updateProductImage = async (req, res) => {
   try {
     const { image } = req.body;
@@ -847,138 +774,6 @@ export const bulkUpdatePrice = async (req, res) => {
   } catch (error) {
     console.error("Toplu fiyat güncelleme hatası:", error);
     res.status(500).json({ message: "İşlem başarısız" });
-  }
-};
-
-export const bulkAddFlashSale = async (req, res) => {
-  try {
-    const { productIds, discountPercentage } = req.body;
-    
-    if (!productIds || productIds.length === 0) {
-      return res.status(400).json({ message: "Ürün ID'leri gerekli" });
-    }
-
-    const products = await Product.find({ _id: { $in: productIds } });
-    
-    for (const product of products) {
-      const discountedPrice = Math.round(product.price * (1 - discountPercentage / 100) * 100) / 100;
-      product.discountedPrice = discountedPrice;
-      product.isDiscounted = true;
-      await product.save();
-    }
-    auditBulk(req, `Toplu kalıcı indirim (%${discountPercentage})`, products, [], { discountPercentage });
-    
-    res.json({ 
-      message: `${productIds.length} ürüne %${discountPercentage} flash sale uygulandı` 
-    });
-  } catch (error) {
-    console.error("Toplu flash sale hatası:", error);
-    res.status(500).json({ message: "İşlem başarısız" });
-  }
-};
-
-/**
- * Toplu metin değiştirme - Ürün isimlerinde belirli metni değiştir
- * POST /api/products/bulk-replace-text
- * Body: { findText: "a", replaceText: "b", caseSensitive: false, productIds: [] (opsiyonel) }
- */
-export const bulkReplaceText = async (req, res) => {
-  try {
-    const { findText, replaceText, caseSensitive = false, productIds = null } = req.body;
-
-    if (!findText || findText.trim() === '') {
-      return res.status(400).json({ 
-        success: false,
-        message: "Aranacak metin (findText) gerekli" 
-      });
-    }
-
-    if (replaceText === undefined || replaceText === null) {
-      return res.status(400).json({ 
-        success: false,
-        message: "Değiştirilecek metin (replaceText) gerekli" 
-      });
-    }
-
-    // Query oluştur
-    let query = {};
-    if (productIds && Array.isArray(productIds) && productIds.length > 0) {
-      query._id = { $in: productIds };
-    }
-
-    // Ürünleri bul
-    const products = await Product.find(query);
-    
-    if (products.length === 0) {
-      return res.status(404).json({ 
-        success: false,
-        message: "Değiştirilecek ürün bulunamadı" 
-      });
-    }
-
-    let updatedCount = 0;
-    let totalReplacements = 0;
-    const updatedProducts = [];
-
-    // Her ürün için değişiklik yap
-    for (const product of products) {
-      const originalName = product.name;
-      
-      // Metin değiştirme
-      let newName;
-      if (caseSensitive) {
-        // Büyük/küçük harf duyarlı
-        newName = originalName.replace(new RegExp(escapeRegex(findText), 'g'), replaceText);
-      } else {
-        // Büyük/küçük harf duyarsız
-        newName = originalName.replace(new RegExp(escapeRegex(findText), 'gi'), replaceText);
-      }
-
-      // Eğer değişiklik olduysa kaydet
-      if (newName !== originalName) {
-        // Kaç kez değiştirildiğini say
-        const regex = caseSensitive 
-          ? new RegExp(escapeRegex(findText), 'g')
-          : new RegExp(escapeRegex(findText), 'gi');
-        const matches = originalName.match(regex);
-        const replacementCount = matches ? matches.length : 0;
-
-        product.name = newName;
-        await product.save();
-        
-        updatedCount++;
-        totalReplacements += replacementCount;
-        updatedProducts.push({
-          id: product._id,
-          oldName: originalName,
-          newName: newName,
-          replacements: replacementCount
-        });
-      }
-    }
-
-    if (updatedCount) {
-      auditBulk(req, `Toplu ad değiştirme ("${findText}" → "${replaceText}")`,
-        updatedProducts.map((p) => ({ _id: p.id, name: p.newName })),
-        updatedProducts.slice(0, 15).map((p) => ({ label: "Ad", from: p.oldName, to: p.newName })));
-    }
-    res.json({
-      success: true,
-      message: `${updatedCount} ürün güncellendi, toplam ${totalReplacements} değişiklik yapıldı`,
-      stats: {
-        totalProducts: products.length,
-        updatedProducts: updatedCount,
-        totalReplacements: totalReplacements
-      },
-      updatedProducts: updatedProducts.slice(0, 50) // İlk 50'sini göster
-    });
-  } catch (error) {
-    console.error("Toplu metin değiştirme hatası:", error);
-    res.status(500).json({ 
-      success: false,
-      message: "Metin değiştirme işlemi başarısız",
-      error: error.message 
-    });
   }
 };
 

@@ -1,17 +1,26 @@
 import WeeklyProduct from "../models/weeklyProduct.model.js";
 import Product from "../models/product.model.js";
 import { invalidateWeeklyPriceCache } from "../services/weeklyPrice.service.js";
+import { activeWeeklyFilter, isWeeklyDealLive } from "../services/productPricing.js";
 import { money, recordAdminAction } from "../services/adminAudit.service.js";
+
+export const EXPIRED_ACTIVATE_MESSAGE = "Bu fırsatın bitiş tarihi geçmiş. Yayına almak için yeni bir bitiş tarihi seçin.";
+const isPast = (value, now = new Date()) => {
+  if (value === null || value === undefined || value === "") return false;
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime()) && date <= now;
+};
 
 const auditWeekly = (req, product, action, changes = []) =>
   recordAdminAction(req, { action, category: "campaign", target: String(product?._id || product || ""), targetName: product?.name || "Haftalık fırsat", changes });
 
 /**
- * Tüm aktif haftalık ürünleri getir (Public API)
+ * Şu an geçerli haftalık ürünleri getir (Public API). Başlamamış ya da süresi dolmuş fırsat dönmez.
  */
 export const getWeeklyProducts = async (req, res) => {
   try {
-    const weeklyProducts = await WeeklyProduct.find({ isActive: true })
+    const now = new Date();
+    const weeklyProducts = await WeeklyProduct.find(activeWeeklyFilter(now))
       .populate({
         path: "product",
         select: "name price image thumbnail category description isOutOfStock isDiscounted discountedPrice",
@@ -19,8 +28,8 @@ export const getWeeklyProducts = async (req, res) => {
       })
       .sort({ order: 1, createdAt: -1 });
 
-    // Null olan product'ları filtrele (silinmiş veya gizli ürünler)
-    const validProducts = weeklyProducts.filter(wp => wp.product !== null);
+    // Null olan product'ları filtrele (silinmiş veya gizli ürünler); tarih denetimi ikinci emniyet
+    const validProducts = weeklyProducts.filter(wp => wp.product !== null && isWeeklyDealLive(wp, now));
 
     res.json({
       success: true,
@@ -78,11 +87,21 @@ export const addWeeklyProduct = async (req, res) => {
       });
     }
 
+    if (isPast(endDate)) {
+      return res.status(400).json({ success: false, message: "Bitiş tarihi geçmiş olamaz" });
+    }
+
     // Bu ürün zaten aktif haftalık ürün mü kontrol et
-    const existingActive = await WeeklyProduct.findOne({
+    let existingActive = await WeeklyProduct.findOne({
       product: productId,
       isActive: true,
     });
+    // Süresi dolmuş ama zamanlayıcının henüz kapatmadığı kayıt yeni fırsatı engellemez: kapatılır
+    if (existingActive && isPast(existingActive.endDate)) {
+      existingActive.isActive = false;
+      await existingActive.save();
+      existingActive = null;
+    }
 
     if (existingActive) {
       return res.status(400).json({
@@ -158,6 +177,14 @@ export const updateWeeklyProduct = async (req, res) => {
       calculatedDiscount = Math.round(
         ((weeklyProduct.product.price - weeklyPrice) / weeklyProduct.product.price) * 100
       );
+    }
+
+    // Süresi dolmuş fırsat yayına alınamaz (zamanlayıcı bir dakika içinde yeniden kapatırdı); yalnızca
+    // sıralama gibi isActive/endDate göndermeyen düzenlemeler engellenmez
+    const nextEndDate = endDate !== undefined ? endDate : weeklyProduct.endDate;
+    const nextActive = isActive ?? weeklyProduct.isActive;
+    if (nextActive && (isActive === true || endDate !== undefined) && isPast(nextEndDate)) {
+      return res.status(400).json({ success: false, message: EXPIRED_ACTIVATE_MESSAGE });
     }
 
     const before = { weeklyPrice: weeklyProduct.weeklyPrice, isActive: weeklyProduct.isActive };
@@ -250,6 +277,10 @@ export const toggleWeeklyProductStatus = async (req, res) => {
         success: false,
         message: "Haftalık ürün bulunamadı",
       });
+    }
+
+    if (!weeklyProduct.isActive && isPast(weeklyProduct.endDate)) {
+      return res.status(400).json({ success: false, message: EXPIRED_ACTIVATE_MESSAGE });
     }
 
     weeklyProduct.isActive = !weeklyProduct.isActive;

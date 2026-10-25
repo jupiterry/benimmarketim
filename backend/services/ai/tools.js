@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import Product from "../../models/product.model.js";
 import WeeklyProduct from "../../models/weeklyProduct.model.js";
-import { resolveUnitPrice } from "../productPricing.js";
+import { activeWeeklyFilter, isWeeklyDealLive, resolveUnitPrice } from "../productPricing.js";
 import FlashSale from "../../models/flashSale.model.js";
 import Coupon from "../../models/coupon.model.js";
 import Order from "../../models/order.model.js";
@@ -257,8 +257,10 @@ export const detectToolIntent = (query) => {
 
 export const effectivePriceMap = async (products) => {
   const ids = products.map((product) => product._id);
-  const weekly = await WeeklyProduct.find({ isActive: true, product: { $in: ids } }).select("product weeklyPrice").lean();
-  const map = new Map(weekly.map((item) => [String(item.product), Number(item.weeklyPrice)]));
+  const now = new Date();
+  // Yalnızca şu an geçerli haftalık fırsat (başlamamış/süresi dolmuş fiyat söylenmez)
+  const weekly = await WeeklyProduct.find({ ...activeWeeklyFilter(now), product: { $in: ids } }).select("product weeklyPrice startDate endDate isActive").lean();
+  const map = new Map(weekly.filter((item) => isWeeklyDealLive(item, now)).map((item) => [String(item.product), Number(item.weeklyPrice)]));
   return products.map((product) => {
     // Sipariş fiyatıyla aynı kural (haftalık / indirim-flash sale / liste fiyatının en düşüğü)
     const { price } = resolveUnitPrice(product, map.get(String(product._id)));
@@ -312,8 +314,8 @@ export const runAiTool = async (intent, authenticatedUserId) => {
     const campaigns = await FlashSale.find({ isActive: true, startDate: { $lte: now }, endDate: { $gte: now } }).populate({ path: "product", match: { isHidden: { $ne: true } }, select: "name price isOutOfStock" }).sort({ endDate: 1 }).limit(10).lean();
     const active = campaigns.filter((item) => item.product).map((item) => ({ product: item.product.name, discountPercentage: item.discountPercentage, endDate: item.endDate, inStock: !item.product.isOutOfStock }));
     // Haftanın ürünleri: yönetici panelinden belirlenen özel fiyatlı ürünler
-    const weeklyRows = await WeeklyProduct.find({ isActive: true, $or: [{ endDate: null }, { endDate: { $gte: now } }] }).populate({ path: "product", match: { isHidden: { $ne: true } }, select: "name price isOutOfStock" }).sort({ order: 1 }).limit(10).lean();
-    const weeklyDeals = weeklyRows.filter((item) => item.product).map((item) => ({ product: item.product.name, weeklyPrice: Number(item.weeklyPrice), regularPrice: Number(item.product.price), inStock: !item.product.isOutOfStock }));
+    const weeklyRows = await WeeklyProduct.find(activeWeeklyFilter(now)).populate({ path: "product", match: { isHidden: { $ne: true } }, select: "name price isOutOfStock" }).sort({ order: 1 }).limit(10).lean();
+    const weeklyDeals = weeklyRows.filter((item) => item.product && isWeeklyDealLive(item, now)).map((item) => ({ product: item.product.name, weeklyPrice: Number(item.weeklyPrice), regularPrice: Number(item.product.price), inStock: !item.product.isOutOfStock }));
     return { tool: intent.name, found: active.length > 0 || weeklyDeals.length > 0, campaigns: active, weeklyDeals };
   }
   if (intent.name === "getCouponInfo") {

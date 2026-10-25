@@ -2,19 +2,24 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { Search, ArrowUpRight, X, Package, ShoppingBag, Users, Plus, BellRing, SunMoon, CornerDownLeft } from "lucide-react";
 import axios from "../../lib/axios";
 import { adminMenuGroups } from "./adminNavigation";
-import { HANDOFF, fold, money, setHandoff } from "./ui";
+import { HANDOFF, fold, money, setHandoff, useDebounced } from "./ui";
 
 const ORDER_STATUS_TONE = { "Hazırlanıyor": "warn", "Yolda": "info", "Teslim Edildi": "ok", "İptal Edildi": "danger" };
 const MAX_PER_GROUP = 6;
+const MIN_USER_QUERY = 2; // müşteri araması en az bu kadar karakterle başlar
 
 /**
  * Ctrl+K paleti: bölümler, hızlı eylemler ve canlı arama (ürün, aktif sipariş, müşteri).
- * Ürünler ve müşteriler zaten panelde yüklü (prop); aktif siparişler palet açılınca bir kez çekilir.
+ * Ürünler panelde yüklü (prop); aktif siparişler palet açılınca bir kez çekilir; müşteriler yalnızca bir şey
+ * yazıldığında sunucuda aranır (GET /users/search, gecikmeli; tüm müşteri listesi indirilmez).
  */
-export default function CommandPalette({ isOpen, onClose, onNavigate, currentTab, products = [], users = [], onToggleTheme }) {
+export default function CommandPalette({ isOpen, onClose, onNavigate, currentTab, products = [], onToggleTheme }) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [orders, setOrders] = useState([]);
+  const [userHits, setUserHits] = useState({ q: "", users: [] });
+  const [usersSearching, setUsersSearching] = useState(false);
+  const userQuery = useDebounced(isOpen ? query.trim() : "", 250);
   const dialog = useRef(null);
   const input = useRef(null);
   const close = useRef(onClose);
@@ -58,6 +63,22 @@ export default function CommandPalette({ isOpen, onClose, onNavigate, currentTab
     };
   }, [isOpen]);
 
+  // Müşteri araması: palet açık ve sorgu yeterince uzunsa; eski yanıtlar yok sayılır
+  useEffect(() => {
+    if (!isOpen || userQuery.length < MIN_USER_QUERY) {
+      setUserHits({ q: "", users: [] });
+      setUsersSearching(false);
+      return undefined;
+    }
+    const controller = new AbortController();
+    setUsersSearching(true);
+    axios.get("/users/search", { params: { q: userQuery, limit: MAX_PER_GROUP }, signal: controller.signal })
+      .then(({ data }) => setUserHits({ q: userQuery, users: Array.isArray(data?.users) ? data.users : [] }))
+      .catch(() => { if (!controller.signal.aborted) setUserHits({ q: userQuery, users: [] }); })
+      .finally(() => { if (!controller.signal.aborted) setUsersSearching(false); });
+    return () => controller.abort();
+  }, [isOpen, userQuery]);
+
   const results = useMemo(() => {
     const q = fold(query.trim());
     const terms = q ? q.split(/\s+/) : [];
@@ -92,15 +113,22 @@ export default function CommandPalette({ isOpen, onClose, onNavigate, currentTab
         }));
       if (orderHits.length) groups.push({ title: "Aktif siparişler", items: orderHits });
 
-      const userHits = users.filter((u) => u?.name && match(`${u.name} ${u.email || ""} ${u.phone || ""}`)).slice(0, MAX_PER_GROUP)
+      // Sunucu sonuçları geçerli sorguya aitse olduğu gibi; kullanıcı yazmaya devam ederken (önceki sorgunun
+      // uzantısı) yeni yanıt gelene dek yerelde süzülerek gösterilir, böylece grup her tuşta kaybolmaz
+      const base = userHits.q ? fold(userHits.q) : null;
+      const customerSource = base !== null && q.startsWith(base)
+        ? userHits.users.filter((u) => base === q || match(`${u.name || ""} ${u.email || ""} ${u.phone || ""}`))
+        : [];
+      const customerHits = customerSource.slice(0, MAX_PER_GROUP)
         .map((u) => ({
-          id: `usr:${u._id}`, label: u.name, icon: Users, hint: u.email || u.phone || "Müşteri",
+          id: `usr:${u._id}`, label: u.name || "İsimsiz müşteri", icon: Users,
+          hint: [u.role === "admin" ? "Yönetici" : null, u.email || u.phone || "Müşteri"].filter(Boolean).join(" · "),
           run: () => { setHandoff(HANDOFF.user, u._id); onNavigate("users"); },
         }));
-      if (userHits.length) groups.push({ title: "Müşteriler", items: userHits });
+      if (customerHits.length) groups.push({ title: "Müşteriler", items: customerHits });
     }
     return groups;
-  }, [query, sections, products, orders, users, currentTab, onNavigate, onToggleTheme]);
+  }, [query, sections, products, orders, userHits, currentTab, onNavigate, onToggleTheme]);
 
   const flat = useMemo(() => results.flatMap((g) => g.items), [results]);
   useEffect(() => { setSelectedIndex(0); }, [query]);
@@ -149,8 +177,8 @@ export default function CommandPalette({ isOpen, onClose, onNavigate, currentTab
             </div>
           ))}
           {!flat.length && (
-            <div className="app-pop-empty">
-              <strong>Sonuç bulunamadı</strong>
+            <div className="app-pop-empty" aria-live="polite">
+              <strong>{usersSearching || (query.trim().length >= MIN_USER_QUERY && userQuery !== query.trim()) ? "Müşteriler aranıyor…" : "Sonuç bulunamadı"}</strong>
               <p>Ürün adı, sipariş numarasının son 6 hanesi, müşteri adı ya da bölüm adı yazın.</p>
             </div>
           )}

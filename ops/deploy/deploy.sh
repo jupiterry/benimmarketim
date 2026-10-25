@@ -35,6 +35,17 @@ chmod 700 "$run"
 exec 3>&1 4>&2
 # Dependency/build diagnostics stay in a root-only log; never stream them to CI.
 exec >"$run/deploy.log" 2>&1
+# Telegram bildirim botu projeden kaldırıldı (Ekim 2026). Eski PM2 süreci silinen
+# kodu bellekte çalıştırmaya devam etmesin diye her yayında, varsa, durdurulup
+# silinir ve PM2 listesi kaydedilir (yeniden başlatmada geri gelmez). Süreç yoksa
+# hiçbir şey yapmaz; bu adım yayını asla başarısız etmez. Mongo'daki telegram_*
+# koleksiyonlarına dokunulmaz.
+LEGACY_TELEGRAM=benimmarketim-telegram
+if pm2 describe "$LEGACY_TELEGRAM" >/dev/null 2>&1; then
+  pm2 stop "$LEGACY_TELEGRAM" || true
+  pm2 delete "$LEGACY_TELEGRAM" || true
+  pm2 save || true
+fi
 stage="$run/stage"
 old=$(git rev-parse HEAD)
 printf '%s\n' "$old" > "$run/previous-commit"

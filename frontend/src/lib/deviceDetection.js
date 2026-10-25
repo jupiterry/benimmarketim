@@ -26,31 +26,3 @@ export const detectDeviceType = () => {
     return 'mobile';
   }
 };
-
-// Get device icon
-export const getDeviceIcon = (deviceType) => {
-  switch (deviceType) {
-    case 'desktop':
-      return '🖥️';
-    case 'mobile':
-      return '📱';
-    case 'tablet':
-      return '📱';
-    default:
-      return '❓';
-  }
-};
-
-// Get device name in Turkish
-export const getDeviceName = (deviceType) => {
-  switch (deviceType) {
-    case 'desktop':
-      return 'Bilgisayar';
-    case 'mobile':
-      return 'Telefon';
-    case 'tablet':
-      return 'Tablet';
-    default:
-      return 'Bilinmiyor';
-  }
-};

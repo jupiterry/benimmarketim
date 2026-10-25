@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-// Müşteriler ekranının ortak yardımcıları ve küçük parçaları (segment kuralları, etiketler, avatar).
+// Müşteriler ekranının ortak yardımcıları ve küçük parçaları (segment adları, etiketler, avatar, gün anahtarları).
 import { useState } from "react";
 import { Crown, Monitor, Smartphone, Tablet } from "lucide-react";
 import { avatarTone, initials, lastSeenAt, registeredAt } from "../../lib/customers";
@@ -8,7 +8,7 @@ export const DAY = 86400000;
 export const ACTIVE_DAYS = 30; // bu kadar gün içinde görüldüyse "aktif"
 export const NEW_DAYS = 7; // bu kadar gün içinde kayıt olduysa "yeni"
 export const LOYAL_ORDERS = 5; // bu kadar ve üstü sipariş "sadık"
-export const PAGE_SIZE = 50;
+export const PAGE_SIZES = [25, 50, 100]; // sunucu sayfası (GET /users?limit=, en fazla 100)
 
 export { avatarTone, initials, lastSeenAt, registeredAt };
 
@@ -19,38 +19,65 @@ export const isNew = (user, now) => now - ms(registeredAt(user)) < NEW_DAYS * DA
 export const isActive = (user, now) => now - ms(lastSeenAt(user)) < ACTIVE_DAYS * DAY;
 /** 30+ gündür hiç görülmedi (yeni kayıtlar risk sayılmaz) */
 export const isAtRisk = (user, now) => !isActive(user, now) && !isNew(user, now);
-export const registeredToday = (user, now) => {
-  const at = registeredAt(user);
-  if (!at) return false;
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
-  return at.getTime() >= start.getTime();
+/** Yerel gün başı (sunucuya "bugün kayıt olan" ve grafik için gönderilir) */
+export const startOfLocalDay = (now) => {
+  const day = new Date(now);
+  day.setHours(0, 0, 0, 0);
+  return day;
+};
+const pad2 = (n) => String(n).padStart(2, "0");
+/** Yerel tarih anahtarı "2026-10-25" (sunucudaki $dateToString biçimiyle aynı) */
+export const localDayKey = (date) => {
+  const d = new Date(date);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+};
+/** Son `days` günün kayıt sayıları (en eski → en yeni); `rows` GET /users/stats → registrations.days */
+export const registrationSeriesFrom = (rows, days, now) => {
+  const counts = new Map((rows || []).map((row) => [row.day, Number(row.count) || 0]));
+  const today = startOfLocalDay(now);
+  return Array.from({ length: days }, (_, index) => {
+    const start = new Date(today);
+    start.setDate(today.getDate() - (days - 1 - index));
+    return { start: start.getTime(), count: counts.get(localDayKey(start)) || 0 };
+  });
+};
+/** Tarayıcının saat dilimi (grafik günleri sunucuda bu dilime göre gruplanır) */
+export const browserTimeZone = () => {
+  try {
+    return window.Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Istanbul";
+  } catch {
+    return "Europe/Istanbul";
+  }
 };
 
-/** Sipariş özeti (best-customers uç noktasından): { orderCount, totalSpent, avgOrderValue } */
-export const orderInfoOf = (orderMap, user) => orderMap?.get?.(String(user?._id)) || null;
-export const hasOrders = (orderMap, user) => (orderInfoOf(orderMap, user)?.orderCount || 0) > 0;
-export const isLoyal = (orderMap, user) => (orderInfoOf(orderMap, user)?.orderCount || 0) >= LOYAL_ORDERS;
+/** Sipariş özeti: liste satırında sunucudan gelir (GET /users → orderCount, totalSpent, avgOrderValue); iptaller hariç */
+export const orderInfoOf = (user) => {
+  const orderCount = Number(user?.orderCount) || 0;
+  if (!orderCount) return null;
+  return { orderCount, totalSpent: Number(user.totalSpent) || 0, avgOrderValue: Number(user.avgOrderValue) || 0 };
+};
+export const hasOrders = (user) => (Number(user?.orderCount) || 0) > 0;
+export const isLoyal = (user) => (Number(user?.orderCount) || 0) >= LOYAL_ORDERS;
 
-/** Liste süzgeçleri; `orderMap` yüklenmeden "Sipariş yok" süzgeci boş döner */
+/** Liste süzgeçleri; kurallar sunucuda (GET /users?segment=…), sayılar GET /users/stats'tan gelir */
 export const SEGMENTS = [
-  { id: "all", label: "Tümü", test: () => true },
-  { id: "active", label: "Aktif", hint: `Son ${ACTIVE_DAYS} günde görüldü`, test: (u, now) => !isAdmin(u) && isActive(u, now) },
-  { id: "risk", label: "Risk altında", hint: `${ACTIVE_DAYS}+ gündür sessiz`, test: (u, now) => !isAdmin(u) && isAtRisk(u, now) },
-  { id: "new", label: "Yeni", hint: `Son ${NEW_DAYS} günde kayıt oldu`, test: (u, now) => !isAdmin(u) && isNew(u, now) },
-  { id: "admin", label: "Yönetici", test: (u) => isAdmin(u) },
-  { id: "noOrders", label: "Sipariş yok", hint: "Hiç sipariş vermedi", test: (u, now, orderMap) => !isAdmin(u) && Boolean(orderMap) && !hasOrders(orderMap, u) },
+  { id: "all", label: "Tümü" },
+  { id: "active", label: "Aktif", hint: `Son ${ACTIVE_DAYS} günde görüldü` },
+  { id: "risk", label: "Risk altında", hint: `${ACTIVE_DAYS}+ gündür sessiz` },
+  { id: "new", label: "Yeni", hint: `Son ${NEW_DAYS} günde kayıt oldu` },
+  { id: "admin", label: "Yönetici" },
+  { id: "noOrders", label: "Sipariş yok", hint: "Hiç sipariş vermedi" },
 ];
 
 /** Satır ve çekmecedeki etiketler */
-export const customerTags = (user, orderMap, now) => {
+export const customerTags = (user, now) => {
   const tags = [];
   if (isAdmin(user)) {
     tags.push({ id: "admin", label: "Admin", tone: "brand", icon: Crown });
     return tags;
   }
   if (isNew(user, now)) tags.push({ id: "new", label: "Yeni", tone: "info" });
-  if (isLoyal(orderMap, user)) tags.push({ id: "loyal", label: "Sadık", tone: "ok" });
+  if (isLoyal(user)) tags.push({ id: "loyal", label: "Sadık", tone: "ok" });
   if (isAtRisk(user, now)) tags.push({ id: "risk", label: "Risk altında", tone: "warn" });
   return tags;
 };
@@ -118,12 +145,12 @@ export const APP_STAGE_BADGES = {
   3: { label: "Sipariş verdi", tone: "ok" },
 };
 export const APP_FILTERS = [
-  { id: "now", label: "Şu an uygulamada", tone: "ok", test: (u, since, now) => isInAppNow(u, now) },
-  { id: "opened", label: "Uygulamayı açtı", test: (u, since) => appStage(u, since) >= 1 },
-  { id: "checkout", label: "Sepet / sipariş ekranı", test: (u, since) => appStage(u, since) >= 2 },
-  { id: "ordered", label: "Sipariş verdi", test: (u, since) => appStage(u, since) === 3 },
-  { id: "noOrder", label: "Açtı, sipariş vermedi", tone: "warn", test: (u, since) => [1, 2].includes(appStage(u, since)) },
-  { id: "notOpened", label: "Hiç açmadı", test: (u, since) => appStage(u, since) === 0 },
+  { id: "now", label: "Şu an uygulamada", tone: "ok" },
+  { id: "opened", label: "Uygulamayı açtı" },
+  { id: "checkout", label: "Sepet / sipariş ekranı" },
+  { id: "ordered", label: "Sipariş verdi" },
+  { id: "noOrder", label: "Açtı, sipariş vermedi", tone: "warn" },
+  { id: "notOpened", label: "Hiç açmadı" },
 ];
 
 /** WhatsApp bağlantısı (0'la başlayan numaralara ülke kodu eklenir) */

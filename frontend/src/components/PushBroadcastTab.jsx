@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, ChevronDown, Clock, FlaskConical, Gift, Home, Package, RefreshCw, Repeat, RotateCcw, Send, ShoppingCart, Smartphone, Sparkles, Star, Stethoscope, UserPlus, Users, } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, Clock, FlaskConical, Gift, Home, Package, RefreshCw, Repeat, RotateCcw, Send, ShoppingCart, Smartphone, Sparkles, Star, Stethoscope, UserPlus, Users, Zap, } from "lucide-react";
 import toast from "react-hot-toast";
 import axios from "../lib/axios";
 import { useConfirm } from "./ConfirmModal";
 import PushLibrary from "./push/PushLibrary";
+import AutomationPanel from "./push/AutomationPanel";
+import { Tabs, usePref } from "./admin/ui";
 
 const TITLE_LIMIT = 60;
 const BODY_LIMIT = 180;
@@ -36,12 +38,18 @@ const REWRITES = [
   { id: "calmer", label: "🧘 Sadeleştir" },
 ];
 const TEST_AUDIENCE = "self";
+// Ekranın iki bölümü: elle gönderilen toplu bildirim ve kurallara göre kendiliğinden giden bildirimler
+const SCREEN_TABS = [
+  { value: "broadcast", label: "Tek seferlik bildirim", icon: Send },
+  { value: "auto", label: "Otomatik bildirimler", icon: Zap },
+];
 const FAILURE_LABELS = {
   no_devices: "Kayıtlı cihaz yok",
   auth: "Anahtar reddedildi",
   rejected: "OneSignal reddetti",
   network: "Bağlantı hatası",
   not_configured: "Yapılandırılmamış",
+  error: "Sunucu hatası",
 };
 const formatDate = (value) => new Date(value).toLocaleString("tr-TR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
@@ -57,6 +65,8 @@ const Counter = ({ value, limit }) => {
 
 export default function PushBroadcastTab() {
   const { confirm } = useConfirm();
+  const [screenTab, setScreenTab] = usePref("admin-push-tab", "broadcast");
+  const tab = screenTab === "auto" ? "auto" : "broadcast";
   const [overview, setOverview] = useState({ configured: true, audiences: [], history: [] });
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -253,13 +263,19 @@ export default function PushBroadcastTab() {
       <header className="app-pagehead">
         <div>
           <h1>Bildirim gönder</h1>
-          <p>Müşterilerinizin telefonuna kampanya ve duyuru bildirimi gönderin.</p>
+          <p>{tab === "auto" ? "Kurallara uyan müşterilere kendiliğinden giden bildirimleri yönetin." : "Müşterilerinizin telefonuna kampanya ve duyuru bildirimi gönderin."}</p>
         </div>
-        <button onClick={load} className="ui-btn" aria-label="Yenile">
-          <RefreshCw className={loading ? "ui-spin" : ""} />
-          Yenile
-        </button>
+        {tab === "broadcast" && (
+          <button onClick={load} className="ui-btn" aria-label="Yenile">
+            <RefreshCw className={loading ? "ui-spin" : ""} />
+            Yenile
+          </button>
+        )}
       </header>
+
+      <Tabs ariaLabel="Bildirim türü" tabs={SCREEN_TABS} value={tab} onChange={setScreenTab} />
+
+      {tab === "auto" ? <AutomationPanel /> : (<>
 
       {!overview.configured && (
         <div className="ui-banner ui-banner--warn" role="status">
@@ -570,6 +586,7 @@ export default function PushBroadcastTab() {
           </details>
         </aside>
       </div>
+      </>)}
     </div>
   );
 }

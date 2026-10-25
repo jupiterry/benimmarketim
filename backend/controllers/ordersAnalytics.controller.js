@@ -861,35 +861,83 @@ function getDatesInRange(startDate, endDate) {
 }
 
 // Kullanıcının siparişlerini getiren fonksiyon (admin için userId query desteği)
+// GET /api/orders-analytics/user-orders[?limit=100&before=<ISO tarih>]
+// Mobil uygulama (tek sipariş kanalı) parametresiz çağırır ve yalnızca { orders: [...] } okur (sayfalama
+// yok); bu yüzden ?limit gönderilmezse TÜM siparişler döner. limit/before yeni istemciler için isteğe bağlıdır.
+// Satır fiyatı products[].price, toplamlar totalAmount / subtotalAmount / couponDiscount / productTotal /
+// deliveryFee alanlarıdır.
+export const USER_ORDERS_DEFAULT_LIMIT = 100;
+export const USER_ORDERS_MAX_LIMIT = 200;
+
+/** ?limit → 1..USER_ORDERS_MAX_LIMIT (geçersiz/boş → varsayılan 100) */
+export const parseUserOrdersLimit = (value) => {
+  const n = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(n) || n <= 0) return USER_ORDERS_DEFAULT_LIMIT;
+  return Math.min(n, USER_ORDERS_MAX_LIMIT);
+};
+
+/** ?before → Date ya da null (geçersiz değer yok sayılır) */
+export const parseUserOrdersBefore = (value) => {
+  if (value === undefined || value === null || value === "" || typeof value !== "string") return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+/**
+ * Müşterinin sipariş satırı: fiyat siparişte ödenen birim fiyattır (products[].price), ürünün bugünkü
+ * fiyatı değil. Eskiden populate edilen ürünün güncel fiyatı gösteriliyordu; indirimle alınan ürün
+ * tam fiyatla görünüyor ve toplamla tutmuyordu ("fazla para alındı" şikâyeti).
+ */
+export const formatUserOrderLine = (line) => {
+  const product = line?.product || null; // populate edilmiş ürün; silinmişse null
+  const hasStoredPrice = line?.price !== null && line?.price !== undefined && line?.price !== "" && Number.isFinite(Number(line.price));
+  // Ödenen fiyat; yalnızca satırda fiyat hiç yoksa (çok eski kayıt) ürünün fiyatına düşülür
+  const price = round2(hasStoredPrice ? line.price : product?.price);
+  return {
+    // Mobil "tekrar sipariş" için; ürün silinmişse null döner.
+    productId: product?._id || null,
+    name: product?.name || line?.name || "Bilinmeyen Ürün",
+    quantity: line?.quantity,
+    price,
+    lineTotal: round2(price * (Number(line?.quantity) || 0)),
+    image: product?.image || line?.image || null,
+  };
+};
+
 export const getUserOrders = async (req, res) => {
   try {
     // Sadece admin başka bir kullanıcı için sorgu yapabilir.
     const userId = req.user.role === "admin" && req.query.userId
       ? req.query.userId
       : req.user._id;
-    
-    const orders = await Order.find({ user: userId })
+    // ?limit yalnızca gönderildiğinde uygulanır: uygulama parametresiz çağırır ve geçmişin tamamını bekler
+    const rawLimit = req.query?.limit;
+    const hasLimit = rawLimit !== undefined && rawLimit !== null && rawLimit !== "";
+    const limit = hasLimit ? parseUserOrdersLimit(rawLimit) : null;
+    const before = parseUserOrdersBefore(req.query?.before);
+    const filter = { user: userId };
+    if (before) filter.createdAt = { $lt: before };
+
+    // En yeni siparişler ({user, createdAt} indeksi); limit varsa bir fazlası "daha var" bilgisi için okunur
+    const orders = await Order.find(filter, null, limit ? { limit: limit + 1 } : {})
       .populate({
         path: 'products.product',
-        select: 'name price image'
+        select: 'name image price'
       })
       .sort({ createdAt: -1 });
 
-    const formattedOrders = orders.map(order => ({
+    const list = Array.isArray(orders) ? orders : [];
+    const hasMore = limit ? list.length > limit : false;
+    const page = hasMore ? list.slice(0, limit) : list;
+
+    const formattedOrders = page.map(order => ({
       _id: order._id,
       orderId: order._id,
-      products: order.products.map(p => ({
-        // Mobil "tekrar sipariş" için; ürün silinmişse null döner.
-        productId: p.product?._id || null,
-        name: p.product?.name || p.name || "Bilinmeyen Ürün",
-        quantity: p.quantity,
-        price: p.product?.price || p.price || 0,
-        image: p.product?.image || p.image || null,
-      })),
-      totalAmount: order.totalAmount,
-      subtotalAmount: order.subtotalAmount || order.totalAmount,
+      products: (order.products || []).map(formatUserOrderLine),
+      totalAmount: round2(order.totalAmount),
+      subtotalAmount: round2(order.subtotalAmount || order.totalAmount),
       couponCode: order.couponCode || null,
-      couponDiscount: order.couponDiscount || 0,
+      couponDiscount: round2(order.couponDiscount),
       status: order.status,
       note: order.note,
       city: order.city,
@@ -907,7 +955,13 @@ export const getUserOrders = async (req, res) => {
       cancelReasonNote: order.cancelReason?.code ? order.cancelReason.note || "" : "",
     }));
 
-    res.json({ orders: formattedOrders });
+    const last = page[page.length - 1];
+    res.json({
+      orders: formattedOrders,
+      hasMore,
+      // Sonraki sayfa: ?before=<nextBefore>
+      nextBefore: hasMore && last?.createdAt ? new Date(last.createdAt).toISOString() : null,
+    });
   } catch (error) {
     console.error("Kullanıcı siparişleri alınırken hata:", error.message);
     res.status(500).json({ message: "Server hatası", error: error.message });

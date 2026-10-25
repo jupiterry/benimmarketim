@@ -9,18 +9,14 @@ import {
   Clock, 
   CheckCircle, 
   AlertCircle,
-  Copy,
-  Palette,
   File,
   Loader,
   X
 } from "lucide-react";
 import axios from "../lib/axios";
 import toast from "react-hot-toast";
-import { useUserStore } from "../stores/useUserStore";
 
 const PhotocopyPage = () => {
-  const { user } = useUserStore();
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [files, setFiles] = useState([]);
@@ -90,7 +86,7 @@ const PhotocopyPage = () => {
     formDataToSend.append('notes', formData.notes);
 
     try {
-      const response = await axios.post('/photocopy/upload', formDataToSend, {
+      await axios.post('/photocopy/upload', formDataToSend, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

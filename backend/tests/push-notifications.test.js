@@ -61,6 +61,26 @@ test("nothing is sent without keys, without recipients, or for an invalid catego
   assert.equal(calls.length, 0);
 });
 
+test("a server error is reported as reason 'error', not as an opt-out (reason null)", async (t) => {
+  withKeys(t);
+  const calls = mockFetch(t);
+  t.mock.method(console, "error", () => {});
+  // Kullanıcı bildirimleri kapatmış: izinli kimse yok → reason null
+  t.mock.method(User, "find", () => chain([]));
+  const optedOut = await sendPushToUsers([id(1)], { title: "a", body: "b" }, {}, { category: "campaigns" });
+  assert.equal(optedOut.sent, false);
+  assert.equal(optedOut.reason, null);
+  // Veritabanı zaman aşımı: geçici hata → reason "error" (otomasyon yeniden dener)
+  t.mock.method(User, "find", () => { throw new Error("connection timed out"); });
+  const failed = await sendPushToUsers([id(1)], { title: "a", body: "b" }, {}, { category: "campaigns" });
+  assert.equal(failed.sent, false);
+  assert.equal(failed.reason, "error");
+  assert.equal(failed.detail, "connection timed out");
+  assert.equal(calls.length, 0);
+  assert.equal(describePushFailure(failed).status, 500);
+  assert.match(describePushFailure(failed).message, /sunucu hatası/);
+});
+
 test("cart reminder filter sends once per cart and respects opt-outs", () => {
   const now = new Date("2026-10-05T12:00:00Z");
   const filter = buildCartReminderFilter(24, now);

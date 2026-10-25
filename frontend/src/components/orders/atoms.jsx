@@ -207,7 +207,6 @@ export const TrustBadges = ({ order, className = "" }) => {
     </>
   );
 };
-export const TrustBadge = TrustBadges;
 /** "Teyit için ara": ilk sipariş telefonla teyit edilmemiş aktif sipariş; değilse null */
 export const CallbackBadge = ({ order, className = "" }) => {
   if (!needsCallbackPending(order)) return null;

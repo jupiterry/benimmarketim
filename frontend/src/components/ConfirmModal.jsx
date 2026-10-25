@@ -5,7 +5,8 @@ import { AlertTriangle, Trash2, X, CheckCircle, Info } from 'lucide-react';
 // Context
 const ConfirmContext = createContext(null);
 
-// Hook
+// Hook (bileşenlerle aynı dosyada: tüm ekranlar buradan içe aktarır)
+// eslint-disable-next-line react-refresh/only-export-components
 export const useConfirm = () => {
   const context = useContext(ConfirmContext);
   if (!context) {

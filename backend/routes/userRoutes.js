@@ -1,7 +1,7 @@
 // backend/routes/userRoutes.js
 import express from "express";
-import { getAllUsers, updateUser, addPhoneFieldToAllUsers, deleteUser, resetUserPassword } from "../controllers/userController.js";
-import { protectRoute, adminRoute } from "../middleware/auth.middleware.js"; // Yeni middleware'leri import et
+import { getAllUsers, getUserStats, searchUsers, updateUser, deleteUser, resetUserPassword } from "../controllers/userController.js";
+import { protectRoute, adminRoute } from "../middleware/auth.middleware.js";
 import { getUserInfo, getBestCustomers, deleteAccount, getCustomerProfile, updateUserRole } from "../controllers/user.controller.js";
 import { updateLastActive } from "../middleware/updateLastActive.js";
 import { auditAdminAction } from "../middleware/adminAudit.js";
@@ -9,7 +9,10 @@ import { auditAdminAction } from "../middleware/adminAudit.js";
 const router = express.Router();
 
 // Yalnızca adminlerin erişebileceği endpoint'ler
-router.get("/", protectRoute, adminRoute, getAllUsers); // Tüm kullanıcıları getir
+// Not: sabit yollar (/stats, /search, /best-customers) "/:id" yolundan ÖNCE tanımlanmalı.
+router.get("/", protectRoute, adminRoute, getAllUsers); // Sayfalı, aranabilir müşteri listesi (hafif alanlar)
+router.get("/stats", protectRoute, adminRoute, getUserStats); // Müşteriler ekranı KPI / süzgeç sayıları / grafik
+router.get("/search", protectRoute, adminRoute, searchUsers); // Seçiciler ve komut paleti için hızlı arama
 router.get("/best-customers", protectRoute, adminRoute, getBestCustomers); // En iyi müşteriler
 router.put("/:userId", protectRoute, adminRoute, auditAdminAction("Müşteri değişikliği", req => req.params.userId), updateUser); // Kullanıcıyı güncelle
 router.delete("/:userId", protectRoute, adminRoute, deleteUser);
@@ -22,8 +25,5 @@ router.get("/:id", protectRoute, updateLastActive, getUserInfo);
 
 // Hesap silme (kullanıcı kendi hesabını silebilir)
 router.post("/delete-account", protectRoute, deleteAccount);
-
-// Yalnızca adminlerin çalıştırabileceği bakım endpoint'i
-router.post("/add-phone-field", protectRoute, adminRoute, addPhoneFieldToAllUsers);
 
 export default router;

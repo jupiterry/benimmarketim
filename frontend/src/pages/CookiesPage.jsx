@@ -1,4 +1,3 @@
-import React from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Cookie, Settings, Shield, Eye, Database, AlertCircle } from 'lucide-react';
 import LegalLayout from '../components/LegalLayout';

@@ -25,7 +25,8 @@ def run_case(case):
             directory.mkdir()
         env = os.environ.copy()
         env.update(GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL=os.devnull,
-                   MOCK_CASE=case, MOCK_PM2=str(base / 'pm2.log'))
+                   MOCK_CASE=case, MOCK_PM2=str(base / 'pm2.log'),
+                   MOCK_TELEGRAM='absent' if case == 'telegram-absent' else 'present')
 
         def git(*args):
             return subprocess.check_output(['git', '-C', str(app), *args], env=env,
@@ -74,7 +75,10 @@ def run_case(case):
 
         mocks = {
             'node': 'if [ "$1" = -p ]; then echo 22; fi\n',
-            'pm2': 'echo "$*" >> "$MOCK_PM2"\n',
+            # The retired Telegram worker is "running" unless the case says it is absent.
+            'pm2': '''echo "$*" >> "$MOCK_PM2"
+if [ "$1" = describe ] && [ "$2" = benimmarketim-telegram ] && [ "$MOCK_TELEGRAM" = absent ]; then exit 1; fi
+''',
             'flock': 'exit 0\n',
             'curl': '''head=$(git rev-parse HEAD)
 if { [ "$MOCK_CASE" = health-failure ] || [ "$MOCK_CASE" = dependencies ]; } && [ "$head" = "$MOCK_BAD_SHA" ]; then echo 503; else echo 200; fi
@@ -116,17 +120,26 @@ echo new > frontend/dist/assets/new.js
         target = old if case in ('stale', 'manual-rollback') else new
         proc = subprocess.run([BASH, str(runner), mode, target, app_path],
                               env=env, capture_output=True, text=True, timeout=40)
-        success = case in ('frontend', 'backend', 'manual-rollback')
+        success = case in ('frontend', 'backend', 'manual-rollback', 'telegram-absent')
         if (proc.returncode == 0) != success:
             logs = '\n'.join(p.read_text(errors='replace') for p in state.glob('*/deploy.log'))
             raise AssertionError(f'{case}: {proc.stdout}\n{proc.stderr}\n{logs}')
-        expected = new if case in ('frontend', 'backend') else old
+        expected = new if case in ('frontend', 'backend', 'telegram-absent') else old
         assert git('rev-parse', 'HEAD') == expected, case
         assert (app / '.env').read_text() == 'DO_NOT_TOUCH=test\n', case
         assert (app / 'uploads/customer.pdf').read_text() == 'preserve\n', case
         assert (app / 'node_modules/marker').read_text() == 'old\n', case
         pm2 = (base / 'pm2.log').read_text() if (base / 'pm2.log').exists() else ''
-        if case == 'frontend':
+        if case in ('frontend', 'backend', 'manual-rollback'):
+            # Every deploy retires the old Telegram worker (stop + delete + save).
+            for line in ('stop benimmarketim-telegram', 'delete benimmarketim-telegram', 'save'):
+                assert line in pm2.splitlines(), (case, line)
+        if case == 'telegram-absent':
+            # Absent worker: nothing to delete and the deploy still succeeds.
+            assert 'describe benimmarketim-telegram' in pm2
+            assert 'delete benimmarketim-telegram' not in pm2
+            assert 'save' not in pm2.splitlines()
+        if case in ('frontend', 'telegram-absent'):
             assert 'reload' not in pm2
             assert (app / 'frontend/dist/assets/old.js').exists()
             assert (app / 'frontend/dist/index.html').read_text() == 'new\n'
@@ -140,5 +153,5 @@ echo new > frontend/dist/assets/new.js
 
 
 for scenario in ('frontend', 'backend', 'build-failure', 'health-failure',
-                 'dirty', 'dependencies', 'stale', 'manual-rollback'):
+                 'dirty', 'dependencies', 'stale', 'manual-rollback', 'telegram-absent'):
     run_case(scenario)

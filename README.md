@@ -52,6 +52,7 @@ Modern tasarıma sahip, React ve Node.js ile geliştirilmiş kapsamlı bir e-tic
 ### 🔔 Bildirimler ve Yedek
 - Yeni sipariş: yönetici paneline Socket.IO bildirimi ve sipariş alarmı uygulaması
 - Müşteriye sipariş durumu bildirimleri (OneSignal/FCM)
+- Otomatik müşteri bildirimleri (panelden açılır, varsayılan kapalı): ikinci sipariş teşviki, geri kazanma, kupon süresi doluyor hatırlatması, mağaza açılınca "sepetin hazır"
 - Gece veritabanı yedeği yalnızca sunucuda tutulur (`backend/workers/BACKUP.md`)
 
 ## 🛠️ Teknoloji Yığını
@@ -90,8 +91,12 @@ cp .env.example .env
 # Sunucuyu başlat
 npm run dev
 
-# Backend testleri
+# Backend testleri (CI tüm backend/tests/*.test.js dosyalarını çalıştırır)
 npm run test:ai-support
+node --test backend/tests/*.test.js
+
+# Backend lint (frontend bağımlılıkları kurulduktan sonra; CI'da da çalışır)
+npm run lint:backend
 ```
 
 ### Frontend Kurulumu
@@ -104,6 +109,9 @@ npm install
 
 # Geliştirme sunucusunu başlat
 npm run dev
+
+# Lint (0 hata / 0 uyarı; CI'da derlemeden önce çalışır)
+npm run lint
 ```
 
 ## 📝 Lisans

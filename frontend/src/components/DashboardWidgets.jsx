@@ -1,12 +1,14 @@
 // Genel bakış (yönetici panosu): dönem özeti sunucuda hesaplanır (/orders-analytics/summary),
 // kartlar sürükle-bırak ile sıralanır ve tercih tarayıcıda saklanır.
+// Teslimat operasyonu: "Teyit bekleyen" (callbacks.pending, dönemden bağımsız) dikkat şeridinde,
+// "Teslim edilemedi" (failedDeliveries, seçili dönem) KPI satırında ve nedene/bölgeye göre ayrı kartta.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
   AlertTriangle, ArrowRight, ArrowUpRight, Bell, CalendarDays, CheckCircle2, ChevronRight, Clock, GripVertical,
-  Headphones, ImageOff, LayoutGrid, PackageX, Percent, Plus, RefreshCw, RotateCcw, ShoppingBag, Tag, TrendingUp, Truck,
-  Users, Zap, BarChart3, Package,
+  Headphones, ImageOff, LayoutGrid, MapPinOff, PackageX, Percent, PhoneCall, Plus, RefreshCw, RotateCcw, ShoppingBag, Tag,
+  TrendingUp, Truck, Users, Zap, BarChart3, Package,
 } from "lucide-react";
 import axios from "../lib/axios";
 import socketService from "../lib/socket";
@@ -44,7 +46,7 @@ const periodParams = (value) => {
 const number = (value) => Number(value || 0).toLocaleString("tr-TR");
 const percent = (value) => `%${Number(value || 0).toLocaleString("tr-TR", { maximumFractionDigits: 1 })}`;
 const STATUS_TONES = { "Hazırlanıyor": "warn", "Yolda": "info", "Teslim Edildi": "ok", "İptal Edildi": "danger" };
-const DORM_NAMES = { girlsDorm: "Kız yurdu", boysDorm: "Erkek yurdu", unknown: "Belirsiz" };
+const DORM_NAMES = { girlsDorm: "Kız yurdu", boysDorm: "Erkek yurdu", address: "Adrese teslim", unknown: "Belirsiz" };
 const MONTHS = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
 /** Seri anahtarını ("2026-10-20T09" / "2026-10-20" / "2026-10") eksen etiketine çevirir */
 const bucketLabel = (key, bucket) => {
@@ -57,20 +59,97 @@ const axisMoney = (value) => (Math.abs(Number(value) || 0) >= 10_000 ? compactMo
 const shortId = (id) => `#${String(id || "").slice(-6).toUpperCase()}`;
 const preparingMinutes = (order, now) => (order.status === "Hazırlanıyor" ? Math.floor((now - new Date(order.createdAt).getTime()) / 60000) : 0);
 
+// ── Teslim edilemedi ─────────────────────────────────────────────────────
+// Neden kodları: backend/lib/feedbackOptions.js DELIVERY_OUTCOMES (sıra sabit; bilinmeyen kod "Diğer"e katılır)
+const FAILED_REASONS = [
+  { code: "adres_bulunamadi", label: "Adres bulunamadı", short: "Adres bulunamadı", tone: "danger" },
+  { code: "cevap_yok", label: "Müşteriye ulaşılamadı", short: "Ulaşılamadı", tone: "warn" },
+  { code: "reddetti", label: "Müşteri teslim almadı", short: "Teslim almadı", tone: "info" },
+  { code: "diger", label: "Diğer", short: "Diğer", tone: undefined },
+];
+const FAILED_CODES = new Set(FAILED_REASONS.map((reason) => reason.code));
+const FAILED_ZONE_LIMIT = 5;
+/** { kod: adet } → sabit sıralı neden satırları */
+const reasonRows = (byReason) => {
+  const counts = Object.fromEntries(FAILED_REASONS.map((reason) => [reason.code, 0]));
+  if (byReason && typeof byReason === "object") {
+    for (const [code, value] of Object.entries(byReason)) counts[FAILED_CODES.has(code) ? code : "diger"] += Number(value) || 0;
+  }
+  return FAILED_REASONS.map((reason) => ({ ...reason, count: counts[reason.code] }));
+};
+/** En sık neden (eşitlikte sabit sıradaki ilk) ya da null */
+const topReason = (rows) => rows.reduce((best, row) => (row.count > (best?.count || 0) ? row : best), null);
+/**
+ * Sunucudaki failedDeliveries'i sunuma hazırlar. Anahtar yoksa (eski sunucu) null döner; kart "veri yok" der, KPI gizlenir.
+ * zoneNames: zoneDistribution'dan bölge adları (failedDeliveries.byZone[].name boş olabilir)
+ */
+const summarizeFailed = (summary) => {
+  const raw = summary?.failedDeliveries;
+  if (!raw || typeof raw !== "object") return null;
+  const reasons = reasonRows(raw.byReason);
+  const reasonTotal = reasons.reduce((sum, row) => sum + row.count, 0);
+  const total = typeof raw.total === "number" && Number.isFinite(raw.total) ? raw.total : reasonTotal;
+  const orders = Number(summary?.totals?.orders) || 0;
+  const zoneNames = new Map((Array.isArray(summary?.zoneDistribution) ? summary.zoneDistribution : [])
+    .filter((row) => row?.name).map((row) => [row.zoneId, row.name]));
+  const zones = (Array.isArray(raw.byZone) ? raw.byZone : [])
+    .map((zone) => {
+      const zoneId = zone?.zoneId || "unknown";
+      return {
+        key: zoneId,
+        label: zone?.name || zoneNames.get(zoneId) || DORM_NAMES[zoneId] || String(zoneId),
+        count: Number(zone?.count) || 0,
+        top: topReason(reasonRows(zone?.byReason)),
+      };
+    })
+    .filter((zone) => zone.count > 0)
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "tr"));
+  // Çok bölgede ilk beşi göster, kalanı tek satırda topla
+  const shownZones = zones.length > FAILED_ZONE_LIMIT + 1
+    ? [...zones.slice(0, FAILED_ZONE_LIMIT), {
+      key: "__rest", label: `Diğer ${zones.length - FAILED_ZONE_LIMIT} bölge`, rest: true, top: null,
+      count: zones.slice(FAILED_ZONE_LIMIT).reduce((sum, zone) => sum + zone.count, 0),
+    }]
+    : zones;
+  return {
+    total,
+    reasons,
+    reasonTotal,
+    top: topReason(reasons),
+    share: orders > 0 ? (total / orders) * 100 : null,
+    zones: shownZones,
+    zoneCount: zones.length,
+    zoneMax: Math.max(1, ...shownZones.map((zone) => zone.count)),
+  };
+};
+
 // ── Kart düzeni ──────────────────────────────────────────────────────────
-const DEFAULT_LAYOUT = { main: ["sales", "recent", "shelf"], side: ["status", "top", "quick", "profit", "alarm"] };
+const DEFAULT_LAYOUT = { main: ["sales", "recent", "shelf"], side: ["status", "failed", "top", "quick", "profit", "alarm"] };
 const CARD_IDS = [...DEFAULT_LAYOUT.main, ...DEFAULT_LAYOUT.side];
 const CARD_TITLES = {
   sales: "Satış", recent: "Son siparişler", shelf: "Raf performansı",
-  status: "Sipariş dağılımı", top: "Çok satanlar", quick: "Hızlı eylemler", profit: "Kâr tahmini", alarm: "Sipariş alarmı telefonları",
+  status: "Sipariş dağılımı", failed: "Teslim edilemedi", top: "Çok satanlar", quick: "Hızlı eylemler", profit: "Kâr tahmini",
+  alarm: "Sipariş alarmı telefonları",
 };
-/** Saklanan düzeni doğrular: bilinmeyen kartları atar, eksikleri varsayılan yerine ekler */
+/**
+ * Saklanan düzeni doğrular: bilinmeyen kartları atar. Eksik (sonradan eklenmiş) kart, varsayılan düzende önündeki
+ * kartın hemen arkasına (o kart hangi sütundaysa oraya) yerleşir; önünde kart yoksa kendi sütununun başına.
+ */
 const normalizeLayout = (saved) => {
-  const main = Array.isArray(saved?.main) ? saved.main.filter((id) => CARD_IDS.includes(id)) : [];
-  const side = Array.isArray(saved?.side) ? saved.side.filter((id) => CARD_IDS.includes(id) && !main.includes(id)) : [];
+  const main = Array.isArray(saved?.main) ? saved.main.filter((id, index, list) => CARD_IDS.includes(id) && list.indexOf(id) === index) : [];
+  const side = Array.isArray(saved?.side) ? saved.side.filter((id, index, list) => CARD_IDS.includes(id) && !main.includes(id) && list.indexOf(id) === index) : [];
+  const columns = { main, side };
   const seen = new Set([...main, ...side]);
-  for (const id of DEFAULT_LAYOUT.main) if (!seen.has(id)) main.push(id);
-  for (const id of DEFAULT_LAYOUT.side) if (!seen.has(id)) side.push(id);
+  for (const column of ["main", "side"]) {
+    DEFAULT_LAYOUT[column].forEach((id, index) => {
+      if (seen.has(id)) return;
+      seen.add(id);
+      const before = DEFAULT_LAYOUT[column].slice(0, index).reverse().find((prev) => main.includes(prev) || side.includes(prev));
+      if (!before) { columns[column].unshift(id); return; }
+      const host = main.includes(before) ? main : side;
+      host.splice(host.indexOf(before) + 1, 0, id);
+    });
+  }
   return { main, side };
 };
 const sameLayout = (a, b) => a.main.join() === b.main.join() && a.side.join() === b.side.join();
@@ -166,7 +245,7 @@ const DashboardSkeleton = () => (
     <div className="dsh-skel-head"><Skeleton width={180} height={26} /><Skeleton width={320} height={14} /></div>
     <Skeleton height={36} width={420} radius={8} />
     <Skeleton height={64} radius={10} />
-    <div className="dsh-skel-kpis">{Array.from({ length: 5 }, (_, i) => <Skeleton key={i} height={92} radius={10} />)}</div>
+    <div className="dsh-skel-kpis">{Array.from({ length: 6 }, (_, i) => <Skeleton key={i} height={92} radius={10} />)}</div>
     <div className="dsh-columns">
       <div className="dsh-column"><Skeleton height={320} radius={10} /><div className="ui-panel"><SkeletonRows rows={4} /></div></div>
       <div className="dsh-column"><Skeleton height={220} radius={10} /><div className="ui-panel"><SkeletonRows rows={5} avatar={false} /></div></div>
@@ -264,11 +343,16 @@ const DashboardWidgets = ({ onNavigate }) => {
   const chartTotal = metric === "revenue" ? totals.revenue : totals.completed;
   const chartPrevious = previous ? (metric === "revenue" ? previous.revenue : previous.completed) : null;
   const chartDelta = delta ? (metric === "revenue" ? delta.revenue : delta.orders) : null;
+  // Teyit bekleyen: eski sunucuda anahtar yok, sayım hatasında null → şeritte gösterilmez
+  const pendingCallbacks = summary?.callbacks && Number.isFinite(summary.callbacks.pending) ? summary.callbacks.pending : null;
+  const failed = summarizeFailed(summary);
+  const failedTone = !failed ? undefined : failed.total === 0 ? "ok" : failed.share !== null && failed.share >= 5 ? "danger" : "warn";
 
   // Delta varsa "düne göre", yoksa önceki dönemin değeri, karşılaştırma yoksa açıklama
   const compareNote = (value, previousText, fallback) => (value !== null && value !== undefined ? period.compare : previousText ? `önceki dönem ${previousText}` : fallback);
   const attentionItems = [
     { id: "delayed", icon: Clock, count: attention.delayedOrders, label: "Geciken sipariş", hint: "20 dk'dan uzun süredir hazırlanıyor", tone: attention.delayedOrders > 0 ? "danger" : null, onClick: () => openOrders("delayed") },
+    { id: "callback", icon: PhoneCall, count: pendingCallbacks, label: "Teyit bekleyen", hint: "İlk sipariş · arayıp teyit edin", tone: pendingCallbacks > 0 ? "warn" : null, onClick: () => openOrders("callback") },
     { id: "active", icon: Truck, count: attention.activeOrders, label: "Aktif sipariş", hint: "Hazırlanıyor veya yolda", tone: attention.activeOrders > 0 ? "info" : null, onClick: () => openOrders() },
     { id: "support", icon: Headphones, count: attention.waitingSupport, label: "Bekleyen destek", hint: "Canlı destek sırasında", tone: attention.waitingSupport > 0 ? "warn" : null, onClick: () => onNavigate?.("support-queue") },
     { id: "stock", icon: PackageX, count: attention.productsOutOfStock, label: "Stoksuz ürün", hint: "Katalogda tükendi görünüyor", tone: attention.productsOutOfStock > 0 ? "warn" : null, onClick: () => onNavigate?.("products") },
@@ -410,6 +494,70 @@ const DashboardWidgets = ({ onNavigate }) => {
         </div>}
       </section>
     ),
+    failed: () => (
+      <section className="ui-panel dsh-panel" aria-label="Teslim edilemedi">
+        <div className="ui-panel-head">
+          <div>
+            <h2>Teslim edilemedi</h2>
+            <p>{period.description} · nedene göre</p>
+          </div>
+          {failed?.total > 0 && <span className={`ui-badge ui-badge--${failedTone === "danger" ? "danger" : "warn"}`}>{number(failed.total)}</span>}
+        </div>
+        {unavailable ? <div className="ui-panel-body">{unavailable}</div> : !failed ? (
+          <div className="ui-panel-body">
+            <EmptyState compact icon={MapPinOff} title="Bu bilgi henüz yok"
+              description="Sunucu güncellenince dönemdeki teslim edilemeyen siparişler burada görünür." />
+          </div>
+        ) : failed.total === 0 ? (
+          <div className="ui-panel-body">
+            <EmptyState compact icon={CheckCircle2} title="Teslim edilemeyen sipariş yok"
+              description="Siparişlerde “Teslim edilemedi” olarak işaretlenenler nedeniyle birlikte burada görünür." />
+          </div>
+        ) : (
+          <div className="ui-panel-body dsh-dist dsh-failed">
+            <div className="dsh-failed-total">
+              <strong>{number(failed.total)}</strong>
+              <span>sipariş teslim edilemedi</span>
+              {failed.share !== null && <small>Dönem siparişlerine oranı {percent(failed.share)}</small>}
+            </div>
+            {failed.reasonTotal > 0 && (
+              <div className="dsh-stack" role="img"
+                aria-label={failed.reasons.filter((row) => row.count > 0).map((row) => `${row.label}: ${row.count}`).join(", ")}>
+                {failed.reasons.filter((row) => row.count > 0).map((row) => (
+                  <i key={row.code} data-tone={row.tone} style={{ flexGrow: row.count }} />
+                ))}
+              </div>
+            )}
+            <ul className="dsh-reasons">
+              {failed.reasons.map((row) => (
+                <li key={row.code} data-empty={row.count === 0 || undefined}>
+                  <i className={`ui-dot${row.tone ? ` ui-dot--${row.tone}` : ""}`} aria-hidden="true" />
+                  <span title={row.label}>{row.label}</span>
+                  <strong>{number(row.count)}</strong>
+                  <small>{failed.reasonTotal > 0 ? percent((row.count / failed.reasonTotal) * 100) : "—"}</small>
+                </li>
+              ))}
+            </ul>
+            {failed.zoneCount > 1 && (
+              <>
+                <h3 className="dsh-subhead">Bölgeye göre</h3>
+                <ul className="dsh-meters">
+                  {failed.zones.map((zone) => (
+                    <li key={zone.key} data-rest={zone.rest || undefined}>
+                      <span className="dsh-meter-label" title={zone.label}>{zone.label}</span>
+                      <span className="dsh-meter"><i style={{ width: `${(zone.count / failed.zoneMax) * 100}%` }} /></span>
+                      <span className="dsh-meter-value">
+                        {number(zone.count)} sipariş{zone.top ? ` · en çok: ${zone.top.short}` : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+        )}
+      </section>
+    ),
     top: () => (
       <section className="ui-panel dsh-panel" aria-label="Çok satanlar">
         <div className="ui-panel-head">
@@ -531,7 +679,8 @@ const DashboardWidgets = ({ onNavigate }) => {
 
       {summary && (
         <>
-          <section className="dsh-attn" aria-label="Dikkat gerektirenler">
+          <section className="dsh-attn" aria-label="Dikkat gerektirenler" data-count={attentionItems.length}
+            style={{ "--dsh-attn-n": Math.max(1, attentionItems.length), "--dsh-attn-half": Math.max(1, Math.ceil(attentionItems.length / 2)) }}>
             {pendingWork === 0 && (
               <div className="dsh-attn-ok"><CheckCircle2 /><span>Bekleyen iş yok · her şey yolunda</span></div>
             )}
@@ -545,7 +694,8 @@ const DashboardWidgets = ({ onNavigate }) => {
             ))}
           </section>
 
-          <KpiGrid columns={5} className="dsh-kpis">
+          {/* Sütun sayısı dashboard.css'te (satır içi --ui-kpi-cols dar ekran kurallarını ezerdi) */}
+          <KpiGrid className={`dsh-kpis${failed ? " dsh-kpis--6" : ""}`}>
             <KpiCard icon={TrendingUp} tone="brand" label={feeRevenue > 0 ? "Ciro (ürün)" : "Ciro"} value={money(totals.revenue)}
               delta={delta?.revenue ?? undefined}
               note={feeRevenue > 0
@@ -557,6 +707,12 @@ const DashboardWidgets = ({ onNavigate }) => {
               delta={delta?.averageBasket ?? undefined} note={compareNote(delta?.averageBasket, previous && money(previous.averageBasket), "sipariş başına")} />
             <KpiCard icon={PackageX} tone={totals.cancelRate >= 10 ? "danger" : totals.cancelRate > 0 ? "warn" : "ok"} label="İptal oranı" value={percent(totals.cancelRate)}
               note={previous ? `önceki dönem ${percent(previous.cancelRate)}` : `${number(totals.cancelled)} iptal`} />
+            {failed && (
+              <KpiCard icon={MapPinOff} tone={failedTone} label="Teslim edilemedi" value={number(failed.total)}
+                note={failed.total > 0
+                  ? <span title={failed.share !== null ? `Dönem siparişlerine oranı ${percent(failed.share)}` : undefined}>{failed.top ? `En çok: ${failed.top.short}` : "nedeni girilmemiş"}</span>
+                  : "teslimat sorunu yok"} />
+            )}
             <KpiCard icon={Users} tone="info" label="Müşteri" value={number(customers.total)}
               note={customers.new !== null && customers.new !== undefined ? `+${number(customers.new)} yeni kayıt` : "kayıtlı müşteri"} />
           </KpiGrid>
