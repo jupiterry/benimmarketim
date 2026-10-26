@@ -1,0 +1,13 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.jupi.benimapp.benimmarketim_app",
+      "sha256_cert_fingerprints": [
+        "BURAYA_PLAY_CONSOLE_UYGULAMA_IMZALAMA_SHA256",
+        "BURAYA_YUKLEME_ANAHTARI_SHA256"
+      ]
+    }
+  }
+]
