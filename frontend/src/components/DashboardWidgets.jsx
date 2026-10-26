@@ -54,8 +54,31 @@ const bucketLabel = (key, bucket) => {
   if (bucket === "day") return `${Number(key.slice(8, 10))} ${MONTHS[Number(key.slice(5, 7)) - 1]}`;
   return `${MONTHS[Number(key.slice(5, 7)) - 1]} ${key.slice(2, 4)}`;
 };
-/** Eksen etiketi: küçük tutarlarda kuruşsuz, büyüklerde kısaltılmış (₺12,4 B) */
-const axisMoney = (value) => (Math.abs(Number(value) || 0) >= 10_000 ? compactMoney(value) : `₺${Number(value || 0).toLocaleString("tr-TR", { maximumFractionDigits: 0 })}`);
+const MONTH_NAMES = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+/** Seri anahtarından "Mart 2025" biçiminde ay adı */
+const monthYear = (key) => `${MONTH_NAMES[Number(key.slice(5, 7)) - 1]} ${key.slice(0, 4)}`;
+/**
+ * Eksen etiketi biçimleyicisi: eksenin en büyük değeri 10 binin üstündeyse tüm etiketler
+ * aynı birimle (₺9 B, ₺18 B…), değilse kuruşsuz tam tutar (₺9.000). Böylece eksen karışık görünmez.
+ */
+const axisMoneyFor = (maxValue) => {
+  if (Math.abs(Number(maxValue) || 0) >= 1_000_000) return (value) => (Number(value) ? `₺${(Number(value) / 1_000_000).toLocaleString("tr-TR", { maximumFractionDigits: 1 })} M` : "₺0");
+  if (Math.abs(Number(maxValue) || 0) >= 10_000) return (value) => (Number(value) ? `₺${(Number(value) / 1000).toLocaleString("tr-TR", { maximumFractionDigits: 1 })} B` : "₺0");
+  return (value) => `₺${Number(value || 0).toLocaleString("tr-TR", { maximumFractionDigits: 0 })}`;
+};
+/** Uzun serilerde ~8 etiket seçer; ilk ve son nokta her zaman görünür (son ay gizlenmesin) */
+const axisTicks = (labels) => {
+  if (labels.length <= 16) return labels;
+  const step = Math.ceil(labels.length / 8);
+  const ticks = labels.filter((_, index) => index % step === 0);
+  const lastIndex = labels.length - 1;
+  if (lastIndex % step !== 0) {
+    // Son etiket bir öncekine çok yakınsa üst üste binmesin diye öncekini bırak
+    if (lastIndex % step < Math.ceil(step / 2)) ticks.pop();
+    ticks.push(labels[lastIndex]);
+  }
+  return ticks;
+};
 const shortId = (id) => `#${String(id || "").slice(-6).toUpperCase()}`;
 const preparingMinutes = (order, now) => (order.status === "Hazırlanıyor" ? Math.floor((now - new Date(order.createdAt).getTime()) / 60000) : 0);
 
@@ -167,12 +190,14 @@ const ChartTip = ({ active, payload, metric }) => {
 };
 const SalesChart = ({ data, metric }) => {
   const axisProps = { tick: { fill: "var(--ui-text-3)", fontSize: 11 }, axisLine: false, tickLine: false };
-  const yFormat = (value) => (metric === "revenue" ? axisMoney(value) : number(value));
-  const interval = data.length > 16 ? Math.ceil(data.length / 8) - 1 : 0;
+  const maxRevenue = Math.max(0, ...data.map((point) => Number(point.revenue) || 0));
+  const moneyTick = axisMoneyFor(maxRevenue);
+  const yFormat = (value) => (metric === "revenue" ? moneyTick(value) : number(value));
+  const ticks = axisTicks(data.map((point) => point.label));
   // recharts çocukları tek tek okur; Fragment yerine anahtarlı dizi
   const shared = [
     <CartesianGrid key="grid" vertical={false} stroke="var(--ui-line)" strokeDasharray="2 4" />,
-    <XAxis key="x" dataKey="label" {...axisProps} interval={interval} minTickGap={16} tickMargin={6} />,
+    <XAxis key="x" dataKey="label" {...axisProps} ticks={ticks} interval={0} tickMargin={6} />,
     <YAxis key="y" {...axisProps} width={52} tickFormatter={yFormat} allowDecimals={false} />,
     <Tooltip key="tip" content={<ChartTip metric={metric} />} cursor={metric === "revenue" ? { stroke: "var(--ui-line-strong)" } : { fill: "var(--ui-surface-3)" }} />,
   ];
@@ -341,6 +366,9 @@ const DashboardWidgets = ({ onNavigate }) => {
   const topMax = Math.max(1, ...topProducts.map((product) => product.quantity));
   const recentOrders = summary?.recentOrders || [];
   const chartTotal = metric === "revenue" ? totals.revenue : totals.completed;
+  // Tüm zamanlarda seri ilk satışın ayından başlar; başlangıcı açıkça yaz
+  const firstSaleKey = period.value === "all" && summary?.range?.bucket === "month" ? summary?.series?.[0]?.key : null;
+  const salesDescription = firstSaleKey ? `İlk satış ${monthYear(firstSaleKey)} · ${chartData.length} ay` : period.description;
   const chartPrevious = previous ? (metric === "revenue" ? previous.revenue : previous.completed) : null;
   const chartDelta = delta ? (metric === "revenue" ? delta.revenue : delta.orders) : null;
   // Teyit bekleyen: eski sunucuda anahtar yok, sayım hatasında null → şeritte gösterilmez
@@ -373,7 +401,7 @@ const DashboardWidgets = ({ onNavigate }) => {
         <div className="ui-panel-head">
           <div>
             <h2>Satış</h2>
-            <p>{period.description} · iptaller hariç</p>
+            <p>{salesDescription} · iptaller hariç</p>
           </div>
           <Segmented size="sm" ariaLabel="Grafik ölçümü" value={metric} onChange={setMetric}
             options={[{ value: "revenue", label: "Ciro" }, { value: "orders", label: "Sipariş" }]} />
