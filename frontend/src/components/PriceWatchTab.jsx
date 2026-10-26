@@ -11,9 +11,13 @@ import {
   HelpCircle,
   Eye,
   EyeOff,
+  Globe,
+  Landmark,
   Loader2,
+  MapPin,
   Moon,
   Pencil,
+  Play,
   Radar,
   RefreshCw,
   Search,
@@ -88,23 +92,112 @@ const phaseText = (worker) => {
         tone: "info",
         title: "Bugünkü sınır doldu",
         detail: worker.camgoz?.exhausted
-          ? `Market sayfası sınırı ve Camgöz kredisi doldu. ${when} sayfalarla devam eder; Camgöz için yeni anahtar girebilirsiniz.`
+          ? `Market sayfası sınırı ve Camgöz kredisi doldu${worker.marketfiyati?.enabled ? ", Market Fiyatı'nın sorabileceği ürün kalmadı" : ""}. ${when} devam eder.`
           : `Market sayfası sınırı doldu. ${when} devam eder.`,
       };
     case "done":
       return { tone: "ok", title: "Vakti gelen ürün kalmadı", detail: "Yeni ürünler ve süresi dolanlar sonraki gece kontrol edilir." };
     case "paused":
-      return { tone: "warn", title: "Kısa bir ara verildi", detail: worker.pausedUntil ? `${clock(worker.pausedUntil)} sonra yeniden dener.` : "" };
+      return { tone: "warn", title: "Kaynaklar ara verdi", detail: `${worker.pausedUntil ? `En erken ${clock(worker.pausedUntil)} sonra yeniden dener. ` : ""}Nedeni aşağıdaki Kaynaklar satırında yazar.` };
     case "disabled":
-      return { tone: "warn", title: "Bekçi kapalı", detail: worker.settings.searxngConfigured ? "PRICE_WATCH_ENABLED=false ayarlı." : "SEARXNG_URL ayarlı değil." };
+      return { tone: "warn", title: "Bekçi kapalı", detail: "PRICE_WATCH_ENABLED=false ayarlı ya da üç kaynak da kapalı (Market Fiyatı, Camgöz, SEARXNG_URL)." };
     case "offline":
       return { tone: "danger", title: "Bekçi çalışmıyor", detail: "Sunucuda ayrı süreç olarak başlatılmalı (backend/workers/PRICE_WATCH.md)." };
     default:
-      return { tone: "info", title: allDay ? "Gün boyu çalışır" : `Her gece ${span} arasında çalışır`, detail: worker.camgoz?.enabled ? "Önce Camgöz'den zincir market fiyatlarını alır, bulamazsa Şok, Trendyol ve Hepsiburada sayfalarını okur." : "Ürünün Şok, Trendyol ve Hepsiburada sayfalarını açıp güncel fiyatı okur; ürünler arasında yarım dakika bekler." };
+      return {
+        tone: "info",
+        title: allDay ? "Gün boyu çalışır" : `Her gece ${span} arasında çalışır`,
+        detail: worker.marketfiyati?.enabled
+          ? `Önce Market Fiyatı'ndan (TÜBİTAK, ücretsiz) yakın şubelerin fiyatlarını alır${worker.camgoz?.enabled ? ", bulamazsa Camgöz'e sorar" : ""}${worker.settings.searxngConfigured ? ", o da bulamazsa Şok, Trendyol ve Hepsiburada sayfalarını okur" : ""}.`
+          : worker.camgoz?.enabled
+            ? "Önce Camgöz'den zincir market fiyatlarını alır, bulamazsa Şok, Trendyol ve Hepsiburada sayfalarını okur."
+            : "Ürünün Şok, Trendyol ve Hepsiburada sayfalarını açıp güncel fiyatı okur; ürünler arasında yarım dakika bekler.",
+      };
   }
 };
 
-const StatusCard = ({ worker, coverage, onCamgoz }) => {
+const PROVIDER_ICONS = { marketfiyati: Landmark, camgoz: KeyRound, pages: Globe };
+const PROVIDER_STATUS = {
+  ok: { tone: "ok", label: "Çalışıyor" },
+  idle: { tone: "info", label: "Henüz denenmedi" },
+  error: { tone: "danger", label: "Hata" },
+  paused: { tone: "warn", label: "Ara verdi" },
+  limit: { tone: "warn", label: "Kredi/pay doldu" },
+  disabled: { tone: "", label: "Kapalı" },
+};
+const LIMIT_TEXT = { monthly: "aylık kredi bitti", daily: "bugünkü kredi payı doldu", paused: "ara verildi", disabled: "anahtar yok" };
+
+// Kaynak denemesi sonucunun kısa özeti (ham yanıt değil; yöneticinin okuyabileceği cümle)
+const testSummary = (result) => {
+  if (!result) return "";
+  if (!result.ok) return `Başarısız (${result.ms} ms): ${result.error || "bilinmeyen hata"}${result.detail ? ` — "${result.detail}"` : ""}`;
+  const s = result.summary || {};
+  if (result.provider === "marketfiyati") {
+    if (!result.found) return `Ulaşıldı (${result.ms} ms) ama "${result.query}" bulunamadı. ${s.note || ""}`.trim();
+    return `Ulaşıldı (${result.ms} ms): ${s.matchedName} → ${s.offers.map((offer) => `${offer.source} ${formatPrice(offer.price)}`).join(", ")} (ortanca ${formatPrice(s.median)}).${s.note ? ` ${s.note}` : ""}`;
+  }
+  if (result.provider === "camgoz") return `Anahtar kabul edildi (${result.ms} ms). ${s.note || ""}`.trim();
+  if (!result.found) return `SearXNG yanıt verdi (${result.ms} ms, ${s.results ?? 0} sonuç) ama market ürün sayfası yok. ${s.note || ""}`.trim();
+  return `SearXNG çalışıyor (${result.ms} ms): ${s.pages.map((page) => page.source).join(", ")} sayfası bulundu.`;
+};
+
+const ProvidersRow = ({ providers, testing, results, onTest, onCamgoz, onMarketfiyati }) => (
+  <div className="pw-providers" aria-label="Fiyat kaynakları">
+    <p className="pw-providers-head">Kaynaklar <span className="ui-muted">· sıra: Market Fiyatı → Camgöz → market sayfaları</span></p>
+    <ul className="pw-provider-list">
+      {providers.map((provider) => {
+        const Icon = PROVIDER_ICONS[provider.id] || Radar;
+        const status = PROVIDER_STATUS[provider.status] || PROVIDER_STATUS.idle;
+        const result = results[provider.id];
+        return (
+          <li key={provider.id} className="pw-provider">
+            <span className={`pw-provider-icon pw-tone-${status.tone || "none"}`} aria-hidden="true"><Icon /></span>
+            <div className="pw-provider-body">
+              <p className="pw-provider-title">
+                <strong>{provider.label}</strong>
+                <span className={`ui-badge${status.tone ? ` ui-badge--${status.tone}` : ""}`}>{status.label}</span>
+                <span className="ui-muted">{provider.detail}</span>
+              </p>
+              <p className="pw-provider-meta">
+                {provider.info && <span>{provider.info}</span>}
+                {provider.lastOkAt && <span>son başarı {timeAgo(provider.lastOkAt)}</span>}
+                {provider.lastErrorAt && <span>son hata {timeAgo(provider.lastErrorAt)}</span>}
+                {provider.nextRetryAt && <span>yeniden deneme {clock(provider.nextRetryAt)}</span>}
+                {provider.limitReason && LIMIT_TEXT[provider.limitReason] && <span>{LIMIT_TEXT[provider.limitReason]}</span>}
+                {provider.consecutiveMisses > 2 && <span>arka arkaya {provider.consecutiveMisses} ürün bulunamadı</span>}
+              </p>
+              {provider.lastError?.message && (provider.status === "error" || provider.status === "paused") && (
+                <p className="pw-provider-error">
+                  {provider.lastError.status ? `HTTP ${provider.lastError.status} · ` : ""}{provider.lastError.message}
+                  {provider.lastError.detail && provider.lastError.detail !== provider.lastError.message && <em> · “{provider.lastError.detail}”</em>}
+                </p>
+              )}
+              {result && <p className={`pw-provider-result${result.ok ? "" : " pw-provider-result--bad"}`} role="status">{testSummary(result)}</p>}
+            </div>
+            <div className="pw-provider-actions">
+              {provider.id === "marketfiyati" && (
+                <button type="button" className="ui-btn ui-btn--ghost ui-btn--sm" onClick={onMarketfiyati}><MapPin aria-hidden="true" />Ayarlar</button>
+              )}
+              {provider.id === "camgoz" && (
+                <button type="button" className="ui-btn ui-btn--ghost ui-btn--sm" onClick={onCamgoz}><KeyRound aria-hidden="true" />Anahtar</button>
+              )}
+              <button type="button" className="ui-btn ui-btn--sm" disabled={Boolean(testing[provider.id])} onClick={() => onTest(provider.id)} title="Bu kaynağa şimdi tek bir canlı istek gönderir">
+                {testing[provider.id] ? <Loader2 className="ui-spin" aria-hidden="true" /> : <Play aria-hidden="true" />}
+                Şimdi dene
+              </button>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+    <p className="ui-hint pw-legal">
+      Market Fiyatı verisi TÜBİTAK BİLGEM&apos;in halka açık platformundan okunur; resmî API değildir, kullanım koşullarına uyum işletmenin sorumluluğundadır.{" "}
+      <a href="https://marketfiyati.org.tr/kullanim-kosullari" target="_blank" rel="noopener noreferrer">Kullanım koşulları<ExternalLink aria-hidden="true" /></a>
+    </p>
+  </div>
+);
+
+const StatusCard = ({ worker, coverage, onCamgoz, onMarketfiyati, testing, testResults, onTest }) => {
   const phase = phaseText(worker);
   const limit = worker.settings.dailyLimit;
   return (
@@ -188,7 +281,7 @@ const StatusCard = ({ worker, coverage, onCamgoz }) => {
           <AlertTriangle aria-hidden="true" />
           <span>
             {worker.camgoz.lastError.message}
-            {worker.camgoz.pausedUntil && ` · Camgöz saat ${clock(worker.camgoz.pausedUntil)} sonrasına kadar beklemede, bu arada market sayfaları kullanılıyor`}
+            {worker.camgoz.pausedUntil && ` · Camgöz saat ${clock(worker.camgoz.pausedUntil)} sonrasına kadar beklemede, bu arada Market Fiyatı ve market sayfaları kullanılıyor`}
           </span>
         </p>
       )}
@@ -200,6 +293,9 @@ const StatusCard = ({ worker, coverage, onCamgoz }) => {
             {worker.lastError.at && <em> · {timeAgo(worker.lastError.at)}</em>}
           </span>
         </p>
+      )}
+      {worker.providers?.length > 0 && (
+        <ProvidersRow providers={worker.providers} testing={testing} results={testResults} onTest={onTest} onCamgoz={onCamgoz} onMarketfiyati={onMarketfiyati} />
       )}
     </section>
   );
@@ -332,7 +428,7 @@ const PriceRow = ({ row, busy, onApply, onCheck, onIgnore, onQuery }) => {
               </p>
             )}
             <p className="pw-checked">
-              {row.provider === "camgoz" ? `Camgöz · ${row.offerCount} zincir market` : `${row.offerCount} market sayfasından okundu`} · kontrol {timeAgo(row.checkedAt)}
+              {row.provider === "marketfiyati" ? `Market Fiyatı · ${row.offerCount} zincir market` : row.provider === "camgoz" ? `Camgöz · ${row.offerCount} zincir market` : `${row.offerCount} market sayfasından okundu`} · kontrol {timeAgo(row.checkedAt)}
               {row.stale && " · eski bilgi"}
               {row.status === "error" && " · son kontrol başarısız, önceki sonuç gösteriliyor"}
             </p>
@@ -341,7 +437,7 @@ const PriceRow = ({ row, busy, onApply, onCheck, onIgnore, onQuery }) => {
           <p className="pw-missing">
             <SearchX aria-hidden="true" />
             <span>
-              {row.status === "error" ? `Arama yapılamadı: ${row.error || "bilinmeyen hata"}` : row.note || "Market sayfalarında bulunamadı."}
+              {row.status === "error" ? `Arama yapılamadı: ${row.error || "bilinmeyen hata"}` : row.note || "Kaynaklarda bulunamadı."}
               <em> {timeAgo(row.checkedAt)} · aranan: “{row.query}”</em>
               {row.rejected?.length > 0 && (
                 <span className="pw-rejected">
@@ -553,6 +649,118 @@ const CamgozDrawer = ({ onClose, onSaved }) => {
   );
 };
 
+// Market Fiyatı ayarları: konum (şubeler buna göre seçilir), yarıçap, fiyat yaşı, istekler arası bekleme. Anahtar gerekmez.
+const MarketfiyatiDrawer = ({ onClose, onSaved }) => {
+  const { confirm } = useConfirm();
+  const [config, setConfig] = useState(null);
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    axios
+      .get("/price-watch/marketfiyati")
+      .then((response) => {
+        if (!active) return;
+        const mf = response.data.marketfiyati;
+        setConfig(mf);
+        setForm({ enabled: mf.enabled, latitude: String(mf.latitude), longitude: String(mf.longitude), distanceKm: String(mf.distanceKm), maxAgeDays: String(mf.maxAgeDays), intervalSec: String(mf.minIntervalMs / 1000) });
+      })
+      .catch((err) => active && setError(errorMessage(err, "Market Fiyatı ayarları okunamadı.")));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const dirty = Boolean(config && form) && (
+    form.enabled !== config.enabled || Number(form.latitude) !== config.latitude || Number(form.longitude) !== config.longitude ||
+    Number(form.distanceKm) !== config.distanceKm || Number(form.maxAgeDays) !== config.maxAgeDays || Number(form.intervalSec) * 1000 !== config.minIntervalMs
+  );
+
+  const save = async (event, extra = {}) => {
+    event?.preventDefault();
+    const body = { ...extra };
+    if (form.enabled !== config.enabled) body.enabled = form.enabled;
+    if (Number(form.latitude) !== config.latitude) body.latitude = Number(form.latitude.replace(",", "."));
+    if (Number(form.longitude) !== config.longitude) body.longitude = Number(form.longitude.replace(",", "."));
+    if (Number(form.distanceKm) !== config.distanceKm) body.distanceKm = Number(form.distanceKm);
+    if (Number(form.maxAgeDays) !== config.maxAgeDays) body.maxAgeDays = Number(form.maxAgeDays);
+    if (Number(form.intervalSec) * 1000 !== config.minIntervalMs) body.minIntervalMs = Math.round(Number(form.intervalSec.replace(",", ".")) * 1000);
+    if (!Object.keys(body).length) return onClose();
+    setSaving(true);
+    setError("");
+    try {
+      const response = await axios.put("/price-watch/marketfiyati", body);
+      setConfig(response.data.marketfiyati);
+      toast.success(body.resume ? "Ara kaldırıldı; bekçi bir sonraki adımda Market Fiyatı'nı yeniden dener." : "Market Fiyatı ayarı kaydedildi.");
+      onSaved();
+      if (!body.resume) onClose();
+    } catch (err) {
+      setError(errorMessage(err, "Kaydedilemedi."));
+    } finally {
+      setSaving(false);
+    }
+    return undefined;
+  };
+
+  const field = (key, label, hint, props = {}) => (
+    <>
+      <label className="pw-query-label" htmlFor={`pw-mf-${key}`}>{label}</label>
+      <input id={`pw-mf-${key}`} className="ui-field pw-barcode-field" inputMode="decimal" value={form[key]} onChange={(event) => setForm({ ...form, [key]: event.target.value })} {...props} />
+      {hint && <p className="ui-hint">{hint}</p>}
+    </>
+  );
+
+  return (
+    <Drawer title="Market Fiyatı" subtitle={config ? `${config.source === "panel" ? "Panel ayarı" : "Varsayılan ayar"} · ${config.enabled ? "açık" : "kapalı"}` : "Yükleniyor…"} icon={Landmark} width={460} onClose={onClose} dirty={dirty}
+      onDirtyClose={() => confirm({ title: "Ayar kaydedilmedi", message: "Değişiklikler kaydedilmedi. Yine de kapatılsın mı?", confirmText: "Kapat", cancelText: "Geri dön", type: "warning" })}
+      footer={(
+        <>
+          <button type="button" className="ui-btn ui-btn--ghost" onClick={onClose}>Vazgeç</button>
+          <button type="submit" form="pw-mf-form" className="ui-btn ui-btn--primary" disabled={saving || !form || !dirty}>
+            {saving ? <Loader2 className="ui-spin" aria-hidden="true" /> : null}
+            Kaydet
+          </button>
+        </>
+      )}>
+      {form && (
+        <form id="pw-mf-form" className="pw-camgoz-body" onSubmit={save}>
+          <p className="pw-camgoz-usage">
+            TÜBİTAK BİLGEM&apos;in halka açık Market Fiyatı platformundan A101, BİM, Migros, Şok, CarrefourSA, Hakmar ve Tarım Kredi şubelerinin fiyatları okunur. Ücretsizdir, anahtar gerekmez.
+            {config?.pausedUntil && ` Şu an ${clock(config.pausedUntil)} sonrasına kadar ara verilmiş.`}
+          </p>
+          <button type="button" className="ui-toggle" aria-pressed={form.enabled} onClick={() => setForm({ ...form, enabled: !form.enabled })}>
+            <i /><span>{form.enabled ? "Açık · ilk sorulan kaynak" : "Kapalı · yalnızca Camgöz ve market sayfaları kullanılır"}</span>
+          </button>
+          {field("latitude", "Enlem", null)}
+          {field("longitude", "Boylam", "Şubeler bu noktaya göre seçilir. Varsayılan Devrek merkezi (41,2207 / 31,9563). Haritada sağ tık → koordinatı kopyala.")}
+          {field("distanceKm", "Yarıçap (km)", "Varsayılan 60 km (Devrek çevresi). Bu alanda şube yoksa bir kez 150 km ile denenir.", { inputMode: "numeric" })}
+          {field("maxAgeDays", "En eski fiyat (gün)", "Bundan eski şube fiyatları sayılmaz (varsayılan 14).", { inputMode: "numeric" })}
+          {field("intervalSec", "İstekler arası bekleme (sn)", "Platformu yormamak için en az 2,5 sn önerilir; 429/403 gelirse kaynak kendiliğinden 15 dk–6 sa ara verir.")}
+          {error && (
+            <p className="pw-status-error" role="alert">
+              <AlertTriangle aria-hidden="true" />
+              <span>{error}</span>
+            </p>
+          )}
+          {config?.pausedUntil && (
+            <div className="pw-camgoz-remove">
+              <button type="button" className="ui-btn ui-btn--ghost ui-btn--sm" disabled={saving} onClick={(event) => save(event, { resume: true })}>
+                <Play aria-hidden="true" />Arayı kaldır, hemen yeniden dene
+              </button>
+            </div>
+          )}
+          <p className="ui-hint pw-legal">
+            Market Fiyatı verisi TÜBİTAK BİLGEM&apos;in halka açık platformundan okunur; resmî API değildir, kullanım koşullarına uyum işletmenin sorumluluğundadır.{" "}
+            <a href={config?.termsUrl || "https://marketfiyati.org.tr/kullanim-kosullari"} target="_blank" rel="noopener noreferrer">Kullanım koşulları<ExternalLink aria-hidden="true" /></a>
+          </p>
+        </form>
+      )}
+    </Drawer>
+  );
+};
+
 const PriceWatchTab = () => {
   const updateProductPrice = useProductStore((state) => state.updateProductPrice);
   const [filter, setFilter] = useState("above");
@@ -564,7 +772,11 @@ const PriceWatchTab = () => {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState({});
   const [camgozOpen, setCamgozOpen] = useState(false);
+  const [marketfiyatiOpen, setMarketfiyatiOpen] = useState(false);
+  const [testing, setTesting] = useState({});
+  const [testResults, setTestResults] = useState({});
   const closeCamgoz = useCallback(() => setCamgozOpen(false), []);
+  const closeMarketfiyati = useCallback(() => setMarketfiyatiOpen(false), []);
   const request = useRef(0);
   const searchRef = useRef(null);
   const { helpOpen, setHelpOpen } = useListShortcuts({
@@ -665,6 +877,22 @@ const PriceWatchTab = () => {
       return true;
     });
 
+  // Kaynağa tek canlı istek: üretimde kaynağa ulaşılıyor mu, ne yanıt veriyor? (kaydedilmez, ürünlere yazılmaz)
+  const handleTest = async (id) => {
+    setTesting((current) => ({ ...current, [id]: true }));
+    try {
+      const response = await axios.post(`/price-watch/providers/${id}/test`, {});
+      setTestResults((current) => ({ ...current, [id]: response.data }));
+      if (response.data.ok) toast.success(response.data.found === false ? "Kaynağa ulaşıldı ama örnek ürün bulunamadı." : "Kaynak yanıt verdi.");
+      else toast.error(response.data.error || "Kaynak yanıt vermedi.");
+    } catch (err) {
+      setTestResults((current) => ({ ...current, [id]: { ok: false, provider: id, ms: 0, error: errorMessage(err, "Deneme yapılamadı.") } }));
+      toast.error(errorMessage(err, "Deneme yapılamadı."));
+    } finally {
+      setTesting((current) => ({ ...current, [id]: false }));
+    }
+  };
+
   const counts = data?.counts || {};
   const threshold = data?.worker?.settings?.threshold ?? 20;
 
@@ -676,13 +904,29 @@ const PriceWatchTab = () => {
         meta={counts.above !== undefined ? `${counts.above} pahalı` : undefined}
         actions={(
           <>
+            <button type="button" className="ui-btn" onClick={() => setMarketfiyatiOpen(true)}><Landmark aria-hidden="true" />Market Fiyatı</button>
             <button type="button" className="ui-btn" onClick={() => setCamgozOpen(true)}><KeyRound aria-hidden="true" />Camgöz anahtarı</button>
             <button type="button" className="ui-btn" onClick={() => load()} disabled={loading}><RefreshCw className={loading ? "ui-spin" : ""} aria-hidden="true" />Yenile</button>
           </>
         )}
       />
-      {loading && !data ? <span className="ui-skeleton pw-status-skeleton" aria-hidden="true" /> : data?.worker && <StatusCard worker={data.worker} coverage={data.coverage} onCamgoz={() => setCamgozOpen(true)} />}
+      {loading && !data ? (
+        <span className="ui-skeleton pw-status-skeleton" aria-hidden="true" />
+      ) : (
+        data?.worker && (
+          <StatusCard
+            worker={data.worker}
+            coverage={data.coverage}
+            onCamgoz={() => setCamgozOpen(true)}
+            onMarketfiyati={() => setMarketfiyatiOpen(true)}
+            testing={testing}
+            testResults={testResults}
+            onTest={handleTest}
+          />
+        )
+      )}
       {camgozOpen && <CamgozDrawer onClose={closeCamgoz} onSaved={() => load({ quiet: true })} />}
+      {marketfiyatiOpen && <MarketfiyatiDrawer onClose={closeMarketfiyati} onSaved={() => load({ quiet: true })} />}
 
       <div className="pw-toolbar">
         <div className="ui-chips pw-filters" role="group" aria-label="Fiyat durumu">
@@ -727,7 +971,7 @@ const PriceWatchTab = () => {
           {filter === "below" && `Fiyatı market fiyatından %${threshold}'den fazla düşük ürünler; kâr kaçırıyor olabilirsiniz.`}
           {filter === "unsure" &&
             "Ürün adında gramaj olmadığı ya da fark çok büyük olduğu için emin olunamayan sonuçlar. Kalemle arama sözcüğüne gramaj ekleyin (ör. “eti sütlü kare çikolata 65 g”), ürün hemen yeniden aranır."}{" "}
-          Fiyatlar önce Camgöz&apos;den (A101, Migros, Şok, Hakmar… son 90 günde güncellenmiş zincir market fiyatları), bulunamazsa Şok, Trendyol ve Hepsiburada ürün sayfalarından o gün okunur. Hiçbir fiyat kendiliğinden değişmez.
+          Fiyatlar önce Market Fiyatı&apos;ndan (TÜBİTAK; A101, BİM, Migros, Şok, CarrefourSA, Hakmar, Tarım Kredi şubelerinin son 14 gündeki fiyatları), bulunamazsa Camgöz&apos;den, o da bulamazsa Şok, Trendyol ve Hepsiburada ürün sayfalarından o gün okunur. Hiçbir fiyat kendiliğinden değişmez.
         </p>
       )}
 

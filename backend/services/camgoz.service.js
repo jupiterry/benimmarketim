@@ -28,8 +28,8 @@ export const camgozSettings = (env = process.env) => ({
   monthlyCredits: toInt(env.CAMGOZ_MONTHLY_CREDITS, 500, 0, 10000000),
   maxAgeDays: toInt(env.CAMGOZ_MAX_AGE_DAYS, 90, 1, 3650),
   chains: (env.CAMGOZ_MARKETS ? env.CAMGOZ_MARKETS.split(",") : DEFAULT_CHAINS).map((name) => name.trim()).filter(Boolean),
-  // "none": kredi bitene kadar kullanılır (varsayılan); "even": aylık kredi ay boyunca eşit dağıtılır
-  pacing: env.CAMGOZ_PACING === "even" ? "even" : "none",
+  // "even" (varsayılan): aylık kredi ay boyunca eşit dağıtılır; "none": kredi bitene kadar kullanılır
+  pacing: env.CAMGOZ_PACING === "none" ? "none" : "even",
   source: cleanApiKey(env.JOJAPI_API_KEY) ? "env" : "none",
   last4: cleanApiKey(env.JOJAPI_API_KEY).slice(-4),
 });

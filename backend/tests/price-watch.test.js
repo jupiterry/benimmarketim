@@ -46,6 +46,7 @@ const fakeDb = (seed = {}) => {
         if (!doc) return;
         Object.assign(doc, update.$set || {});
         for (const [key, value] of Object.entries(update.$inc || {})) doc[key] = (doc[key] || 0) + value;
+        for (const key of Object.keys(update.$unset || {})) delete doc[key];
       },
     };
   };
@@ -59,7 +60,9 @@ test("ayarlar: varsayılanlar ve hatalı değerler", () => {
   assert.equal(settings.dailyLimit, 300);
   assert.deepEqual(settings.delay, { min: 20, max: 30 });
   assert.equal(settings.threshold, 0.2);
-  assert.equal(priceWatchSettings({}).enabled, false, "SearXNG yoksa kapalı");
+  assert.equal(priceWatchSettings({}).enabled, true, "Market Fiyatı anahtar istemez: SearXNG/Camgöz yokken de açık");
+  assert.equal(priceWatchSettings({ MARKETFIYATI_ENABLED: "false" }).enabled, false, "üç kaynak da kapalıysa bekçi kapalı");
+  assert.equal(priceWatchSettings({ MARKETFIYATI_ENABLED: "false", SEARXNG_URL: "x" }).enabled, true);
   assert.equal(priceWatchSettings({ SEARXNG_URL: "x", PRICE_WATCH_ENABLED: "false" }).enabled, false);
   assert.equal(priceWatchSettings({ SEARXNG_URL: "x", PRICE_WATCH_DAILY_LIMIT: "abc" }).dailyLimit, 300);
   assert.equal(priceWatchSettings({ SEARXNG_URL: "x", PRICE_WATCH_THRESHOLD: "15" }).threshold, 0.15);
@@ -113,10 +116,15 @@ test("sıra: hiç bakılmamış → vakti gelen çok satan → vakti gelen diğe
   const order = selectDue({ products, watches, topSellerIds: ["h", "a", "b"], now, limit: 10 }).map((p) => p._id);
   assert.deepEqual(order, ["h", "a", "c", "g"]);
   assert.deepEqual(selectDue({ products, watches, now, limit: 2 }).map((p) => p._id), ["h", "c"]);
-  // Sayfa sınırı dolduysa (camgozOnly) Camgöz'de bulunamamış ürünler atlanır; sayfası bekleyen ürün sınır yokken sıraya girer
-  watches.push({ _id: "h", v, checkedAt: new Date(now - HOUR), camgozMissAt: new Date(now - HOUR), pagesPending: true });
-  assert.ok(!selectDue({ products, watches, now, limit: 10, camgozOnly: true }).some((p) => p._id === "h"));
+  // Sayfa sınırı dolduysa (apiOnly) Market Fiyatı ve Camgöz'ün yakın zamanda bulamadığı ürünler atlanır; sayfası bekleyen ürün sınır yokken sıraya girer
+  watches.push({ _id: "h", v, checkedAt: new Date(now - HOUR), camgozMissAt: new Date(now - HOUR), marketfiyatiMissAt: new Date(now - HOUR), pagesPending: true });
+  assert.ok(!selectDue({ products, watches, now, limit: 10, apiOnly: true }).some((p) => p._id === "h"));
   assert.ok(selectDue({ products, watches, now, limit: 10 }).some((p) => p._id === "h"), "pagesPending: süresi dolmadan da sıraya girer");
+  watches.pop();
+  // Yalnızca Camgöz bulamamışsa (Market Fiyatı hiç sorulmamış) ürün API sırasına girer
+  watches.push({ _id: "h", v, checkedAt: new Date(now - 200 * HOUR), camgozMissAt: new Date(now - HOUR) });
+  assert.ok(selectDue({ products, watches, now, limit: 10, apiOnly: true }).some((p) => p._id === "h"));
+  assert.ok(!selectDue({ products, watches, now, limit: 10, apiOnly: true, marketfiyatiEnabled: false }).some((p) => p._id === "h"), "Market Fiyatı kapalıysa atlanır");
   watches.pop();
 
   // Eski sürüm (arama özetinden) kayıt hiç bakılmamış sayılır
@@ -190,6 +198,7 @@ test("panel satırları: sınıf, emin değil, sayım, arama ve sayfalama", () =
   assert.deepEqual(coverage(rows, now), { tracked: 10, fresh: 8, percent: 80 });
 });
 
+const MF_OFF = { enabled: false }; // eski senaryolar: Market Fiyatı kapalı
 const workerDb = () =>
   fakeDb({
     products: [
@@ -203,13 +212,13 @@ test("işçi: pencere dışında ve günlük sınırda arama yapmaz", async () =
   let searches = 0;
   const search = async () => { searches += 1; return { offers: [], pagesUsed: true }; };
   const settings = { ...priceWatchSettings({ SEARXNG_URL: "x" }), dailyLimit: 1 };
-  const noon = new PriceWatchWorker(db, { settings, lookup: search, now: () => new Date("2026-10-11T09:00:00Z") });
+  const noon = new PriceWatchWorker(db, { settings, lookup: search, marketfiyatiSettings: MF_OFF, now: () => new Date("2026-10-11T09:00:00Z") });
   await noon.initialize();
   await noon.step();
   assert.equal(searches, 0);
   assert.equal(db.data.price_watch_state[0].phase, "waiting");
 
-  const night = new PriceWatchWorker(db, { settings, lookup: search, now: () => new Date(NOW) });
+  const night = new PriceWatchWorker(db, { settings, lookup: search, marketfiyatiSettings: MF_OFF, now: () => new Date(NOW) });
   const delay = await night.step();
   assert.ok(delay >= 20000 && delay <= 30000);
   await night.step();
@@ -231,7 +240,7 @@ test("işçi: sayfa sınırı dolunca Camgöz kredisi varsa yalnızca Camgöz'le
       return calls.length === 1 ? { offers: [], pagesUsed: true } : { offers: [{ price: 9, source: "A101" }], median: 9, min: 9, max: 9, confidence: "high", provider: "camgoz", pagesUsed: false };
     };
     const settings = { ...priceWatchSettings({ SEARXNG_URL: "x" }), dailyLimit: 1 };
-    const worker = new PriceWatchWorker(db, { settings, lookup, now: () => new Date(NOW) });
+    const worker = new PriceWatchWorker(db, { settings, lookup, marketfiyatiSettings: MF_OFF, now: () => new Date(NOW) });
     await worker.initialize();
     assert.ok((await worker.step()) >= 20000, "sayfa okunduysa uzun bekleme");
     assert.equal(await worker.step(), 3000, "yalnızca Camgöz'e sorulduysa kısa bekleme");
@@ -253,22 +262,59 @@ test("işçi: sayfa sınırı dolunca Camgöz kredisi varsa yalnızca Camgöz'le
   }
 });
 
-test("işçi: arka arkaya hatalarda bir saat ara verir, yeni günde sayaç sıfırlanır", async () => {
+test("işçi: arka arkaya sayfa hatalarında yalnızca market sayfaları bir saat ara verir, yeni günde sayaç sıfırlanır", async () => {
   const db = fakeDb({ products: Array.from({ length: 8 }, (_, i) => ({ _id: `p${i}`, name: `Ürün ${i}`, price: 10 })) });
   let clock = NOW;
   const settings = priceWatchSettings({ SEARXNG_URL: "x" });
-  const worker = new PriceWatchWorker(db, { settings, lookup: async () => { throw new Error("SEARXNG_503"); }, now: () => new Date(clock), log: {} });
+  const worker = new PriceWatchWorker(db, { settings, lookup: async () => { throw new Error("SEARXNG_503"); }, marketfiyatiSettings: MF_OFF, now: () => new Date(clock), log: {} });
   await worker.initialize();
   for (let i = 0; i < 5; i += 1) await worker.step();
   const state = db.data.price_watch_state[0];
-  assert.ok(new Date(state.pausedUntil).getTime() === NOW + HOUR);
+  const pages = db.data.price_watch_state.find((doc) => doc._id === "pages");
+  assert.equal(new Date(pages.pausedUntil).getTime(), NOW + HOUR, "ara yalnızca sayfalar kaynağında");
+  assert.match(pages.lastError.message, /Market sayfaları: arka arkaya 5 arama hatası \(arama motoru yanıt vermedi \(HTTP 503\)\)/);
   assert.match(state.lastError.message, /1 saat/);
   await worker.step();
-  assert.equal(state.phase, "paused");
+  assert.equal(state.phase, "paused", "başka kaynak yoksa bekçi bekler");
+  assert.equal(new Date(state.pausedUntil).getTime(), NOW + HOUR);
   assert.equal(state.checks, 5);
 
   clock = new Date("2026-10-11T22:30:00Z").getTime(); // ertesi gün 01:30
   await worker.step();
   assert.equal(state.day, "2026-10-12");
   assert.equal(state.checks, 1);
+});
+
+test("işçi: sayfa sınırı dolunca Market Fiyatı ile devam eder; Market Fiyatı ara verdiyse yalnızca o kaynak beklenir", async () => {
+  const db = fakeDb({ products: Array.from({ length: 4 }, (_, i) => ({ _id: `p${i}`, name: `Ürün ${i}`, price: 10 })) });
+  const calls = [];
+  const lookup = async (query) => {
+    calls.push(query);
+    return calls.length === 1
+      ? { offers: [], pagesUsed: true }
+      : { offers: [{ price: 9, source: "A101" }], median: 9, min: 9, max: 9, confidence: "high", provider: "marketfiyati", pagesUsed: false };
+  };
+  const settings = { ...priceWatchSettings({ SEARXNG_URL: "x" }), dailyLimit: 1 };
+  const worker = new PriceWatchWorker(db, { settings, lookup, marketfiyatiSettings: { enabled: true }, camgozSettings: { enabled: false }, now: () => new Date(NOW), log: {} });
+  await worker.initialize();
+  assert.ok((await worker.step()) >= 20000, "sayfa okundu");
+  assert.equal(await worker.step(), 3000, "yalnızca API kaynağına sorulduysa kısa bekleme");
+  const state = db.data.price_watch_state.find((doc) => doc._id === "main");
+  assert.equal(state.phase, "running");
+  assert.equal(state.lastProvider, "marketfiyati");
+  assert.equal(calls.length, 2);
+
+  // Market Fiyatı 429 yüzünden ara verdi: Camgöz yok, sayfa sınırı dolu → bekçi arayı bekler (en erken biten ara)
+  db.data.price_watch_state.push({ _id: "marketfiyati", pausedUntil: new Date(NOW + 15 * 60000), lastError: { status: 429, message: "x" } });
+  const delay = await worker.step();
+  assert.equal(calls.length, 2, "ara sürerken ürün kontrol edilmez");
+  assert.equal(state.phase, "paused");
+  assert.equal(new Date(state.pausedUntil).getTime(), NOW + 15 * 60000);
+  assert.ok(delay <= 5 * 60000);
+
+  // Yeni gün: sayfa sınırı sıfırlandı → ara sürse de sayfalarla devam edilir
+  worker.now = () => new Date("2026-10-11T22:30:00Z");
+  await worker.step();
+  assert.equal(calls.length, 3);
+  assert.equal(state.phase, "running");
 });
