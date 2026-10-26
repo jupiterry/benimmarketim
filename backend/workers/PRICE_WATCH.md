@@ -5,7 +5,22 @@ Sonuçlar yönetici panelinde **Katalog → Fiyat bekçisi** sekmesinde görün�
 
 ## Nasıl çalışır
 
-### 1. Camgöz (ana kaynak)
+Kaynak sırası: **Market Fiyatı (ücretsiz) → Camgöz (kredi; yalnızca Market Fiyatı bulamazsa) → market sayfaları (SearXNG)**.
+Her kaynağın `price_watch_state` içinde kendi kaydı vardır (`_id: "marketfiyati" | "camgoz" | "pages"`: `lastOkAt`, `lastErrorAt`, `lastError {status, message, detail}`, `consecutiveMisses`, `pausedUntil`).
+Bir kaynak engellenir ya da sınıra takılırsa **yalnızca o kaynak** ara verir; bekçi diğerleriyle devam eder. Panelde "Kaynaklar" satırı her kaynağın durumunu gösterir ve "Şimdi dene" ile üretimden tek canlı istek atılabilir (`POST /api/price-watch/providers/:id/test`).
+
+### 0. Market Fiyatı (ana kaynak, ücretsiz)
+
+[Market Fiyatı](https://marketfiyati.org.tr), TÜBİTAK BİLGEM'in halka açık fiyat platformudur (A101, BİM, Migros, Şok, CarrefourSA, Hakmar, Tarım Kredi şubeleri). Resmî/belgelenmiş bir API değildir; sitenin kendi JSON uçları (`POST https://api.marketfiyati.org.tr/api/v2/search`, `/api/v2/searchByIdentity`) okunur. Kullanım koşullarına uyum işletmenin sorumluluğundadır: <https://marketfiyati.org.tr/kullanim-kosullari>.
+- Konum **Devrek (41.2207, 31.9563)**, yarıçap **60 km**; o alanda şube yoksa bir kez **150 km** ile denenir. Şube mesafesi sunucuda da (haversine) süzülür.
+- Barkod biliniyorsa önce `searchByIdentity` (`identityType: "barcode"`; platform bu türü kabul etmezse isimle devam edilir), yoksa isimle arama (20 sonuç) ve gramaj/ad eşleşmesiyle en uygun ürün seçilir (Camgöz'dekiyle aynı `matchProduct`).
+- Her zincir için en güncel günün şube fiyatlarının **ortancası** alınır; `indexTime` 14 günden eskiyse sayılmaz (`MARKETFIYATI_MAX_AGE_DAYS`).
+- İstekler arası en az **2,5 sn** + rastgele ek (süreç içi tek sıra); aynı sorgu 6 saat önbellekten döner.
+- 429/403/401/5xx, zaman aşımı ve ağ hatasında kaynak **15 dk** ara verir; tekrarında süre ikiye katlanır (**en çok 6 saat**). Bulunamayan ürün 7 gün yeniden sorulmaz (`marketfiyatiMissAt`).
+- Ayarlar panelden (Fiyat bekçisi → Market Fiyatı) değiştirilir ve `price_watch_state` (`_id: "marketfiyati_config"`) içinde tutulur; `.env` değerleri varsayılandır.
+- Deneme: `node backend/workers/priceWatch.run.js --marketfiyati="Pınar Süt 1 L"` (veritabanı gerekmez).
+
+### 1. Camgöz (yedek, kredi)
 
 `JOJAPI_API_KEY` tanımlıysa önce [Camgöz](https://camgoz.net) API'sine (JoJ API, `X-JoJAPI-Key` başlığı) sorulur.
 - Camgöz barkod bazında A101, Migros, Şok, Hakmar gibi zincirlerin günlük güncellenen fiyatlarını verir.
@@ -15,7 +30,7 @@ Sonuçlar yönetici panelinde **Katalog → Fiyat bekçisi** sekmesinde görün�
 - Panelde kalemle **barkod** elle yazılabilir; elle yazılan barkod kesin kabul edilir ve otomatik değiştirilmez.
 - Yalnızca zincir marketler sayılır (`CAMGOZ_MARKETS`); küçük online dükkânların fiyatları alınmaz.
 - **Güncellik:** son 90 günde (`CAMGOZ_MAX_AGE_DAYS`) güncellenmemiş market fiyatı, stokta olmayan ürün ve Camgöz'de yanlış ürüne bağlanmış market kaydı (ör. 144 g ürünün altında 4x36 g paket) elenir.
-- **Kredi:** varsayılan olarak Camgöz kredisi **bitene kadar** kullanılır (`CAMGOZ_PACING=even` yapılırsa ay boyunca eşit dağıtılır). Harcanan kredi API'nin `X-Jojapi-Credits-Used` başlığından okunur, `price_watch_state` (`_id: "camgoz"`) içinde tutulur ve panelde görünür.
+- **Kredi:** varsayılan olarak (`CAMGOZ_PACING=even`) aylık kredi ay boyunca eşit dağıtılır; Market Fiyatı'nın bulduğu ürünler için Camgöz'e hiç sorulmaz. `CAMGOZ_PACING=none` yapılırsa kredi bitene kadar kullanılır. Harcanan kredi API'nin `X-Jojapi-Credits-Used` başlığından okunur, `price_watch_state` (`_id: "camgoz"`) içinde tutulur ve panelde görünür.
 - **Günlük sınır yalnızca market sayfaları için:** `PRICE_WATCH_DAILY_LIMIT` sitelere bakılan ürün sayısını sınırlar. Sınır dolunca bekçi Camgöz kredisi kaldığı sürece yalnızca Camgöz'le devam eder (ürünler arası 3 sn); Camgöz'de bulunamayan ürünlere ertesi gün market sayfalarından bakılır (`pagesPending`).
 - Anahtar hatası / kredi bitti / istek sınırı (401, 402, 403, 429) gelirse Camgöz 6 saat denenmez.
 - Ücretsiz paket (500 kredi) ile yaklaşık 40 yeni ürün eşleşir ya da ~160 barkodlu ürün kontrol edilir; 1.500 ürünün düzenli takibi için Başlangıç ($9/ay, 10.000 kredi) paketi gerekir.
@@ -43,7 +58,7 @@ Camgöz kapalıysa, kredi dolduysa ya da ürün bulunamazsa:
 - **Emin değil:** ürün adında gramaj yoksa ya da fark %100'den fazla pahalı / %60'tan fazla ucuzsa sonuç Pahalı/Ucuz'a değil "Emin değil" listesine düşer. Çözüm: kalemle arama sözcüğüne gramaj ekleyin.
 - Ürünler arasında 20–30 sn beklenir; varsayılan olarak yalnızca 01:00–07:00 (İstanbul) arasında çalışır, günde en çok 300 ürün.
 - Sıra: hiç bakılmamış ürünler → son 30 günün en çok satan 100 ürünü (günde bir) → diğerleri (haftada bir).
-- Arka arkaya 5 arama hatası veya 25 "bulunamadı" gelirse bir saat ara verilir.
+- Arka arkaya 5 arama hatası veya 25 "bulunamadı" gelirse yalnızca market sayfaları kaynağı bir saat ara verir (`price_watch_state`, `_id: "pages"`); Market Fiyatı ve Camgöz sürer.
 - Eski sürümün (arama özetinden) kayıtları gösterilmez; o ürünler "Bakılmadı" sayılır ve ilk gece yeniden kontrol edilir. Yoksay ve arama sözcüğü ayarları korunur.
 
 Her ürün için `price_watch` koleksiyonunda saklananlar: okunan fiyatlar (market, sayfa, okunma zamanı), ortanca / en düşük / en yüksek, güven (`high`/`low`) ve açıklama, elenen sayfalar ve nedenleri, son kontrol zamanı, durum (`ok` / `not-found` / `error`), yönetici ayarları (`ignored`, `customQuery`), kayıt sürümü (`v: 2`).
@@ -85,11 +100,17 @@ API (`benimmarketim-api`) da yeni `/api/price-watch` uçları için `pm2 reload 
 | `PRICE_WATCH_DELAY_SEC` | `20-30` | İki arama arasında rastgele bekleme (en az 5 sn) |
 | `PRICE_WATCH_THRESHOLD` | `20` | Pahalı/ucuz sayılma eşiği (%) |
 | `PRICE_WATCH_TOP_SELLERS` | `100` | Günde bir kontrol edilen en çok satan ürün sayısı |
-| `JOJAPI_API_KEY` | — | Camgöz API anahtarı (yoksa yalnızca market sayfaları) |
+| `JOJAPI_API_KEY` | — | Camgöz API anahtarı (yoksa Market Fiyatı ve market sayfaları) |
 | `CAMGOZ_MONTHLY_CREDITS` | `500` | Aylık kredi bütçesi (paketinize göre) |
 | `CAMGOZ_MAX_AGE_DAYS` | `90` | Bundan eski market fiyatı sayılmaz |
-| `CAMGOZ_PACING` | — | `even`: krediyi ay boyunca eşit dağıt (varsayılan: bitene kadar kullan) |
-| `CAMGOZ_MARKETS` | zincirler | Sayılacak marketler (virgülle) |
+| `CAMGOZ_PACING` | `even` | `even`: krediyi ay boyunca eşit dağıt; `none`: bitene kadar kullan |
+| `CAMGOZ_MARKETS` | zincirler | Sayılacak marketler (virgülle; Market Fiyatı için de geçerli) |
+| `MARKETFIYATI_ENABLED` | `true` | `false` ise Market Fiyatı sorulmaz (panelden de kapatılabilir) |
+| `MARKETFIYATI_LAT` / `MARKETFIYATI_LON` | `41.2207` / `31.9563` | Şube seçimi için konum (Devrek) |
+| `MARKETFIYATI_DISTANCE_KM` | `60` | Yarıçap; boşsa bir kez 150 km denenir |
+| `MARKETFIYATI_MIN_INTERVAL_MS` | `2500` | İstekler arası en az bekleme |
+| `MARKETFIYATI_MAX_AGE_DAYS` | `14` | Bundan eski şube fiyatı sayılmaz |
+| `MARKETFIYATI_TIMEOUT_MS` | `12000` | İstek zaman aşımı |
 
 ## Sınırlar
 

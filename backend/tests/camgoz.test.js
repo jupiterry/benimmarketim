@@ -91,7 +91,8 @@ const fakeSearch = (products, credits = 7) => {
   };
   return { search, calls };
 };
-const SETTINGS = camgozSettings({ JOJAPI_API_KEY: "test-key" });
+const SETTINGS = camgozSettings({ JOJAPI_API_KEY: "test-key", CAMGOZ_PACING: "none" });
+const MF_OFF = { enabled: false }; // bu testler Camgöz → sayfalar sırasını sınar; Market Fiyatı kapalı
 
 test("Camgöz fiyatı: isimle eşleşir, barkod döner; barkodla arama kesin", async () => {
   const { search, calls } = fakeSearch([DIDO, GOFRET]);
@@ -165,21 +166,24 @@ const memoryDb = () => {
       updateOne: async (filter, update, { upsert } = {}) => {
         let doc = docs.find((item) => String(item._id) === String(filter._id));
         if (!doc && upsert) docs.push((doc = { _id: filter._id, ...(update.$setOnInsert || {}) }));
-        if (doc) Object.assign(doc, update.$set || {});
+        if (!doc) return;
+        Object.assign(doc, update.$set || {});
+        for (const [key, value] of Object.entries(update.$inc || {})) doc[key] = (doc[key] || 0) + value;
+        for (const key of Object.keys(update.$unset || {})) delete doc[key];
       },
     };
   };
   return { collection, data };
 };
 
-test("kaynak sırası: önce Camgöz, bulamazsa market sayfaları; barkod ve kredi kaydedilir", async () => {
+test("kaynak sırası (Market Fiyatı kapalı): önce Camgöz, bulamazsa market sayfaları; barkod ve kredi kaydedilir", async () => {
   const db = memoryDb();
   const product = { _id: "p1", name: "Ülker Beyaz Çikolatalı Gofret 35 g", price: 25 };
   let pageCalls = 0;
   const pages = async () => { pageCalls += 1; return { offers: [{ price: 18.5, source: "Şok", pageUrl: "https://s", title: "t" }], median: 18.5, min: 18.5, max: 18.5, confidence: "high", note: "", rejected: [] }; };
   const camgoz = (products, credits) => (query, options) => findCamgozPrices(query, { ...options, search: fakeSearch(products, credits).search });
 
-  const first = await checkProduct({ db, product, now: NOW, lookup: priceLookup({ db, settings: SETTINGS, camgoz: camgoz([GOFRET], 7), pages }) });
+  const first = await checkProduct({ db, product, now: NOW, lookup: priceLookup({ db, marketfiyatiSettings: MF_OFF, settings: SETTINGS, camgoz: camgoz([GOFRET], 7), pages }) });
   assert.equal(first.provider, "camgoz");
   assert.equal(first.barcode, GOFRET.barcode);
   assert.equal(first.barcodeSource, "auto");
@@ -190,30 +194,30 @@ test("kaynak sırası: önce Camgöz, bulamazsa market sayfaları; barkod ve kre
 
   // Camgöz'de yok → market sayfaları; isimle arama 30 gün tekrarlanmaz
   const other = { _id: "p2", name: "Devrek Erişte 500 g", price: 40 };
-  const missed = await checkProduct({ db, product: other, now: NOW, lookup: priceLookup({ db, settings: SETTINGS, camgoz: camgoz([DIDO], 9), pages }) });
+  const missed = await checkProduct({ db, product: other, now: NOW, lookup: priceLookup({ db, marketfiyatiSettings: MF_OFF, settings: SETTINGS, camgoz: camgoz([DIDO], 9), pages }) });
   assert.equal(missed.provider, "pages");
   assert.ok(missed.camgozMissAt);
   assert.equal(pageCalls, 1);
   let camgozCalls = 0;
-  await checkProduct({ db, product: other, now: NOW, lookup: priceLookup({ db, settings: SETTINGS, camgoz: async () => { camgozCalls += 1; return {}; }, pages }) });
+  await checkProduct({ db, product: other, now: NOW, lookup: priceLookup({ db, marketfiyatiSettings: MF_OFF, settings: SETTINGS, camgoz: async () => { camgozCalls += 1; return {}; }, pages }) });
   assert.equal(camgozCalls, 0);
   assert.equal(db.data.price_watch_state.find((doc) => doc._id === "camgoz").used, 16);
 
   // CAMGOZ_PACING=even: bugünkü pay doldu (16 + 13 > 24) → Camgöz denenmez
   let skipped = 0;
-  await priceLookup({ db, settings: { ...SETTINGS, pacing: "even" }, camgoz: async () => { skipped += 1; return {}; }, pages })("Pınar Süt 1 L", { now: NOW });
+  await priceLookup({ db, marketfiyatiSettings: MF_OFF, settings: { ...SETTINGS, pacing: "even" }, camgoz: async () => { skipped += 1; return {}; }, pages })("Pınar Süt 1 L", { now: NOW });
   assert.equal(skipped, 0);
 
   // Anahtar hatası (panelden elle kontrol): sayfalara düşer, Camgöz 6 saat beklenir
   const third = { _id: "p3", name: "Pınar Süt 1 L", price: 40 };
-  const failed = await checkProduct({ db, product: third, now: NOW, lookup: priceLookup({ db, manual: true, settings: SETTINGS, camgoz: async () => { throw new Error("CAMGOZ_401"); }, pages }) });
+  const failed = await checkProduct({ db, product: third, now: NOW, lookup: priceLookup({ db, marketfiyatiSettings: MF_OFF, manual: true, settings: SETTINGS, camgoz: async () => { throw new Error("CAMGOZ_401"); }, pages }) });
   assert.equal(failed.provider, "pages");
   const state = db.data.price_watch_state.find((doc) => doc._id === "camgoz");
   assert.match(state.lastError.message, /yetkilendirilmedi/);
   assert.ok(new Date(state.pausedUntil) > NOW);
 
   // Camgöz kapalıysa (anahtar yok) doğrudan sayfalar
-  const off = await priceLookup({ db, settings: camgozSettings({}), camgoz: async () => assert.fail("çağrılmamalı"), pages })("x", { now: NOW });
+  const off = await priceLookup({ db, marketfiyatiSettings: MF_OFF, settings: camgozSettings({}), camgoz: async () => assert.fail("çağrılmamalı"), pages })("x", { now: NOW });
   assert.equal(off.provider, "pages");
 });
 
@@ -230,17 +234,17 @@ test("panelden girilen anahtar: şifreli saklanır, .env'in yerine geçer, sır 
   assert.equal(panel.source, "panel");
   assert.equal(panel.last4, "1234");
   assert.equal(panel.monthlyCredits, 10000);
-  assert.equal(panel.pacing, "none", "varsayılan: kredi bitene kadar");
+  assert.equal(panel.pacing, "even", "varsayılan: aylık kredi ay boyunca eşit dağıtılır");
 
   const rotated = await resolveCamgozSettings(db, { JOJAPI_API_KEY: "env-key-9999", ACCESS_TOKEN_SECRET: "yeni-sır" });
   assert.equal(rotated.apiKey, "env-key-9999");
   assert.equal(rotated.source, "env");
   assert.match(rotated.keyError, /çözülemedi/);
 
-  const empty = await resolveCamgozSettings({ collection: () => ({ findOne: async () => null }) }, { CAMGOZ_PACING: "even" });
+  const empty = await resolveCamgozSettings({ collection: () => ({ findOne: async () => null }) }, { CAMGOZ_PACING: "none" });
   assert.equal(empty.enabled, false);
   assert.equal(empty.source, "none");
-  assert.equal(empty.pacing, "even");
+  assert.equal(empty.pacing, "none", "CAMGOZ_PACING=none: kredi bitene kadar");
 
   assert.equal(validApiKeyFormat("abc"), false);
   assert.equal(validApiKeyFormat("abc def ghi"), false);

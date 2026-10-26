@@ -688,3 +688,140 @@
   padding-top: var(--ui-s3);
   border-top: 1px solid var(--ui-line);
 }
+
+/* ── Kaynaklar satırı (Market Fiyatı / Camgöz / market sayfaları) ─── */
+.admin-layout .pw-providers {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .pw-providers-head {
+  margin: 0;
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  color: var(--ui-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.admin-layout .pw-providers-head .ui-muted {
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.admin-layout .pw-provider-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-layout .pw-provider {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-2);
+}
+.admin-layout .pw-provider-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+}
+.admin-layout .pw-provider-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.admin-layout .pw-provider-body {
+  min-width: 0;
+}
+.admin-layout .pw-provider-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 0;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text);
+}
+.admin-layout .pw-provider-title .ui-muted {
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .pw-provider-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin: 3px 0 0;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .pw-provider-error {
+  margin: 4px 0 0;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-danger-ink);
+  overflow-wrap: anywhere;
+}
+.admin-layout .pw-provider-error em {
+  font-style: normal;
+  opacity: 0.85;
+}
+.admin-layout .pw-provider-result {
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-ok-bg);
+  color: var(--ui-ok-ink);
+  font-size: var(--ui-fs-xs);
+  overflow-wrap: anywhere;
+}
+.admin-layout .pw-provider-result--bad {
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+}
+.admin-layout .pw-provider-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.admin-layout .pw-provider-actions .ui-btn svg {
+  width: 14px;
+  height: 14px;
+}
+.admin-layout .pw-legal {
+  margin: 0;
+}
+.admin-layout .pw-legal a {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--ui-brand-ink);
+}
+.admin-layout .pw-legal a svg {
+  width: 11px;
+  height: 11px;
+}
+.admin-layout .pw-camgoz-body .ui-toggle {
+  margin-top: 6px;
+}
+
+@media (max-width: 760px) {
+  .admin-layout .pw-provider {
+    grid-template-columns: 30px minmax(0, 1fr);
+  }
+  .admin-layout .pw-provider-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}

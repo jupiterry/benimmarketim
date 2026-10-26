@@ -1,10 +1,20 @@
 // Fiyat bekçisi: ürünlerin market fiyatını yavaşça (gece, tek tek) kontrol eder.
-// Fiyat, market ürün sayfası o an açılarak okunur (güncel fiyat şartı); arama özetlerindeki eski fiyatlar kullanılmaz.
+// Kaynak sırası: Market Fiyatı (ücretsiz, TÜBİTAK) → Camgöz (kredi; yalnızca Market Fiyatı bulamazsa) → market sayfaları (SearXNG).
+// Market sayfasında fiyat, sayfa o an açılarak okunur (güncel fiyat şartı); arama özetlerindeki eski fiyatlar kullanılmaz.
 // Sonuçlar yalnızca yöneticiye gösterilir; hiçbir ürünün fiyatı kendiliğinden değişmez.
-// Kayıtlar "price_watch" koleksiyonunda tutulur (_id = ürün id'si), işçinin durumu "price_watch_state" içindedir.
+// Kayıtlar "price_watch" koleksiyonunda tutulur (_id = ürün id'si), işçinin ve kaynakların durumu "price_watch_state" içindedir.
 import { searchSearxngWeb } from "./productAssist.service.js";
 import { findMarketPrices } from "./marketPrice.service.js";
 import { BARCODE_SEARCH_CREDITS, NAME_SEARCH_CREDITS, describeCamgozError, findCamgozPrices, resolveCamgozSettings } from "./camgoz.service.js";
+import {
+  MARKETFIYATI_MISS_RETRY_DAYS,
+  MARKETFIYATI_STATE_ID,
+  describeMarketfiyatiError,
+  findMarketfiyatiPrices,
+  nextPauseMs,
+  resolveMarketfiyatiSettings,
+  shouldPause as marketfiyatiShouldPause,
+} from "./marketfiyati.service.js";
 
 export const WATCH_COLLECTION = "price_watch";
 export const STATE_COLLECTION = "price_watch_state";
@@ -45,7 +55,8 @@ export const parseDelay = (value, fallback = { min: 20, max: 30 }) => {
 };
 
 export const priceWatchSettings = (env = process.env) => ({
-  enabled: env.PRICE_WATCH_ENABLED !== "false" && Boolean(env.SEARXNG_URL || env.JOJAPI_API_KEY),
+  // Market Fiyatı anahtar gerektirmediği için bekçi varsayılan olarak açıktır; yalnızca PRICE_WATCH_ENABLED=false (ya da üç kaynak da kapalı) kapatır
+  enabled: env.PRICE_WATCH_ENABLED !== "false" && Boolean(env.SEARXNG_URL || env.JOJAPI_API_KEY || env.MARKETFIYATI_ENABLED !== "false"),
   searxngConfigured: Boolean(env.SEARXNG_URL),
   hours: parseHours(env.PRICE_WATCH_HOURS),
   dailyLimit: toInt(env.PRICE_WATCH_DAILY_LIMIT, 300, 1, 2000),
@@ -81,12 +92,19 @@ export const classifyPrice = (ourPrice, median, threshold = 0.2) => {
 const idOf = (value) => String(value?._id ?? value ?? "");
 const ageHours = (date, now) => (date ? (now - new Date(date).getTime()) / HOUR : Infinity);
 
+/** Bu ürün için Market Fiyatı yakın zamanda "bulunamadı" dedi mi? */
+export const recentMarketfiyatiMiss = (watch, now) => Boolean(watch?.marketfiyatiMissAt) && ageHours(watch.marketfiyatiMissAt, now) < MARKETFIYATI_MISS_RETRY_DAYS * 24;
+/** Camgöz isimle aramada yakın zamanda "bulunamadı" dedi mi? (barkod biliniyorsa barkodla aranır, miss sayılmaz) */
+export const recentCamgozMiss = (watch, now) => !watch?.barcode && Boolean(watch?.camgozMissAt) && ageHours(watch.camgozMissAt, now) < CAMGOZ_MISS_RETRY_DAYS * 24;
+
 /**
  * Sıradaki kontrol edilecek ürünler (saf fonksiyon).
  * Sıra: hiç kontrol edilmemişler (önce en çok satanlar) → vakti gelen en çok satanlar → vakti gelen diğerleri;
  * her grupta en eski kontrol önce. Gizli ve "yoksay" işaretli ürünler atlanır.
+ * apiOnly (eski adı camgozOnly): market sayfalarına bakılamıyor; yalnızca API kaynaklarında (Market Fiyatı, varsa Camgöz)
+ * bulunabilecek ürünler seçilir — iki kaynağın da yakın zamanda bulamadığı ürünler atlanır.
  */
-export const selectDue = ({ products, watches, topSellerIds = [], now = Date.now(), limit = 1, camgozOnly = false }) => {
+export const selectDue = ({ products, watches, topSellerIds = [], now = Date.now(), limit = 1, camgozOnly = false, apiOnly = camgozOnly, camgozEnabled = true, marketfiyatiEnabled = true }) => {
   const watchMap = new Map(watches.map((watch) => [idOf(watch), watch]));
   const topRank = new Map(topSellerIds.map((id, index) => [idOf(id), index]));
   const due = [];
@@ -96,8 +114,11 @@ export const selectDue = ({ products, watches, topSellerIds = [], now = Date.now
     const watch = watchMap.get(id);
     if (watch?.ignored) continue;
     const isTop = topRank.has(id);
-    // Günlük sayfa sınırı dolduğunda yalnızca Camgöz'de aranabilecek ürünler seçilir
-    if (camgozOnly && !watch?.barcode && watch?.camgozMissAt && ageHours(watch.camgozMissAt, now) < CAMGOZ_MISS_RETRY_DAYS * 24) continue;
+    if (apiOnly) {
+      const marketfiyatiHopeless = !marketfiyatiEnabled || recentMarketfiyatiMiss(watch, now);
+      const camgozHopeless = !camgozEnabled || recentCamgozMiss(watch, now);
+      if (marketfiyatiHopeless && camgozHopeless) continue;
+    }
     if (!watch?.checkedAt || watch.v !== WATCH_VERSION) {
       due.push({ product, group: 0, rank: isTop ? topRank.get(id) : Infinity, checkedAt: 0 });
       continue;
@@ -116,6 +137,62 @@ export const selectDue = ({ products, watches, topSellerIds = [], now = Date.now
   due.sort((a, b) => a.group - b.group || a.rank - b.rank || a.checkedAt - b.checkedAt);
   return due.slice(0, limit).map((item) => item.product);
 };
+
+// ── Kaynak (sağlayıcı) durumu ─────────────────────────────────────
+// price_watch_state içinde her kaynağın kendi kaydı vardır: marketfiyati | camgoz | pages
+// { lastOkAt, lastErrorAt, lastError: { at, status, message, detail }, consecutiveMisses, pausedUntil, pauseMs }
+export const PROVIDERS = ["marketfiyati", "camgoz", "pages"];
+export const PAGES_STATE_ID = "pages";
+
+const cleanDetail = (value) => String(value ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
+
+/** Kaynak başarılı yanıt verdi (miss=true: ulaşıldı ama ürün bulunamadı) */
+export const recordProviderOk = async (db, providerId, { now = new Date(), miss = false } = {}) => {
+  const states = db.collection(STATE_COLLECTION);
+  const state = (await states.findOne({ _id: providerId })) || {};
+  const set = { lastOkAt: now, consecutiveMisses: miss ? (state.consecutiveMisses || 0) + 1 : 0, consecutiveErrors: 0 };
+  await states.updateOne({ _id: providerId }, { $set: set, $inc: { requests: 1 }, $unset: { pausedUntil: "", pauseMs: "" } }, { upsert: true });
+};
+
+/**
+ * Kaynak hata verdi. pause=true ise yalnızca bu kaynak ara verir: 15 dk'dan başlayıp her tekrarda ikiye katlanır (en çok 6 saat);
+ * pauseMs verilirse sabit süre kullanılır. Hiçbir zaman fırlatmaz.
+ */
+export const recordProviderError = async (db, providerId, { now = new Date(), status = null, message = "", detail = "", pause = false, pauseMs = null } = {}) => {
+  try {
+    const states = db.collection(STATE_COLLECTION);
+    const state = (await states.findOne({ _id: providerId })) || {};
+    const set = {
+      lastErrorAt: now,
+      lastError: { at: now, status: status ?? null, message: String(message || "").slice(0, 200), detail: cleanDetail(detail) },
+      consecutiveErrors: (state.consecutiveErrors || 0) + 1,
+    };
+    if (pause) {
+      // Önceki ara daha yeni bittiyse (yarım saat içinde) süre katlanır; uzun süredir sorun yoksa 15 dk'dan başlanır
+      const recentPause = state.pausedUntil && now - new Date(state.pausedUntil) < 30 * 60000;
+      set.pauseMs = pauseMs || (recentPause || (state.pausedUntil && new Date(state.pausedUntil) > now) ? nextPauseMs(state.pauseMs) : nextPauseMs(0));
+      set.pausedUntil = new Date(now.getTime() + set.pauseMs);
+    }
+    await states.updateOne({ _id: providerId }, { $set: set, $inc: { requests: 1 } }, { upsert: true });
+    return set;
+  } catch {
+    return null;
+  }
+};
+
+/** Kaynak şu an ara vermiş mi? (pausedUntil geçmişte kaldıysa değil) */
+export const providerPausedUntil = (state, now = new Date()) => (state?.pausedUntil && new Date(state.pausedUntil) > now ? new Date(state.pausedUntil) : null);
+
+/** Panel/işçi için kaynak özeti (saf fonksiyon) */
+export const providerSummary = (state, { now = new Date() } = {}) => ({
+  lastOkAt: state?.lastOkAt || null,
+  lastErrorAt: state?.lastErrorAt || null,
+  lastError: state?.lastError || null,
+  consecutiveMisses: state?.consecutiveMisses || 0,
+  consecutiveErrors: state?.consecutiveErrors || 0,
+  requests: state?.requests || 0,
+  pausedUntil: providerPausedUntil(state, now),
+});
 
 /** Son 30 günde en çok satılan ürünlerin id'leri (iptal edilen siparişler ve elle eklenen satırlar hariç). */
 export const findTopSellerIds = async (db, { top = 100, days = 30, now = Date.now() } = {}) => {
@@ -136,8 +213,12 @@ export const describeSearchError = (error) => {
   const code = String(error?.message || error || "");
   if (error?.name === "AbortError") return "arama motoru zamanında yanıt vermedi";
   if (code === "IMAGE_SEARCH_NOT_CONFIGURED") return "SEARXNG_URL ayarlı değil";
+  if (code === "NO_PRICE_SOURCE") return "hiçbir fiyat kaynağı açık değil (Market Fiyatı kapalı, Camgöz anahtarı ve SEARXNG_URL yok)";
   const http = /^SEARXNG_(\d+)$/.exec(code);
   if (http) return `arama motoru yanıt vermedi (HTTP ${http[1]})`;
+  const dns = /ENOTFOUND|EAI_AGAIN/.test(String(error?.cause?.code || error?.code || code));
+  if (dns) return "arama motoru adresi çözülemedi (DNS)";
+  if (/ECONNREFUSED|ECONNRESET|fetch failed/i.test(String(error?.cause?.code || code))) return "arama motoruna bağlanılamadı";
   return code.slice(0, 200) || "bilinmeyen hata";
 };
 
@@ -153,7 +234,8 @@ const defaultSearch = (q) => {
 export const marketLookup = (options = {}) => (query) => findMarketPrices(query, { search: defaultSearch, ...options });
 
 // ── Camgöz kredi bütçesi ──────────────────────────────────────────
-// Varsayılan: kredi bitene kadar kullanılır. CAMGOZ_PACING=even ise aylık kredi ay boyunca eşit dağıtılır (panelden elle kontrol yalnızca aylık sınıra bakar).
+// Varsayılan (CAMGOZ_PACING=even): aylık kredi ay boyunca eşit dağıtılır; panelden elle kontrol yalnızca aylık sınıra bakar.
+// CAMGOZ_PACING=none ise kredi bitene kadar kullanılır.
 export const CAMGOZ_STATE_ID = "camgoz";
 export const CAMGOZ_MISS_RETRY_DAYS = 30; // Camgöz'de bulunamayan ürün için isimle arama 30 gün tekrarlanmaz
 const CAMGOZ_PAUSE_MS = 6 * 3600000; // anahtar/kredi hatasında 6 saat Camgöz denenmez
@@ -190,10 +272,16 @@ const recordCamgozUse = async (db, credits, now, error) => {
     lastUsedAt: now,
   };
   if (error) {
-    set.lastError = { at: now, message: describeCamgozError(error) };
+    const status = Number(/^CAMGOZ_(\d+)$/.exec(error.message || "")?.[1]) || null;
+    set.lastErrorAt = now;
+    set.lastError = { at: now, status, message: describeCamgozError(error), detail: String(error.detail || "").slice(0, 120) };
+    set.consecutiveErrors = (state.consecutiveErrors || 0) + 1;
     if (/^CAMGOZ_(401|402|403|429)$/.test(error.message || "")) set.pausedUntil = new Date(now.getTime() + CAMGOZ_PAUSE_MS);
+  } else {
+    set.lastOkAt = now;
+    set.consecutiveErrors = 0;
   }
-  await states.updateOne({ _id: CAMGOZ_STATE_ID }, { $set: set }, { upsert: true });
+  await states.updateOne({ _id: CAMGOZ_STATE_ID }, { $set: set, $inc: { requests: 1 } }, { upsert: true });
 };
 
 /** Camgöz bu an kullanılabilir mi (anahtar var, ara verilmemiş, kredi kalmış)? */
@@ -214,67 +302,123 @@ export const resetCamgozUsage = async (db, now = new Date()) => {
 };
 
 /**
- * Asıl fiyat kaynağı: önce Camgöz (anahtar ve kredi varsa), bulamazsa market sayfaları.
- * allowPages=false: günlük sayfa sınırı doldu; Camgöz bulamazsa sayfalara bakılmaz, ürün "pagesPending" kalır.
- * settings verilmezse her çağrıda .env + panel anahtarı okunur.
- * lookup(query, { watch }) → { offers, ..., provider, barcode, camgozMiss, pagesUsed, pagesSkipped }
+ * Asıl fiyat kaynağı. Sıra:
+ *   1. Market Fiyatı (ücretsiz; açık, ara vermemiş ve bu ürün için 7 gün içinde "bulunamadı" dememişse)
+ *   2. Camgöz (yalnızca Market Fiyatı bulamazsa; anahtar, kredi ve günlük pay varsa)
+ *   3. Market sayfaları (SEARXNG_URL ayarlıysa, kaynak ara vermemişse ve allowPages ise)
+ * allowPages=false: günlük sayfa sınırı doldu ya da kaynak ara verdi; API kaynakları bulamazsa ürün "pagesPending" kalır.
+ * settings (Camgöz) / marketfiyatiSettings verilmezse her çağrıda .env + panel ayarları okunur.
+ * lookup(query, { watch }) → { offers, ..., provider, barcode, camgozMiss, marketfiyatiMiss, pagesUsed, pagesSkipped }
+ * Kaynak hataları içeride yakalanıp kaynağın durum kaydına yazılır; yalnızca market sayfası hatası (başka kaynak denenmediyse) dışarı çıkar.
  */
-export const priceLookup = ({ db, manual = false, allowPages = true, settings, camgoz = findCamgozPrices, pages = marketLookup(manual ? { pause: () => new Promise((resolve) => setTimeout(resolve, 1500)) } : {}) } = {}) =>
+export const priceLookup = ({
+  db,
+  manual = false,
+  allowPages = true,
+  settings,
+  marketfiyatiSettings: mfSettings,
+  marketfiyati = findMarketfiyatiPrices,
+  camgoz = findCamgozPrices,
+  pages,
+  // pages fonksiyonu verildiyse (testler) market sayfaları "ayarlı" sayılır; yoksa SEARXNG_URL'e bakılır
+  pagesConfigured = pages ? true : Boolean(process.env.SEARXNG_URL),
+} = {}) =>
   async (query, { watch, now = new Date() } = {}) => {
-    const active = settings || (await resolveCamgozSettings(db));
-    let camgozResult = null;
-    let camgozNote = "";
+    const searchPages = pages || marketLookup(manual ? { pause: () => new Promise((resolve) => setTimeout(resolve, 1500)) } : {});
+    const states = db.collection(STATE_COLLECTION);
     const barcode = watch?.barcode || null;
-    const recentMiss = !barcode && watch?.camgozMissAt && (now - new Date(watch.camgozMissAt)) / 86400000 < CAMGOZ_MISS_RETRY_DAYS;
-    if (active.enabled && !recentMiss) {
+    const trustedBarcode = watch?.barcodeSource === "manual";
+    const notes = [];
+    const rejected = [];
+    let tried = 0; // denenen API kaynağı sayısı
+    let marketfiyatiMiss = false;
+    let camgozMiss = false;
+    let foundBarcode = null;
+
+    // 1) Market Fiyatı
+    const mf = mfSettings || (await resolveMarketfiyatiSettings(db));
+    if (mf.enabled && !recentMarketfiyatiMiss(watch, now)) {
+      const state = await states.findOne({ _id: MARKETFIYATI_STATE_ID });
+      const paused = providerPausedUntil(state, now);
+      if (!paused) {
+        tried += 1;
+        try {
+          const result = await marketfiyati(query, { barcode, trustedBarcode, settings: mf, now });
+          await recordProviderOk(db, MARKETFIYATI_STATE_ID, { now, miss: !result.offers.length });
+          rejected.push(...(result.rejected || []));
+          if (result.offers.length) return { ...result, provider: "marketfiyati", barcode: result.barcode || barcode, pagesUsed: false };
+          marketfiyatiMiss = true;
+          notes.push(result.note);
+        } catch (error) {
+          const message = describeMarketfiyatiError(error);
+          const pause = marketfiyatiShouldPause(error);
+          const saved = await recordProviderError(db, MARKETFIYATI_STATE_ID, { now, status: error?.status ?? null, message, detail: error?.detail, pause });
+          notes.push(pause && saved?.pausedUntil ? `${message}; Market Fiyatı ${Math.round(saved.pauseMs / 60000)} dk denenmeyecek.` : message);
+        }
+      } else if (manual) notes.push(`Market Fiyatı ${Math.max(1, Math.round((paused - now) / 60000))} dk daha beklemede.`);
+    }
+
+    // 2) Camgöz — yalnızca Market Fiyatı bulamadıysa
+    const active = settings || (await resolveCamgozSettings(db));
+    if (active.enabled && !recentCamgozMiss(watch, now)) {
       const estimate = barcode ? BARCODE_SEARCH_CREDITS : NAME_SEARCH_CREDITS;
-      const state = await db.collection(STATE_COLLECTION).findOne({ _id: CAMGOZ_STATE_ID });
+      const state = await states.findOne({ _id: CAMGOZ_STATE_ID });
       const allowance = camgozAllowance(state, { monthly: active.monthlyCredits, estimate, manual, paced: active.pacing === "even", now });
       if (allowance.ok) {
+        tried += 1;
         try {
-          camgozResult = await camgoz(query, { barcode, trustedBarcode: watch?.barcodeSource === "manual", settings: active, now });
-          await recordCamgozUse(db, camgozResult.credits || estimate, now);
-          if (camgozResult.offers.length) return { ...camgozResult, provider: "camgoz", pagesUsed: false };
-          camgozNote = camgozResult.note;
+          const result = await camgoz(query, { barcode, trustedBarcode, settings: active, now });
+          await recordCamgozUse(db, result.credits || estimate, now);
+          rejected.push(...(result.rejected || []));
+          foundBarcode = result.barcode || null;
+          camgozMiss = !result.barcode;
+          if (result.offers.length) return { ...result, provider: "camgoz", rejected, marketfiyatiMiss, pagesUsed: false };
+          notes.push(result.note);
         } catch (error) {
           await recordCamgozUse(db, error.credits || 0, now, error);
-          camgozNote = describeCamgozError(error);
+          notes.push(describeCamgozError(error));
         }
-      } else if (allowance.reason === "monthly") camgozNote = "Camgöz aylık kredisi doldu.";
+      } else if (allowance.reason === "monthly") notes.push("Camgöz aylık kredisi doldu.");
     }
-    if (!allowPages) {
-      return {
-        offers: [], rejected: camgozResult?.rejected || [], median: null, min: null, max: null, confidence: null,
-        provider: camgozResult ? "camgoz" : null,
-        barcode: camgozResult?.barcode || barcode,
-        camgozMiss: Boolean(camgozResult && !camgozResult.barcode),
-        pagesUsed: false,
-        pagesSkipped: true,
-        note: [camgozNote, "Market sayfalarına bugünkü sınır dolduğu için sonra bakılacak."].filter(Boolean).join(" "),
-      };
+
+    const base = { median: null, min: null, max: null, confidence: null, barcode: foundBarcode || barcode, camgozMiss, marketfiyatiMiss };
+    // 3) Market sayfaları
+    const pagesState = pagesConfigured ? await states.findOne({ _id: PAGES_STATE_ID }) : null;
+    const pagesPaused = providerPausedUntil(pagesState, now);
+    if (!pagesConfigured) {
+      if (!tried) throw new Error("NO_PRICE_SOURCE");
+      return { ...base, offers: [], rejected, provider: null, pagesUsed: false, pagesSkipped: false, note: notes.filter(Boolean).join(" ") };
+    }
+    if (!allowPages || pagesPaused) {
+      const why = pagesPaused ? "Market sayfaları ara verdiği için sonra bakılacak." : "Market sayfalarına bugünkü sınır dolduğu için sonra bakılacak.";
+      return { ...base, offers: [], rejected, provider: null, pagesUsed: false, pagesSkipped: true, note: [...notes, why].filter(Boolean).join(" ") };
     }
     let fallback;
     try {
-      fallback = await pages(query);
+      fallback = await searchPages(query);
+      await recordProviderOk(db, PAGES_STATE_ID, { now, miss: !fallback.offers.length });
     } catch (error) {
-      // SearXNG yoksa/çöktüyse ve Camgöz denendiyse sonuç "bulunamadı" sayılır; hiçbiri denenmediyse hata olur
-      if (!camgozResult) throw error;
-      fallback = { offers: [], rejected: [], median: null, min: null, max: null, confidence: null, note: "" };
+      await recordProviderError(db, PAGES_STATE_ID, { now, message: describeSearchError(error), detail: error?.message });
+      // SearXNG çöktüyse ve başka kaynak denendiyse sonuç "bulunamadı" sayılır; hiçbiri denenmediyse hata olur
+      if (!tried) throw error;
+      fallback = { offers: [], rejected: [], median: null, min: null, max: null, confidence: null, note: describeSearchError(error) };
     }
     return {
       ...fallback,
+      ...(fallback.offers.length ? {} : base),
       provider: "pages",
       pagesUsed: true,
-      barcode: camgozResult?.barcode || barcode,
-      camgozMiss: Boolean(camgozResult && !camgozResult.barcode),
-      note: fallback.offers.length ? fallback.note : [camgozNote, fallback.note].filter(Boolean).join(" "),
-      rejected: [...(camgozResult?.rejected || []), ...(fallback.rejected || [])],
+      barcode: base.barcode,
+      camgozMiss,
+      marketfiyatiMiss,
+      note: fallback.offers.length ? fallback.note : [...notes, fallback.note].filter(Boolean).join(" "),
+      rejected: [...rejected, ...(fallback.rejected || [])],
     };
   };
 
 /**
  * Tek ürünü kontrol eder ve sonucu kaydeder. Hata fırlatmaz; kaydedilen alanları döndürür.
- * lookup(query, { watch, now }) → { offers, median, min, max, confidence, note, rejected, provider, barcode } (varsayılan: Camgöz → market sayfaları).
+ * lookup(query, { watch, now }) → { offers, median, min, max, confidence, note, rejected, provider, barcode } (varsayılan: Market Fiyatı → Camgöz → market sayfaları).
  * Arama başarısız olursa yalnızca durum "error" olur.
  */
 export const checkProduct = async ({ db, product, lookup = priceLookup({ db }), now = new Date() }) => {
@@ -299,10 +443,13 @@ export const checkProduct = async ({ db, product, lookup = priceLookup({ db }), 
     // Camgöz'ün bulduğu barkod saklanır (yöneticinin yazdığı barkod değiştirilmez)
     if (result?.barcode && existing?.barcodeSource !== "manual") Object.assign(fields, { barcode: String(result.barcode), barcodeSource: "auto" });
     if (result?.camgozMiss) fields.camgozMissAt = now;
+    // Market Fiyatı bulamadıysa 7 gün yeniden sorulmaz; bulduysa eski "bulunamadı" işareti kalkar
+    if (result?.marketfiyatiMiss) fields.marketfiyatiMissAt = now;
+    else if (result?.provider === "marketfiyati") fields.marketfiyatiMissAt = null;
     fields.pagesPending = Boolean(result?.pagesSkipped && !offers.length);
     pagesUsed = Boolean(result?.pagesUsed);
   } catch (error) {
-    pagesUsed = true; // Camgöz hataları içeride yakalanır; buraya gelen hata market sayfası aramasındandır
+    pagesUsed = true; // API kaynaklarının hataları içeride yakalanır; buraya gelen hata market sayfası aramasındandır
     fields = { status: "error", error: describeSearchError(error) };
     // Arama motoru geçici olarak yanıt vermediyse önceki güncel bilgi korunur; eski sürüm bilgi ise silinir
     if (existing?.v !== WATCH_VERSION) Object.assign(fields, { median: null, min: null, max: null, offerCount: 0, offers: [], confidence: null, note: "" });

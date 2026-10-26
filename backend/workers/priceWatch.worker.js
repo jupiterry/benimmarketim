@@ -1,11 +1,16 @@
 // Fiyat bekçisi işçisi: çalışma penceresinde (varsayılan 01:00–07:00 İstanbul) ürünleri tek tek kontrol eder.
+// Kaynak sırası: Market Fiyatı (ücretsiz) → Camgöz (kredi) → market sayfaları (SearXNG). Her kaynağın kendi "ara" durumu vardır;
+// biri engellenir/sınıra takılırsa yalnızca o kaynak bekler, diğerleriyle devam edilir.
 // Market sayfası okunan her üründen sonra 20–30 sn beklenir ve günde en çok PRICE_WATCH_DAILY_LIMIT ürünün sayfasına bakılır.
-// Camgöz (API) kontrolleri bu sınıra takılmaz; kredi bitene kadar devam eder. Ayrı bir PM2 süreci olarak çalışır.
+// API kaynakları bu sınıra takılmaz (Market Fiyatı istekler arası 2,5 sn bekler; Camgöz kredi bütçesine bakar). Ayrı bir PM2 süreci olarak çalışır.
 import dotenv from "dotenv";
 import mongoose from "mongoose";
 import { setTimeout as sleep } from "node:timers/promises";
 import { resolveCamgozSettings } from "../services/camgoz.service.js";
+import { MARKETFIYATI_STATE_ID, resolveMarketfiyatiSettings } from "../services/marketfiyati.service.js";
 import {
+  CAMGOZ_STATE_ID,
+  PAGES_STATE_ID,
   STATE_COLLECTION,
   WATCH_COLLECTION,
   camgozReady,
@@ -15,25 +20,30 @@ import {
   inWindow,
   istanbulClock,
   priceWatchSettings,
+  providerPausedUntil,
   randomDelayMs,
+  recordProviderError,
   selectDue,
 } from "../services/priceWatch.service.js";
 
 const IDLE_MS = 5 * 60000; // pencere dışında / günlük sınır dolunca kontrol aralığı
-const PAUSE_MS = 60 * 60000; // arka arkaya hata gelirse bir saat ara
+const PAUSE_MS = 60 * 60000; // market sayfalarında arka arkaya hata gelirse o kaynak bir saat bekler
 const MAX_ERRORS = 5; // SearXNG yanıt vermiyorsa
-const MAX_NOT_FOUND = 25; // arama motoru engellendiyse genelde hiçbir şey bulamaz (yöresel ürünler de bulunamaz, o yüzden yüksek)
+const MAX_NOT_FOUND = 25; // SearXNG sonuç vermiyorsa (arama motorları engellemiş olabilir) genelde hiçbir sayfa bulunamaz
 const TOP_REFRESH_MS = 6 * 3600000;
 const QUEUE_SIZE = 25;
-const API_DELAY_MS = 3000; // yalnızca Camgöz'e sorulduysa (site açılmadıysa) kısa bekleme
+const API_DELAY_MS = 3000; // yalnızca API kaynaklarına sorulduysa (site açılmadıysa) kısa bekleme
 
 const PRODUCT_FIELDS = { name: 1, price: 1, isHidden: 1, isDiscounted: 1, discountedPrice: 1 };
 
 export class PriceWatchWorker {
-  constructor(db, { settings = priceWatchSettings(), lookup, now = () => new Date(), wait = sleep, log = console } = {}) {
+  constructor(db, { settings = priceWatchSettings(), lookup, camgozSettings, marketfiyatiSettings, now = () => new Date(), wait = sleep, log = console } = {}) {
     this.db = db;
     this.settings = settings;
     this.lookup = lookup;
+    // Testler için sabit kaynak ayarları; verilmezse her adımda .env + panel ayarları okunur
+    this.camgozSettings = camgozSettings;
+    this.marketfiyatiSettings = marketfiyatiSettings;
     this.now = now;
     this.wait = wait;
     this.log = log;
@@ -61,7 +71,7 @@ export class PriceWatchWorker {
     return state;
   }
 
-  async refillQueue({ camgozOnly = false } = {}) {
+  async refillQueue({ camgozOnly = false, apiOnly = camgozOnly, camgozEnabled = true, marketfiyatiEnabled = true, mode = apiOnly ? "api" : "all" } = {}) {
     const now = this.now().getTime();
     if (now - this.topLoadedAt > TOP_REFRESH_MS) {
       this.topSellerIds = await findTopSellerIds(this.db, { top: this.settings.topSellers, now }).catch(() => this.topSellerIds);
@@ -69,10 +79,34 @@ export class PriceWatchWorker {
     }
     const [products, watches] = await Promise.all([
       this.db.collection("products").find({ isHidden: { $ne: true } }, { projection: PRODUCT_FIELDS }).toArray(),
-      this.db.collection(WATCH_COLLECTION).find({}, { projection: { checkedAt: 1, status: 1, ignored: 1, v: 1, barcode: 1, camgozMissAt: 1, pagesPending: 1 } }).toArray(),
+      this.db.collection(WATCH_COLLECTION).find({}, { projection: { checkedAt: 1, status: 1, ignored: 1, v: 1, barcode: 1, camgozMissAt: 1, marketfiyatiMissAt: 1, pagesPending: 1 } }).toArray(),
     ]);
-    this.queue = selectDue({ products, watches, topSellerIds: this.topSellerIds, now, limit: QUEUE_SIZE, camgozOnly });
-    this.queueMode = camgozOnly ? "camgoz" : "all";
+    this.queue = selectDue({ products, watches, topSellerIds: this.topSellerIds, now, limit: QUEUE_SIZE, apiOnly, camgozEnabled, marketfiyatiEnabled });
+    this.queueMode = mode;
+  }
+
+  /** Üç kaynağın bu an kullanılabilirliği (ayar, ara, kredi, günlük sayfa sınırı) */
+  async providerAvailability(state, now) {
+    const states = this.state;
+    const [camgoz, marketfiyati, camgozState, mfState, pagesState] = await Promise.all([
+      this.camgozSettings || resolveCamgozSettings(this.db),
+      this.marketfiyatiSettings || resolveMarketfiyatiSettings(this.db),
+      states.findOne({ _id: CAMGOZ_STATE_ID }),
+      states.findOne({ _id: MARKETFIYATI_STATE_ID }),
+      states.findOne({ _id: PAGES_STATE_ID }),
+    ]);
+    const pagesPaused = providerPausedUntil(pagesState, now);
+    const marketfiyatiPaused = providerPausedUntil(mfState, now);
+    const camgozPaused = providerPausedUntil(camgozState, now);
+    const pagesLeft = (state.pages || 0) < this.settings.dailyLimit;
+    return {
+      camgoz,
+      marketfiyati,
+      pages: this.settings.searxngConfigured && pagesLeft && !pagesPaused,
+      marketfiyatiOk: marketfiyati.enabled && !marketfiyatiPaused,
+      camgozOk: await camgozReady(this.db, camgoz, { now }),
+      pauses: [pagesPaused, marketfiyatiPaused, camgozPaused].filter(Boolean),
+    };
   }
 
   /**
@@ -87,39 +121,44 @@ export class PriceWatchWorker {
       return IDLE_MS;
     }
     const state = await this.readState();
-    if (state.pausedUntil && new Date(state.pausedUntil) > now) {
-      await this.state.updateOne({ _id: "main" }, { $set: { ...heartbeat, phase: "paused" } });
-      return Math.min(IDLE_MS, new Date(state.pausedUntil) - now);
-    }
     if (!inWindow(istanbulClock(now).hour, this.settings.hours)) {
       this.queue = [];
       await this.state.updateOne({ _id: "main" }, { $set: { ...heartbeat, phase: "waiting" } });
       return IDLE_MS;
     }
-    const pagesLeft = (state.pages || 0) < this.settings.dailyLimit;
-    // Sayfa sınırı dolduysa Camgöz kredisi kaldığı sürece yalnızca Camgöz'le devam edilir
-    const camgozOnly = !pagesLeft;
-    if (camgozOnly && !(await camgozReady(this.db, await resolveCamgozSettings(this.db), { now }))) {
+    const avail = await this.providerAvailability(state, now);
+    if (!avail.pages && !avail.marketfiyatiOk && !avail.camgozOk) {
+      // Hiçbir kaynak kullanılamıyor: ara veren kaynak varsa en erken biteni beklenir, yoksa günlük sınır/kredi dolmuştur
       this.queue = [];
-      await this.state.updateOne({ _id: "main" }, { $set: { ...heartbeat, phase: "limit" } });
-      return IDLE_MS;
+      const soonest = avail.pauses.length ? new Date(Math.min(...avail.pauses.map((date) => date.getTime()))) : null;
+      await this.state.updateOne({ _id: "main" }, { $set: { ...heartbeat, phase: soonest ? "paused" : "limit", pausedUntil: soonest } });
+      return soonest ? Math.max(1000, Math.min(IDLE_MS, soonest - now)) : IDLE_MS;
     }
-    if (this.queueMode !== (camgozOnly ? "camgoz" : "all")) this.queue = [];
-    if (!this.queue.length) await this.refillQueue({ camgozOnly });
+    const apiOnly = !avail.pages;
+    const mode = apiOnly ? `api:${avail.marketfiyatiOk ? "m" : ""}${avail.camgozOk ? "c" : ""}` : "all";
+    if (this.queueMode !== mode) this.queue = [];
+    if (!this.queue.length) await this.refillQueue({ apiOnly, camgozEnabled: avail.camgozOk, marketfiyatiEnabled: avail.marketfiyatiOk, mode });
     const product = this.queue.shift();
     if (!product) {
-      await this.state.updateOne({ _id: "main" }, { $set: { ...heartbeat, phase: "done" } });
+      await this.state.updateOne({ _id: "main" }, { $set: { ...heartbeat, phase: "done", pausedUntil: null } });
       return IDLE_MS;
     }
 
-    const lookup = this.lookup || priceLookup({ db: this.db, allowPages: pagesLeft });
+    const lookup = this.lookup || priceLookup({
+      db: this.db,
+      allowPages: avail.pages,
+      pagesConfigured: this.settings.searxngConfigured,
+      settings: avail.camgoz,
+      marketfiyatiSettings: avail.marketfiyati,
+    });
     const result = await checkProduct({ db: this.db, product, now, lookup });
-    // Arka arkaya hata / bulunamadı sayacı yalnızca market sayfası aramalarında işler (arama motoru engeli için)
+    // Arka arkaya hata / bulunamadı sayacı yalnızca market sayfası aramalarında işler (SearXNG engeli için); API kaynakları kendi durumunu tutar
     const errors = result.pagesUsed ? (result.status === "error" ? (state.errors || 0) + 1 : 0) : state.errors || 0;
     const notFound = result.pagesUsed ? (result.status === "not-found" ? (state.notFound || 0) + 1 : 0) : state.notFound || 0;
     const update = {
       ...heartbeat,
       phase: "running",
+      pausedUntil: null,
       lastRunAt: now,
       lastProduct: product.name,
       lastStatus: result.status,
@@ -129,14 +168,15 @@ export class PriceWatchWorker {
     };
     if (result.status === "error") update.lastError = { at: now, message: result.error };
     if (errors >= MAX_ERRORS || notFound >= MAX_NOT_FOUND) {
-      update.pausedUntil = new Date(now.getTime() + PAUSE_MS);
+      // Yalnızca market sayfaları kaynağı bir saat bekler; Market Fiyatı ve Camgöz çalışmaya devam eder
       update.errors = 0;
       update.notFound = 0;
-      update.lastError = {
-        at: now,
-        message: errors >= MAX_ERRORS ? `Arka arkaya ${MAX_ERRORS} arama hatası; 1 saat ara verildi.` : `Arka arkaya ${MAX_NOT_FOUND} ürün bulunamadı; arama motoru engellenmiş olabilir, 1 saat ara verildi.`,
-      };
-      this.log.warn?.(`Fiyat bekçisi: ${update.lastError.message}`);
+      const message = errors >= MAX_ERRORS
+        ? `Market sayfaları: arka arkaya ${MAX_ERRORS} arama hatası (${result.error || "bilinmeyen hata"}); bu kaynak 1 saat denenmeyecek, diğer kaynaklar sürüyor.`
+        : `Market sayfaları: arka arkaya ${MAX_NOT_FOUND} üründe ürün sayfası bulunamadı (SearXNG sonuç vermiyor olabilir); bu kaynak 1 saat denenmeyecek, diğer kaynaklar sürüyor.`;
+      await recordProviderError(this.db, PAGES_STATE_ID, { now, message, pause: true, pauseMs: PAUSE_MS });
+      update.lastError = { at: now, message };
+      this.log.warn?.(`Fiyat bekçisi: ${message}`);
     }
     await this.state.updateOne({ _id: "main" }, { $set: update, $inc: { checks: 1, pages: result.pagesUsed ? 1 : 0, total: 1 } });
     return result.pagesUsed ? randomDelayMs(this.settings.delay) : API_DELAY_MS;
@@ -165,7 +205,7 @@ export const runTrial = async (db, { count = 3, settings = priceWatchSettings(),
   for (const product of worker.queue.slice(0, count)) {
     const result = await checkProduct({ db, product });
     results.push(result);
-    const via = result.provider === "camgoz" ? `Camgöz, barkod ${result.barcode}` : "market sayfaları";
+    const via = result.provider === "marketfiyati" ? `Market Fiyatı${result.barcode ? `, barkod ${result.barcode}` : ""}` : result.provider === "camgoz" ? `Camgöz, barkod ${result.barcode}` : "market sayfaları";
     const market = result.status === "ok"
       ? `piyasa ₺${result.median} (${via}) — ${result.offers.map((offer) => `${offer.source} ₺${offer.price}`).join(", ")}${result.confidence === "low" ? ` (emin değil: ${result.note})` : ""}`
       : result.status === "error" ? `hata: ${result.error}` : `bulunamadı (${result.note})`;
@@ -181,7 +221,7 @@ export const startPriceWatchWorker = async ({ trial = 0 } = {}) => {
   await mongoose.connect(process.env.MONGO_URI, { serverSelectionTimeoutMS: 30000 });
   const db = mongoose.connection.db;
   const settings = priceWatchSettings();
-  if (!settings.searxngConfigured) console.warn("SEARXNG_URL tanımlı değil: fiyat bekçisi bekliyor.");
+  if (!settings.searxngConfigured) console.warn("SEARXNG_URL tanımlı değil: market sayfaları kaynağı kapalı; Market Fiyatı (ve varsa Camgöz) kullanılır.");
 
   if (trial) {
     const results = await runTrial(db, { count: trial, settings });
