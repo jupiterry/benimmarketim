@@ -134,7 +134,9 @@ const testSummary = (result) => {
   const s = result.summary || {};
   if (result.provider === "marketfiyati") {
     if (!result.found) return `Ulaşıldı (${result.ms} ms) ama "${result.query}" bulunamadı. ${s.note || ""}`.trim();
-    return `Ulaşıldı (${result.ms} ms): ${s.matchedName} → ${s.offers.map((offer) => `${offer.source} ${formatPrice(offer.price)}`).join(", ")} (ortanca ${formatPrice(s.median)}).${s.note ? ` ${s.note}` : ""}`;
+    // Uzak şubeden okunan zincirlerde mesafe de yazılır (fiyatlar ülke genelinde benzer; yönetici görsün)
+    const offers = s.offers.map((offer) => `${offer.source} ${formatPrice(offer.price)}${offer.near === false && offer.distanceKm != null ? ` (${Math.round(offer.distanceKm)} km)` : ""}`);
+    return `Ulaşıldı (${result.ms} ms): ${s.matchedName} → ${offers.join(", ")} (ortanca ${formatPrice(s.median)}).${s.note ? ` ${s.note}` : ""}`;
   }
   if (result.provider === "camgoz") return `Anahtar kabul edildi (${result.ms} ms). ${s.note || ""}`.trim();
   if (!result.found) return `SearXNG yanıt verdi (${result.ms} ms, ${s.results ?? 0} sonuç) ama market ürün sayfası yok. ${s.note || ""}`.trim();

@@ -146,12 +146,17 @@ export const PAGES_STATE_ID = "pages";
 
 const cleanDetail = (value) => String(value ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
 
-/** Kaynak başarılı yanıt verdi (miss=true: ulaşıldı ama ürün bulunamadı) */
-export const recordProviderOk = async (db, providerId, { now = new Date(), miss = false } = {}) => {
+/**
+ * Kaynak başarılı yanıt verdi (miss=true: ulaşıldı ama ürün bulunamadı).
+ * probe=true (panelden tek deneme): bulunamama sayacı değişmez; liftPause=false ise süren ara da kaldırılmaz.
+ */
+export const recordProviderOk = async (db, providerId, { now = new Date(), miss = false, probe = false, liftPause = true } = {}) => {
   const states = db.collection(STATE_COLLECTION);
   const state = (await states.findOne({ _id: providerId })) || {};
-  const set = { lastOkAt: now, consecutiveMisses: miss ? (state.consecutiveMisses || 0) + 1 : 0, consecutiveErrors: 0 };
-  await states.updateOne({ _id: providerId }, { $set: set, $inc: { requests: 1 }, $unset: { pausedUntil: "", pauseMs: "" } }, { upsert: true });
+  const misses = probe ? state.consecutiveMisses || 0 : miss ? (state.consecutiveMisses || 0) + 1 : 0;
+  const set = { lastOkAt: now, consecutiveMisses: misses, consecutiveErrors: 0 };
+  const update = { $set: set, $inc: { requests: 1 }, ...(liftPause ? { $unset: { pausedUntil: "", pauseMs: "" } } : {}) };
+  await states.updateOne({ _id: providerId }, update, { upsert: true });
 };
 
 /**
@@ -177,6 +182,38 @@ export const recordProviderError = async (db, providerId, { now = new Date(), st
     return set;
   } catch {
     return null;
+  }
+};
+
+/**
+ * Panelden tek Market Fiyatı denemesi (POST /providers/marketfiyati/test): önbelleksiz gerçek arama.
+ * Durum kaydı güncellenir ki panel çipi "Henüz denenmedi"den çıksın: başarıda lastOkAt (bulunamama sayacı değişmez),
+ * hatada lastError; ara yalnızca gerçek HTTP/ağ hatası ara gerektiriyorsa (shouldPause) verilir.
+ * Dönen: { ok, found, summary: { matchedName, productId, confidence, median, offers[{source, price, readAt, note, distanceKm, near, confidence}], rejected, note, requests } }
+ * ya da { ok: false, error, status, detail }.
+ */
+export const testMarketfiyatiProvider = async ({ db, query, settings, find = findMarketfiyatiPrices, now = new Date() }) => {
+  try {
+    const result = await find(query, { settings, useCache: false, now });
+    await recordProviderOk(db, MARKETFIYATI_STATE_ID, { now, probe: true });
+    return {
+      ok: true,
+      found: result.offers.length > 0,
+      summary: {
+        matchedName: result.matchedName || "",
+        productId: result.productId || null,
+        confidence: result.confidence || null,
+        median: result.median,
+        offers: result.offers.map(({ source, price, readAt, note, distanceKm, near, confidence, depots }) => ({ source, price, readAt, note, distanceKm: distanceKm ?? null, near: near !== false, confidence, depots: depots || 1 })),
+        rejected: (result.rejected || []).slice(0, 5).map(({ source, reason }) => ({ source, reason })),
+        note: result.note || "",
+        requests: result.requests || 0,
+      },
+    };
+  } catch (error) {
+    const message = describeMarketfiyatiError(error);
+    await recordProviderError(db, MARKETFIYATI_STATE_ID, { now, status: error?.status ?? null, message, detail: error?.detail, pause: marketfiyatiShouldPause(error) });
+    return { ok: false, error: message, status: error?.status ?? null, detail: error?.detail || "" };
   }
 };
 

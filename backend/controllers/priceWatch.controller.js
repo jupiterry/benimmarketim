@@ -13,8 +13,6 @@ import {
   MARKETFIYATI_CONFIG_ID,
   MARKETFIYATI_STATE_ID,
   MARKETFIYATI_TERMS_URL,
-  describeMarketfiyatiError,
-  findMarketfiyatiPrices,
   resolveMarketfiyatiSettings,
   validateMarketfiyatiConfig,
 } from "../services/marketfiyati.service.js";
@@ -35,7 +33,10 @@ import {
   priceLookup,
   priceWatchSettings,
   providerSummary,
+  recordProviderError,
+  recordProviderOk,
   resetCamgozUsage,
+  testMarketfiyatiProvider,
 } from "../services/priceWatch.service.js";
 
 const PRODUCT_FIELDS = "name price isDiscounted discountedPrice image thumbnail category isOutOfStock isHidden";
@@ -404,7 +405,8 @@ const cleanQuery = (value) => String(value || "").replace(/\s+/g, " ").trim().sl
 /**
  * POST /api/price-watch/providers/:id/test  { query? }
  * Tek canlı deneme: Market Fiyatı için gerçek bir arama (önbellek ve bekçi arası kullanılmaz), Camgöz için ücretsiz anahtar denemesi
- * (kredi harcamaz), market sayfaları için bir SearXNG araması. Kaynağın durum kaydına yazmaz; yalnızca ham özet döner.
+ * (kredi harcamaz), market sayfaları için bir SearXNG araması. Kaynağın durum kaydına yazar (panel çipi güncellenir):
+ * başarıda lastOkAt, hatada lastError; bulunamama sayaçları değişmez, ara yalnızca gerçek HTTP/ağ hatasında verilir.
  */
 export const testProvider = async (req, res) => {
   const id = String(req.params.id || "");
@@ -415,33 +417,22 @@ export const testProvider = async (req, res) => {
   try {
     if (id === "marketfiyati") {
       const settings = await resolveMarketfiyatiSettings(db);
-      try {
-        const result = await findMarketfiyatiPrices(query, { settings, useCache: false });
-        return done({
-          ok: true,
-          found: result.offers.length > 0,
-          summary: {
-            matchedName: result.matchedName || "",
-            productId: result.productId || null,
-            median: result.median,
-            offers: result.offers.map(({ source, price, readAt, note }) => ({ source, price, readAt, note })),
-            rejected: (result.rejected || []).slice(0, 5).map(({ source, reason }) => ({ source, reason })),
-            note: result.note || "",
-            requests: result.requests || 0,
-          },
-        });
-      } catch (error) {
-        return done({ ok: false, error: describeMarketfiyatiError(error), status: error?.status ?? null, detail: error?.detail || "" });
-      }
+      return done(await testMarketfiyatiProvider({ db, query, settings }));
     }
     if (id === "camgoz") {
       const settings = await resolveCamgozSettings(db);
       if (!settings.enabled) return done({ ok: false, error: "Camgöz anahtarı yok (panelden ya da JOJAPI_API_KEY ile girin)." });
       try {
         const test = await testCamgozKey(settings.apiKey);
-        return done({ ok: test.ok, status: test.status, error: test.ok ? "" : `Anahtar kabul edilmedi (HTTP ${test.status})${test.detail ? `: ${test.detail}` : ""}`, summary: { note: "Ücretsiz uç denendi; kredi harcanmadı. Fiyat araması için ürün satırındaki yenile düğmesini kullanın." } });
+        const error = test.ok ? "" : `Anahtar kabul edilmedi (HTTP ${test.status})${test.detail ? `: ${test.detail}` : ""}`;
+        // Ücretsiz uç: kredi/ara durumu bilinmez, süren ara kaldırılmaz
+        if (test.ok) await recordProviderOk(db, CAMGOZ_STATE_ID, { probe: true, liftPause: false });
+        else await recordProviderError(db, CAMGOZ_STATE_ID, { status: test.status, message: error, detail: test.detail });
+        return done({ ok: test.ok, status: test.status, error, summary: { note: "Ücretsiz uç denendi; kredi harcanmadı. Fiyat araması için ürün satırındaki yenile düğmesini kullanın." } });
       } catch (error) {
-        return done({ ok: false, error: error?.name === "AbortError" ? "Camgöz zamanında yanıt vermedi" : `Camgöz'e ulaşılamadı (${String(error?.cause?.code || error?.message || "").slice(0, 80)})` });
+        const message = error?.name === "AbortError" ? "Camgöz zamanında yanıt vermedi" : `Camgöz'e ulaşılamadı (${String(error?.cause?.code || error?.message || "").slice(0, 80)})`;
+        await recordProviderError(db, CAMGOZ_STATE_ID, { message, detail: error?.message });
+        return done({ ok: false, error: message });
       }
     }
     if (id === "pages") {
@@ -449,13 +440,16 @@ export const testProvider = async (req, res) => {
       try {
         const results = await searchSearxngWeb(`${query} site:sokmarket.com.tr OR site:trendyol.com OR site:hepsiburada.com`, process.env.SEARXNG_URL);
         const pages = pickProductPages(results, query);
+        await recordProviderOk(db, PAGES_STATE_ID, { probe: true });
         return done({
           ok: true,
           found: pages.length > 0,
           summary: { results: Array.isArray(results) ? results.length : 0, pages: pages.map(({ url, market }) => ({ source: market.label, url })), note: pages.length ? "" : (Array.isArray(results) && results.length ? "Sonuç var ama desteklenen market ürün sayfası yok." : "SearXNG hiç sonuç vermedi; arama motorları sunucuyu engelliyor olabilir.") },
         });
       } catch (error) {
-        return done({ ok: false, error: describeSearchError(error) });
+        const message = describeSearchError(error);
+        await recordProviderError(db, PAGES_STATE_ID, { message, detail: error?.message });
+        return done({ ok: false, error: message });
       }
     }
     return res.status(404).json({ success: false, message: "Bilinmeyen kaynak." });
