@@ -3,10 +3,7 @@ import test from "node:test";
 import {
   FALLBACK_DISTANCE_KM,
   MARKETFIYATI_STATE_ID,
-<<<<<<< HEAD
   alternativeKeywords,
-=======
->>>>>>> origin/main
   chainLabel,
   clearMarketfiyatiCache,
   createRateLimiter,
@@ -26,11 +23,7 @@ import {
   shouldPause,
   validateMarketfiyatiConfig,
 } from "../services/marketfiyati.service.js";
-<<<<<<< HEAD
 import { PAGES_STATE_ID, checkProduct, priceLookup, recordProviderError, recordProviderOk, selectDue, testMarketfiyatiProvider } from "../services/priceWatch.service.js";
-=======
-import { PAGES_STATE_ID, checkProduct, priceLookup, recordProviderError, selectDue } from "../services/priceWatch.service.js";
->>>>>>> origin/main
 import { camgozSettings } from "../services/camgoz.service.js";
 
 const NOW = new Date("2026-10-11T10:00:00Z");
@@ -62,14 +55,11 @@ const SUT = {
 };
 const SUT_YARIM = { ...SUT, id: "mf-2", title: "Pınar Süt Tam Yağlı 500 ml", refinedVolumeOrWeight: "500", refinedQuantityUnit: "ml", productDepotInfoList: [depot({ marketAdi: "a101", price: 25 })] };
 const GRAMAJSIZ = { ...SUT, id: "mf-3", title: "Pınar Süt Tam Yağlı", refinedVolumeOrWeight: "1", refinedQuantityUnit: "L", productDepotInfoList: [depot({ marketAdi: "bim", price: 41 })] };
-<<<<<<< HEAD
 // Bizim adda gramaj yok ("Sütaş Üçgen Peynir"); platform başlıklarında paket adedi + gramaj var
 const PEYNIR_8 = { id: "mf-p8", title: "Sütaş Üçgen Peynir 8'li 100 g", brand: "Sütaş", productDepotInfoList: [depot({ marketAdi: "a101", price: 39.5 }), depot({ marketAdi: "bim", price: 38.75 })] };
 const PEYNIR_16 = { id: "mf-p16", title: "Sütaş Üçgen Peynir 16'lı 200 g", brand: "Sütaş", productDepotInfoList: [depot({ marketAdi: "a101", price: 72 }), depot({ marketAdi: "bim", price: 70 }), depot({ marketAdi: "sok", price: 71 })] };
 const PEYNIR_LIGHT = { id: "mf-pl", title: "Sütaş Üçgen Peynir Light 8'li 100 g", brand: "Sütaş", productDepotInfoList: [depot({ marketAdi: "a101", price: 41 })] };
 const BEYAZ = { id: "mf-b", title: "Sütaş Beyaz Peynir 500 g", brand: "Sütaş", productDepotInfoList: [depot({ marketAdi: "a101", price: 120 })] };
-=======
->>>>>>> origin/main
 const response = (content) => ({ numberOfFound: content.length, searchResultType: 1, content, facetMap: null });
 
 const jsonResponse = (body, status = 200) => ({ ok: status >= 200 && status < 300, status, json: async () => body, text: async () => JSON.stringify(body) });
@@ -137,7 +127,6 @@ test("ürün seçimi: gramaj tutan kayıt, gramajsız ad düşük güven", () =>
   assert.equal(pickMarketfiyatiProduct([SUT_YARIM], "Pınar Süt Tam Yağlı 1 L"), null, "gramaj farklı");
   assert.equal(pickMarketfiyatiProduct([SUT], "Sütaş Süt 1 L"), null, "marka tutmuyor");
   assert.equal(pickMarketfiyatiProduct([SUT], "Pınar Süt Tam Yağlı").match.confidence, "low");
-<<<<<<< HEAD
 
   // Bizim adda gramaj yok: paket adedi/gramaj eşitliği aranmaz (Camgöz davranışı); tüm kelimelerimizi içeren, en az fazlalığı olan başlık
   const peynir = pickMarketfiyatiProduct([BEYAZ, PEYNIR_LIGHT, PEYNIR_16, PEYNIR_8], "Sütaş Üçgen Peynir");
@@ -161,18 +150,10 @@ test("ürün seçimi: gramaj tutan kayıt, gramajsız ad düşük güven", () =>
 test("zincir teklifleri: şube ortancası, en güncel gün, yaş süzgeci; mesafe eleme nedeni değil", () => {
   const { offers, rejected } = marketfiyatiOffers(SUT, { location: DEVREK, distanceKm: 60, maxAgeDays: 14, now: NOW });
   assert.deepEqual(offers.map((offer) => [offer.source, offer.price]), [["Migros", 40], ["BİM", 41.75], ["A101", 43.5], ["Carrefour", 45.9]]);
-=======
-});
-
-test("zincir teklifleri: şube ortancası, en güncel gün, yaş ve mesafe süzgeci", () => {
-  const { offers, rejected } = marketfiyatiOffers(SUT, { location: DEVREK, distanceKm: 60, maxAgeDays: 14, now: NOW });
-  assert.deepEqual(offers.map((offer) => [offer.source, offer.price]), [["BİM", 41.75], ["A101", 43.5], ["Carrefour", 45.9]]);
->>>>>>> origin/main
   const a101 = offers.find((offer) => offer.source === "A101");
   assert.equal(a101.readAt.toISOString(), "2026-10-10T00:00:00.000Z");
   assert.equal(a101.note, "2 şube", "eski günün şubesi ortancaya girmez");
   assert.equal(a101.confidence, "high");
-<<<<<<< HEAD
   assert.equal(a101.near, true);
   assert.ok(a101.distanceKm < 1);
   assert.ok(a101.pageUrl.startsWith("https://marketfiyati.org.tr/"));
@@ -202,18 +183,6 @@ test("zincir teklifleri: şube ortancası, en güncel gün, yaş ve mesafe süzg
   assert.equal(noCoords.offers.length, 1);
   assert.equal(noCoords.offers[0].near, true);
   assert.equal(noCoords.offers[0].distanceKm, null);
-=======
-  assert.ok(a101.pageUrl.startsWith("https://marketfiyati.org.tr/"));
-  assert.deepEqual(rejected.map((item) => item.reason), ["1 şube fiyatı 14 günden eski", "1 şube 60 km dışında", "1 şube izin verilen zincirlerden değil"]);
-
-  // Geniş alan: Düzce şubesi de girer; eski fiyat yine girmez
-  const wide = marketfiyatiOffers(SUT, { location: DEVREK, distanceKm: 300, maxAgeDays: 14, now: NOW });
-  assert.ok(wide.offers.some((offer) => offer.source === "Migros"));
-  assert.ok(!wide.offers.some((offer) => offer.source === "Şok"));
-  // Koordinatı olmayan şube elenmez
-  const noCoords = marketfiyatiOffers({ ...SUT, productDepotInfoList: [depot({ marketAdi: "a101", price: 10, latitude: undefined, longitude: undefined })] }, { location: DEVREK, distanceKm: 1, now: NOW });
-  assert.equal(noCoords.offers.length, 1);
->>>>>>> origin/main
 });
 
 test("isimle arama: istek biçimi, başlıklar, sonuç ve önbellek", async () => {
@@ -229,7 +198,6 @@ test("isimle arama: istek biçimi, başlıklar, sonuç ve önbellek", async () =
   assert.equal(result.productId, "mf-1");
   assert.equal(result.matchedName, "Pınar Süt Tam Yağlı 1 L");
   assert.equal(result.barcode, null, "platform barkod vermez; bizimki korunur");
-<<<<<<< HEAD
   assert.equal(result.median, 42.63);
   assert.equal(result.min, 40);
   assert.equal(result.max, 45.9);
@@ -238,14 +206,6 @@ test("isimle arama: istek biçimi, başlıklar, sonuç ve önbellek", async () =
   assert.match(result.note, /Migros için 60 km içinde şube yok; en yakın şubenin fiyatı/);
   assert.equal(result.requests, 1);
   assert.equal(result.rejected.length, 2, "yalnızca yaş ve zincir elemesi");
-=======
-  assert.equal(result.median, 43.5);
-  assert.equal(result.min, 41.75);
-  assert.equal(result.max, 45.9);
-  assert.equal(result.confidence, "high");
-  assert.equal(result.offers.length, 3);
-  assert.equal(result.requests, 1);
->>>>>>> origin/main
 
   // Aynı sorgu 6 saat önbellekten döner (istek yapılmaz)
   const again = await findMarketfiyatiPrices("pınar süt tam yağlı 1 L", { settings: SETTINGS, fetchImpl, limiter, now: NOW });
@@ -310,13 +270,9 @@ test("şubesiz arama boşsa: nearest ile şube kimlikleri alınır, arama depots
   clearMarketfiyatiCache();
   const stillEmpty = fakeFetch(({ url }) => jsonResponse(url.endsWith("/nearest") ? NEAREST : response([])));
   const none = await findMarketfiyatiPrices("Devrek Erişte 500 g", { settings: SETTINGS, fetchImpl: stillEmpty.fetchImpl, limiter, now: NOW });
-<<<<<<< HEAD
   assert.equal(stillEmpty.calls.length, 5, "son çare: markasız anahtar kelimeyle bir arama daha");
   assert.equal(stillEmpty.calls[4].body.keywords, "Erişte 500 g");
   assert.deepEqual(stillEmpty.calls[4].body.depots, ["bim-U751", "a101-K12"], "şube listesi varsa onunla");
-=======
-  assert.equal(stillEmpty.calls.length, 4);
->>>>>>> origin/main
   assert.match(none.note, /Yakın şubelerde de bulunamadı/);
   assert.equal(none.offers.length, 0);
 
@@ -328,12 +284,8 @@ test("şubesiz arama boşsa: nearest ile şube kimlikleri alınır, arama depots
   clearMarketfiyatiCache();
   const noDepots = fakeFetch(({ url }) => jsonResponse(url.endsWith("/nearest") ? [] : response([])));
   const empty = await findMarketfiyatiPrices("Devrek Erişte 500 g", { settings: SETTINGS, fetchImpl: noDepots.fetchImpl, limiter, now: NOW });
-<<<<<<< HEAD
   assert.equal(noDepots.calls.length, 4);
   assert.equal(noDepots.calls[3].body.depots, undefined, "şube listesi boşsa depots gönderilmez");
-=======
-  assert.equal(noDepots.calls.length, 3);
->>>>>>> origin/main
   assert.match(empty.note, /şube bulunamadı/);
 });
 
@@ -341,11 +293,7 @@ test("nearest hatası (404) hoş görülür: boş sonuç + not; 429 ise ara verm
   const limiter = instantLimiter();
   const broken = fakeFetch(({ url }) => (url.endsWith("/nearest") ? jsonResponse({ message: "Not Found" }, 404) : jsonResponse(response([]))));
   const result = await findMarketfiyatiPrices("Devrek Erişte 500 g", { settings: SETTINGS, fetchImpl: broken.fetchImpl, limiter, now: NOW });
-<<<<<<< HEAD
   assert.equal(broken.calls.length, 4, "nearest başarısızsa depots ile yineleme yapılmaz; markasız arama yine denenir");
-=======
-  assert.equal(broken.calls.length, 3, "nearest başarısızsa depots ile yineleme yapılmaz");
->>>>>>> origin/main
   assert.equal(result.offers.length, 0);
   assert.match(result.note, /bu ürün bulunamadı/);
   assert.match(result.note, /Yakın şube listesi alınamadı.*404/);
@@ -370,11 +318,7 @@ test("barkodla arama: searchByIdentity önce; desteklenmiyorsa isimle devam", as
   const byName = await findMarketfiyatiPrices("Pınar Süt Tam Yağlı 1 L", { barcode: "8690000000012", settings: SETTINGS, fetchImpl: fallback.fetchImpl, limiter: instantLimiter(), now: NOW });
   assert.equal(fallback.calls.length, 2);
   assert.equal(fallback.calls[1].url, "https://api.marketfiyati.org.tr/api/v2/search");
-<<<<<<< HEAD
   assert.equal(byName.offers.length, 4);
-=======
-  assert.equal(byName.offers.length, 3);
->>>>>>> origin/main
 
   // Barkodla boş döndü: isimle devam edilir
   clearMarketfiyatiCache();
@@ -383,7 +327,6 @@ test("barkodla arama: searchByIdentity önce; desteklenmiyorsa isimle devam", as
   assert.equal(empty.calls.length, 2);
 });
 
-<<<<<<< HEAD
 test("gramajsız ürün adı: paket/gramaj eşitliği aranmaz, düşük güven + eşleşen başlık notta; markasız ikinci arama yalnızca hiç kayıt yoksa", async () => {
   const { fetchImpl, calls } = fakeFetch(() => jsonResponse(response([BEYAZ, PEYNIR_8])));
   const result = await findMarketfiyatiPrices("Sütaş Üçgen Peynir", { settings: SETTINGS, fetchImpl, limiter: instantLimiter(), now: NOW });
@@ -450,8 +393,6 @@ test("panel denemesi (testMarketfiyatiProvider): durum kaydı güncellenir, bulu
   assert.equal(stateOf(db, MARKETFIYATI_STATE_ID).pausedUntil, undefined);
 });
 
-=======
->>>>>>> origin/main
 test("HTTP hataları: durum kodu, kısa açıklama, ara verme kuralı", async () => {
   const limiter = instantLimiter();
   const tooMany = await findMarketfiyatiPrices("x", { settings: SETTINGS, fetchImpl: async () => ({ ok: false, status: 429, text: async () => "<html><body>Too Many Requests</body></html>" }), limiter, now: NOW }).catch((error) => error);

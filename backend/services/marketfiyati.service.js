@@ -4,11 +4,7 @@
 // Bu yüzden istekler yavaş (en az 2,5 sn arayla), engel/sınır (403/429/5xx) gelince katlanarak uzayan ara verilir.
 // Dönen biçim camgoz.service.js'teki findCamgozPrices ile aynıdır; sonuçlar yalnızca yöneticiye gösterilir.
 import { DEFAULT_CHAINS, chainOf } from "./camgoz.service.js";
-<<<<<<< HEAD
 import { matchProduct, nameTokens, parseSize } from "./marketPrice.service.js";
-=======
-import { matchProduct, parseSize } from "./marketPrice.service.js";
->>>>>>> origin/main
 
 export const MARKETFIYATI_URL = "https://api.marketfiyati.org.tr";
 export const MARKETFIYATI_SITE = "https://marketfiyati.org.tr";
@@ -22,10 +18,7 @@ export const PAUSE_MIN_MS = 15 * 60000;
 export const PAUSE_MAX_MS = 6 * 3600000;
 export const CACHE_TTL_MS = 6 * 3600000;
 export const SEARCH_SIZE = 20;
-<<<<<<< HEAD
 export const FAR_PRICE_SPREAD = 0.03; // yakın şubesi olmayan zincirde şube fiyatları bundan fazla ayrışıyorsa güven "low"
-=======
->>>>>>> origin/main
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36";
 
 // Platformun market kodları → panelde gösterilen zincir adı
@@ -284,7 +277,6 @@ const median = (values) => {
   return sorted.length % 2 ? sorted[mid] : Math.round(((sorted[mid - 1] + sorted[mid]) / 2) * 100) / 100;
 };
 
-<<<<<<< HEAD
 /**
  * Aramadan bizim ürüne en uygun kaydı seçer (Camgöz ile aynı davranış).
  * - Bizim adda gramaj varsa: matchProduct (marka + kelimeler + gramaj/paket; birim dönüşümü ve "x" çoklu paket parseSize'tan).
@@ -323,32 +315,16 @@ export const pickMarketfiyatiProduct = (content, query) => {
     // Tüm kelimeler var: fazladan kelimesi az olan (ada en yakın başlık) önde, eşitse çok şubeli
     const extra = theirs.filter((word) => !ours.includes(word)).length;
     consider(item, loose, 4 + Math.max(0, 1 - extra / 10) + Math.min(0.09, depotsOf(item) / 1000));
-=======
-/** Aramadan bizim ürüne en uygun kaydı seçer: eşleşme puanı (gramaj tuttu > tutmadı), eşitse daha çok şubesi olan */
-export const pickMarketfiyatiProduct = (content, query) => {
-  const list = Array.isArray(content) ? content.filter((item) => item && typeof item === "object") : [];
-  let best = null;
-  for (const item of list) {
-    const match = matchProduct(query, productTitle(item));
-    if (!match.ok) continue;
-    const depots = Array.isArray(item.productDepotInfoList) ? item.productDepotInfoList.length : 0;
-    const score = (match.confidence === "high" ? 2 : 1) + Math.min(0.9, depots / 100);
-    if (!best || score > best.score) best = { item, score, match };
->>>>>>> origin/main
   }
   return best ? { product: best.item, match: best.match } : null;
 };
 
 /**
  * Seçilen ürünün şube fiyatlarını zincir bazında tekliflere çevirir.
-<<<<<<< HEAD
  * Elenir (rejected): izin verilmeyen market, maxAgeDays'ten eski fiyat, geçersiz fiyat. Mesafe tek başına eleme nedeni değildir:
  * zincir fiyatları ülke genelinde çoğunlukla aynıdır. Her zincir için önce distanceKm içindeki şubeler; hiç yoksa en yakın
  * şubeler kullanılır (koordinatsız şube yakın sayılır) ve teklif notuna "Yakın şube yok; <şube> fiyatı" yazılır;
  * böyle bir zincirde şube fiyatları birbirinden %3'ten fazla ayrışıyorsa güven "low".
-=======
- * Elenir: izin verilmeyen market, mesafe dışı şube, maxAgeDays'ten eski fiyat, geçersiz fiyat.
->>>>>>> origin/main
  * Her zincir için: son güncellenme günündeki şube fiyatlarının ortancası (readAt = en yeni indexTime).
  */
 export const marketfiyatiOffers = (product, { location, distanceKm: maxKm, chains = DEFAULT_CHAINS, maxAgeDays = 14, now = new Date() } = {}) => {
@@ -357,25 +333,13 @@ export const marketfiyatiOffers = (product, { location, distanceKm: maxKm, chain
   const title = String(product?.title || "").slice(0, 160);
   const pageUrl = `${MARKETFIYATI_SITE}/ara?q=${encodeURIComponent(product?.title || "")}`;
   const skipped = { chain: 0, far: 0, old: 0, price: 0 };
-<<<<<<< HEAD
   const hasLocation = Boolean(location) && Number.isFinite(Number(location?.latitude)) && Number.isFinite(Number(location?.longitude));
-=======
->>>>>>> origin/main
   for (const depot of Array.isArray(product?.productDepotInfoList) ? product.productDepotInfoList : []) {
     const chain = chainLabel(depot?.marketAdi, chains);
     if (!chain) {
       skipped.chain += 1;
       continue;
     }
-<<<<<<< HEAD
-=======
-    if (location && maxKm && Number.isFinite(Number(depot.latitude)) && Number.isFinite(Number(depot.longitude))) {
-      if (distanceKm(location.latitude, location.longitude, Number(depot.latitude), Number(depot.longitude)) > maxKm) {
-        skipped.far += 1;
-        continue;
-      }
-    }
->>>>>>> origin/main
     const readAt = parseIndexTime(depot.indexTime);
     if (!readAt || (now - readAt) / 86400000 > maxAgeDays) {
       skipped.old += 1;
@@ -386,7 +350,6 @@ export const marketfiyatiOffers = (product, { location, distanceKm: maxKm, chain
       skipped.price += 1;
       continue;
     }
-<<<<<<< HEAD
     let distance = null;
     if (hasLocation && Number.isFinite(Number(depot.latitude)) && Number.isFinite(Number(depot.longitude))) {
       distance = Math.round(distanceKm(Number(location.latitude), Number(location.longitude), Number(depot.latitude), Number(depot.longitude)) * 10) / 10;
@@ -409,26 +372,12 @@ export const marketfiyatiOffers = (product, { location, distanceKm: maxKm, chain
     const spread = Math.max(...prices) / Math.min(...prices) - 1;
     const offer = {
       price: median(prices),
-=======
-    const list = byChain.get(chain) || [];
-    list.push({ price: Math.round(price * 100) / 100, readAt, depotName: String(depot.depotName || "") });
-    byChain.set(chain, list);
-  }
-  const offers = [];
-  for (const [chain, list] of byChain) {
-    const latest = list.reduce((max, item) => (item.readAt > max ? item.readAt : max), list[0].readAt);
-    // Aynı gün okunan şube fiyatları birlikte değerlendirilir; eski günlerin fiyatı kullanılmaz
-    const sameDay = list.filter((item) => latest - item.readAt < 86400000);
-    offers.push({
-      price: median(sameDay.map((item) => item.price)),
->>>>>>> origin/main
       source: chain,
       pageUrl,
       title,
       readAt: latest,
       confidence: "high",
       note: sameDay.length > 1 ? `${sameDay.length} şube` : sameDay[0].depotName.slice(0, 60),
-<<<<<<< HEAD
       distanceKm: nearest.distance,
       near: nearby.length > 0,
       depots: sameDay.length,
@@ -443,14 +392,6 @@ export const marketfiyatiOffers = (product, { location, distanceKm: maxKm, chain
   if (skipped.old) rejected.push({ source: "Market Fiyatı", pageUrl, title, reason: `${skipped.old} şube fiyatı ${maxAgeDays} günden eski` });
   if (skipped.chain) rejected.push({ source: "Market Fiyatı", pageUrl, title, reason: `${skipped.chain} şube izin verilen zincirlerden değil` });
   if (skipped.price) rejected.push({ source: "Market Fiyatı", pageUrl, title, reason: `${skipped.price} şube fiyatı geçersiz` });
-=======
-    });
-  }
-  offers.sort((a, b) => a.price - b.price);
-  if (skipped.old) rejected.push({ source: "Market Fiyatı", pageUrl, title, reason: `${skipped.old} şube fiyatı ${maxAgeDays} günden eski` });
-  if (skipped.far) rejected.push({ source: "Market Fiyatı", pageUrl, title, reason: `${skipped.far} şube ${maxKm} km dışında` });
-  if (skipped.chain) rejected.push({ source: "Market Fiyatı", pageUrl, title, reason: `${skipped.chain} şube izin verilen zincirlerden değil` });
->>>>>>> origin/main
   return { offers, rejected, skipped };
 };
 
@@ -479,7 +420,6 @@ export const shouldPause = (error) => {
 /** Yeni ara süresi: 15 dk'dan başlar, her tekrarda iki katı, en çok 6 saat */
 export const nextPauseMs = (previousMs) => Math.min(PAUSE_MAX_MS, Math.max(PAUSE_MIN_MS, (Number(previousMs) || 0) * 2));
 
-<<<<<<< HEAD
 /**
  * İlk arama hiç kayıt vermezse denenecek ikinci anahtar kelime: marka (ilk anlamlı kelime) atılır, kalan kelimeler ve gramaj
  * olduğu gibi kalır. "Sütaş Üçgen Peynir 8'li 100 g" → "Üçgen Peynir 8'li 100 g". Anlamlı bir fark yoksa null.
@@ -494,21 +434,15 @@ export const alternativeKeywords = (query) => {
   return alt && nameTokens(alt).length ? alt : null;
 };
 
-=======
->>>>>>> origin/main
 const empty = (note, extra = {}) => ({ offers: [], rejected: [], median: null, min: null, max: null, confidence: null, note, barcode: null, productId: null, matchedName: "", ...extra });
 
 /**
  * Market Fiyatı'ndan güncel zincir market fiyatları (findCamgozPrices ile aynı biçim).
  * barcode varsa önce barkodla aranır (sonuç yoksa / barkod türü desteklenmiyorsa isimle aranır).
  * Yakın şubelerde ürün yoksa bir kez daha FALLBACK_DISTANCE_KM ile denenir; yine hiç kayıt yoksa /api/v2/nearest ile
-<<<<<<< HEAD
  * şube kimlikleri alınıp (6 saat önbellek) aynı arama bir kez de depots ile yinelenir; hâlâ hiç kayıt yoksa marka/dolgu
  * kelimeleri atılmış ikinci anahtar kelimeyle (alternativeKeywords) en çok bir arama daha yapılır.
  * Mesafe eleme nedeni değildir (marketfiyatiOffers): uzak şube fiyatı kullanılan zincir teklif notunda belirtilir.
-=======
- * şube kimlikleri alınıp (6 saat önbellek) aynı arama bir kez de depots ile yinelenir.
->>>>>>> origin/main
  * Dönen: { offers, rejected, median, min, max, confidence, note, barcode, productId, matchedName, requests }
  */
 export const findMarketfiyatiPrices = async (query, {
@@ -587,7 +521,6 @@ export const findMarketfiyatiPrices = async (query, {
         depotNote = "Konum çevresinde kayıtlı şube bulunamadı.";
       }
     }
-<<<<<<< HEAD
     // Hâlâ hiç kayıt yoksa: marka ve dolgu kelimeleri atılmış ikinci anahtar kelimeyle bir kez daha (sınırlayıcıdan geçer)
     if (!picked && !(Array.isArray(body?.content) && body.content.length)) {
       const alt = alternativeKeywords(query);
@@ -597,8 +530,6 @@ export const findMarketfiyatiPrices = async (query, {
         picked = pickMarketfiyatiProduct(body?.content, query);
       }
     }
-=======
->>>>>>> origin/main
     if (!picked) {
       const count = Array.isArray(body?.content) ? body.content.length : 0;
       const note = count ? "Market Fiyatı'nda bu ürünle eşleşen kayıt bulunamadı (benzer adlı ürünler gramaj/ad tutmadı)." : "Market Fiyatı'nda bu ürün bulunamadı.";
@@ -611,16 +542,10 @@ export const findMarketfiyatiPrices = async (query, {
   }
 
   const { offers, rejected } = marketfiyatiOffers(product, { location, distanceKm: usedRadius, chains: settings.chains, maxAgeDays: settings.maxAgeDays, now });
-<<<<<<< HEAD
   const matchedName = String(product.title || "");
   const base = { rejected, requests, barcode: barcode || null, productId: String(product.id || "") || null, matchedName };
   if (!offers.length) {
     const result = { ...empty(rejected.length ? "Market Fiyatı'nda ürün var ama güncel şube fiyatı yok." : "Market Fiyatı'nda bu ürün için şube fiyatı yok."), ...base };
-=======
-  const base = { rejected, requests, barcode: barcode || null, productId: String(product.id || "") || null, matchedName: String(product.title || "") };
-  if (!offers.length) {
-    const result = { ...empty(rejected.length ? "Market Fiyatı'nda ürün var ama yakın şubelerde güncel fiyat yok." : "Market Fiyatı'nda bu ürün için şube fiyatı yok."), ...base };
->>>>>>> origin/main
     if (useCache) writeCache(key, result, now.getTime());
     return result;
   }
@@ -628,7 +553,6 @@ export const findMarketfiyatiPrices = async (query, {
   const min = Math.min(...values);
   const max = Math.max(...values);
   const low = match.confidence !== "high" && !(viaBarcode && trustedBarcode);
-<<<<<<< HEAD
   const notes = [];
   if (low) notes.push(match.reason === "ürün adında gramaj yok" ? `Ürün adında gramaj yok; eşleşen ürünü kontrol edin: ${matchedName.slice(0, 80)}` : `Eşleşmeden emin değil: ${match.reason}.`);
   if (max / min > 1.8) notes.push("Marketler arasında fiyat farkı çok büyük.");
@@ -637,12 +561,6 @@ export const findMarketfiyatiPrices = async (query, {
   if (usedRadius !== radius) notes.push(`${radius} km içinde bulunamadı; ${usedRadius} km içindeki şubeler kullanıldı.`);
   const shaky = low || max / min > 1.8 || offers.some((offer) => offer.confidence === "low");
   const result = { ...base, offers, median: median(values), min, max, confidence: shaky ? "low" : "high", note: notes.join(" ") };
-=======
-  let note = low ? (match.reason === "ürün adında gramaj yok" ? "Ürün adında gramaj yok; eşleşen ürünü kontrol edin." : `Eşleşmeden emin değil: ${match.reason}.`) : "";
-  if (max / min > 1.8) note = "Marketler arasında fiyat farkı çok büyük.";
-  if (usedRadius !== radius) note = [note, `${radius} km içinde bulunamadı; ${usedRadius} km içindeki şubeler kullanıldı.`].filter(Boolean).join(" ");
-  const result = { ...base, offers, median: median(values), min, max, confidence: low || max / min > 1.8 ? "low" : "high", note };
->>>>>>> origin/main
   if (useCache) writeCache(key, result, now.getTime());
   return result;
 };
