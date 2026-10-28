@@ -20,7 +20,7 @@
 - [ ] Genel Devrek'in teslimat ücreti, ücretsiz eşiği, minimumu ve tahmini süresi.
 - [ ] Bayrak: önce `pilot` (kendi hesabın + birkaç güvenilir müşteri), gerçek siparişle dene; sonra `public`.
 - [ ] Satıcı bilgileri (unvan, adres, vergi no, MERSİS varsa) → sözleşme ve KVKK sayfalarına eklenecek; ETBİS kaydı.
-- [ ] Play Console uygulama imzalama ve yükleme anahtarı SHA-256 parmak izleri → davet bağlantıları (App Links).
+- [ ] (İsteğe bağlı) Davet bağlantıları uygulamada doğrudan açılsın istenirse: Play Console SHA-256 parmak izleri → App Links. Taslak şimdilik kaldırıldı.
 
 ## Temel kararlar
 
