@@ -25,7 +25,7 @@ import {
   validateAddressForZone,
 } from "../services/delivery.service.js";
 import { NOMINATIM_USER_AGENT, clearAreaCache, nominatimConfig } from "../services/deliveryArea.service.js";
-import { placeOrder } from "../controllers/cart.controller.js";
+import { placeOrder, resetDuplicateOrderGuard } from "../controllers/cart.controller.js";
 import {
   adminClearZoneArea,
   adminCreateZone,
@@ -197,6 +197,7 @@ const mockAudit = (t) => {
 const adminReq = (body = {}, params = { id: "devrek" }, method = "POST") => ({ body, params, user: ADMIN, method, originalUrl: "/api/delivery/admin/zones/devrek/area" });
 
 test.beforeEach(() => {
+  resetDuplicateOrderGuard();
   resetYurtSeedState();
   invalidateSettingsCache();
   clearAreaCache();
@@ -344,6 +345,7 @@ test("sipariş: alan yüklüyse sınır dışı 400 OUT_OF_AREA, içi areaVerifi
   // Sınır henüz yüklenmedi: sipariş alınır, "alan doğrulanmadı"
   fx.zones.find((z) => z._id === "devrek").area = null;
   const unverified = response();
+  resetDuplicateOrderGuard(); // aynı sepet 2 dk içinde mükerrer sayılır; burada ayrı senaryo
   await placeOrder(orderRequest(orderBody({ location: OUTSIDE })), unverified);
   assert.equal(unverified.statusCode, 201, JSON.stringify(unverified.body));
   assert.equal(created[1].areaVerified, false);

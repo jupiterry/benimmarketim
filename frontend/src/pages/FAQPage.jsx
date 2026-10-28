@@ -60,11 +60,11 @@ const buildFaqData = (hours) => [
     questions: [
       {
         question: "Hangi ödeme yöntemlerini kabul ediyorsunuz?",
-        answer: "Uygulamada sipariş verirken kapıda nakit, kapıda kart ya da havale/EFT seçeneklerinden birini seçebilirsiniz."
+        answer: "Ödeme teslimatta yapılır: uygulamada sipariş verirken kapıda nakit ya da kapıda kart (POS) seçeneklerinden birini seçebilirsiniz. İnternet üzerinden ödeme alınmaz."
       },
       {
         question: "Ödeme güvenli mi?",
-        answer: "Evet, tüm ödemeler SSL şifreleme ile korunur ve PCI DSS standartlarına uygun işlenir."
+        answer: "Evet. İnternet üzerinden ödeme alınmadığı için kart bilgileriniz uygulamada ya da sitede girilmez ve saklanmaz; kartla ödeme teslimatta POS cihazıyla yapılır. Uygulama ile sunucu arasındaki bağlantı SSL ile şifrelenir."
       },
       {
         question: "Fatura alabilir miyim?",
@@ -78,15 +78,15 @@ const buildFaqData = (hours) => [
     questions: [
       {
         question: "İade sürem ne kadar?",
-        answer: "14 gün içinde iade talebinde bulunabilirsiniz. Ürün orijinal ambalajında ve kullanılmamış olmalıdır."
+        answer: "Teslimden itibaren 14 gün içinde iade talebinde bulunabilirsiniz; ürün orijinal ambalajında ve kullanılmamış olmalıdır. Çabuk bozulabilen ürünlerde ve ambalajı açılmış hijyen ürünlerinde cayma hakkı yoktur (Mesafeli Sözleşmeler Yönetmeliği, madde 15). Kusurlu ya da hatalı gelen ürün için her zaman bize ulaşabilirsiniz."
       },
       {
         question: "İade işlemi nasıl yapılır?",
-        answer: "Müşteri hizmetleri ile iletişime geçin, iade talebiniz onaylandıktan sonra ürünü ücretsiz kargo ile iade edin."
+        answer: "Uygulamadaki canlı destekten ya da iletişim sayfasından bize ulaşın. Talebiniz onaylanınca ürünün Devrek'te nasıl teslim alınacağını sizinle birlikte planlarız."
       },
       {
         question: "Para iadesi ne zaman yapılır?",
-        answer: "Para iadesi 7-10 iş günü içinde hesabınıza yatırılır. İade yöntemi ödeme yönteminizle aynıdır."
+        answer: "İade, ödeme yönteminize göre yapılır: kapıda nakit ödemelerde nakit, kapıda kartla ödemelerde kartınıza. Kart iadesinin hesabınıza yansıma süresi bankanıza bağlıdır."
       }
     ]
   },

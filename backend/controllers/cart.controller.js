@@ -385,6 +385,8 @@ const finalizeOrder = async (req, res, newOrder, appliedCoupon, phone) => {
   const io = req.app?.get?.("io");
   dispatchOrderNotifications(io, newOrder, req.user);
 
+  if (res.locals && typeof res.locals === "object") res.locals.createdOrder = newOrder;
+  else res.locals = { createdOrder: newOrder };
   return res.status(201).json({
     success: true,
     message: "Sipariş başarıyla oluşturuldu.",
@@ -482,7 +484,91 @@ const placeAddressOrder = async (req, res, { products, phone, note, couponCode, 
   return finalizeOrder(req, res, newOrder, appliedCoupon, phone);
 };
 
-export const placeOrder = async (req, res) => {
+// ─────────────────────────────────────────────────────────────────
+// Mükerrer sipariş koruması
+// Çift dokunuş ya da zaman aşımı sonrası yeniden deneme aynı siparişi ikinci kez oluşturmasın.
+//  - Aynı kullanıcının sipariş istekleri sırayla işlenir (API tek PM2 sürecinde çalışır).
+//  - Aynı kullanıcı DUPLICATE_WINDOW_MS içinde aynı ürün/adet ve aynı teslimat hedefiyle yeniden
+//    isterse yeni sipariş açılmaz; ilk sipariş 200 ve duplicate: true ile döner.
+// ─────────────────────────────────────────────────────────────────
+export const DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
+const orderQueues = new Map(); // userId → son işin bitiş sözü
+const recentOrders = new Map(); // userId → { signature, at, order }
+
+/** Sepet, teslimat hedefi, kupon, telefon ve nottan sıra bağımsız imza (aynı ürün iki satırda ise adetler toplanır) */
+export const orderSignature = (body = {}) => {
+  const quantities = new Map();
+  for (const item of Array.isArray(body.products) ? body.products : []) {
+    const id = String(item?.product?._id ?? item?.product ?? "");
+    quantities.set(id, (quantities.get(id) || 0) + (Number(item?.quantity) || 0));
+  }
+  const items = [...quantities].sort(([a], [b]) => a.localeCompare(b)).map(([id, qty]) => `${id}x${qty}`).join(",");
+  const target = body.addressId ? `a:${body.addressId}`
+    : body.deliveryAddress && typeof body.deliveryAddress === "object"
+      ? `d:${body.zoneId || body.deliveryAddress.zoneId || ""}:${body.deliveryAddress.street || ""}:${body.deliveryAddress.buildingNo || ""}`
+      : `p:${body.deliveryPoint || body.zoneId || ""}`;
+  const extras = [body.couponCode, body.phone, body.note].map((value) => String(value ?? "").trim().toUpperCase());
+  return `${items}|${target}|${extras.join("|")}`;
+};
+
+/** Aynı kullanıcının işlerini sırayla çalıştırır; hata kuyruğu kilitlemez */
+export const runSerializedForUser = async (userId, task) => {
+  const key = String(userId);
+  const previous = orderQueues.get(key) || Promise.resolve();
+  const run = previous.then(task, task);
+  const tail = run.then(() => {}, () => {});
+  orderQueues.set(key, tail);
+  try {
+    return await run;
+  } finally {
+    if (orderQueues.get(key) === tail) orderQueues.delete(key);
+  }
+};
+
+const findRecentDuplicate = (userId, signature, now = Date.now()) => {
+  for (const [key, entry] of recentOrders) if (now - entry.at > DUPLICATE_WINDOW_MS) recentOrders.delete(key);
+  const entry = recentOrders.get(String(userId));
+  return entry && entry.signature === signature ? entry : null;
+};
+
+/** Testler için: koruma belleğini temizler */
+export const resetDuplicateOrderGuard = () => {
+  orderQueues.clear();
+  recentOrders.clear();
+};
+
+export const placeOrder = (req, res) => {
+  const userId = req.user?._id;
+  if (!userId) return placeOrderUnguarded(req, res);
+  return runSerializedForUser(userId, async () => {
+    const signature = orderSignature(req.body || {});
+    let duplicate = findRecentDuplicate(userId, signature);
+    // İlk sipariş bu arada iptal edildiyse aynı sepet yeniden verilebilir (okunamazsa mükerrer sayılır)
+    if (duplicate) {
+      const current = await Order.findById(duplicate.order?._id).select("status").lean().catch(() => null);
+      if (current?.status === "İptal Edildi") {
+        recentOrders.delete(String(userId));
+        duplicate = null;
+      }
+    }
+    if (duplicate) {
+      console.warn(`Mükerrer sipariş isteği engellendi: kullanıcı ${userId}, sipariş ${duplicate.order?._id}`);
+      return res.status(200).json({
+        success: true,
+        duplicate: true,
+        message: "Bu sipariş zaten alındı.",
+        orderId: duplicate.order?._id,
+        order: duplicate.order,
+      });
+    }
+    await placeOrderUnguarded(req, res);
+    // finalizeOrder başarılı siparişi res.locals.createdOrder'a yazar
+    const order = res.locals?.createdOrder;
+    if (order) recentOrders.set(String(userId), { signature, at: Date.now(), order });
+  });
+};
+
+const placeOrderUnguarded = async (req, res) => {
   try {
     // Sipariş saati kontrolü (sadece sipariş verirken)
     if (!(await isWithinOrderHours())) {

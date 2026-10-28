@@ -27,7 +27,7 @@ import {
 import { runScheduledPricingJob } from "../services/flashSale.service.js";
 import { onProductCachesInvalidated } from "../services/productCache.service.js";
 import { computeDeliveryQuote, roundMoney as deliveryRoundMoney } from "../services/delivery.service.js";
-import { placeOrder } from "../controllers/cart.controller.js";
+import { placeOrder, resetDuplicateOrderGuard } from "../controllers/cart.controller.js";
 import {
   EXPIRED_ACTIVATE_MESSAGE,
   getWeeklyProducts,
@@ -98,6 +98,8 @@ const assertWeeklyFilter = (filter, now = new Date()) => {
 };
 
 // ── Yardımcılar ──────────────────────────────────────────────────────────────
+
+test.beforeEach(() => resetDuplicateOrderGuard());
 
 test("kuruş yuvarlaması: ondalık toplama hatası ve .005 sınırı", () => {
   assert.equal(roundMoney(38.699999), 38.7);

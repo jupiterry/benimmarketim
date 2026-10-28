@@ -270,3 +270,49 @@ test("bugün: İstanbul gün başlangıcı, özet ve onay bilgisi", async () => 
   assert.equal(today.orders[1].status, "Teslim Edildi");
   assert.deepEqual([today.summary.count, today.summary.revenue], [2, 160]);
 });
+
+test("alarm telefonu 'Teslim Edildi' yapınca paneldeki ortak servis çalışır: davet ödülü denenir, 409 korunur", async (t) => {
+  const { changeOrderStatusHandler } = await import("../controllers/orderAlarm.controller.js");
+  const OrderModel = (await import("../models/order.model.js")).default;
+  const Referral = (await import("../models/referral.model.js")).default;
+  const AdminAudit = (await import("../models/adminAudit.model.js")).default;
+  const Mission = (await import("../models/mission.model.js")).default;
+  const orderId = new mongoose.Types.ObjectId();
+  const userId = new mongoose.Types.ObjectId();
+  const saves = [];
+  const order = {
+    _id: orderId, user: userId, status: "Yolda", statusHistory: [],
+    async save() { saves.push({ status: this.status, where: this.$where }); },
+  };
+  // findById: doğrudan await edilir ya da .select().lean() ile zincirlenir
+  t.mock.method(OrderModel, "findById", () => {
+    const query = Promise.resolve(order);
+    query.select = () => ({ lean: async () => ({ status: "Teslim Edildi" }) });
+    return query;
+  });
+  t.mock.method(OrderModel, "countDocuments", async () => 0); // daha önce teslim edilmiş sipariş yok → ilk sipariş
+  const referralLookups = t.mock.method(Referral, "findOne", async () => null);
+  t.mock.method(Mission, "find", () => ({ lean: async () => [] }));
+  t.mock.method(AdminAudit, "create", async () => ({}));
+  const res = {
+    statusCode: 200,
+    status(code) { this.statusCode = code; return this; },
+    json(body) { this.body = body; return this; },
+  };
+  const req = { params: { orderId: String(orderId) }, body: { status: "Teslim Edildi" }, alarmDevice: { createdBy: new mongoose.Types.ObjectId(), name: "Kasa" }, app: { get: () => null } };
+  await changeOrderStatusHandler(req, res);
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  assert.equal(order.status, "Teslim Edildi");
+  assert.equal(saves.length, 1);
+  assert.deepEqual(saves[0].where, { status: "Yolda" }, "kayıt okunduğu andaki duruma koşullu");
+  for (let i = 0; i < 20 && referralLookups.mock.callCount() === 0; i += 1) await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(referralLookups.mock.callCount(), 1, "davet (referral) ödülü denenir");
+
+  // Bu arada panelden değiştiyse 409
+  order.status = "Yolda";
+  order.save = async () => { throw Object.assign(new Error("conflict"), { name: "DocumentNotFoundError" }); };
+  const conflict = { ...res, statusCode: 200 };
+  await changeOrderStatusHandler(req, conflict);
+  assert.equal(conflict.statusCode, 409);
+  assert.equal(conflict.body.status, "Teslim Edildi", "güncel durum döner");
+});

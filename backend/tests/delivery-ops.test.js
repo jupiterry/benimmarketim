@@ -24,7 +24,7 @@ import {
 import {
   getPublicZones, adminListZones, adminUpdateZone, adminBulkUpdateZones, adminGetCouriers, adminUpdateCouriers,
 } from "../controllers/delivery.controller.js";
-import { placeOrder } from "../controllers/cart.controller.js";
+import { placeOrder, resetDuplicateOrderGuard } from "../controllers/cart.controller.js";
 import {
   normalizeZoneInput, normalizeCouriersInput, needsFirstOrderCallback, resetYurtSeedState,
 } from "../services/delivery.service.js";
@@ -121,6 +121,7 @@ const mockSettings = (t, fields) => {
 };
 
 test.beforeEach(() => {
+  resetDuplicateOrderGuard();
   resetYurtSeedState();
   invalidateSettingsCache();
 });

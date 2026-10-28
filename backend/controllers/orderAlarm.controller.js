@@ -1,8 +1,7 @@
 import User from "../models/user.model.js";
 import AdminAudit from "../models/adminAudit.model.js";
 import Order from "../models/order.model.js";
-import { notifyOrderStatusChange } from "../services/orderStatusNotifier.js";
-import { evaluateMissionsForUser } from "../services/mission.service.js";
+import { applyOrderStatusChange } from "../services/order.service.js";
 import {
   ORDER_STATUSES,
   acknowledgeOrder,
@@ -124,7 +123,7 @@ export const todayOrdersHandler = async (req, res) => {
 
 /**
  * PUT /api/order-alarm/orders/:orderId/status  { status: "Yolda" | "Teslim Edildi" }
- * Paneldeki durum güncellemesiyle aynı yan etkiler (müşteri bildirimi, görev ödülü, canlı panel).
+ * Paneldeki durum güncellemesiyle aynı servis ve yan etkiler (müşteri bildirimi, görev ve davet ödülü, canlı panel).
  * Telefondan yalnızca ileri adım atılır; iptal ve geri alma panelde kalır.
  */
 export const changeOrderStatusHandler = async (req, res) => {
@@ -143,19 +142,18 @@ export const changeOrderStatusHandler = async (req, res) => {
       return res.status(409).json({ success: false, status: previousStatus, message: `Sipariş şu an "${previousStatus}". Bu değişiklik yalnızca panelden yapılabilir.` });
     }
 
-    order.status = status;
-    order.statusHistory.push({ status, changedAt: new Date(), changedBy: device.createdBy });
-    await order.save();
-
-    Promise.resolve(notifyOrderStatusChange(order, previousStatus)).catch((error) => console.error("Durum bildirimi gönderilemedi:", error.message));
-    if (status === "Teslim Edildi") {
-      Promise.resolve(evaluateMissionsForUser(order.user, new Date(), { deliveredOrder: order })).catch((error) => console.error("Görev değerlendirilemedi:", error.message));
+    // Paneldeki durum güncellemesiyle aynı servis: müşteri bildirimi, görevler, davet (referral)
+    // ödülü ve canlı panel olayı. Kayıt okunduğu andaki duruma koşulludur; bu arada panelden
+    // değiştiyse 409 döner.
+    try {
+      await applyOrderStatusChange(order, status, { actorId: device.createdBy, io: req.app?.get?.("io") });
+    } catch (error) {
+      if (error?.name === "VersionError" || error?.name === "DocumentNotFoundError") {
+        const current = await Order.findById(orderId).select("status").lean();
+        return res.status(409).json({ success: false, status: current?.status, message: "Sipariş bu sırada başka bir yerden güncellendi. Listeyi yenileyin." });
+      }
+      throw error;
     }
-    req.app.get("io")?.to(`user_${order.user.toString()}`).to("adminRoom").emit("orderStatusUpdated", {
-      orderId: order._id,
-      newStatus: status,
-      message: `Sipariş durumu güncellendi: ${status}`,
-    });
     AdminAudit.create({ actor: device.createdBy, action: "Sipariş durumu (alarm telefonu)", target: String(order._id), summary: `${device.name}: ${previousStatus} → ${status}` })
       .catch((error) => console.error("Admin audit write failed:", error));
     // "Hazırlanıyor"dan çıkan sipariş tüm telefonlarda susar.

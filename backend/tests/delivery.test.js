@@ -30,7 +30,7 @@ import {
   normalizeZoneInput,
   resetYurtSeedState,
 } from "../services/delivery.service.js";
-import { placeOrder, isAddressOrderRequest, formatOrderHoursMessage } from "../controllers/cart.controller.js";
+import { placeOrder, isAddressOrderRequest, formatOrderHoursMessage, orderSignature, resetDuplicateOrderGuard } from "../controllers/cart.controller.js";
 import {
   getPublicZones,
   getMyDeliveryAccess,
@@ -202,6 +202,7 @@ const legacyBody = (fields = {}) => ({
 });
 
 test.beforeEach(() => {
+  resetDuplicateOrderGuard();
   resetYurtSeedState();
   invalidateSettingsCache();
 });
@@ -350,6 +351,7 @@ test("yurt siparişi: genel minimum 0 ise minimum yok (?? anlamı); minimum alt�
 
   store.doc.minimumOrderAmount = 250;
   const low = response();
+  resetDuplicateOrderGuard(); // aynı sepet 2 dk içinde mükerrer sayılır; burada ayrı senaryo
   await placeOrder(orderRequest(small), low);
   assert.equal(low.statusCode, 400);
   assert.equal(low.body.error, "Sipariş tutarı minimum 250 TL olmalıdır!");
@@ -918,4 +920,72 @@ test("hesap silme kayıtlı adresleri de siler", async (t) => {
   await deleteUserAccount(userId);
   assert.equal(fx.deleteMany.length, 1);
   assert.equal(String(fx.deleteMany[0].user), userId);
+});
+
+// ── Mükerrer sipariş koruması ────────────────────────────────────────────────
+
+test("mükerrer sipariş: eş zamanlı çift dokunuşta tek sipariş, ikincisi 200 duplicate ile aynı siparişi döner", async (t) => {
+  mockSettings(t);
+  mockCatalog(t);
+  mockZones(t);
+  const created = mockOrderCreate(t);
+  let firstStatus = "Hazırlanıyor";
+  t.mock.method(Order, "findById", () => ({ select: () => ({ lean: async () => ({ status: firstStatus }) }) }));
+  const user = customer();
+  const first = response();
+  const second = response();
+  await Promise.all([
+    placeOrder(orderRequest(legacyBody(), user), first),
+    placeOrder(orderRequest(legacyBody(), user), second),
+  ]);
+  assert.equal(created.length, 1, "yalnızca bir sipariş oluşur");
+  assert.equal(first.statusCode, 201);
+  assert.equal(second.statusCode, 200);
+  assert.equal(second.body.duplicate, true);
+  assert.equal(second.body.success, true);
+  assert.equal(String(second.body.orderId), String(first.body.orderId));
+
+  // İlk sipariş iptal edildiyse aynı sepet yeniden verilebilir
+  firstStatus = "İptal Edildi";
+  const again = response();
+  await placeOrder(orderRequest(legacyBody(), user), again);
+  assert.equal(again.statusCode, 201, JSON.stringify(again.body));
+  assert.equal(created.length, 2);
+
+  // Farklı sepet yeni siparişse oluşur
+  const other = response();
+  await placeOrder(orderRequest(legacyBody({ products: [{ product: PRODUCT(2), quantity: 40 }] }), user), other);
+  assert.equal(other.statusCode, 201, JSON.stringify(other.body));
+  assert.equal(created.length, 3);
+});
+
+test("mükerrer sipariş: başarısız deneme sonraki denemeyi engellemez; imza ürün sırasından bağımsız", async (t) => {
+  const store = mockSettings(t, { minimumOrderAmount: 250 });
+  mockCatalog(t);
+  mockZones(t);
+  const created = mockOrderCreate(t);
+  const user = customer();
+  const small = legacyBody({ products: [{ product: PRODUCT(2), quantity: 1 }] });
+  const low = response();
+  await placeOrder(orderRequest(small, user), low);
+  assert.equal(low.statusCode, 400);
+  store.doc.minimumOrderAmount = 0;
+  const retry = response();
+  await placeOrder(orderRequest(small, user), retry);
+  assert.equal(retry.statusCode, 201, JSON.stringify(retry.body));
+  assert.equal(created.length, 1);
+
+  assert.equal(
+    orderSignature({ products: [{ product: "a", quantity: 1 }, { product: "b", quantity: 2 }], deliveryPoint: "girlsDorm" }),
+    orderSignature({ products: [{ product: "b", quantity: 2 }, { product: "a", quantity: 1 }], deliveryPoint: "girlsDorm" }),
+  );
+  assert.notEqual(
+    orderSignature({ products: [{ product: "a", quantity: 1 }], deliveryPoint: "girlsDorm" }),
+    orderSignature({ products: [{ product: "a", quantity: 1 }], deliveryPoint: "boysDorm" }),
+  );
+  assert.notEqual(
+    orderSignature({ products: [{ product: "a", quantity: 1 }], deliveryPoint: "girlsDorm", phone: "05551112233" }),
+    orderSignature({ products: [{ product: "a", quantity: 1 }], deliveryPoint: "girlsDorm", phone: "05551112234" }),
+    "telefonu düzeltilmiş sipariş mükerrer sayılmaz",
+  );
 });

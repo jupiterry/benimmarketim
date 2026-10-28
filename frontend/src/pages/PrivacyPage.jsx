@@ -48,7 +48,7 @@ const PrivacyPage = () => {
             </div>
             <div className="legal-card">
               <h3 className="legal-card-title">Ödeme Bilgileri</h3>
-              <p className="legal-text">Seçtiğiniz ödeme yöntemi (kapıda nakit, kapıda kart, havale/EFT) ve ödeme geçmişi</p>
+              <p className="legal-text">Seçtiğiniz ödeme yöntemi (kapıda nakit ya da kapıda kart; önceki siparişlerde havale/EFT) ve ödeme geçmişi</p>
             </div>
             <div className="legal-card">
               <h3 className="legal-card-title">Kullanım Verileri</h3>
@@ -96,7 +96,7 @@ const PrivacyPage = () => {
             </div>
             <div className="legal-item">
               <div className="legal-dot"></div>
-              <p className="legal-text">Ödeme bilgileriniz PCI DSS standartlarına uygun şekilde işlenir</p>
+              <p className="legal-text">İnternet üzerinden ödeme alınmaz; kart bilgileriniz uygulamada ya da sitede girilmez ve saklanmaz</p>
             </div>
             <div className="legal-item">
               <div className="legal-dot"></div>
