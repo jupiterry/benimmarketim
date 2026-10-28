@@ -66,11 +66,11 @@ const ReturnPolicyPage = () => {
             </div>
             <div className="legal-card">
               <h3 className="legal-card-title">İade Yöntemi</h3>
-              <p className="legal-text legal-text--sm">Ücretsiz kargo ile iade edilebilir</p>
+              <p className="legal-text legal-text--sm">Ürün Devrek’te sizden teslim alınır; kargo gerekmez</p>
             </div>
             <div className="legal-card">
               <h3 className="legal-card-title">Para İadesi</h3>
-              <p className="legal-text legal-text--sm">7-10 iş günü içinde hesabınıza yatırılır</p>
+              <p className="legal-text legal-text--sm">Nakit ödemede nakit, kartla ödemede kartınıza iade edilir</p>
             </div>
           </div>
         </section>
@@ -129,15 +129,15 @@ const ReturnPolicyPage = () => {
             <div className="legal-card legal-card--row">
               <div className="legal-step">3</div>
               <div>
-                <h3 className="legal-card-title">Kargo</h3>
-                <p className="legal-text">Ürün ücretsiz kargo ile iade edilir</p>
+                <h3 className="legal-card-title">Teslim alma</h3>
+                <p className="legal-text">Ürünün Devrek’te nasıl teslim alınacağı sizinle birlikte planlanır</p>
               </div>
             </div>
             <div className="legal-card legal-card--row">
               <div className="legal-step">4</div>
               <div>
                 <h3 className="legal-card-title">Para İadesi</h3>
-                <p className="legal-text">Para iadesi hesabınıza yatırılır</p>
+                <p className="legal-text">Ödeme yönteminize göre nakit ya da kartınıza iade edilir; kart iadesinin yansıma süresi bankanıza bağlıdır</p>
               </div>
             </div>
           </div>

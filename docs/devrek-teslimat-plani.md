@@ -6,6 +6,22 @@
 
 > **Güncelleme (karar):** Bölgeler sabit üç tanedir: **Kız KYK Yurdu**, **Erkek KYK Yurdu** ve **Genel Devrek**. Genel Devrek'in alanı, sitedeki haritada görünen Devrek merkez sınırıdır (OpenStreetMap'ten yüklenir, panelden doğrulanır). Devrek adreslerinde mahalle, sokak, bina no ve haritada pin zorunludur; pin sınır dışındaysa sipariş alınmaz. Aşağıdaki mahalle/köy katmanlarından ve köy günü rotalarından söz eden bölümler bu karara göre geçersizdir. Mobil için güncel prompt: `docs/mobil-asama-2-prompt.md`.
 
+## Güncel durum (28 Ekim 2026)
+
+| Aşama | Durum |
+|---|---|
+| Aşama 1: web (backend + panel) | Bitti ve canlıda. Bayrak `addressOrdering` kapalı. |
+| Aşama 2: mobil | Kod bitti (main, sürüm 7.1.0+51): Devrek bölgesi, mahalle, pin, sınır, bölge dışı uyarısı, teslimat ücreti, flash sale. Mağazaya gönderim ve onay bekleniyor. |
+| Engelleyiciler (kod) | Mükerrer sipariş koruması ve alarm telefonunda davet ödülü düzeltildi. Kod tarafında açık engel yok. |
+
+**Açılış için kalanlar (senin yapacakların):**
+- [ ] 7.1.0 (51) sürümünü Play Store ve App Store'a gönder; onaylanınca zorunlu güncellemeyi bu sürüme çek.
+- [ ] Panel → Teslimat bölgeleri → Genel Devrek: OpenStreetMap sınırını yükle ve haritada doğrula.
+- [ ] Genel Devrek'in teslimat ücreti, ücretsiz eşiği, minimumu ve tahmini süresi.
+- [ ] Bayrak: önce `pilot` (kendi hesabın + birkaç güvenilir müşteri), gerçek siparişle dene; sonra `public`.
+- [ ] Satıcı bilgileri (unvan, adres, vergi no, MERSİS varsa) → sözleşme ve KVKK sayfalarına eklenecek; ETBİS kaydı.
+- [ ] Play Console uygulama imzalama ve yükleme anahtarı SHA-256 parmak izleri → davet bağlantıları (App Links).
+
 ## Temel kararlar
 
 | Konu | Karar |

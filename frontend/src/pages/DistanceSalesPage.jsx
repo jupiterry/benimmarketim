@@ -139,7 +139,7 @@ const DistanceSalesPage = () => {
           <div className="legal-stack">
             <div className="legal-card">
               <h3 className="legal-card-title">Ödeme Yöntemleri</h3>
-              <p className="legal-text">Kapıda nakit, kapıda kart ya da havale/EFT</p>
+              <p className="legal-text">Kapıda nakit ya da kapıda kart (POS). İnternet üzerinden ödeme alınmaz.</p>
             </div>
             <div className="legal-card">
               <h3 className="legal-card-title">Toplam Tutar</h3>
