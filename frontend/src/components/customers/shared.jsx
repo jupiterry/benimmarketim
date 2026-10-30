@@ -67,6 +67,7 @@ export const SEGMENTS = [
   { id: "new", label: "Yeni", hint: `Son ${NEW_DAYS} günde kayıt oldu` },
   { id: "admin", label: "Yönetici" },
   { id: "noOrders", label: "Sipariş yok", hint: "Hiç sipariş vermedi" },
+  { id: "dupPhone", label: "Aynı numara", hint: "Aynı telefon numarasıyla kayıtlı birden çok hesap (numaraya göre gruplanır)" },
 ];
 
 /** Satır ve çekmecedeki etiketler */
