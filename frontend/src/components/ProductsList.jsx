@@ -20,6 +20,8 @@ import {
 } from "./products/productUtils";
 import "../styles/products.css";
 
+const BULK_FLASH_MAX = 200; // sunucudaki sınırla aynı (flashSale.controller BULK_FLASH_MAX)
+
 const PAGE = 60;
 const NON_TEXT_INPUTS = new Set(["checkbox", "radio", "button", "submit", "reset", "range", "color"]);
 const isTypingTarget = (el) => Boolean(el) && (
@@ -179,7 +181,7 @@ const ProductRow = memo(({
 ProductRow.displayName = "ProductRow";
 
 /** Toplu işlem penceresi: fiyat, indirim, kategori, flash sale */
-const BulkModal = ({ mode, products, busy, onClose, onSubmit }) => {
+const BulkModal = ({ mode, products, sales = [], busy, onClose, onSubmit }) => {
   const [priceType, setPriceType] = useState("percentage");
   const [value, setValue] = useState("");
   const [discountMode, setDiscountMode] = useState("apply");
@@ -230,8 +232,8 @@ const BulkModal = ({ mode, products, busy, onClose, onSubmit }) => {
         </div>
         {mode === "flash" ? (
           <div className="ui-modal-body">
-            <FlashSaleForm products={products} busy={busy} onCancel={onClose}
-              submitLabel={products.length > 1 ? `${products.length} ürüne uygula` : "Flash sale başlat"}
+            <FlashSaleForm products={products} busy={busy} onCancel={onClose} bulk={products.length > 1} sales={sales}
+              submitLabel={products.length > 1 ? "Ürünlere uygula" : "Flash sale başlat"}
               onSubmit={(payload) => onSubmit(payload)} />
           </div>
         ) : (
@@ -544,6 +546,30 @@ const ProductsList = ({ onCreate }) => {
     return ok > 0;
   };
 
+  // Birden çok ürün: tek istekte ortak oran ve tarih (POST /flash-sales/bulk); sonuç ürün ürün döner
+  const createBulkFlash = async (productIds, payload) => {
+    try {
+      const { data } = await axios.post("/flash-sales/bulk", { productIds, ...payload });
+      await refreshAfterFlash();
+      const created = data.created?.length || 0;
+      const skipped = data.skipped || [];
+      const failed = data.failed || [];
+      if (created) {
+        toast.success(`${created} ürün için flaş indirim oluşturuldu${data.replaced ? ` (${data.replaced} eski kampanya iptal edildi)` : ""}`);
+      }
+      const misses = [...skipped, ...failed];
+      if (misses.length) {
+        const names = misses.slice(0, 3).map((item) => item.name || "Silinmiş ürün").join(", ");
+        toast.error(`${misses.length} ürün atlandı: ${names}${misses.length > 3 ? "…" : ""}${skipped.some((item) => item.existingSale) ? " (aynı tarihlerde flaş indirimi var)" : ""}`, { duration: 7000 });
+      }
+      if (data.warning) toast(data.warning, { duration: 6000 });
+      return created > 0;
+    } catch (error) {
+      toast.error(errorMessage(error, "Flaş indirim oluşturulamadı"));
+      return false;
+    }
+  };
+
   // Yayındaki kampanyayı bitirir / planlı kampanyayı iptal eder; ürün eski fiyatına hemen döner
   const endFlash = async (sale, { silent = false } = {}) => {
     const upcoming = flashStatus(sale, now) === "upcoming";
@@ -675,7 +701,11 @@ const ProductsList = ({ onCreate }) => {
     setBulkBusy(true);
     try {
       if (bulk.mode === "flash") {
-        if (await createFlash(ids, payload)) setBulk(null);
+        const done = ids.length > 1 ? await createBulkFlash(ids, payload) : await createFlash(ids, payload);
+        if (done) {
+          setBulk(null);
+          clearSelection();
+        }
         return;
       }
       if (bulk.mode === "price") {
@@ -893,6 +923,18 @@ const ProductsList = ({ onCreate }) => {
             )}
           </div>
 
+          {hasFilters && selectedRows.length === 0 && rows.length > 0 && (
+            <div className="prd-scope-bar">
+              <span className="ui-text-sm">Listelenen <strong className="ui-num">{rows.length}</strong> ürün</span>
+              <button type="button" className="ui-btn ui-btn--sm" disabled={rows.length > BULK_FLASH_MAX}
+                onClick={() => setBulk({ mode: "flash", ids: rowIds })}
+                title={rows.length > BULK_FLASH_MAX ? `Tek seferde en fazla ${BULK_FLASH_MAX} ürün; aramayı daraltın` : "Listelenen tüm ürünlere ortak oran ve tarihle flaş indirim"}>
+                <Zap />Hepsine flaş indirim
+              </button>
+              {rows.length > BULK_FLASH_MAX && <span className="ui-hint">En fazla {BULK_FLASH_MAX} ürün; aramayı daraltın.</span>}
+            </div>
+          )}
+
           {selectedRows.length > 0 && (
             <div className="ui-bulkbar prd-bulkbar">
               <span className="ui-bulkbar-count">{selectedRows.length} seçili</span>
@@ -1034,7 +1076,7 @@ const ProductsList = ({ onCreate }) => {
       )}
 
       {bulk && (
-        <BulkModal mode={bulk.mode} busy={bulkBusy} onClose={() => setBulk(null)} onSubmit={submitBulk}
+        <BulkModal mode={bulk.mode} busy={bulkBusy} onClose={() => setBulk(null)} onSubmit={submitBulk} sales={sales}
           products={catalog.filter((p) => bulk.ids.includes(p._id))} />
       )}
 

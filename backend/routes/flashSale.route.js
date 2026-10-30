@@ -3,6 +3,7 @@ import {
   getAllFlashSales,
   getActiveFlashSales,
   createFlashSale,
+  createBulkFlashSales,
   updateFlashSale,
   deleteFlashSale,
   endFlashSale,
@@ -17,6 +18,7 @@ router.get("/active", getActiveFlashSales);
 // Admin routes
 router.get("/", protectRoute, adminRoute, getAllFlashSales);
 router.post("/", protectRoute, adminRoute, createFlashSale);
+router.post("/bulk", protectRoute, adminRoute, createBulkFlashSales); // Seçili ürünlere ortak indirim ve tarihle
 router.put("/:id", protectRoute, adminRoute, updateFlashSale);
 router.post("/:id/end", protectRoute, adminRoute, endFlashSale);
 router.post("/:id/cancel", protectRoute, adminRoute, endFlashSale);
