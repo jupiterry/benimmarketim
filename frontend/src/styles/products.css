@@ -853,6 +853,66 @@
 .admin-layout .prd-flash-summary strong {
   color: #9a4d00;
 }
+.admin-layout .prd-bulk-conflict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 8px 10px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-warn-bg);
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .prd-bulk-conflict > svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--ui-warn);
+}
+.admin-layout .prd-bulk-preview {
+  display: flex;
+  flex-direction: column;
+  max-height: 260px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  list-style: none;
+}
+.admin-layout .prd-bulk-preview li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ui-line);
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .prd-bulk-preview li:last-child {
+  border-bottom: 0;
+}
+.admin-layout .prd-bulk-preview li[data-skip] {
+  opacity: .55;
+}
+.admin-layout .prd-bulk-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.admin-layout .prd-bulk-price {
+  flex: none;
+  white-space: nowrap;
+}
+.admin-layout .prd-bulk-price s {
+  color: var(--ui-text-3);
+}
+.admin-layout .prd-bulk-price strong {
+  color: var(--ui-warn);
+}
 .admin-layout .prd-flash-list {
   display: flex;
   flex-direction: column;
@@ -1086,4 +1146,14 @@
 }
 .admin-layout .prd-hero .prd-flash-end {
   align-self: flex-start;
+}
+
+/* Filtrelenmiş liste: listelenenlerin hepsine toplu işlem */
+.admin-layout .prd-scope-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 10px;
+  color: var(--ui-text-2);
 }

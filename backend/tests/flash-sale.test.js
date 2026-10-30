@@ -7,7 +7,7 @@ import Order from "../models/order.model.js";
 import AdminAudit from "../models/adminAudit.model.js";
 import { redis } from "../lib/redis.js";
 import { applySale, flashPrice, rangesOverlap, releaseSale, resetFlashSyncState, saleStatus, syncFlashSales } from "../services/flashSale.service.js";
-import { createFlashSale, endFlashSale, getActiveFlashSales, validateFlashSaleInput } from "../controllers/flashSale.controller.js";
+import { BULK_FLASH_MAX, createBulkFlashSales, createFlashSale, endFlashSale, getActiveFlashSales, validateFlashSaleInput } from "../controllers/flashSale.controller.js";
 import { invalidateProductCaches, onProductCachesInvalidated, syncProductCacheVersion } from "../services/productCache.service.js";
 import { liveFlashInfo, resolveUnitPrice } from "../services/productPricing.js";
 import { decorateProduct, invalidateWeeklyPriceCache } from "../services/weeklyPrice.service.js";
@@ -385,4 +385,68 @@ test("'start now' uses the server clock, so a wrong admin PC clock cannot delay 
   assert.ok(Math.abs(new Date(created.startDate) - Date.now()) < 5000);
   assert.ok(Math.abs(new Date(created.endDate) - Date.now() - H) < 5000);
   assert.equal(p.discountedPrice, 80); // hemen uygulandı
+});
+
+// ── Toplu flash sale ────────────────────────────────────────────────
+
+test("toplu flash sale: ortak oran ve tarihle oluşturur, çakışanı atlar, tek işlem kaydı yazar", async (t) => {
+  const writes = [];
+  t.mock.method(AdminAudit, "create", async (doc) => { writes.push(doc); return doc; });
+  const A = "507f191e810c19729de8a001";
+  const B = "507f191e810c19729de8a002";
+  const C = "507f191e810c19729de8a003";
+  const items = {
+    [A]: product({ _id: A, name: "Pepsi 1 L", price: 75, isDiscounted: false }),
+    [B]: product({ _id: B, name: "Pepsi 330 ml", price: 60, isDiscounted: false }),
+  };
+  t.mock.method(Product, "find", async () => Object.values(items));
+  t.mock.method(Product, "findById", async (id) => items[String(id)] || null);
+  const existing = sale({ _id: SID, product: B, discountPercentage: 10, startDate: new Date(Date.now() - H), endDate: new Date(Date.now() + 9 * H), applied: true, appliedPrice: 54 });
+  t.mock.method(FlashSale, "find", async (query) => (String(query.product) === B && existing.isActive ? [existing] : []));
+  t.mock.method(FlashSale.prototype, "save", async function () { return this; });
+  const res = response();
+  await createBulkFlashSales({
+    body: { productIds: [A, B, C, A], discountPercentage: 20, startNow: true, durationHours: 24, startDate: new Date().toISOString(), endDate: new Date(Date.now() + 24 * H).toISOString(), name: "Pepsi haftası" },
+    user: { _id: "507f191e810c19729de860ea", name: "Emirhan" },
+  }, res);
+  assert.equal(res.statusCode, 201, JSON.stringify(res.body));
+  assert.deepEqual(res.body.created.map((c) => c.productId), [A], "tekrarlanan kimlik bir kez işlenir");
+  assert.equal(items[A].discountedPrice, 60, "hemen uygulandı: 75 × %80");
+  assert.deepEqual(res.body.skipped.map((s) => [s.productId, s.reason]), [
+    [B, "Aynı tarihlerde başka flaş indirimi var"],
+    [C, "Ürün bulunamadı"],
+  ]);
+  assert.equal(res.body.skipped[0].existingSale.discountPercentage, 10);
+  assert.equal(existing.isActive, true, "atlanan ürünün kampanyasına dokunulmaz");
+  assert.equal(res.body.replaced, 0);
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].action, "Toplu flash sale oluşturuldu");
+  assert.equal(writes[0].targetName, "Pepsi haftası");
+
+  // Değiştir: çakışan kampanya iptal edilir, yenisi uygulanır
+  items[B].isDiscounted = true;
+  items[B].discountedPrice = 54;
+  items[B].flashSale = { sale: SID, price: 54, endDate: existing.endDate };
+  const replace = response();
+  await createBulkFlashSales({
+    body: { productIds: [B], discountPercentage: 25, startNow: true, durationHours: 24, startDate: new Date().toISOString(), endDate: new Date(Date.now() + 24 * H).toISOString(), replaceExisting: true },
+    user: { _id: "507f191e810c19729de860ea", name: "Emirhan" },
+  }, replace);
+  assert.equal(replace.statusCode, 201, JSON.stringify(replace.body));
+  assert.equal(replace.body.replaced, 1);
+  assert.equal(existing.isActive, false);
+  assert.ok(existing.cancelledAt instanceof Date);
+  assert.equal(existing.cancelledBy, "Emirhan");
+  assert.equal(items[B].discountedPrice, 45, "yeni oran: 60 × %75");
+});
+
+test("toplu flash sale: girdi denetimi", async () => {
+  const call = async (body) => { const res = response(); await createBulkFlashSales({ body, user: { _id: "507f191e810c19729de860ea" } }, res); return res; };
+  const window = { discountPercentage: 20, startNow: true, durationHours: 24, startDate: new Date().toISOString(), endDate: new Date(Date.now() + 24 * H).toISOString() };
+  assert.equal((await call({ ...window, productIds: [] })).statusCode, 400);
+  assert.equal((await call({ ...window, productIds: ["x"] })).statusCode, 400);
+  const tooMany = Array.from({ length: BULK_FLASH_MAX + 1 }, (_, i) => `507f191e810c19729de8${String(i).padStart(4, "0")}`);
+  assert.match((await call({ ...window, productIds: tooMany })).body.message, /en fazla/);
+  assert.match((await call({ ...window, productIds: [PID], discountPercentage: 0 })).body.message, /1-99/);
+  assert.match((await call({ productIds: [PID], discountPercentage: 20, startDate: new Date(Date.now() - 3 * H).toISOString(), endDate: new Date(Date.now() - H).toISOString() })).body.message, /geçmiş/);
 });

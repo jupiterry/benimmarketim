@@ -13,7 +13,21 @@ const QUICK_PCTS = [10, 15, 20, 25, 30, 40];
  * (startNow + durationHours); bilgisayarın saati yanlış olsa da kampanya hemen başlar.
  * `products` önizleme içindir: tek ürünse eski → yeni fiyat gösterilir.
  */
-export const FlashSaleForm = ({ products = [], busy, submitLabel = "Flash sale başlat", onSubmit, onCancel }) => {
+/** Ürünün [start, end) aralığıyla çakışan açık kampanyaları (sunucudaki çakışma kuralıyla aynı) */
+const overlappingSales = (sales, productId, start, end, now) => sales.filter((sale) => {
+  const id = sale.product?._id || sale.product;
+  if (String(id) !== String(productId) || flashStatus(sale, now) === "ended") return false;
+  return new Date(sale.startDate).getTime() < end.getTime() && start.getTime() < new Date(sale.endDate).getTime();
+});
+
+/**
+ * `bulk`: birden çok ürün için ortak kampanya. Kampanya adı, ürün ürün eski → yeni fiyat önizlemesi ve
+ * aynı tarihlerde flaş indirimi olan ürünler için "atla / yenisiyle değiştir" seçimi eklenir.
+ * `sales`: tüm kampanyalar (çakışma önizlemesi için; asıl denetim sunucuda).
+ */
+export const FlashSaleForm = ({ products = [], busy, submitLabel = "Flash sale başlat", onSubmit, onCancel, bulk = false, sales = [] }) => {
+  const [name, setName] = useState("");
+  const [replaceExisting, setReplaceExisting] = useState(false);
   const [pct, setPct] = useState("20");
   const [startMode, setStartMode] = useState("now");
   const [start, setStart] = useState(() => toLocalInput(Date.now() + 60 * 60 * 1000));
@@ -29,12 +43,27 @@ export const FlashSaleForm = ({ products = [], busy, submitLabel = "Flash sale b
   const error = !pctValid ? "İndirim oranı 1-99 arasında olmalı"
     : !datesValid ? "Bitiş, başlangıçtan ve şimdiden sonra olmalı" : "";
 
-  const single = products.length === 1 ? products[0] : null;
+  const single = products.length === 1 && !bulk ? products[0] : null;
+
+  // Toplu önizleme: yeni fiyat (liste fiyatından, sunucuyla aynı yuvarlama) ve çakışan kampanya
+  const nowMs = Date.now();
+  const preview = useMemo(() => (bulk ? products.map((product) => {
+    const conflicts = datesValid ? overlappingSales(sales, product._id, startDate, endDate, nowMs) : [];
+    return {
+      product,
+      next: pctValid ? roundMoney(Number(product.price) * (1 - pctNum / 100)) : null,
+      conflict: conflicts[0] || null,
+    };
+  }) : []), [bulk, products, sales, datesValid, pctValid, pctNum, startDate.getTime(), endDate.getTime()]); // eslint-disable-line react-hooks/exhaustive-deps
+  const conflictCount = preview.filter((row) => row.conflict).length;
+  const willCreate = bulk ? (replaceExisting ? preview.length : preview.length - conflictCount) : products.length;
+  const bulkError = bulk && !error && willCreate === 0 ? "Seçili ürünlerin hepsinde bu tarihlerde flaş indirim var; değiştirmeyi seçin ya da tarihleri değiştirin." : "";
 
   const submit = (e) => {
     e.preventDefault();
-    if (error || busy) return;
+    if (error || bulkError || busy) return;
     onSubmit({
+      ...(bulk ? { name: name.trim(), replaceExisting } : {}),
       discountPercentage: roundMoney(pctNum),
       startNow: startMode === "now",
       startDate: startMode === "now" ? new Date().toISOString() : localInputToIso(start),
@@ -45,8 +74,16 @@ export const FlashSaleForm = ({ products = [], busy, submitLabel = "Flash sale b
 
   return (
     <form className="prd-flash-form" onSubmit={submit}>
+      {bulk && (
+        <div className="prd-form-row">
+          <label className="ui-label" htmlFor="prd-flash-name">Kampanya adı <span className="ui-hint">(isteğe bağlı)</span></label>
+          <input id="prd-flash-name" className="ui-field" maxLength={80} value={name} onChange={(e) => setName(e.target.value)}
+            placeholder="Örn. Pepsi haftası" />
+        </div>
+      )}
+
       <div className="prd-form-row">
-        <label className="ui-label" htmlFor="prd-flash-pct">İndirim oranı</label>
+        <label className="ui-label" htmlFor="prd-flash-pct">{bulk ? "İndirim oranı (hepsine aynı)" : "İndirim oranı"}</label>
         <div className="prd-pct">
           <div className="ui-field-prefix prd-pct-input">
             <input id="prd-flash-pct" className="ui-field" inputMode="decimal" value={pct}
@@ -93,7 +130,7 @@ export const FlashSaleForm = ({ products = [], busy, submitLabel = "Flash sale b
             <s>{money(single.price)}</s> → <strong>{money(single.price * (1 - pctNum / 100))}</strong>
           </span>
         ) : (
-          <span>{products.length > 1 ? `${products.length} ürüne ayrı ayrı uygulanır` : ""}</span>
+          <span>{bulk ? `${willCreate} ürüne aynı oran ve tarihle uygulanır` : products.length > 1 ? `${products.length} ürüne ayrı ayrı uygulanır` : ""}</span>
         )}
         {datesValid && (
           <span className="ui-muted">
@@ -102,11 +139,47 @@ export const FlashSaleForm = ({ products = [], busy, submitLabel = "Flash sale b
         )}
       </div>
 
-      {error && <p className="prd-form-error" role="alert">{error}</p>}
+      {bulk && (
+        <div className="prd-form-row">
+          <span className="ui-label">Ürünler <span className="ui-hint">· {products.length}</span></span>
+          {conflictCount > 0 && (
+            <div className="prd-bulk-conflict" role="status">
+              <AlertTriangle />
+              <span className="ui-grow">{conflictCount} üründe bu tarihlerde zaten flaş indirim var.</span>
+              <div className="ui-segmented">
+                <button type="button" aria-pressed={!replaceExisting} onClick={() => setReplaceExisting(false)}>Atla</button>
+                <button type="button" aria-pressed={replaceExisting} onClick={() => setReplaceExisting(true)}>Yenisiyle değiştir</button>
+              </div>
+            </div>
+          )}
+          <ul className="prd-bulk-preview">
+            {preview.map(({ product, next, conflict }) => (
+              <li key={product._id} data-skip={conflict && !replaceExisting ? "1" : undefined}>
+                <span className="prd-bulk-name">
+                  {product.name}
+                  {product.isHidden && <span className="ui-badge">Gizli</span>}
+                  {product.isOutOfStock && <span className="ui-badge ui-badge--danger">Stokta yok</span>}
+                  {conflict && (
+                    <span className="ui-badge ui-badge--warn" title={`${formatDateTime(conflict.startDate)} – ${formatDateTime(conflict.endDate)}`}>
+                      Mevcut %{conflict.discountPercentage} · {replaceExisting ? "iptal edilip yenisi uygulanır" : "atlanır"}
+                    </span>
+                  )}
+                </span>
+                <span className="prd-bulk-price ui-num">
+                  <s>{money(product.price)}</s>
+                  {next !== null && <> → <strong>{money(next)}</strong></>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {(error || bulkError) && <p className="prd-form-error" role="alert">{error || bulkError}</p>}
 
       <div className="prd-form-actions">
         {onCancel && <button type="button" className="ui-btn" onClick={onCancel}>Vazgeç</button>}
-        <button type="submit" className="ui-btn ui-btn--primary" disabled={Boolean(error) || busy}>
+        <button type="submit" className="ui-btn ui-btn--primary" disabled={Boolean(error) || Boolean(bulkError) || busy}>
           {busy ? <RefreshCw className="ui-spin" /> : <Zap />}
           {submitLabel}
         </button>

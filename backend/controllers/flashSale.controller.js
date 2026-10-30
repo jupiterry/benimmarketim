@@ -103,6 +103,26 @@ export const getActiveFlashSales = async (req, res) => {
   }
 };
 
+/**
+ * Gövdeden indirim oranı ve kampanya aralığını çıkarır (tekli ve toplu oluşturma ortak).
+ * "Hemen başlat": başlangıç ve bitiş sunucu saatine göre (yöneticinin bilgisayar saati
+ * ileri/geri ya da saat dilimi yanlışsa kampanya saatlerce "planlı" kalmasın).
+ * @returns {{ data?: { discountPercentage, startDate, endDate }, error?: string }}
+ */
+export const resolveSaleWindow = (body = {}, now = new Date()) => {
+  const { data, error } = validateFlashSaleInput(body);
+  if (error) return { error };
+  const durationHours = parseDurationHours(body.durationHours);
+  if (Number.isNaN(durationHours)) return { error: "Süre geçersiz" };
+  if (body.startNow === true || body.startNow === "true") data.startDate = now;
+  if (durationHours) data.endDate = new Date(data.startDate.getTime() + durationHours * 3600 * 1000);
+  if (data.startDate >= data.endDate) return { error: "Bitiş tarihi başlangıç tarihinden sonra olmalı" };
+  if (data.endDate <= now) return { error: "Bitiş tarihi geçmiş olamaz" };
+  // Geçmiş başlangıç "hemen başlat" anlamına gelir
+  if (data.startDate < now) data.startDate = now;
+  return { data };
+};
+
 // Yeni flash sale oluştur
 export const createFlashSale = async (req, res) => {
   try {
@@ -110,24 +130,9 @@ export const createFlashSale = async (req, res) => {
     if (!productId || !mongoose.isValidObjectId(productId)) {
       return res.status(400).json({ message: "Ürün seçin" });
     }
-    const { data, error } = validateFlashSaleInput(req.body);
-    if (error) return res.status(400).json({ message: error });
-
     const now = new Date();
-    // "Hemen başlat": başlangıç ve bitiş sunucu saatine göre (yöneticinin bilgisayar saati
-    // ileri/geri ya da saat dilimi yanlışsa kampanya saatlerce "planlı" kalmasın)
-    const durationHours = parseDurationHours(req.body.durationHours);
-    if (Number.isNaN(durationHours)) return res.status(400).json({ message: "Süre geçersiz" });
-    if (req.body.startNow === true || req.body.startNow === "true") data.startDate = now;
-    if (durationHours) data.endDate = new Date(data.startDate.getTime() + durationHours * 3600 * 1000);
-    if (data.startDate >= data.endDate) {
-      return res.status(400).json({ message: "Bitiş tarihi başlangıç tarihinden sonra olmalı" });
-    }
-    if (data.endDate <= now) {
-      return res.status(400).json({ message: "Bitiş tarihi geçmiş olamaz" });
-    }
-    // Geçmiş başlangıç "hemen başlat" anlamına gelir
-    if (data.startDate < now) data.startDate = now;
+    const { data, error } = resolveSaleWindow(req.body, now);
+    if (error) return res.status(400).json({ message: error });
 
     const product = await Product.findById(productId);
     if (!product) {
@@ -167,6 +172,135 @@ export const createFlashSale = async (req, res) => {
     res.status(201).json({ message: "Flash sale başarıyla oluşturuldu", flashSale: withStatus(flashSale, now), ...(warning ? { warning } : {}) });
   } catch (error) {
     console.error("Flash sale oluşturulurken hata:", error);
+    res.status(500).json({ message: "Sunucu hatası" });
+  }
+};
+
+/**
+ * Kampanyayı iptal eder / erkenden bitirir; uygulanmışsa ürün eski fiyatına döner.
+ * Yayındaki kampanyanın bitişi şimdiye çekilir, planlı kampanyanın tarihleri plan olarak kalır.
+ * @returns {Promise<string>} iptal anındaki durum (active | upcoming | ended)
+ */
+const cancelSaleRecord = async (flashSale, cancelledBy, now = new Date()) => {
+  const status = saleStatus(flashSale, now);
+  if (flashSale.applied) await releaseSale(flashSale);
+  flashSale.isActive = false;
+  if (status === "active" && flashSale.endDate > now) flashSale.endDate = now;
+  flashSale.cancelledAt = now;
+  flashSale.cancelledBy = cancelledBy;
+  await flashSale.save();
+  return status;
+};
+
+export const BULK_FLASH_MAX = 200;
+const CAMPAIGN_NAME_MAX = 80;
+const saleSummary = (sale) => ({
+  _id: String(sale._id),
+  discountPercentage: sale.discountPercentage,
+  startDate: sale.startDate,
+  endDate: sale.endDate,
+});
+
+/**
+ * POST /api/flash-sales/bulk (yönetici): seçili ürünlere ortak indirim ve tarihle tek seferde flaş indirim.
+ * Gövde: { productIds: string[] (1–200), discountPercentage, startNow?, startDate, endDate, durationHours?,
+ *          name? (kampanya adı), replaceExisting? (true: aynı tarihlerde kampanyası olan ürünlerde önce onu iptal et) }
+ * Ürün bazında sonuç döner; bir ürünün hatası diğerlerini durdurmaz.
+ * Yanıt: { created: [{ productId, name, flashSaleId }], skipped: [{ productId, name, reason, existingSale? }],
+ *          failed: [{ productId, name, reason }], replaced, warning? }
+ */
+export const createBulkFlashSales = async (req, res) => {
+  try {
+    const raw = Array.isArray(req.body?.productIds) ? req.body.productIds : [];
+    const productIds = [...new Set(raw.map((id) => String(id)))];
+    if (!productIds.length) return res.status(400).json({ message: "Ürün seçin" });
+    if (productIds.length > BULK_FLASH_MAX) return res.status(400).json({ message: `Tek seferde en fazla ${BULK_FLASH_MAX} ürün seçilebilir` });
+    if (productIds.some((id) => !mongoose.isValidObjectId(id))) return res.status(400).json({ message: "Geçersiz ürün kimliği" });
+
+    const now = new Date();
+    const { data, error } = resolveSaleWindow(req.body, now);
+    if (error) return res.status(400).json({ message: error });
+    const campaign = typeof req.body.name === "string" ? req.body.name.trim().slice(0, CAMPAIGN_NAME_MAX) : "";
+    const replaceExisting = req.body.replaceExisting === true || req.body.replaceExisting === "true";
+    const actor = String(req.user?.name || req.user?.email || "");
+
+    const products = await Product.find({ _id: { $in: productIds } });
+    const byId = new Map((products || []).map((product) => [String(product._id), product]));
+    const created = [];
+    const skipped = [];
+    const failed = [];
+    let replaced = 0;
+    let syncFailures = 0;
+
+    for (const productId of productIds) {
+      const product = byId.get(productId);
+      if (!product) {
+        skipped.push({ productId, name: "", reason: "Ürün bulunamadı" });
+        continue;
+      }
+      try {
+        let overlap = await findOverlap(productId, data.startDate, data.endDate);
+        if (overlap && !replaceExisting) {
+          skipped.push({ productId, name: product.name, reason: "Aynı tarihlerde başka flaş indirimi var", existingSale: saleSummary(overlap) });
+          continue;
+        }
+        // Değiştir: çakışan kampanyalar (birden çok olabilir) iptal edilir, ürün önce eski fiyatına döner
+        for (let guard = 0; overlap && guard < 10; guard += 1) {
+          await cancelSaleRecord(overlap, actor, now);
+          replaced += 1;
+          overlap = await findOverlap(productId, data.startDate, data.endDate);
+        }
+        if (overlap) throw new Error("Çakışan kampanyalar kapatılamadı");
+
+        const flashSale = new FlashSale({
+          product: productId,
+          discountPercentage: data.discountPercentage,
+          startDate: data.startDate,
+          endDate: data.endDate,
+          name: campaign ? `${campaign} · ${product.name}` : `${product.name} - Flash Sale`,
+        });
+        await flashSale.save();
+        try {
+          await syncSale(flashSale, now);
+        } catch (syncError) {
+          // Kayıt durur; zamanlayıcı bir dakika içinde yeniden dener
+          syncFailures += 1;
+          console.error("Flash sale ürüne uygulanamadı:", syncError.message);
+        }
+        created.push({ productId, name: product.name, flashSaleId: String(flashSale._id) });
+      } catch (itemError) {
+        console.error("Toplu flash sale ürün hatası:", productId, itemError.message);
+        failed.push({ productId, name: product.name, reason: "Kaydedilemedi" });
+      }
+    }
+
+    if (created.length || replaced) {
+      recordAdminAction(req, {
+        action: "Toplu flash sale oluşturuldu",
+        category: "campaign",
+        target: "bulk",
+        targetName: campaign || `${created.length} ürün`,
+        changes: [
+          { label: "İndirim", from: "—", to: `%${data.discountPercentage}` },
+          { label: "Tarih", from: "—", to: `${trDate(data.startDate)} – ${trDate(data.endDate)}` },
+          { label: "Ürün", from: "—", to: `${created.length} oluşturuldu${replaced ? `, ${replaced} eski kampanya iptal edildi` : ""}${skipped.length ? `, ${skipped.length} atlandı` : ""}` },
+        ],
+        meta: { flashSaleIds: created.map((item) => item.flashSaleId), productIds: created.map((item) => item.productId) },
+      });
+    }
+
+    res.status(created.length ? 201 : 200).json({
+      message: created.length ? `${created.length} ürün için flaş indirim oluşturuldu` : "Hiçbir ürün için flaş indirim oluşturulmadı",
+      created,
+      skipped,
+      failed,
+      replaced,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      ...(syncFailures ? { warning: `${syncFailures} ürüne indirim henüz uygulanamadı; bir dakika içinde yeniden denenecek.` } : {}),
+    });
+  } catch (error) {
+    console.error("Toplu flash sale oluşturulurken hata:", error);
     res.status(500).json({ message: "Sunucu hatası" });
   }
 };
@@ -236,13 +370,7 @@ export const endFlashSale = async (req, res) => {
     if (status === "ended" && !flashSale.applied) {
       return res.status(400).json({ message: "Bu kampanya zaten bitmiş" });
     }
-    if (flashSale.applied) await releaseSale(flashSale);
-    flashSale.isActive = false;
-    // Yayındaki kampanyanın gerçek bitişi şimdi; planlı kampanyanın tarihleri plan olarak kalır
-    if (status === "active" && flashSale.endDate > now) flashSale.endDate = now;
-    flashSale.cancelledAt = now;
-    flashSale.cancelledBy = String(req.user?.name || req.user?.email || "");
-    await flashSale.save();
+    await cancelSaleRecord(flashSale, String(req.user?.name || req.user?.email || ""), now);
     await flashSale.populate("product");
 
     const product = flashSale.product && typeof flashSale.product === "object" ? flashSale.product : null;
