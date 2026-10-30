@@ -12,7 +12,7 @@ import { adminRoute } from "../middleware/auth.middleware.js";
 
 const {
   getAllUsers, getUserStats, searchUsers, parseUserListQuery, buildSearchClause, buildUserListFilter, turkishPattern,
-  toListUser, USER_LIST_SEGMENTS, USER_APP_FILTERS,
+  toListUser, USER_LIST_SEGMENTS, USER_APP_FILTERS, phoneKey,
 } = userController;
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -307,7 +307,8 @@ test("stats: counts over the whole collection with the same filters as the list"
   await getUserStats({ query: { todayStart, appSince: todayStart, tz: "Europe/Istanbul" } }, res);
   assert.equal(res.code, 200);
   const { stats } = res.body;
-  assert.deepEqual(stats.segments, { all: 100, active: 30, risk: 20, new: 10, admin: 3, noOrders: 40 });
+  assert.deepEqual(stats.segments, { all: 100, active: 30, risk: 20, new: 10, admin: 3, noOrders: 40, dupPhone: 0 }, "dupPhone gruplardan sayılır");
+  assert.deepEqual(stats.duplicatePhones, { groups: 0, users: 0 });
   assert.equal(stats.total, 100);
   assert.equal(stats.customers, 97);
   assert.equal(stats.admins, 3);
@@ -316,7 +317,7 @@ test("stats: counts over the whole collection with the same filters as the list"
   assert.equal(stats.risk, 20);
   assert.equal(stats.today, 5);
   assert.deepEqual(stats.app, { now: 1, opened: 2, checkout: 3, ordered: 4, noOrder: 5, notOpened: 6 });
-  assert.equal(counts.length, USER_LIST_SEGMENTS.length + 1 + USER_APP_FILTERS.length);
+  assert.equal(counts.length, USER_LIST_SEGMENTS.length - 1 + 1 + USER_APP_FILTERS.length, "dupPhone countDocuments ile sayılmaz");
 
   // Filtreler listeyle aynı: tümü = {}, yönetici, sipariş yok ($nin), bugün (createdAt ≥ gün başı)
   assert.deepEqual(counts[0], {});
@@ -371,4 +372,61 @@ test("search endpoint: empty q returns nothing without querying; limit capped; e
 
   await searchUsers({ query: { q: "ali" } }, response());
   assert.equal(calls[1].limit, 8, "varsayılan 8 sonuç");
+});
+
+// ── Aynı telefon numarası ───────────────────────────────────────────
+test("phoneKey: biçimden bağımsız son 10 hane; kısa/bozuk numara karşılaştırılmaz", () => {
+  assert.equal(phoneKey("0555 111 22 33"), "5551112233");
+  assert.equal(phoneKey("+90 (555) 111-22-33"), "5551112233");
+  assert.equal(phoneKey("905551112233"), "5551112233");
+  assert.equal(phoneKey("5551112233"), "5551112233");
+  assert.equal(phoneKey("00905551112233"), "5551112233");
+  assert.equal(phoneKey("555 11"), null);
+  assert.equal(phoneKey(""), null);
+  assert.equal(phoneKey(null), null);
+});
+
+test("list dupPhone: aynı numaralı hesaplar grup sırasıyla, grup bilgisiyle; tek kalan numara listelenmez", async (t) => {
+  const users = [
+    { _id: oid(1), phone: "0555 111 22 33", createdAt: new Date("2026-01-01") },
+    { _id: oid(2), phone: "+905551112233", createdAt: new Date("2025-06-01") },
+    { _id: oid(3), phone: "05321234567", createdAt: new Date("2026-02-01") },
+    { _id: oid(4), phone: "5321234567", createdAt: new Date("2026-03-01") },
+    { _id: oid(5), phone: "532 123 45 67", createdAt: new Date("2026-04-01") },
+    { _id: oid(6), phone: "05000000000", createdAt: new Date("2026-05-01") },
+    { _id: oid(7), phone: "123", createdAt: new Date("2026-05-01") },
+  ];
+  const findCalls = [];
+  t.mock.method(User, "find", findChain((filter) => {
+    if (filter?.phone) return users;
+    // Süzgece uyanlar: segment koşulundaki kimlikler (arama yok)
+    const ids = filter.$and[0]._id.$in.map(String);
+    return ids.map((_id) => ({ _id }));
+  }, findCalls));
+  t.mock.method(User, "aggregate", async (pipeline) => pipeline[0].$match._id.$in.map((id) => rawUser(Number(String(id).slice(-4)), { _id: String(id) })).reverse());
+  t.mock.method(Order, "aggregate", async () => []);
+  const res = response();
+  await getAllUsers({ query: { segment: "dupPhone", sort: "spent", limit: "4" } }, res);
+  assert.equal(res.code, 200);
+  // 3 kişilik grup önce (en eski hesap başta), sonra 2 kişilik grup
+  assert.deepEqual(res.body.users.map((u) => u._id), [oid(3), oid(4), oid(5), oid(2)]);
+  assert.equal(res.body.total, 5);
+  assert.equal(res.body.pages, 2);
+  assert.deepEqual(res.body.users[0].phoneGroup, { key: "5321234567", label: "0532 123 45 67", size: 3, index: 0 });
+  assert.equal(res.body.users[3].phoneGroup.label, "0555 111 22 33");
+  assertNoSecrets(res.body.users[0]);
+
+  const second = response();
+  await getAllUsers({ query: { segment: "dupPhone", limit: "4", page: "2" } }, second);
+  assert.deepEqual(second.body.users.map((u) => u._id), [oid(1)]);
+  assert.equal(second.body.users[0].phoneGroup.index, 1, "sayfa bölünse de grup içi sıra korunur");
+});
+
+test("list dupPhone: kimse numara paylaşmıyorsa boş liste", async (t) => {
+  t.mock.method(User, "find", findChain([{ _id: oid(1), phone: "05551112233" }]));
+  const res = response();
+  await getAllUsers({ query: { segment: "dupPhone" } }, res);
+  assert.equal(res.code, 200);
+  assert.deepEqual(res.body.users, []);
+  assert.equal(res.body.total, 0);
 });

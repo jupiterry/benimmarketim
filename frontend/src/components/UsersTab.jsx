@@ -2,9 +2,9 @@
 // Uç noktalar: GET /users (sayfa, arama, sıralama, segment; hafif alanlar + sipariş özeti), GET /users/stats (KPI,
 // süzgeç sayıları, uygulama hunisi, kayıt grafiği), en iyi müşteriler için GET /users?sort=spent&limit=6. Panel açılışında liste ön yüklenmez;
 // ekran açılınca yalnızca görünen sayfa istenir.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Keyboard, RefreshCw, Search, ShoppingBag, Trash2, UserPlus, Users, X, Zap,
+  AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Keyboard, Phone, RefreshCw, Search, ShoppingBag, Trash2, UserPlus, Users, X, Zap,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import axios from "../lib/axios";
@@ -220,6 +220,8 @@ const UsersTab = ({ onOpenChat }) => {
   const rangeFrom = total ? (page - 1) * limit + 1 : 0;
   const rangeTo = Math.min(total, (page - 1) * limit + shown.length);
   const hasFilter = Boolean(search || segment !== "all" || onlyToday || appFilter);
+  const byPhone = segment === "dupPhone"; // liste numara gruplarına göre sıralı gelir, sıralama seçimi kullanılmaz
+  const duplicatePhones = stats?.duplicatePhones || null;
   const clearFilters = useCallback(() => { setQuery(""); setSegment("all"); setOnlyToday(false); setAppFilter(null); }, []);
 
   const kpis = {
@@ -500,14 +502,29 @@ const UsersTab = ({ onOpenChat }) => {
               <div className="ui-chips cus-chips" role="group" aria-label="Süzgeç">
                 {SEGMENTS.map((s) => (
                   <button key={s.id} type="button" aria-pressed={segment === s.id} onClick={() => setSegment(s.id)} title={s.hint}>
-                    {s.label}<span className="ui-count">{stats?.segments ? num(stats.segments[s.id]) : "…"}</span>
+                    {s.label}<span className="ui-count">{stats?.segments ? (stats.segments[s.id] === null || stats.segments[s.id] === undefined ? "—" : num(stats.segments[s.id])) : "…"}</span>
                   </button>
                 ))}
               </div>
-              <select className="ui-field ui-field--auto cus-sort" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sıralama">
+              <select className="ui-field ui-field--auto cus-sort" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sıralama"
+                disabled={byPhone} title={byPhone ? "Aynı numara süzgecinde liste numaraya göre gruplanır" : undefined}>
                 {SORTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
               </select>
             </div>
+
+            {byPhone && (
+              <div className="ui-banner ui-banner--info cus-banner cus-dup-note" role="status">
+                <Phone />
+                <span className="ui-grow">
+                  {duplicatePhones
+                    ? duplicatePhones.groups
+                      ? <><strong className="ui-num">{num(duplicatePhones.groups)}</strong> numara <strong className="ui-num">{num(duplicatePhones.users)}</strong> hesapta kayıtlı. </>
+                      : "Aynı numarayı paylaşan hesap yok. "
+                    : null}
+                  Numaralar biçimden bağımsız karşılaştırılır (0555…, +90 555…). Aynı kişinin birden çok hesabı da olabilir, aynı numarayı kullanan farklı kişiler de.
+                </span>
+              </div>
+            )}
 
             {(onlyToday || appFilter || search) && (
               <div className="cus-active">
@@ -543,9 +560,20 @@ const UsersTab = ({ onOpenChat }) => {
               <SkeletonRows rows={Math.min(limit, 8)} />
             ) : (
               <div className="cus-rows" ref={listRef} role="rowgroup">
-                {shown.map((user, index) => (
+                {shown.map((user, index) => {
+                  const group = byPhone ? user.phoneGroup : null;
+                  const startsGroup = group && (index === 0 || shown[index - 1]?.phoneGroup?.key !== group.key);
+                  return (
+                  <Fragment key={user._id}>
+                  {startsGroup && (
+                    <div className="cus-group" role="presentation">
+                      <Phone />
+                      <span className="ui-num cus-group-phone">{group.label}</span>
+                      <span className="ui-badge ui-num">{num(group.size)} hesap</span>
+                      {index === 0 && group.index > 0 && <span className="ui-hint">önceki sayfadan devam</span>}
+                    </div>
+                  )}
                   <CustomerRow
-                    key={user._id}
                     user={user}
                     now={now}
                     appSince={appSince}
@@ -557,7 +585,9 @@ const UsersTab = ({ onOpenChat }) => {
                     onResetPw={(u) => openUser(u, "account", true)}
                     onDelete={deleteUser}
                   />
-                ))}
+                  </Fragment>
+                  );
+                })}
               </div>
             )}
 

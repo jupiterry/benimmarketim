@@ -370,6 +370,30 @@
   display: flex;
   flex-direction: column;
 }
+/* Aynı numara süzgeci: numara grubu başlığı */
+.admin-layout .cus-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-s2);
+  padding: 8px var(--ui-s4);
+  border-bottom: 1px solid var(--ui-line);
+  background: var(--ui-surface-2);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .cus-group > svg {
+  width: 15px;
+  height: 15px;
+  color: var(--ui-text-3);
+}
+.admin-layout .cus-group-phone {
+  color: var(--ui-text);
+  font-weight: 650;
+}
+.admin-layout .cus-dup-note {
+  margin: var(--ui-s3) var(--ui-s4) 0;
+}
 .admin-layout .cus-row {
   min-height: 62px;
   padding-top: 8px;

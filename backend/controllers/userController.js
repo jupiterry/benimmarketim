@@ -26,7 +26,9 @@ const MAX_IDS = 100;
 const COUNTED_ORDER_STATUSES = ["Hazırlanıyor", "Yolda", "Teslim Edildi"];
 
 export const USER_LIST_SORTS = ["seen", "newest", "oldest", "name", "spent", "orders"];
-export const USER_LIST_SEGMENTS = ["all", "active", "risk", "new", "admin", "noOrders"];
+export const USER_LIST_SEGMENTS = ["all", "active", "risk", "new", "admin", "noOrders", "dupPhone"];
+// Özette countDocuments ile sayılan süzgeçler; dupPhone sayısı telefon gruplarından gelir
+const COUNTED_SEGMENTS = USER_LIST_SEGMENTS.filter((segment) => segment !== "dupPhone");
 export const USER_APP_FILTERS = ["now", "opened", "checkout", "ordered", "noOrder", "notOpened"];
 
 // Listede dönen alanlar (yalnızca dahil etme); cartItems yerine adet toplamı hesaplanır
@@ -150,6 +152,50 @@ export const buildSearchClause = (q) => {
   return nameClause || phoneClause;
 };
 
+// ── Aynı telefon numarası ──────────────────────────────────────────
+/**
+ * Telefonu karşılaştırma anahtarına çevirir: yalnızca rakamlar, baştaki ülke kodu (90) ve sıfırlar atılır,
+ * son 10 hane alınır. "0555 111 22 33", "+90 555 111 2233" ve "5551112233" aynı anahtarı verir.
+ * 10 haneden kısa (eksik/bozuk) numaralar karşılaştırılmaz: null.
+ */
+export const phoneKey = (phone) => {
+  let digits = String(phone ?? "").replace(/\D/g, "");
+  if (digits.startsWith("90") && digits.length >= 12) digits = digits.slice(2);
+  digits = digits.replace(/^0+/, "");
+  return digits.length >= 10 ? digits.slice(-10) : null;
+};
+/** "5551112233" → "0555 111 22 33" */
+export const formatPhoneKey = (key) => (key && key.length === 10 ? `0${key.slice(0, 3)} ${key.slice(3, 6)} ${key.slice(6, 8)} ${key.slice(8)}` : key || "");
+
+/**
+ * Aynı numarayı paylaşan hesap grupları (2+ hesap). Tüm koleksiyon üzerinden, sunucuda hesaplanır.
+ * Gruplar en kalabalıktan aza, eşitlikte en yeni üyesi olan önce; grup içinde en eski hesap önce.
+ * @returns {{ groups: Array<{ key, label, ids: string[] }>, byId: Map<string, { key, label, size, index }> }}
+ */
+export const duplicatePhoneGroups = async () => {
+  const rows = await User.find({ phone: { $nin: [null, ""] } }).select("_id phone createdAt").lean();
+  const byKey = new Map();
+  for (const row of rows || []) {
+    const key = phoneKey(row.phone);
+    if (!key) continue;
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push({ id: String(row._id), at: (row.createdAt ? new Date(row.createdAt) : idTime(row._id))?.getTime() || 0 });
+  }
+  const groups = [...byKey]
+    .filter(([, members]) => members.length > 1)
+    .map(([key, members]) => {
+      members.sort((a, b) => (a.at - b.at) || (a.id < b.id ? -1 : 1));
+      return { key, label: formatPhoneKey(key), ids: members.map((member) => member.id), newest: Math.max(...members.map((member) => member.at)) };
+    })
+    .sort((a, b) => (b.ids.length - a.ids.length) || (b.newest - a.newest) || (a.key < b.key ? -1 : 1))
+    .map(({ key, label, ids }) => ({ key, label, ids }));
+  const byId = new Map();
+  for (const group of groups) {
+    group.ids.forEach((id, index) => byId.set(id, { key: group.key, label: group.label, size: group.ids.length, index }));
+  }
+  return { groups, byId };
+};
+
 // ── Liste sorgusu ──────────────────────────────────────────────────
 /** req.query → güvenli seçenekler (geçersiz değerler varsayılana döner) */
 export const parseUserListQuery = (query = {}, now = Date.now()) => {
@@ -177,7 +223,7 @@ const seenSince = (since) => [
 ];
 
 /** Segment koşulları (Müşteriler ekranındaki süzgeçler); noOrders için siparişi olan kullanıcı kimlikleri gerekir */
-export const segmentClauses = (segment, { now = Date.now(), orderedIds = [] } = {}) => {
+export const segmentClauses = (segment, { now = Date.now(), orderedIds = [], duplicatePhoneIds = [] } = {}) => {
   const activeSince = new Date(now - ACTIVE_DAYS * DAY);
   const newSince = new Date(now - NEW_DAYS * DAY);
   switch (segment) {
@@ -192,6 +238,9 @@ export const segmentClauses = (segment, { now = Date.now(), orderedIds = [] } = 
       return [{ role: "admin" }];
     case "noOrders":
       return [CUSTOMER, { _id: { $nin: orderedIds } }];
+    case "dupPhone":
+      // Yöneticiler de dahil: aynı numarayı paylaşan herkes
+      return [{ _id: { $in: duplicatePhoneIds } }];
     default:
       return [];
   }
@@ -222,7 +271,7 @@ export const appClauses = (app, { since, now = Date.now() } = {}) => {
 /** Liste seçenekleri → MongoDB filtresi (aggregate'te de çalışır: kimlikler ObjectId'dir) */
 export const buildUserListFilter = (options = {}, context = {}) => {
   const now = context.now ?? Date.now();
-  const clauses = [...segmentClauses(options.segment, { now, orderedIds: context.orderedIds || [] })];
+  const clauses = [...segmentClauses(options.segment, { now, orderedIds: context.orderedIds || [], duplicatePhoneIds: context.duplicatePhoneIds || [] })];
   if (options.app) clauses.push(...appClauses(options.app, { since: options.appSince, now }));
   if (options.registeredSince) clauses.push({ createdAt: { $gte: options.registeredSince } });
   if (options.ids?.length) clauses.push({ _id: { $in: options.ids } });
@@ -316,18 +365,33 @@ export const getAllUsers = async (req, res) => {
   try {
     const now = Date.now();
     const options = parseUserListQuery(req.query, now);
-    const byOrders = options.sort === "spent" || options.sort === "orders";
+    // Aynı numara süzgecinde liste numara gruplarına göre sıralanır (seçilen sıralama yok sayılır)
+    const phoneGroups = options.segment === "dupPhone" ? await duplicatePhoneGroups() : null;
+    const byOrders = !phoneGroups && (options.sort === "spent" || options.sort === "orders");
     const statsMap = byOrders ? await orderStatsByUser() : null;
     const orderedIds = options.segment === "noOrders"
       ? (statsMap ? [...statsMap.keys()].map(toObjectId) : await orderedUserIds())
       : [];
-    const filter = buildUserListFilter(options, { now, orderedIds });
+    const duplicatePhoneIds = phoneGroups ? [...phoneGroups.byId.keys()].map(toObjectId) : [];
+    const filter = buildUserListFilter(options, { now, orderedIds, duplicatePhoneIds });
     const { limit } = options;
 
     let total;
     let page;
     let rows;
-    if (byOrders) {
+    if (phoneGroups) {
+      // Süzgece uyanlar grup sırasıyla (grup içinde en eski hesap önce); yalnızca sayfadakiler okunur
+      const matched = new Set(duplicatePhoneIds.length ? (await User.find(filter).select("_id").lean()).map((doc) => String(doc._id)) : []);
+      const ranked = phoneGroups.groups.flatMap((group) => group.ids).filter((id) => matched.has(id));
+      total = ranked.length;
+      page = Math.min(options.page, Math.max(1, Math.ceil(total / limit)));
+      const pageIds = ranked.slice((page - 1) * limit, page * limit);
+      const docs = pageIds.length
+        ? await User.aggregate([{ $match: { _id: { $in: pageIds.map(toObjectId) } } }, { $project: LIST_PROJECTION }])
+        : [];
+      const byId = new Map((docs || []).map((doc) => [String(doc._id), doc]));
+      rows = pageIds.map((id) => byId.get(String(id))).filter(Boolean);
+    } else if (byOrders) {
       // Harcama / sipariş sayısına göre: eşleşen kimlikler sipariş özetiyle sıralanır, yalnızca sayfadakiler okunur
       const idDocs = await User.find(filter).select("_id").lean();
       total = idDocs.length;
@@ -365,7 +429,11 @@ export const getAllUsers = async (req, res) => {
     const stats = statsMap || await orderStatsByUser((rows || []).map((row) => row._id));
     res.status(200).json({
       success: true,
-      users: (rows || []).map((row) => toListUser(row, stats.get(String(row._id)))),
+      users: (rows || []).map((row) => {
+        const user = toListUser(row, stats.get(String(row._id)));
+        const group = phoneGroups?.byId.get(String(row._id));
+        return group ? { ...user, phoneGroup: group } : user;
+      }),
       total,
       page,
       pages: Math.max(1, Math.ceil(total / limit)),
@@ -393,8 +461,8 @@ export const getUserStats = async (req, res) => {
     const orderedIds = await orderedUserIds();
     const count = (options) => User.countDocuments(buildUserListFilter(options, { now, orderedIds }));
 
-    const [segmentCounts, today, appCounts, registrations, latest] = await Promise.all([
-      Promise.all(USER_LIST_SEGMENTS.map((segment) => count({ segment }))),
+    const [segmentCounts, today, appCounts, registrations, latest, phoneGroups] = await Promise.all([
+      Promise.all(COUNTED_SEGMENTS.map((segment) => count({ segment }))),
       count({ segment: "all", registeredSince: todayStart }),
       Promise.all(USER_APP_FILTERS.map((app) => count({ segment: "all", app, appSince }))),
       User.aggregate([
@@ -403,9 +471,12 @@ export const getUserStats = async (req, res) => {
         { $sort: { _id: 1 } },
       ]),
       User.find(CUSTOMER).sort({ _id: -1 }).limit(5).select(`${SEARCH_SELECT} createdAt`).lean(),
+      // Özet yardımcı bilgidir: numara grupları hesaplanamazsa yalnızca bu sayı boş kalır
+      duplicatePhoneGroups().catch((error) => { console.error("Aynı numara grupları hesaplanamadı:", error.message); return null; }),
     ]);
 
-    const segments = Object.fromEntries(USER_LIST_SEGMENTS.map((segment, index) => [segment, Number(segmentCounts[index]) || 0]));
+    const segments = Object.fromEntries(COUNTED_SEGMENTS.map((segment, index) => [segment, Number(segmentCounts[index]) || 0]));
+    segments.dupPhone = phoneGroups ? phoneGroups.byId.size : null;
     const app = Object.fromEntries(USER_APP_FILTERS.map((id, index) => [id, Number(appCounts[index]) || 0]));
     res.status(200).json({
       success: true,
@@ -417,6 +488,7 @@ export const getUserStats = async (req, res) => {
         risk: segments.risk,
         new: segments.new,
         noOrders: segments.noOrders,
+        duplicatePhones: phoneGroups ? { groups: phoneGroups.groups.length, users: phoneGroups.byId.size } : null,
         today,
         segments,
         app,
