@@ -485,6 +485,9 @@ const enrichOne = (raw, user) => {
     createdMs: Number.isFinite(createdMs) ? createdMs : 0,
     itemCount: products.length,
     unitCount: products.reduce((sum, p) => sum + p.quantity, 0),
+    // Kampanyalı ürünler: flaş indirimli satır sayısı ve liste fiyatına göre toplam ürün indirimi (fiyata dahil)
+    flashLineCount: products.filter((p) => p.priceSource === "flash").length,
+    productDiscountTotal: round2(products.reduce((sum, p) => sum + (Number(p.unitDiscount) > 0 ? Number(p.unitDiscount) * p.quantity : 0), 0)),
     hasNote: Boolean(String(raw.note || "").trim()),
     userDeleted: Boolean(raw.userDeleted || user.deleted),
   };

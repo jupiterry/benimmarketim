@@ -6,7 +6,7 @@ import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, 
 import { createPortal } from "react-dom";
 import {
   AlertCircle, AlertTriangle, Bike, Check, ChevronDown, History, Home, ListChecks, Loader2, MapPin, MoreHorizontal, PackageCheck,
-  PackageX, PhoneCall, Printer, RefreshCw, RotateCcw, Sparkles, StickyNote, Timer, UserX, Wallet,
+  PackageX, PhoneCall, Printer, RefreshCw, RotateCcw, Sparkles, StickyNote, Timer, UserX, Wallet, Zap,
 } from "lucide-react";
 import {
   EmptyState, Skeleton, SkeletonCards, SkeletonRows, formatDate, formatDateTime, formatTime, initials, money,
@@ -179,6 +179,19 @@ export const AddressLine = ({ order, className = "" }) => {
   );
 };
 /** Müşteri notu var işareti (tam metin title'da); not yoksa null */
+/** Siparişte flaş indirimle alınmış ürün varsa "Flaş · n" çipi; yoksa null */
+export const FlashChip = ({ order, className = "" }) => {
+  const count = Number(order?.flashLineCount) || 0;
+  if (!count) return null;
+  const saved = Number(order.productDiscountTotal) || 0;
+  return (
+    <span className={`so-chip so-flash-chip ${className}`} data-tone="warn"
+      title={`${count} ürün flaş indirimle alındı${saved > 0 ? ` · toplam ürün indirimi ${money(saved)}` : ""}`}>
+      <Zap aria-hidden="true" />Flaş{count > 1 ? ` · ${count}` : ""}
+    </span>
+  );
+};
+
 export const NoteChip = ({ order, className = "" }) => {
   if (!order?.hasNote && !String(order?.note || "").trim()) return null;
   return (

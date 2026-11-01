@@ -29,6 +29,12 @@ const orderSchema = new mongoose.Schema(
           type: Boolean,
           default: false,
         },
+        // Sipariş anındaki fiyat bilgisi (panelde "liste fiyatı → ödenen" gösterimi için).
+        // priceSource: list (indirimsiz) | discount (ürün indirimi) | flash (flaş indirim) | weekly (haftalık fırsat)
+        originalPrice: { type: Number, min: 0, default: undefined },
+        priceSource: { type: String, enum: ["list", "discount", "flash", "weekly"], default: undefined },
+        flashSaleId: { type: mongoose.Schema.Types.ObjectId, ref: "FlashSale", default: undefined },
+        flashDiscountPercentage: { type: Number, min: 0, max: 100, default: undefined },
         // Ürünün sepete eklendiği yer (ölçüm için, isteğe bağlı): home_deals, home_foryou, flash...
         source: {
           type: String,

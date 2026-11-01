@@ -11,7 +11,7 @@ import WeeklyProduct from "../models/weeklyProduct.model.js";
 import Coupon from "../models/coupon.model.js";
 import Order from "../models/order.model.js";
 import { notifyAdmins } from "./adminFeed.service.js";
-import { activeWeeklyFilter, isWeeklyDealLive, resolveUnitPrice, roundMoney, toKurus } from "./productPricing.js";
+import { activeWeeklyFilter, isWeeklyDealLive, liveFlashInfo, resolveUnitPrice, roundMoney, toKurus } from "./productPricing.js";
 import { paymentMethodLabel } from "../lib/paymentMethods.js";
 import { signalOrderAlarm } from "./orderAlarm.service.js";
 import { notifyOrderStatusChange } from "./orderStatusNotifier.js";
@@ -93,6 +93,8 @@ export async function buildOrderProducts(cartProducts, { checkAvailability = tru
     const weeklyPrice = weeklyPriceMap.get(product._id.toString());
     // Birim fiyat kuruşa yuvarlanmış gelir; satır toplamı da kuruş üzerinden
     const { price: effectivePrice, source: priceSource } = resolveUnitPrice(product, weeklyPrice);
+    // Ürün indirimi şu an süren flaş indirimden geliyorsa siparişte flaş olarak işaretlenir
+    const flash = priceSource === "discount" ? liveFlashInfo(product, now) : null;
 
     totalKurus += toKurus(effectivePrice * quantity);
 
@@ -101,7 +103,9 @@ export async function buildOrderProducts(cartProducts, { checkAvailability = tru
       name: product.name,
       quantity,
       price: effectivePrice,
-      originalPrice: product.price,
+      originalPrice: roundMoney(Number(product.price) || 0),
+      priceSource: flash ? "flash" : priceSource,
+      ...(flash ? { flashDiscountPercentage: flash.discountPercentage, ...(flash._id ? { flashSaleId: flash._id } : {}) } : {}),
       isWeeklyDiscount: priceSource === "weekly",
       isProductDiscount: priceSource === "discount",
       category: product.category,
@@ -137,7 +141,17 @@ export async function resolveEffectiveUnitPrice(productId) {
     }
     throw error;
   }
-  return { product: { _id: line.product, name: line.name, category: line.category }, price: line.price };
+  return {
+    product: { _id: line.product, name: line.name, category: line.category },
+    price: line.price,
+    // Satıra yazılacak fiyat bilgisi (liste fiyatı ve indirim kaynağı)
+    pricing: {
+      originalPrice: line.originalPrice,
+      priceSource: line.priceSource,
+      ...(line.flashSaleId ? { flashSaleId: line.flashSaleId } : {}),
+      ...(line.flashDiscountPercentage !== undefined ? { flashDiscountPercentage: line.flashDiscountPercentage } : {}),
+    },
+  };
 }
 
 // ─────────────────────────────────────────────

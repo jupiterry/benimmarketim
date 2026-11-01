@@ -569,6 +569,24 @@
   font-size: var(--ui-fs-xs);
   white-space: nowrap;
 }
+.admin-layout .so-d-line-was {
+  margin-right: 6px;
+  color: var(--ui-text-3);
+}
+.admin-layout .so-d-price-tag {
+  gap: 3px;
+  min-height: 20px;
+  padding: 0 6px;
+  font-weight: 600;
+}
+.admin-layout .so-d-price-tag > svg {
+  width: 12px;
+  height: 12px;
+}
+.admin-layout .so-d-product-discount {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
 .admin-layout .so-d-line-ctrl {
   display: flex;
   flex-shrink: 0;

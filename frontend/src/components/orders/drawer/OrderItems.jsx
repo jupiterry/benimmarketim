@@ -4,12 +4,36 @@
 // - Çıkarma: geri alınabilir ("{ad} çıkarıldı · Geri al", veri kancası); tek kalan satır çıkarılamaz.
 // - Kilit: Teslim edildi / İptal edildi siparişte salt okunur; "Düzenle" onaydan sonra oturum boyunca açar.
 import { useId } from "react";
-import { ListChecks, Lock, Minus, Package2, Pencil, Plus, Tag, Trash2 } from "lucide-react";
+import { CalendarDays, ListChecks, Lock, Minus, Package2, Pencil, Percent, Plus, Tag, Trash2, Zap } from "lucide-react";
 import { money } from "../../admin/ui";
 import { deliveryFeeLabel, hasDeliveryFeeLine, orderDeliveryFee, orderProductTotal } from "../shared";
 import { cloudinaryImage } from "../../../lib/image";
 
 const QTY_MAX = 999;
+
+/** Satırın fiyat etiketi: flaş indirim / haftalık fırsat / ürün indirimi (yalnızca liste fiyatından düşükse) */
+function PriceTag({ product }) {
+  const original = Number(product.originalPrice);
+  const price = Number(product.price) || 0;
+  const discounted = Number.isFinite(original) && original - price >= 0.005;
+  const guess = product.pricingInferred ? " (kampanya kaydından eşleştirildi)" : "";
+  if (product.priceSource === "flash") {
+    const pct = Number(product.flashDiscountPercentage);
+    return (
+      <span className="ui-badge ui-badge--warn so-d-price-tag" title={`Flaş indirimle alındı${discounted ? `: liste fiyatı ${money(original)}` : ""}${guess}`}>
+        <Zap aria-hidden="true" />Flaş{pct > 0 ? ` %${pct}` : ""}
+      </span>
+    );
+  }
+  if (!discounted) return null;
+  if (product.priceSource === "weekly") {
+    return <span className="ui-badge ui-badge--info so-d-price-tag" title={`Haftalık fırsat fiyatıyla alındı: liste fiyatı ${money(original)}`}><CalendarDays aria-hidden="true" />Haftalık fırsat</span>;
+  }
+  if (product.priceSource === "discount") {
+    return <span className="ui-badge ui-badge--ok so-d-price-tag" title={`İndirimli fiyatla alındı: liste fiyatı ${money(original)}`}><Percent aria-hidden="true" />İndirimli</span>;
+  }
+  return null;
+}
 const LAST_LINE_TITLE = "Siparişte en az bir ürün kalmalı; siparişi iptal edin ya da silin";
 
 function ItemLine({ product, editable, disabled, pickable, picked, single, onTogglePicked, onQuantity, onRemove }) {
@@ -34,10 +58,14 @@ function ItemLine({ product, editable, disabled, pickable, picked, single, onTog
       <Name className="so-d-line-name" {...nameProps}>
         <span className="so-d-line-title">{product.name || "Ürün"}</span>
         {product.isManual && <span className="ui-badge so-d-manual" title="Panelden elle eklenen tutar">Elle eklendi</span>}
+        <PriceTag product={product} />
       </Name>
       <strong className="so-d-line-total ui-num">{money(price * qty)}</strong>
       <span className="so-d-line-meta">
-        <span className="so-d-line-unit ui-num">{money(price)} × {qty}</span>
+        <span className="so-d-line-unit ui-num">
+          {Number(product.unitDiscount) > 0 && <s className="so-d-line-was" title="Liste fiyatı">{money(product.originalPrice)}</s>}
+          {money(price)} × {qty}
+        </span>
         {editable && (
           <span className="so-d-line-ctrl">
             <span className="ui-stepper so-d-stepper" role="group" aria-label={`${product.name || "Ürün"} adedi`}>
@@ -77,6 +105,8 @@ export default function OrderItems({
   // Adresli/ücretli siparişte ürün tutarı ve teslimat ücreti ayrı satırda (eski yurt siparişi bugünkü gibi)
   const feeLine = hasDeliveryFeeLine(order);
   const fee = orderDeliveryFee(order);
+  // Liste fiyatına göre kampanyalı ürün indirimi (ödenen fiyata zaten dahil; toplamdan ayrıca düşülmez)
+  const productDiscount = Number(order.productDiscountTotal) || 0;
 
   return (
     <section className="so-d-section so-d-items" aria-labelledby={headId}>
@@ -157,6 +187,12 @@ export default function OrderItems({
               <dd className="ui-num">{deliveryFeeLabel(order)}</dd>
             </div>
           </>
+        )}
+        {productDiscount > 0 && (
+          <div className="so-d-product-discount">
+            <dt title="Flaş indirim, haftalık fırsat ve ürün indirimleri; fiyatlara dahildir">Kampanyalı ürün indirimi</dt>
+            <dd className="ui-num">{money(productDiscount)}</dd>
+          </div>
         )}
         <div className="so-d-grand">
           <dt>{feeLine ? "Genel toplam" : "Toplam"}</dt>
