@@ -7,7 +7,7 @@ import { memo } from "react";
 import { Archive } from "lucide-react";
 import { formatTime, money } from "../admin/ui";
 import {
-  CallbackBadge, CourierChip, CustomerFace, NextStepButton, NoteChip, OrderCode, OutcomeChip, PaymentChip, PickProgress, PointChip,
+  CallbackBadge, CourierChip, CustomerFace, FlashChip, NextStepButton, NoteChip, OrderCode, OutcomeChip, PaymentChip, PickProgress, PointChip,
   PrintedMark, SelectCheck, SlaChip, StatusBadge, TrustBadges, UnseenBadge,
 } from "./atoms";
 import { customerName, getSla, nextAction, orderAriaLabel, orderCode, shortWhen, statusUi } from "./shared";
@@ -87,6 +87,7 @@ function OrderRow({
             <OrderCode order={order} />
             <span className="so-l-count">{itemCount} ürün</span>
             <NoteChip order={order} />
+            <FlashChip order={order} />
             <PrintedMark at={printedAt} />
             <PickProgress info={picked} />
             <Delivery order={order} className="so-l-meta-dlv" />

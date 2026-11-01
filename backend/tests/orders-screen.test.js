@@ -1,7 +1,7 @@
 // Siparişler ekranı (yönetici) backend'i: liste eklentileri (ids, q, customerStats, silinmiş hesap,
 // lineId), durum hattı (expectedStatus, toplu işlem eşitliği), ürün düzenlemeleri, teslimat notu,
 // silme ve adminRoom "orderUpdated" olayı. Veritabanı yok: modeller t.mock.method ile taklit edilir.
-import test from "node:test";
+import test, { mock } from "node:test";
 import assert from "node:assert/strict";
 import mongoose from "mongoose";
 import Order from "../models/order.model.js";
@@ -11,6 +11,7 @@ import WeeklyProduct from "../models/weeklyProduct.model.js";
 import Coupon from "../models/coupon.model.js";
 import Mission from "../models/mission.model.js";
 import AdminAudit from "../models/adminAudit.model.js";
+import FlashSale from "../models/flashSale.model.js";
 import {
   getOrderAnalyticsData,
   groupOrdersByUser,
@@ -30,9 +31,10 @@ import {
   emitOrderUpdated,
   releaseCouponForOrder,
   grantReferralRewardIfDelivered,
+  inferFlashLines,
 } from "../controllers/ordersAnalytics.controller.js";
 import router, { parseOrderListExtras, parseOrderListQuery, getOrdersList } from "../routes/ordersAnalytics.route.js";
-import { resolveEffectiveUnitPrice } from "../services/order.service.js";
+import { buildOrderProducts, resolveEffectiveUnitPrice } from "../services/order.service.js";
 import { waitForPendingChange, waiterCount } from "../services/orderAlarm.service.js";
 
 const hex = (prefix, n) => `${prefix}${String(n).padStart(24 - prefix.length, "0")}`;
@@ -166,6 +168,10 @@ const alarmProbe = async () => {
 };
 
 // ── Sorgu ayrıştırma ─────────────────────────────────────────────────────────
+
+// Sipariş listesi eski satırlar için flaş indirim kayıtlarına bakar; testlerde kayıt yok (gerekirse test kendisi taklit eder)
+test.beforeEach(() => { mock.method(FlashSale, "find", () => ({ select: () => ({ lean: async () => [] }) })); });
+test.afterEach(() => mock.restoreAll());
 
 test("parseOrderListExtras: include, ids and q are parsed apart from parseOrderListQuery's 5 keys", () => {
   assert.equal(parseOrderListExtras({ include: "customerStats" }).includeCustomerStats, true);
@@ -1169,4 +1175,77 @@ test("alarm phones are woken after update-status, bulk-status and deleting a Haz
 test("frozen helpers are still exported from the controller for existing callers", () => {
   assert.equal(typeof releaseCouponForOrder, "function");
   assert.equal(typeof grantReferralRewardIfDelivered, "function");
+});
+
+// ── Flaş indirimli satırlar ─────────────────────────────────────────
+
+test("sipariş satırı: flaş indirimle alınan ürün liste fiyatı, kaynak ve oranla kaydedilir", async (t) => {
+  const pid = new mongoose.Types.ObjectId();
+  const sid = new mongoose.Types.ObjectId();
+  const now = Date.now();
+  t.mock.method(WeeklyProduct, "find", () => ({ lean: async () => [] }));
+  t.mock.method(Product, "find", () => ({ lean: async () => [
+    { _id: pid, name: "Pepsi Kola 1 Lt", price: 75, isDiscounted: true, discountedPrice: 67.5, category: "icecek",
+      flashSale: { sale: sid, discountPercentage: 10, price: 67.5, startDate: new Date(now - 3600e3), endDate: new Date(now + 3600e3) } },
+  ] }));
+  const { orderProducts: [line] } = await buildOrderProducts([{ product: String(pid), quantity: 2 }]);
+  assert.equal(line.price, 67.5);
+  assert.equal(line.originalPrice, 75);
+  assert.equal(line.priceSource, "flash");
+  assert.equal(line.flashDiscountPercentage, 10);
+  assert.equal(String(line.flashSaleId), String(sid));
+  // Şema bu alanları atmaz
+  const doc = new Order({ user: new mongoose.Types.ObjectId(), products: [line], totalAmount: 135, phone: "05551112233", city: "Devrek", deliveryPoint: "girlsDorm" });
+  assert.equal(doc.products[0].originalPrice, 75);
+  assert.equal(doc.products[0].priceSource, "flash");
+  assert.equal(doc.products[0].flashDiscountPercentage, 10);
+
+  // Panel satırı: liste fiyatı, kaynak, oran ve birim indirim
+  const [group] = groupOrdersByUser([{ _id: new mongoose.Types.ObjectId(), user: null, products: [doc.products[0].toObject()], totalAmount: 135, status: "Hazırlanıyor" }]);
+  const shown = group.orders[0].products[0];
+  assert.equal(shown.originalPrice, 75);
+  assert.equal(shown.priceSource, "flash");
+  assert.equal(shown.flashDiscountPercentage, 10);
+  assert.equal(shown.unitDiscount, 7.5);
+});
+
+test("eski sipariş: satır fiyatı o an süren flaş indirimin uygulanan fiyatıyla aynıysa flaş sayılır", async () => {
+  const pid = new mongoose.Types.ObjectId();
+  const other = new mongoose.Types.ObjectId();
+  const at = new Date("2026-10-20T12:00:00Z");
+  mock.restoreAll();
+  const calls = [];
+  mock.method(FlashSale, "find", (filter) => {
+    calls.push(filter);
+    return { select: () => ({ lean: async () => [
+      { _id: "s1", product: pid, discountPercentage: 10, startDate: new Date("2026-10-20T10:00:00Z"), endDate: new Date("2026-10-20T20:00:00Z"), appliedPrice: 67.5 },
+    ] }) };
+  });
+  const orders = [
+    { createdAt: at, products: [
+      { product: pid, price: 67.5, quantity: 1 }, // flaş fiyatı
+      { product: pid, price: 75, quantity: 1 }, // aynı ürün, liste fiyatı (kampanya dışı satır)
+      { product: other, price: 10, quantity: 1 },
+      { product: pid, price: 60, quantity: 1, priceSource: "weekly", originalPrice: 75 }, // kayıtlı bilgi korunur
+    ] },
+    { createdAt: new Date("2026-10-21T12:00:00Z"), products: [{ product: pid, price: 67.5, quantity: 1 }] }, // kampanya bitmişti
+  ];
+  await inferFlashLines(orders);
+  assert.equal(calls.length, 1, "tek sorgu");
+  const [flash, list, unrelated, weekly] = orders[0].products;
+  assert.equal(flash.priceSource, "flash");
+  assert.equal(flash.originalPrice, 75);
+  assert.equal(flash.flashDiscountPercentage, 10);
+  assert.equal(flash.pricingInferred, true);
+  assert.equal(list.priceSource, undefined);
+  assert.equal(unrelated.priceSource, undefined);
+  assert.equal(weekly.priceSource, "weekly");
+  assert.equal(orders[1].products[0].priceSource, undefined, "kampanya süresi dışında eşleşmez");
+
+  // Sorgu hatası listeyi bozmaz
+  mock.restoreAll();
+  mock.method(FlashSale, "find", () => { throw new Error("bağlantı koptu"); });
+  const safe = [{ createdAt: at, products: [{ product: pid, price: 67.5, quantity: 1 }] }];
+  assert.equal(await inferFlashLines(safe), safe);
+  assert.equal(safe[0].products[0].priceSource, undefined);
 });

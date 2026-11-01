@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Order from "../models/order.model.js";
 import Product from "../models/product.model.js";
+import FlashSale from "../models/flashSale.model.js";
 import { CANCEL_REASONS, DELIVERY_OUTCOMES, DELIVERY_OUTCOME_NOTE_MAX, deliveryOutcomeText } from "../lib/feedbackOptions.js";
 import Settings from "../models/settings.model.js";
 import { listCouriers } from "../services/delivery.service.js";
@@ -178,6 +179,74 @@ const customerOf = (order) => {
 };
 
 /**
+ * Fiyat bilgisi kaydedilmeden önce verilmiş siparişler için: satırın birim fiyatı, sipariş anında süren bir
+ * flaş indirimin ürüne uygulanmış fiyatıyla (appliedPrice) kuruşu kuruşuna aynıysa satır flaş indirimli sayılır;
+ * liste fiyatı oran üzerinden geri hesaplanır (pricingInferred: true). Siparişler yerinde güncellenir (lean belgeler).
+ * Hata olursa liste etkilenmez, satırlar olduğu gibi döner.
+ */
+export const inferFlashLines = async (orders) => {
+  try {
+    const pending = [];
+    let minTime = Infinity;
+    let maxTime = -Infinity;
+    for (const order of orders || []) {
+      const time = order?.createdAt ? new Date(order.createdAt).getTime() : NaN;
+      if (!Number.isFinite(time) || !Array.isArray(order.products)) continue;
+      for (const line of order.products) {
+        if (!line || line.priceSource || !refId(line.product)) continue;
+        pending.push({ line, time });
+        minTime = Math.min(minTime, time);
+        maxTime = Math.max(maxTime, time);
+      }
+    }
+    if (!pending.length) return orders;
+    const productIds = [...new Set(pending.map(({ line }) => refId(line.product)))];
+    const sales = await FlashSale.find({
+      product: { $in: productIds },
+      startDate: { $lte: new Date(maxTime) },
+      endDate: { $gt: new Date(minTime) },
+      appliedPrice: { $ne: null },
+    }).select("product discountPercentage startDate endDate appliedPrice").lean();
+    if (!sales?.length) return orders;
+    const byProduct = new Map();
+    for (const sale of sales) {
+      const key = String(sale.product);
+      if (!byProduct.has(key)) byProduct.set(key, []);
+      byProduct.get(key).push(sale);
+    }
+    for (const { line, time } of pending) {
+      const sale = (byProduct.get(refId(line.product)) || []).find((candidate) =>
+        new Date(candidate.startDate).getTime() <= time && time < new Date(candidate.endDate).getTime() &&
+        Math.abs(Number(candidate.appliedPrice) - Number(line.price)) < 0.005);
+      const pct = Number(sale?.discountPercentage);
+      if (!sale || !(pct > 0 && pct < 100)) continue;
+      line.priceSource = "flash";
+      line.flashDiscountPercentage = pct;
+      line.flashSaleId = sale._id;
+      line.originalPrice = round2(Number(line.price) / (1 - pct / 100));
+      line.pricingInferred = true;
+    }
+  } catch (error) {
+    console.error("Eski siparişlerde flaş indirim eşleştirilemedi:", error?.message);
+  }
+  return orders;
+};
+
+/** Satırın fiyat bilgisi (panel): yalnızca bilinen alanlar; ödenen fiyat liste fiyatından düşükse indirim sayılır */
+const linePricing = (line) => {
+  const original = Number(line.originalPrice);
+  const price = Number(line.price);
+  const hasOriginal = Number.isFinite(original) && original > 0;
+  return {
+    ...(hasOriginal ? { originalPrice: round2(original) } : {}),
+    ...(line.priceSource ? { priceSource: line.priceSource } : {}),
+    ...(line.priceSource === "flash" && Number.isFinite(Number(line.flashDiscountPercentage)) ? { flashDiscountPercentage: Number(line.flashDiscountPercentage) } : {}),
+    ...(line.pricingInferred ? { pricingInferred: true } : {}),
+    ...(hasOriginal && Number.isFinite(price) && original - price >= 0.005 ? { unitDiscount: round2(original - price) } : {}),
+  };
+};
+
+/**
  * Siparişleri müşteriye göre gruplar (yanıt biçimi eskisiyle aynı, alanlar yalnızca eklenir):
  *  - hesabı silinmiş müşteri: gerçek kimlik, name "Silinmiş hesap", deleted: true
  *  - her sipariş: userDeleted; her satır: lineId (satır _id) ve productId
@@ -219,6 +288,8 @@ export const groupOrdersByUser = (orders) => {
         // Satırın kalıcı kimliği: ürün düzenlemeleri dizin yerine bununla yapılır
         lineId: p._id ? String(p._id) : null,
         productId: refId(p.product),
+        // Liste fiyatı, indirim kaynağı (flash / weekly / discount / list) ve birim indirim
+        ...linePricing(p),
       })),
       totalAmount: order.totalAmount,
       subtotalAmount: order.subtotalAmount || order.totalAmount,
@@ -415,7 +486,7 @@ export const getOrderAnalyticsData = async (options = {}) => {
     const serverTime = new Date();
     const totalOrders = await Order.countDocuments();
     const group = async (orders) => {
-      const usersOrders = groupOrdersByUser(orders);
+      const usersOrders = groupOrdersByUser(await inferFlashLines(orders));
       return includeCustomerStats ? attachCustomerStats(usersOrders) : usersOrders;
     };
 
@@ -1316,7 +1387,7 @@ export const addProductToOrder = async (req, res) => {
     }
 
     // Ödeme adımıyla aynı birim fiyat (haftalık fırsat > geçerli indirim > fiyat); ürün yoksa 404
-    const { product, price } = await resolveEffectiveUnitPrice(productId);
+    const { product, price, pricing } = await resolveEffectiveUnitPrice(productId);
     const productKey = String(product._id);
 
     // Yalnızca aynı ürün VE aynı birim fiyattaki satıra eklenir; fiyat değiştiyse yeni satır açılır
@@ -1335,6 +1406,7 @@ export const addProductToOrder = async (req, res) => {
         name: product.name,
         quantity: addedQuantity,
         price,
+        ...(pricing || {}),
       });
     }
 

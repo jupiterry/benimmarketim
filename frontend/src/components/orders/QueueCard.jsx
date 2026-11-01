@@ -6,7 +6,7 @@ import { memo } from "react";
 import { StickyNote } from "lucide-react";
 import { money } from "../admin/ui";
 import {
-  AddressLine, CallbackBadge, CourierChip, CustomerFace, NextStepButton, OrderCode, PaymentChip, PickProgress, PointChip, PrintedMark,
+  AddressLine, CallbackBadge, CourierChip, FlashChip, CustomerFace, NextStepButton, OrderCode, PaymentChip, PickProgress, PointChip, PrintedMark,
   SelectCheck, SlaChip, TrustBadges, UnseenBadge,
 } from "./atoms";
 import { customerName, getSla, isAddressOrder, needsCallbackPending, orderAriaLabel, orderCode } from "./shared";
@@ -71,6 +71,7 @@ function QueueCard({
         <PointChip order={order} />
         <PaymentChip order={order} />
         <CourierChip order={order} />
+        <FlashChip order={order} />
         <PrintedMark at={printedAt} />
         <PickProgress info={picked} />
       </div>
