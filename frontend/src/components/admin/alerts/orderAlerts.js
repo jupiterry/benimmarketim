@@ -95,8 +95,10 @@ const cleanRingStore = (raw, now = Date.now()) => {
       total: Number(entry.total) || 0,
     };
   }
+  // Cihaz saati geri alındıysa gelecekteki "son çalma" tekrarı kilitlemesin
   const lastRingAt = Number(source.lastRingAt);
-  return { ringing: capEntries(ringing, MAX_RINGING, (entry) => entry.firstAt), done, lastRingAt: Number.isFinite(lastRingAt) ? lastRingAt : 0 };
+  const validLastRing = Number.isFinite(lastRingAt) && lastRingAt <= now + 5000 ? lastRingAt : 0;
+  return { ringing: capEntries(ringing, MAX_RINGING, (entry) => entry.firstAt), done, lastRingAt: validLastRing };
 };
 const mergeRingStores = (a, b) => {
   const ringing = { ...b.ringing, ...a.ringing };

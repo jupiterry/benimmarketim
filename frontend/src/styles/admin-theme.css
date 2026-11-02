@@ -2678,6 +2678,12 @@ body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok:hover {
   text-align: center;
 }
 
+/* Orta genişlikte başlık dolu: çip "Alarm: 2/2" olarak kısalır (tam metin ipucunda) */
+@media (max-width: 1499px) {
+  .app-alarm-chip b + span {
+    display: none;
+  }
+}
 @media (max-width: 1023px) {
   .app-alerts {
     padding: 12px 16px 0;
