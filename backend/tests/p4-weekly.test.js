@@ -823,7 +823,7 @@ test("kopyalama: gizli/stokta olmayan istenirse dahil; yayındaki süresiz fırs
 });
 
 test("kopyalama 'Şimdi': yeni fırsatlar hemen yayında; yayındaki istenirse kapatılır, süresi dolmuş kayıt engel olmaz", async (t) => {
-  captureAudit(t);
+  const audit = captureAudit(t);
   const inv = countInvalidations(t);
   const end = new Date(Date.now() + 6 * DAY);
   const live = source(1, { price: 36 }, { endDate: new Date(Date.now() + DAY) });
@@ -836,6 +836,8 @@ test("kopyalama 'Şimdi': yeni fırsatlar hemen yayında; yayındaki istenirse k
   assert.equal(calls.updateMany.length, 1, "süresi dolmuş kayıtlar kapatıldı");
   assert.equal(calls.updateMany[0].filter.endDate.$lte instanceof Date, true);
 
+  await flush();
+  assert.equal(audit.at(-1).action, "Haftalık fırsat kopyalama: hiçbiri oluşturulmadı", "atlanan kopya da kaydedilir");
   res = response();
   await copyWeeklyProducts(adminReq({ body: { ids: [WID(1)], startDate: "now", endDate: end.toISOString(), endLiveAtStart: true } }), res);
   assert.equal(res.statusCode, 201, JSON.stringify(res.body));

@@ -1397,6 +1397,19 @@
   .admin-layout .wky-copy .ui-segmented > button {
     min-height: 40px;
   }
+  .admin-layout .wky-page .app-pagehead-actions .ui-btn,
+  .admin-layout .wky-toolbar .ui-btn,
+  .admin-layout .wky-preview-head .ui-btn,
+  .admin-layout .wky-selected .ui-btn,
+  .admin-layout .wky-main .ui-empty .ui-btn {
+    min-height: 40px;
+  }
+  .admin-layout .wky-page .app-pagehead-actions .ui-icon-btn,
+  .admin-layout .wky-form .ui-switch,
+  .admin-layout .wky-copy .ui-modal-header .ui-icon-btn {
+    width: 40px;
+    height: 40px;
+  }
   .admin-layout .wky-check-row {
     min-height: 40px;
     align-items: center;

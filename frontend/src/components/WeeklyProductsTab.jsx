@@ -1225,7 +1225,7 @@ const CopyDialog = ({ items, ids, now, onClose, onDone }) => {
   const submitLabel = immediate ? `${checkedRows.length} fırsatı yayına al` : `${checkedRows.length} fırsatı planla`;
 
   return (
-    <div className="ui-modal-backdrop wky-copy-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
+    <div className="ui-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
       <div
         ref={dialogRef}
         className="ui-modal ui-modal--wide wky-copy"
@@ -1930,7 +1930,7 @@ const WeeklyProductsTab = () => {
   // ── Yükleniyor ──
   if (loading) {
     return (
-      <div className="ui-page">
+      <div className="ui-page wky-page">
         <PageHeader title="Haftalık fırsatlar" description="Ana sayfadaki fırsat rafını yönetin." />
         <SkeletonCards count={4} />
         <div className="wky-layout">
@@ -1945,7 +1945,7 @@ const WeeklyProductsTab = () => {
   }
 
   return (
-    <div className="ui-page">
+    <div className="ui-page wky-page">
       <PageHeader
         title="Haftalık fırsatlar"
         meta={stats.live ? `${stats.live} yayında` : undefined}

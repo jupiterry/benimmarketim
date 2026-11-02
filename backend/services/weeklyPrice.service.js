@@ -280,7 +280,8 @@ export async function applyWeeklyPricesToProducts(products) {
 // Haftalık fırsat takvimi (flashSale.service'in dakikalık işi çağırır)
 // ─────────────────────────────────────────────
 const START_LOOKBACK_MS = 2 * 60 * 1000;
-const MAX_ACTIVATIONS_PER_RUN = 200;
+// Bir turda en fazla bu kadar planlı fırsat (ürünü silinip planlı kalanlar sırayı tıkamasın diye geniş)
+const MAX_ACTIVATIONS_PER_RUN = 1000;
 let lastScheduleCheckAt = null;
 
 const modifiedCount = (result) => Number(result?.modifiedCount ?? result?.nModified ?? 0) || 0;

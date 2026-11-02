@@ -727,22 +727,23 @@ export const copyWeeklyProducts = (req, res) => runWeeklyWrite(async () => {
         .map(serializeWeeklyDeal)
       : [];
 
-    if (createdIds.length || endedLive.length) {
-      recordAdminAction(req, {
-        action: planned ? "Haftalık fırsatlar yeni döneme planlandı" : "Haftalık fırsatlar kopyalanıp yayına alındı",
-        category: "campaign",
-        target: "weekly-copy",
-        targetName: `${createdIds.length} fırsat`,
-        changes: [
-          { label: "Dönem", from: "—", to: rangeText(start, end) },
-          { label: "Kopyalanan", from: String(ids.length), to: `${createdIds.length} oluşturuldu, ${skipped.length} atlandı` },
-          rounding !== "none" && { label: "Yuvarlama", from: "Kuruş", to: `,${rounding}` },
-          ...endedLive.slice(0, 5).map((item) => ({ label: `${item.name} yayındaki bitiş`, from: when(item.from), to: when(item.to) })),
-          ...createdNames.slice(0, 12).map((text) => ({ label: "Yeni fırsat", from: "—", to: text })),
-        ].filter(Boolean),
-      });
-      emitUpdated(req);
-    }
+    // Hiçbiri oluşturulmasa da işlem kaydı yazılır (genel kayıt yerine sayılarla)
+    recordAdminAction(req, {
+      action: !createdIds.length
+        ? "Haftalık fırsat kopyalama: hiçbiri oluşturulmadı"
+        : planned ? "Haftalık fırsatlar yeni döneme planlandı" : "Haftalık fırsatlar kopyalanıp yayına alındı",
+      category: "campaign",
+      target: "weekly-copy",
+      targetName: `${createdIds.length} fırsat`,
+      changes: [
+        { label: "Dönem", from: "—", to: rangeText(start, end) },
+        { label: "Kopyalanan", from: String(ids.length), to: `${createdIds.length} oluşturuldu, ${skipped.length} atlandı` },
+        rounding !== "none" && { label: "Yuvarlama", from: "Kuruş", to: `,${rounding}` },
+        ...endedLive.slice(0, 5).map((item) => ({ label: `${item.name} yayındaki bitiş`, from: when(item.from), to: when(item.to) })),
+        ...createdNames.slice(0, 12).map((text) => ({ label: "Yeni fırsat", from: "—", to: text })),
+      ].filter(Boolean),
+    });
+    if (createdIds.length || endedLive.length || closedStale) emitUpdated(req);
 
     res.status(createdIds.length ? 201 : 200).json({ success: true, created, skipped });
   } catch (error) {
