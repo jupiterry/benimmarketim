@@ -949,3 +949,653 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* ══ Müşteri 360: açık konular, iç not ve işaretler, Geçmiş (zaman çizelgesi) ══════════════════ */
+/* Ekran okuyucuya özel metin */
+.admin-layout .cus-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.admin-layout .cus-mini-spin {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: ui-spin 0.8s linear infinite;
+}
+
+/* Ton değişkenleri (yalnızca bu bölümün sınıflarında; avatarın data-tone'u etkilenmez) */
+.admin-layout .cus-tl-item,
+.admin-layout .cus-issue,
+.admin-layout .cus-flag {
+  --cus-tone: var(--ui-text-3);
+  --cus-tone-bg: var(--ui-surface-3);
+  --cus-tone-ink: var(--ui-text-2);
+}
+.admin-layout .cus-tl-item[data-tone="ok"],
+.admin-layout .cus-issue[data-tone="ok"],
+.admin-layout .cus-flag[data-tone="ok"] {
+  --cus-tone: var(--ui-ok);
+  --cus-tone-bg: var(--ui-ok-bg);
+  --cus-tone-ink: var(--ui-ok-ink);
+}
+.admin-layout .cus-tl-item[data-tone="info"],
+.admin-layout .cus-issue[data-tone="info"],
+.admin-layout .cus-flag[data-tone="info"] {
+  --cus-tone: var(--ui-info);
+  --cus-tone-bg: var(--ui-info-bg);
+  --cus-tone-ink: var(--ui-info-ink);
+}
+.admin-layout .cus-tl-item[data-tone="warn"],
+.admin-layout .cus-issue[data-tone="warn"],
+.admin-layout .cus-flag[data-tone="warn"] {
+  --cus-tone: var(--ui-warn);
+  --cus-tone-bg: var(--ui-warn-bg);
+  --cus-tone-ink: var(--ui-warn-ink);
+}
+.admin-layout .cus-tl-item[data-tone="danger"],
+.admin-layout .cus-issue[data-tone="danger"],
+.admin-layout .cus-flag[data-tone="danger"] {
+  --cus-tone: var(--ui-danger);
+  --cus-tone-bg: var(--ui-danger-bg);
+  --cus-tone-ink: var(--ui-danger-ink);
+}
+.admin-layout .cus-tl-item[data-tone="brand"],
+.admin-layout .cus-issue[data-tone="brand"],
+.admin-layout .cus-flag[data-tone="brand"] {
+  --cus-tone: var(--ui-brand);
+  --cus-tone-bg: var(--ui-brand-soft);
+  --cus-tone-ink: var(--ui-brand-ink);
+}
+
+/* ── Liste satırı: işaret rozetleri ve iç not ─────────────────────── */
+.admin-layout .cus-person-flags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin-top: 2px;
+}
+.admin-layout .cus-flag-badge {
+  min-height: 20px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+.admin-layout .cus-flag-badge svg {
+  width: 11px;
+  height: 11px;
+}
+.admin-layout .cus-note-mark {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+.admin-layout .cus-note-mark svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ── Çekmece: müşteri eylemleri ───────────────────────────────────── */
+.admin-layout .cus-profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-s2);
+}
+
+/* ── Açık konular şeridi ──────────────────────────────────────────── */
+.admin-layout .cus-issues {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s2);
+  padding: var(--ui-s3);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+}
+.admin-layout .cus-issues-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+  color: var(--ui-text);
+}
+.admin-layout .cus-issues-head > svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--ui-warn);
+}
+.admin-layout .cus-issues-head .ui-count {
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+}
+.admin-layout .cus-issues-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-layout .cus-issue {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 7px 10px;
+  border: 1px solid var(--ui-line);
+  border-left: 3px solid var(--cus-tone);
+  border-radius: var(--ui-radius);
+  background: var(--cus-tone-bg);
+  color: var(--ui-text);
+  font: inherit;
+  text-align: left;
+}
+.admin-layout button.cus-issue {
+  cursor: pointer;
+  transition: border-color var(--ui-ease), box-shadow var(--ui-ease);
+}
+.admin-layout button.cus-issue:hover {
+  border-color: var(--cus-tone);
+}
+.admin-layout button.cus-issue:focus-visible {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: 1px;
+}
+.admin-layout .cus-issue-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--cus-tone-ink);
+}
+.admin-layout .cus-issue-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  font-size: var(--ui-fs-sm);
+  line-height: 1.35;
+}
+.admin-layout .cus-issue-text strong {
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.admin-layout .cus-issue-text span {
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-2);
+  overflow-wrap: anywhere;
+}
+.admin-layout .cus-issue-go {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--ui-text-3);
+}
+
+/* ── İç not ve işaretler (yalnızca ekip) ──────────────────────────── */
+.admin-layout .cus-staff {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s3);
+  padding: var(--ui-s3) var(--ui-s4) var(--ui-s4);
+  border: 1px dashed var(--ui-line-strong);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+}
+.admin-layout .cus-staff-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+.admin-layout .cus-staff-head > svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--ui-text-3);
+}
+.admin-layout .cus-staff-head h3 {
+  margin: 0;
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+  color: var(--ui-text);
+}
+.admin-layout .cus-staff-private {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+  font-size: 11px;
+  font-weight: 600;
+}
+.admin-layout .cus-staff-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.admin-layout .cus-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: 999px;
+  background: var(--ui-surface);
+  color: var(--ui-text-2);
+  font: inherit;
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--ui-ease), border-color var(--ui-ease), color var(--ui-ease);
+}
+.admin-layout .cus-flag svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+.admin-layout .cus-flag:hover {
+  background: var(--ui-surface-3);
+  color: var(--ui-text);
+}
+.admin-layout .cus-flag[aria-pressed="true"] {
+  border-color: var(--cus-tone);
+  background: var(--cus-tone-bg);
+  color: var(--cus-tone-ink);
+}
+.admin-layout .cus-flag[aria-disabled="true"] {
+  cursor: progress;
+  opacity: 0.7;
+}
+.admin-layout .cus-flag:focus-visible {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: 1px;
+}
+.admin-layout .cus-staff-suggest {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-s2);
+  padding: 8px 10px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-info-bg);
+  color: var(--ui-info-ink);
+  font-size: var(--ui-fs-sm);
+  line-height: 1.4;
+}
+.admin-layout .cus-staff-suggest > svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+.admin-layout .cus-staff-suggest-actions {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+}
+.admin-layout .cus-staff-suggest .ui-icon-btn {
+  color: inherit;
+}
+.admin-layout .cus-staff-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-warn-bg);
+  color: var(--ui-text);
+}
+.admin-layout .cus-staff-note > svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--ui-warn-ink);
+}
+.admin-layout .cus-staff-note-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.admin-layout .cus-staff-note-body p {
+  margin: 0;
+  font-size: var(--ui-fs-sm);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.admin-layout .cus-staff-note-body .cus-when-sub {
+  white-space: normal;
+}
+.admin-layout .cus-staff-note > .ui-btn {
+  flex-shrink: 0;
+}
+.admin-layout .cus-staff-add {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 2px 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px dashed var(--ui-line-strong);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-2);
+  color: var(--ui-text);
+  font: inherit;
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--ui-ease), background-color var(--ui-ease);
+}
+.admin-layout .cus-staff-add > svg {
+  width: 15px;
+  height: 15px;
+  color: var(--ui-brand-ink);
+}
+.admin-layout .cus-staff-add .cus-when-sub {
+  grid-column: 2;
+  font-weight: 500;
+  white-space: normal;
+}
+.admin-layout .cus-staff-add:hover {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand-soft);
+}
+.admin-layout .cus-staff-add:focus-visible {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: 1px;
+}
+.admin-layout .cus-staff-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.admin-layout .cus-staff-form .ui-label {
+  margin-bottom: 0;
+}
+.admin-layout .cus-staff-text {
+  min-height: 84px;
+  white-space: pre-wrap;
+}
+.admin-layout .cus-staff-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-s2);
+}
+.admin-layout .cus-staff-count {
+  margin-top: 0;
+}
+.admin-layout .cus-staff-conflict {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--ui-danger);
+  border-radius: var(--ui-radius);
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .cus-staff-conflict p {
+  margin: 0;
+  color: var(--ui-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ── Geçmiş (zaman çizelgesi) ─────────────────────────────────────── */
+.admin-layout .cus-tl {
+  gap: var(--ui-s3);
+}
+.admin-layout .cus-tl-filters {
+  flex-wrap: wrap;
+}
+.admin-layout .cus-tl-filters > button .ui-count {
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+}
+.admin-layout .cus-tl-filters > button[aria-pressed="true"] .ui-count {
+  background: var(--ui-surface);
+  color: var(--ui-brand-ink);
+}
+.admin-layout .cus-tl-days,
+.admin-layout .cus-tl-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-layout .cus-tl-days {
+  gap: var(--ui-s3);
+}
+.admin-layout .cus-tl-day-label {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  color: var(--ui-text-3);
+  text-transform: uppercase;
+}
+.admin-layout .cus-tl-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 8px;
+}
+/* Olayları birleştiren dikey çizgi */
+.admin-layout .cus-tl-item::before {
+  content: "";
+  position: absolute;
+  top: 34px;
+  bottom: -6px;
+  left: 13.5px;
+  width: 1px;
+  background: var(--ui-line);
+}
+.admin-layout .cus-tl-item:last-child::before {
+  display: none;
+}
+.admin-layout .cus-tl-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--cus-tone-bg);
+  color: var(--cus-tone-ink);
+}
+.admin-layout .cus-tl-icon svg {
+  width: 14px;
+  height: 14px;
+}
+.admin-layout .cus-tl-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: transparent;
+  color: var(--ui-text);
+  font: inherit;
+  text-align: left;
+}
+.admin-layout button.cus-tl-body {
+  cursor: pointer;
+  transition: background-color var(--ui-ease);
+}
+.admin-layout button.cus-tl-body:hover {
+  background: var(--ui-surface-2);
+}
+.admin-layout button.cus-tl-body:focus-visible {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: 1px;
+}
+.admin-layout .cus-tl-main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.admin-layout .cus-tl-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.admin-layout .cus-tl-title .ui-badge {
+  min-height: 20px;
+  font-size: 11px;
+}
+.admin-layout .cus-tl-detail {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: var(--ui-fs-xs);
+  line-height: 1.45;
+  color: var(--ui-text-2);
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+.admin-layout .cus-tl-time {
+  flex-shrink: 0;
+  padding-top: 1px;
+  font-size: var(--ui-fs-xs);
+  color: var(--ui-text-3);
+}
+.admin-layout .cus-tl-go {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--ui-text-3);
+}
+.admin-layout .cus-tl-empty {
+  margin: 0;
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text-2);
+}
+.admin-layout .cus-tl-error {
+  border-radius: var(--ui-radius);
+}
+.admin-layout .cus-tl-error .ui-btn {
+  flex-shrink: 0;
+}
+.admin-layout .cus-tl-more {
+  align-self: center;
+}
+
+/* ── Dokunmatik ve dar ekran: en az 40 px dokunma alanı, iOS yakınlaştırmasın diye 16 px yazı ── */
+@media (max-width: 760px), (pointer: coarse) {
+  .admin-layout .cus-profile-actions .ui-btn,
+  .admin-layout .cus-staff-actions .ui-btn,
+  .admin-layout .cus-staff-note .ui-btn,
+  .admin-layout .cus-staff-conflict .ui-btn,
+  .admin-layout .cus-staff-suggest .ui-btn,
+  .admin-layout .cus-tl-more,
+  .admin-layout .cus-tl-error .ui-btn {
+    min-height: 40px;
+  }
+  .admin-layout .cus-staff-suggest .ui-icon-btn {
+    width: 40px;
+    height: 40px;
+  }
+  .admin-layout .cus-flag {
+    min-height: 40px;
+  }
+  .admin-layout .cus-tl-filters > button {
+    height: 40px;
+  }
+  .admin-layout .cus-tl-body {
+    min-height: 44px;
+  }
+  .admin-layout .cus-staff-text {
+    font-size: 16px;
+  }
+}
+@media (max-width: 760px) {
+  .admin-layout .cus-profile-actions .ui-btn {
+    flex: 1 1 0;
+  }
+  .admin-layout .cus-issues {
+    padding: var(--ui-s3) var(--ui-s2);
+  }
+  .admin-layout .cus-staff {
+    padding: var(--ui-s3);
+  }
+  .admin-layout .cus-staff-suggest {
+    flex-wrap: wrap;
+  }
+  .admin-layout .cus-staff-suggest > .ui-grow {
+    flex-basis: calc(100% - 30px);
+  }
+  .admin-layout .cus-staff-suggest-actions {
+    margin-left: auto;
+  }
+  .admin-layout .cus-staff-note {
+    flex-wrap: wrap;
+  }
+  .admin-layout .cus-staff-note > .ui-btn {
+    margin-left: auto;
+  }
+  .admin-layout .cus-tl-filters {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+  .admin-layout .cus-tl-filters > button {
+    flex-shrink: 0;
+  }
+  .admin-layout .cus-tl-more {
+    align-self: stretch;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-layout .cus-mini-spin {
+    animation-duration: 2s;
+  }
+}

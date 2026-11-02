@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { deleteUserAccount } from "../services/account.service.js";
 import { recordAdminAction } from "../services/adminAudit.service.js";
 import { invalidateAccountCleanupCache } from "../services/accountCleanup.service.js";
+import { STAFF_NOTE_MAX, normalizeStaffFlags } from "../lib/staffFlags.js";
 
 // ── Yönetici müşteri listesi (GET /api/users, /api/users/stats, /api/users/search) ─────────────
 // Liste sunucuda sayfalanır, aranır, sıralanır ve süzülür. Yanıtta yalnızca ekranın kullandığı alanlar
@@ -31,7 +32,8 @@ export const USER_LIST_SEGMENTS = ["all", "active", "risk", "new", "admin", "noO
 const COUNTED_SEGMENTS = USER_LIST_SEGMENTS.filter((segment) => segment !== "dupPhone");
 export const USER_APP_FILTERS = ["now", "opened", "checkout", "ordered", "noOrder", "notOpened"];
 
-// Listede dönen alanlar (yalnızca dahil etme); cartItems yerine adet toplamı hesaplanır
+// Listede dönen alanlar (yalnızca dahil etme); cartItems yerine adet toplamı hesaplanır.
+// İç not ve işaretler (select: false) yalnızca bu yönetici listesinde açıkça seçilir.
 const LIST_PROJECTION = {
   name: 1,
   email: 1,
@@ -48,6 +50,9 @@ const LIST_PROJECTION = {
   pushNotificationsEnabled: 1,
   cartLastUpdated: 1,
   cartItemCount: { $sum: "$cartItems.quantity" },
+  staffFlags: 1,
+  "staffNote.text": 1,
+  "staffNote.updatedAt": 1,
 };
 const SEARCH_SELECT = "name email phone role avatar";
 
@@ -311,6 +316,12 @@ const appActivityOf = (activity) => ({
   visitCount: Number(activity?.visitCount) || 0,
 });
 
+/** Satırdaki iç not: { text, updatedAt } ya da null (yalnızca panel) */
+const listStaffNote = (note) => {
+  const text = typeof note?.text === "string" ? note.text.trim().slice(0, STAFF_NOTE_MAX) : "";
+  return text ? { text, updatedAt: iso(note.updatedAt) } : null;
+};
+
 /** Liste satırı: izin verilen alanlar dışında hiçbir şey dönmez (projeksiyon bozulsa bile) */
 export const toListUser = (row, stat = null) => {
   const orderCount = Number(stat?.orderCount) || 0;
@@ -335,6 +346,8 @@ export const toListUser = (row, stat = null) => {
     orderCount,
     totalSpent,
     avgOrderValue: orderCount ? round2(totalSpent / orderCount) : 0,
+    staffFlags: normalizeStaffFlags(row.staffFlags),
+    staffNote: listStaffNote(row.staffNote),
   };
 };
 const toSearchUser = (row) => ({
@@ -359,7 +372,8 @@ const compareIdsDesc = (a, b) => (String(a) < String(b) ? 1 : String(a) > String
  * Sorgu: page (1+), limit (1–100, varsayılan 50), q (ad/e-posta/telefon, Türkçe duyarsız), sort
  * (seen|newest|oldest|name|spent|orders), segment (all|active|risk|new|admin|noOrders), app (now|opened|checkout|
  * ordered|noOrder|notOpened) + appSince (ISO), registeredSince (ISO), ids (virgülle en fazla 100 kimlik).
- * Yanıt: { success, users, total, page, pages, limit, serverTime }
+ * Yanıt: { success, users, total, page, pages, limit, serverTime }. Satırda iç not ve işaretler de vardır:
+ * staffFlags (anahtar listesi) ve staffNote ({ text, updatedAt } | null).
  */
 export const getAllUsers = async (req, res) => {
   try {

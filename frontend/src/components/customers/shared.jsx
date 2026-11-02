@@ -1,8 +1,9 @@
 /* eslint-disable react-refresh/only-export-components */
 // Müşteriler ekranının ortak yardımcıları ve küçük parçaları (segment adları, etiketler, avatar, gün anahtarları).
 import { useState } from "react";
-import { Crown, Monitor, Smartphone, Tablet } from "lucide-react";
+import { AlertTriangle, CreditCard, Crown, MapPin, Monitor, PhoneCall, Smartphone, Tablet } from "lucide-react";
 import { avatarTone, initials, lastSeenAt, registeredAt } from "../../lib/customers";
+import { staffFlagsOf } from "../../lib/staffFlags";
 
 export const DAY = 86400000;
 export const ACTIVE_DAYS = 30; // bu kadar gün içinde görüldüyse "aktif"
@@ -153,6 +154,28 @@ export const APP_FILTERS = [
   { id: "noOrder", label: "Açtı, sipariş vermedi", tone: "warn" },
   { id: "notOpened", label: "Hiç açmadı" },
 ];
+
+// ── Personelin iç işaretleri (yalnızca panel; lib/staffFlags.js) ────────
+export const STAFF_FLAG_ICONS = { call_before: PhoneCall, hard_address: MapPin, pays_card: CreditCard, complaint_history: AlertTriangle };
+
+/** İşaret rozetleri (liste satırı ve kartlar). short: kısa etiket ("Önce ara"); tam etiket ipucunda. */
+export const StaffFlagBadges = ({ flags, short = true }) => {
+  const items = staffFlagsOf(flags);
+  if (!items.length) return null;
+  return (
+    <>
+      {items.map((flag) => {
+        const Icon = STAFF_FLAG_ICONS[flag.key];
+        return (
+          <span key={flag.key} className={`ui-badge ui-badge--${flag.tone} cus-flag-badge`} title={`${flag.label} · iç işaret, müşteri görmez`}>
+            {Icon && <Icon aria-hidden="true" />}
+            {short ? flag.short : flag.label}
+          </span>
+        );
+      })}
+    </>
+  );
+};
 
 /** WhatsApp bağlantısı (0'la başlayan numaralara ülke kodu eklenir) */
 export const whatsappLink = (phone) => {
