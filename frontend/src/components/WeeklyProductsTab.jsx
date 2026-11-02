@@ -121,12 +121,11 @@ const fromTrInput = (value, { end = false } = {}) => {
 };
 
 const TR_WEEKDAY = new Intl.DateTimeFormat("tr-TR", { timeZone: "Europe/Istanbul", weekday: "short" });
-/** "Bugün" · "Yarın" · "Pzt" (bir hafta içinde) · "9 Kas" */
+/** "Bugün" · "Pzt" (bir hafta içinde; gece yarısı için "yarın"dan açık) · "9 Kas" */
 const dayWord = (ms, now) => {
   const diff = Math.round((trMidnight(ms) - trMidnight(now)) / DAY);
   if (diff === 0) return "Bugün";
-  if (diff === 1) return "Yarın";
-  if (diff > 1 && diff < 7) return TR_WEEKDAY.format(new Date(ms));
+  if (diff > 0 && diff < 7) return TR_WEEKDAY.format(new Date(ms));
   return formatDate(ms);
 };
 const clockOf = (ms) => {
@@ -305,7 +304,10 @@ const remaining = (endDate, now) => {
 /** Satırdaki durum etiketi */
 const statusChip = (wp, state, now) => {
   if (state === "live") return { cls: "ui-badge--ok", label: "Yayında", icon: Zap };
-  if (state === "planned") return { cls: "ui-badge--info", label: `Planlı · ${atLabel(msOf(wp.startDate), now)} başlar`, icon: CalendarClock };
+  if (state === "planned") {
+    const start = msOf(wp.startDate);
+    return { cls: "ui-badge--info", label: Number.isFinite(start) ? `Planlı · ${atLabel(start, now)} başlar` : "Planlı", icon: CalendarClock };
+  }
   if (state === "starting") return { cls: "ui-badge--info", label: "Planlı · şimdi başlıyor", icon: CalendarClock };
   if (state === "stuck") return { cls: "ui-badge--warn", label: "Planlı · başlamadı", icon: AlertTriangle };
   if (state === "paused") return { cls: "ui-badge--warn", label: "Durduruldu", icon: ToggleLeft };
@@ -321,7 +323,9 @@ const statusDetail = (wp, state, now) => {
   if (isPlannedState(state)) {
     if (state === "stuck") return { text: wp.product ? "Sunucu henüz yayına almadı. Listeyi yenileyin." : "Ürün silindiği için yayına alınamadı.", tone: "warn" };
     if (!Number.isFinite(end)) return { text: "Bitiş yok (süresiz)", tone: "" };
-    const days = Math.max(1, Math.round((end + 1 - msOf(wp.startDate)) / DAY));
+    const start = msOf(wp.startDate);
+    if (!Number.isFinite(start)) return { text: `Bitiş ${formatDateTime(end)}`, tone: "" };
+    const days = Math.max(1, Math.round((end + 1 - start) / DAY));
     return { text: `${days} gün · bitiş ${formatDateTime(end)}`, tone: "" };
   }
   if (state === "paused") return { text: Number.isFinite(end) ? `Bitiş ${formatDateTime(end)}` : "Süresiz", tone: "" };
@@ -390,6 +394,7 @@ const EMPTY_TEXT = {
   expired: "Biten fırsat yok.",
 };
 const PERF_MAX_IDS = 100;
+const COPY_MAX = 100; // sunucu tek istekte en fazla 100 fırsat kopyalar
 
 // ── Telefon rafındaki tek ürün kartı ───────────────────────────────────────
 const PhoneCard = ({ product, price, pct, ghost }) => {
@@ -1177,7 +1182,8 @@ const CopyDialog = ({ items, ids, now, onClose, onDone }) => {
   const allChecked = selectable.length > 0 && checkedRows.length === selectable.length;
   const setChecked = (row, value) => setOverrides((cur) => new Map(cur).set(row.wp._id, value));
   const toggleAll = () => setOverrides(() => new Map(selectable.map((row) => [row.wp._id, !allChecked])));
-  const canSubmit = datesValid && checkedRows.length > 0 && !busy;
+  const tooMany = checkedRows.length > COPY_MAX;
+  const canSubmit = datesValid && checkedRows.length > 0 && !tooMany && !busy;
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -1379,6 +1385,9 @@ const CopyDialog = ({ items, ids, now, onClose, onDone }) => {
               )}
               {rows.some((row) => !row.blocked && row.flags.length) && (
                 <p className="ui-hint">Gizli ya da stokta olmayan ürünler varsayılan olarak atlanır; isterseniz işaretleyin.</p>
+              )}
+              {tooMany && (
+                <p className="ui-hint wky-hint-error" role="alert">Tek seferde en fazla {COPY_MAX} fırsat kopyalanabilir. {checkedRows.length - COPY_MAX} seçimi kaldırın.</p>
               )}
             </div>
             <div className="ui-modal-footer wky-copy-foot">
