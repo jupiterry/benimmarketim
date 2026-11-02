@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   Search,
   Bell,
+  BellOff,
   Menu,
   RefreshCw,
   ArrowUpRight,
@@ -187,10 +188,12 @@ export default function AdminHeader({
             ref={notificationButton}
             className="app-icon-btn"
             onClick={() => togglePanel("notifications")}
-            aria-label={`Bildirimler, ${notifications.length} bildirim`}
+            aria-label={`Bildirimler, ${notifications.length} bildirim${muted ? ", yeni sipariş sesi kapalı" : ""}`}
             aria-expanded={panel === "notifications"}
           >
-            <Bell size={17} />
+            {/* Telefonda "Ses kapalı" çipine yer yok: ses kapalıyken zil üstü çizili görünür (CSS) */}
+            <Bell size={17} className={muted ? "app-bell-icon" : undefined} />
+            {muted && <BellOff size={17} className="app-bell-muted" aria-hidden="true" />}
             {notifications.length > 0 && (
               <i className="app-bell-count">{Math.min(99, notifications.length)}</i>
             )}

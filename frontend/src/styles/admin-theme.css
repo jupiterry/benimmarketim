@@ -2793,3 +2793,32 @@ body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok:hover {
     overscroll-behavior: contain;
   }
 }
+/* Telefon başlığı dar: yeni çipler (alarm, ses kapalı) zil, arama ve hesap düğmesini sağdan taşırıp kırpmasın.
+   Ses kapalıyken telefonda çip yerine zil simgesi üstü çizili görünür. */
+.app-bell-muted {
+  display: none;
+}
+@media (max-width: 760px) {
+  .app-mute-chip,
+  .app-bell-icon {
+    display: none;
+  }
+  .app-bell-muted {
+    display: block;
+  }
+  /* Bağlıyken yeşil "Canlı" simgesi gizlenir; kopunca kırmızı simge, 30 sn sonra da kırmızı şerit görünür */
+  .app-status-conn[data-on="true"] {
+    display: none;
+  }
+  /* Yer yetmezse önce sayfa adı tamamen daralır, sonra durum çipleri sağdan kırpılır; düğmeler hep görünür kalır.
+     İç boşluk odak çerçevesinin (2 px + 2 px aralık) kırpılmaması için; eksi kenar boşluğu yerleşimi değiştirmez. */
+  .app-top-title {
+    flex-basis: 0;
+  }
+  .app-status {
+    min-width: 0;
+    margin: -4px -2px -4px -4px;
+    padding: 4px;
+    overflow: hidden;
+  }
+}
