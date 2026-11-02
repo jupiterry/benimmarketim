@@ -352,6 +352,7 @@ test("zamanlanmış iş: süresi dolan fırsatları kapatır ve ürün önbellek
     return { matchedCount: modified, modifiedCount: modified };
   });
   t.mock.method(WeeklyProduct, "countDocuments", async (filter) => { counts.push(filter); return started; });
+  t.mock.method(WeeklyProduct, "find", () => chain([])); // planlı fırsat yok
 
   assert.deepEqual(await syncWeeklyDealSchedule(now), { expired: 2, started: 0 });
   assert.equal(invalidations, 1, "kapatılan fırsat varsa önbellekler temizlenir");
@@ -382,6 +383,7 @@ test("zamanlanmış iş: flash sale adımı hata verse de haftalık fırsat adı
   t.mock.method(FlashSale, "find", async () => { throw new Error("db down"); });
   const updateMany = t.mock.method(WeeklyProduct, "updateMany", async () => ({ modifiedCount: 1 }));
   t.mock.method(WeeklyProduct, "countDocuments", async () => 0);
+  t.mock.method(WeeklyProduct, "find", () => chain([])); // planlı fırsat yok
   let invalidations = 0;
   const off = onProductCachesInvalidated(() => { invalidations += 1; });
   t.after(off);
@@ -397,15 +399,16 @@ test("zamanlanmış iş: flash sale adımı hata verse de haftalık fırsat adı
 test("yönetici: bitiş tarihi geçmiş fırsat yayına alınamaz; yalnızca sıralama değişikliği engellenmez", async (t) => {
   const past = new Date(Date.now() - H);
   const saves = [];
-  const doc = { _id: "w1", isActive: false, endDate: past, product: { _id: MILK._id, name: "Süt", price: 100 }, async save() { saves.push(1); } };
+  const W1 = hex("1eee", 1);
+  const doc = { _id: W1, isActive: false, endDate: past, product: { _id: MILK._id, name: "Süt", price: 100 }, async save() { saves.push(1); } };
   t.mock.method(WeeklyProduct, "findById", () => chain(doc));
   const toggled = response();
-  await toggleWeeklyProductStatus({ params: { id: "w1" } }, toggled);
+  await toggleWeeklyProductStatus({ params: { id: W1 } }, toggled);
   assert.equal(toggled.statusCode, 400);
   assert.equal(toggled.body.message, EXPIRED_ACTIVATE_MESSAGE);
 
   const updated = response();
-  await updateWeeklyProduct({ params: { id: "w1" }, body: { weeklyPrice: 70, isActive: true, endDate: past.toISOString() } }, updated);
+  await updateWeeklyProduct({ params: { id: W1 }, body: { weeklyPrice: 70, isActive: true, endDate: past.toISOString() } }, updated);
   assert.equal(updated.statusCode, 400);
   assert.equal(updated.body.message, EXPIRED_ACTIVATE_MESSAGE);
   assert.equal(saves.length, 0);
@@ -413,7 +416,7 @@ test("yönetici: bitiş tarihi geçmiş fırsat yayına alınamaz; yalnızca sı
   // Panelde sürükle-bırak sıralaması yalnızca { order } gönderir: süresi dolmuş ama henüz kapatılmamış kayıt engellemez
   doc.isActive = true;
   const reordered = response();
-  await updateWeeklyProduct({ params: { id: "w1" }, body: { order: 3 }, app: { get: () => null } }, reordered);
+  await updateWeeklyProduct({ params: { id: W1 }, body: { order: 3 }, app: { get: () => null } }, reordered);
   assert.equal(reordered.statusCode, 200, JSON.stringify(reordered.body));
   assert.equal(doc.order, 3);
   assert.equal(saves.length, 1);
