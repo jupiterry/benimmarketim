@@ -192,8 +192,8 @@ export const newestCreatedMs = (orders) => {
  *  - Anlık görüntü zamanı (snapshotMs) varsa ondan SNAPSHOT_GRACE_MS önce: sorgu sürerken kaydedilen sipariş listeye
  *    girmemiş olabilir, sınır onu geçmesin (bilinen siparişler zaten kimlikle elenir).
  *  - Yoksa (eski sunucu) listedeki en yeni sipariş.
- * Sınır yalnızca geri gitmez; canlı olaylar sınırı ilerletmez. Aksi hâlde kopukken kaçırılan bir sipariş, ondan sonra
- * canlı gelen bir siparişin arkasında kalır ve hiç duyurulmazdı.
+ * Sınır hiç geri gitmez ve canlı olaylarla ilerlemez: aksi hâlde kopukken kaçırılan bir sipariş, ondan sonra canlı
+ * gelen bir siparişin arkasında kalır ve hiç duyurulmazdı.
  */
 export const snapshotBaseline = (previousMs, { orders = [], snapshotMs = NaN } = {}) => {
   const candidate = Number.isFinite(snapshotMs) ? snapshotMs - SNAPSHOT_GRACE_MS : newestCreatedMs(orders);
