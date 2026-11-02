@@ -11,6 +11,7 @@
 //   PM2 küme modunda başka süreçte verilen sipariş en geç RECHECK_MS içinde fark edilir.
 import crypto from "node:crypto";
 import { PAYMENT_METHODS } from "../lib/paymentMethods.js";
+import { neighborhoodLabel } from "./delivery.service.js";
 import mongoose from "mongoose";
 
 export const DEVICES_COLLECTION = "order_alarm_devices";
@@ -73,6 +74,44 @@ export const paymentLabel = (order) => {
 };
 
 const money = (value) => Math.round((Number(value) || 0) * 100) / 100;
+const ACTIVE_STATUSES = ["Hazırlanıyor", "Yolda"];
+const isoOrNull = (value) => {
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? date.toISOString() : null;
+};
+
+/**
+ * Adrese teslim siparişin ayrıntıları (yurt / eski siparişte null): mahalle, sokak, bina no ve adı, kat, daire,
+ * tarif ve müşterinin haritada işaretlediği konum.
+ */
+export const alarmAddressDetails = (order) => {
+  const a = order?.deliveryAddress;
+  if (!a || typeof a !== "object") return null;
+  const lat = Number(a.location?.lat);
+  const lng = Number(a.location?.lng);
+  const hasPin = a.location?.lat != null && a.location?.lng != null && Number.isFinite(lat) && Number.isFinite(lng);
+  const details = {
+    zoneName: text(a.zoneName || order.deliveryZone?.name, 80),
+    neighborhood: text(a.neighborhood, 60),
+    street: text(a.street, 120),
+    buildingNo: text(a.buildingNo, 20),
+    buildingName: text(a.buildingName, 60),
+    floor: text(a.floor, 10),
+    apartment: text(a.apartment, 10),
+    directions: text(a.directions, 300),
+    location: hasPin ? { lat, lng } : null,
+  };
+  return details.street || details.neighborhood || details.buildingName || details.location ? details : null;
+};
+
+/** "Cumhuriyet Mah. Atatürk Cd. No:5, Gül Apt., Kat 2 · Daire 4, Devrek" (adressiz siparişte "") */
+export const alarmFullAddress = (details) => {
+  if (!details) return "";
+  const street = [neighborhoodLabel(details.neighborhood), details.street, details.buildingNo ? `No:${details.buildingNo}` : ""]
+    .filter(Boolean).join(" ");
+  const unit = [details.floor ? `Kat ${details.floor}` : "", details.apartment ? `Daire ${details.apartment}` : ""].filter(Boolean).join(" · ");
+  return [street, details.buildingName, unit, details.zoneName].filter(Boolean).join(", ");
+};
 
 /** Telefona gönderilen sipariş özeti. Müşteri telefonu yalnızca aramak için gösterilir. */
 export const toAlarmOrder = (order, customerName = "") => {
@@ -86,6 +125,9 @@ export const toAlarmOrder = (order, customerName = "") => {
   const address = [...new Set([deliveryPointName, city].filter(Boolean))].join(" · ") || "Belirtilmemiş";
   const subtotal = money(order.subtotalAmount);
   const total = money(order.totalAmount);
+  const details = alarmAddressDetails(order);
+  const needsCallback = order.needsCallback === true;
+  const callbackConfirmedAt = needsCallback ? isoOrNull(order.callbackConfirmedAt) : null;
   return {
     id: String(order._id),
     number: orderNumber(order._id),
@@ -103,6 +145,16 @@ export const toAlarmOrder = (order, customerName = "") => {
     couponCode: order.couponCode ? text(order.couponCode, 40) : null,
     couponDiscount: money(order.couponDiscount),
     totalAmount: total,
+    // ── Ek alanlar (eski uygulama sürümleri yok sayar; yukarıdaki alanların anlamı değişmez) ──
+    // Adrese teslim: kat/daire, bina adı, tarif ve konum dahil tam adres (yurt siparişinde fullAddress = address)
+    addressDetails: details,
+    fullAddress: alarmFullAddress(details) || address,
+    directions: details?.directions || "",
+    mapsUrl: details?.location ? `https://www.google.com/maps/search/?api=1&query=${details.location.lat},${details.location.lng}` : null,
+    // İlk sipariş telefon teyidi: callbackPending true iken sipariş telefondan ilerletilemez
+    needsCallback,
+    callbackConfirmedAt,
+    callbackPending: needsCallback && !callbackConfirmedAt && ACTIVE_STATUSES.includes(order.status),
   };
 };
 
