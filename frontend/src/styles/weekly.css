@@ -1,4 +1,5 @@
-/* Haftalık fırsatlar (WeeklyProductsTab) — admin-system.css belirteçleriyle, önek: wky- */
+/* Haftalık fırsatlar (WeeklyProductsTab) — admin-system.css belirteçleriyle, önek: wky-
+   Renkler yalnızca --ui-* belirteçleri: açık ve koyu temada aynı kurallar çalışır. */
 
 /* ── Sayfa düzeni: solda liste, sağda telefon önizlemesi ───────────── */
 .admin-layout .wky-layout {
@@ -48,22 +49,36 @@
   margin-left: auto;
 }
 
+/* ── Toplu işlem çubuğu ────────────────────────────────────────────── */
+.admin-layout .wky-bulkbar .ui-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
 /* ── Liste ─────────────────────────────────────────────────────────── */
 .admin-layout .wky-list {
   display: flex;
   flex-direction: column;
 }
-.admin-layout .wky-list-note {
+.admin-layout .wky-listhead {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
+  gap: 4px 8px;
+  min-height: 40px;
+  padding: 2px 14px 2px 8px;
   border-bottom: 1px solid var(--ui-line);
   background: var(--ui-surface-2);
   color: var(--ui-text-3);
   font-size: var(--ui-fs-xs);
 }
-.admin-layout .wky-list-note svg {
+.admin-layout .wky-listhead-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.admin-layout .wky-listhead-note svg {
   width: 14px;
   height: 14px;
   flex-shrink: 0;
@@ -71,7 +86,7 @@
 
 .admin-layout .wky-row {
   display: grid;
-  grid-template-columns: 28px 56px minmax(0, 1fr) 150px 44px auto;
+  grid-template-columns: 28px 24px 56px minmax(0, 1fr) 210px 40px auto;
   align-items: center;
   gap: 12px;
   min-height: 72px;
@@ -88,9 +103,15 @@
 .admin-layout .wky-row:hover {
   background: var(--ui-surface-2);
 }
+.admin-layout .wky-row[data-selected="true"] {
+  background: var(--ui-brand-soft);
+}
 .admin-layout .wky-row[data-cursor="true"] {
   box-shadow: inset 3px 0 0 var(--ui-brand);
   background: var(--ui-surface-2);
+}
+.admin-layout .wky-row[data-cursor="true"][data-selected="true"] {
+  background: var(--ui-brand-soft);
 }
 .admin-layout .wky-row[data-dragging="true"] {
   border-bottom-color: transparent;
@@ -108,11 +129,25 @@
   filter: grayscale(1);
 }
 
-.admin-layout .wky-handle {
+/* Seçim kutusu: tıklama alanı kutudan büyük */
+.admin-layout .wky-check {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 28px;
+  height: 36px;
+  border-radius: var(--ui-radius);
+  cursor: pointer;
+}
+.admin-layout .wky-check:hover {
+  background: var(--ui-surface-3);
+}
+
+.admin-layout .wky-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
   height: 36px;
   border-radius: var(--ui-radius);
   color: var(--ui-text-3);
@@ -239,46 +274,107 @@
   color: var(--ui-text-3);
 }
 
+/* Satış özeti (kampanya performansı): "34 adet · ₺1.020 ciro · ₺204 indirim" */
+.admin-layout .wky-perf {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  color: var(--ui-text-2);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .wky-perf svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  color: var(--ui-ok);
+}
+.admin-layout .wky-perf em {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--ui-surface-3);
+  color: var(--ui-text-3);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 600;
+}
+
+/* Liste fiyatı değişti uyarısı */
+.admin-layout .wky-stale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 2px;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--ui-warn) 35%, var(--ui-line));
+  border-radius: var(--ui-radius);
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  line-height: 1.4;
+}
+.admin-layout .wky-stale > svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.admin-layout .wky-stale-text {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.admin-layout .wky-stale-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.admin-layout .wky-stale .ui-btn--ghost {
+  color: var(--ui-warn-ink);
+}
+.admin-layout .wky-stale .ui-loader {
+  width: 12px;
+  height: 12px;
+}
+
+/* Durum sütunu: rozet + açıklama */
 .admin-layout .wky-time {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  align-items: flex-start;
+  gap: 4px;
   min-width: 0;
   font-size: var(--ui-fs-sm);
   color: var(--ui-text-2);
 }
-.admin-layout .wky-time strong {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-weight: 600;
-  color: var(--ui-text);
+.admin-layout .wky-time .ui-badge {
+  max-width: 100%;
+  min-height: 22px;
+  padding: 3px 8px;
+  line-height: 1.25;
+  white-space: normal;
 }
-.admin-layout .wky-time strong svg {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-  color: var(--ui-text-3);
-}
-.admin-layout .wky-time span {
+.admin-layout .wky-time-sub {
   font-size: var(--ui-fs-xs);
+  line-height: 1.35;
   color: var(--ui-text-3);
 }
-.admin-layout .wky-time[data-tone="warn"] strong {
+.admin-layout .wky-time[data-tone="warn"] .wky-time-sub {
   color: var(--ui-warn-ink);
 }
-.admin-layout .wky-time[data-tone="warn"] strong svg {
-  color: var(--ui-warn);
-}
-.admin-layout .wky-time[data-tone="danger"] strong {
+.admin-layout .wky-time[data-tone="danger"] .wky-time-sub {
   color: var(--ui-danger-ink);
-}
-.admin-layout .wky-time[data-tone="danger"] strong svg {
-  color: var(--ui-danger);
 }
 
 .admin-layout .wky-switch {
   justify-self: center;
+}
+.admin-layout .wky-switch-gap {
+  display: block;
+  width: 32px;
+  height: 32px;
 }
 .admin-layout .wky-actions {
   display: flex;
@@ -579,7 +675,7 @@
   height: 6px;
 }
 
-/* ── Çekmece: ürün seçimi ve hesaplayıcı ───────────────────────────── */
+/* ── Çekmece: ürün seçimi, hesaplayıcı, tarihler ───────────────────── */
 .admin-layout .wky-form {
   display: flex;
   flex-direction: column;
@@ -762,9 +858,73 @@
   background: var(--ui-brand-soft);
   color: var(--ui-brand-ink);
 }
+.admin-layout .wky-quick > button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 .admin-layout .wky-quick > button svg {
   width: 12px;
   height: 12px;
+}
+
+/* Tarih alanları */
+.admin-layout .wky-tz {
+  margin-left: 6px;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  font-weight: 500;
+}
+.admin-layout .wky-datetime {
+  margin-top: 8px;
+}
+.admin-layout .ui-hint.wky-hint-error {
+  color: var(--ui-danger-ink);
+}
+
+/* Çakışma kutusu (aynı ürünün planlı / yayındaki fırsatı) */
+.admin-layout .wky-conflict {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--ui-warn) 35%, var(--ui-line));
+  border-radius: var(--ui-radius);
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+.admin-layout .wky-conflict[data-tone="danger"] {
+  border-color: color-mix(in srgb, var(--ui-danger) 35%, var(--ui-line));
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+}
+.admin-layout .wky-conflict > svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.admin-layout .wky-conflict > div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--ui-fs-xs);
+  line-height: 1.45;
+}
+.admin-layout .wky-conflict strong {
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .wky-conflict .ui-check {
+  color: inherit;
+  font-weight: 600;
+}
+.admin-layout .wky-check-row {
+  align-items: flex-start;
+}
+.admin-layout .wky-check-row input {
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 
 .admin-layout .wky-form-row {
@@ -789,6 +949,15 @@
   display: block;
   font-size: var(--ui-fs-xs);
   color: var(--ui-text-3);
+}
+.admin-layout .wky-form-row-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--ui-info);
+}
+.admin-layout .wky-order-input {
+  width: 84px;
 }
 
 /* Çekmece içi tek kart önizlemesi */
@@ -817,6 +986,222 @@
   color: var(--ui-text);
 }
 
+/* ── Yeni haftaya kopyalama penceresi ───────────────────────────────── */
+.admin-layout .ui-modal.wky-copy {
+  max-width: 880px;
+}
+.admin-layout .wky-copy:focus {
+  outline: none;
+}
+.admin-layout .wky-copy-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.admin-layout .wky-copy-title svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--ui-brand);
+}
+.admin-layout .wky-copy-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.admin-layout .wky-copy-section .ui-segmented {
+  flex-wrap: wrap;
+}
+.admin-layout .wky-copy-source-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .wky-copy-source-note svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--ui-brand);
+}
+.admin-layout .wky-copy-dates {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px 16px;
+}
+.admin-layout .wky-copy-range {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-info-bg);
+  color: var(--ui-info-ink);
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+}
+.admin-layout .wky-copy-range svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.admin-layout .wky-copy-endlive {
+  display: flex;
+  padding: 10px 12px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-2);
+}
+.admin-layout .wky-copy-endlive small {
+  display: block;
+  margin-top: 2px;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  font-weight: 400;
+}
+.admin-layout .wky-copy-table-wrap {
+  max-height: 46vh;
+  overflow: auto;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+}
+.admin-layout .wky-copy-table {
+  border: 0;
+}
+.admin-layout .wky-copy-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 8px 12px;
+}
+.admin-layout .wky-copy-table td {
+  padding: 8px 12px;
+  vertical-align: middle;
+}
+.admin-layout .wky-copy-table tbody tr {
+  cursor: pointer;
+  transition: background-color var(--ui-ease);
+}
+.admin-layout .wky-copy-table tbody tr:hover {
+  background: var(--ui-surface-2);
+}
+.admin-layout .wky-copy-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.admin-layout .wky-copy-table tbody tr[data-checked="false"] td:not(.wky-copy-checkcell) {
+  opacity: 0.6;
+}
+.admin-layout .wky-copy-table tbody tr[data-blocked="true"] {
+  cursor: not-allowed;
+}
+.admin-layout .wky-copy-checkcell {
+  width: 44px;
+  text-align: center;
+}
+.admin-layout .wky-copy-num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .wky-copy-product {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.admin-layout .wky-copy-product .ui-thumb {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-line);
+}
+.admin-layout .wky-copy-product .ui-thumb img {
+  object-fit: contain;
+}
+.admin-layout .wky-copy-product strong {
+  display: block;
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  line-height: 1.3;
+}
+.admin-layout .wky-copy-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.admin-layout .wky-copy-tags .ui-badge {
+  min-height: 20px;
+  padding: 2px 6px;
+  font-size: 11px;
+  line-height: 1.25;
+  white-space: normal;
+}
+.admin-layout .wky-copy-table small {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .wky-copy-new strong {
+  color: var(--ui-brand-ink);
+}
+.admin-layout .wky-copy-foot {
+  align-items: center;
+}
+.admin-layout .wky-copy-count {
+  margin-right: auto;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
+.admin-layout .wky-copy-foot .ui-loader {
+  width: 14px;
+  height: 14px;
+}
+.admin-layout .wky-copy-result-lead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--ui-text);
+  font-weight: 600;
+}
+.admin-layout .wky-copy-result-lead svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: var(--ui-ok);
+}
+.admin-layout .wky-copy-skipped {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+}
+.admin-layout .wky-copy-skipped li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ui-line);
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-text);
+}
+.admin-layout .wky-copy-skipped li:last-child {
+  border-bottom: 0;
+}
+.admin-layout .wky-copy-skipped span {
+  color: var(--ui-text-3);
+}
+
 /* ── Kırılımlar ─────────────────────────────────────────────────────── */
 @media (max-width: 1100px) {
   .admin-layout .wky-layout {
@@ -834,31 +1219,35 @@
   }
 }
 @media (max-width: 760px) {
+  /* Satır iki kat: üstte seçim, görsel, ad ve fiyat; altta tutamaç, durum, anahtar ve işlemler */
   .admin-layout .wky-row {
-    grid-template-columns: 28px 52px minmax(0, 1fr) 44px;
+    grid-template-columns: 40px 48px minmax(0, 1fr) 40px auto;
     grid-template-areas:
-      "handle thumb main switch"
-      "handle time time actions";
-    gap: 8px 10px;
-    padding: 10px 10px 10px 6px;
+      "check thumb main main main"
+      "handle time time switch actions";
+    gap: 8px;
+    padding: 10px 8px 10px 2px;
+  }
+  .admin-layout .wky-row .wky-check {
+    grid-area: check;
+    align-self: start;
+    width: 40px;
+    height: 40px;
   }
   .admin-layout .wky-row .wky-handle {
     grid-area: handle;
+    width: 40px;
   }
   .admin-layout .wky-row .wky-thumb {
     grid-area: thumb;
-    width: 52px;
-    height: 52px;
+    width: 48px;
+    height: 48px;
   }
   .admin-layout .wky-row .wky-main-cell {
     grid-area: main;
   }
   .admin-layout .wky-row .wky-time {
     grid-area: time;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px 8px;
   }
   .admin-layout .wky-row .wky-switch {
     grid-area: switch;
@@ -866,6 +1255,16 @@
   .admin-layout .wky-row .wky-actions {
     grid-area: actions;
     justify-content: flex-end;
+  }
+  .admin-layout .wky-listhead {
+    padding-left: 2px;
+  }
+  .admin-layout .wky-listhead .wky-check {
+    width: 40px;
+    height: 40px;
+  }
+  .admin-layout .wky-listhead-note {
+    margin-left: 0;
   }
   .admin-layout .wky-foot-hint {
     display: none;
@@ -882,5 +1281,130 @@
   }
   .admin-layout .wky-foot {
     justify-content: center;
+  }
+  .admin-layout .wky-bulkbar > .ui-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+  /* Kopyalama: tarih sütunları alt alta, önizleme tablosu kartlara döner */
+  .admin-layout .wky-copy-dates {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-layout .wky-copy-table-wrap {
+    max-height: none;
+    overflow: visible;
+  }
+  .admin-layout .wky-copy-table thead {
+    display: none;
+  }
+  .admin-layout .wky-copy-table,
+  .admin-layout .wky-copy-table tbody {
+    display: block;
+  }
+  .admin-layout .wky-copy-table tbody tr {
+    display: grid;
+    grid-template-columns: 44px repeat(3, minmax(0, 1fr));
+    grid-template-areas:
+      "check product product product"
+      ". list prev next";
+    gap: 2px 8px;
+    padding: 8px 10px 8px 0;
+    border-bottom: 1px solid var(--ui-line);
+  }
+  .admin-layout .wky-copy-table tbody tr:last-child {
+    border-bottom: 0;
+  }
+  .admin-layout .wky-copy-table td {
+    display: block;
+    padding: 0;
+    border: 0;
+  }
+  .admin-layout .wky-copy-table td.wky-copy-checkcell {
+    grid-area: check;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    min-height: 40px;
+  }
+  .admin-layout .wky-copy-table td.wky-copy-productcell {
+    grid-area: product;
+    align-self: center;
+  }
+  .admin-layout .wky-copy-table td.wky-copy-num {
+    text-align: left;
+    white-space: normal;
+  }
+  .admin-layout .wky-copy-table td[data-label="Liste fiyatı"] {
+    grid-area: list;
+  }
+  .admin-layout .wky-copy-table td[data-label="Önceki fırsat"] {
+    grid-area: prev;
+  }
+  .admin-layout .wky-copy-table td[data-label="Yeni fırsat"] {
+    grid-area: next;
+  }
+  .admin-layout .wky-copy-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--ui-text-3);
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .admin-layout .wky-copy-count {
+    flex-basis: 100%;
+    text-align: center;
+  }
+}
+
+/* Dokunmatik ekran: dokunma alanları en az 40px, alanlar 16px (iOS yakınlaştırmasın) */
+@media (max-width: 760px), (pointer: coarse) {
+  .admin-layout .wky-toolbar .ui-field,
+  .admin-layout .wky-form .ui-field,
+  .admin-layout .wky-copy .ui-field {
+    min-height: 40px;
+    font-size: 16px;
+  }
+  .admin-layout .wky-quick > button,
+  .admin-layout .wky-toolbar .ui-chips > button {
+    height: 40px;
+    padding: 0 12px;
+  }
+  .admin-layout .wky-row .ui-icon-btn,
+  .admin-layout .wky-row .wky-switch-gap {
+    width: 40px;
+    height: 40px;
+  }
+  .admin-layout .wky-handle {
+    height: 40px;
+  }
+  .admin-layout .wky-check {
+    width: 40px;
+    height: 40px;
+  }
+  .admin-layout .wky-check input,
+  .admin-layout .wky-copy-checkcell input,
+  .admin-layout .wky-check-row input {
+    width: 20px;
+    height: 20px;
+  }
+  .admin-layout .wky-stale .ui-btn,
+  .admin-layout .wky-conflict .ui-btn,
+  .admin-layout .wky-bulkbar .ui-btn,
+  .admin-layout .wky-copy .ui-modal-footer .ui-btn {
+    min-height: 40px;
+  }
+  .admin-layout .wky-copy .ui-segmented > button {
+    min-height: 40px;
+  }
+  .admin-layout .wky-check-row {
+    min-height: 40px;
+    align-items: center;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-layout .wky-row,
+  .admin-layout .wky-copy-table tbody tr {
+    transition: none;
   }
 }
