@@ -50,6 +50,8 @@ import orderAlarmRoutes from "./routes/orderAlarm.route.js";
 import accountCleanupRoutes from "./routes/accountCleanup.route.js";
 import deliveryRoutes from "./routes/delivery.route.js";
 import addressRoutes from "./routes/address.route.js";
+import campaignRoutes from "./routes/campaign.route.js";
+import customerActionsRoutes from "./routes/customerActions.route.js";
 import User from "./models/user.model.js";
 import Chat from "./models/chat.model.js";
 import { connectDB } from "./lib/db.js";
@@ -329,6 +331,8 @@ app.use("/api/account-cleanup", accountCleanupRoutes);
 // Teslimat bölgeleri / ücret teklifi / adrese sipariş bayrağı ve kayıtlı adresler (istek sınırları rotalarda)
 app.use("/api/delivery", deliveryRoutes);
 app.use("/api/addresses", addressRoutes);
+app.use("/api/campaigns", campaignRoutes);
+app.use("/api/customer-actions", customerActionsRoutes);
 
 // robots.txt ve sitemap.xml frontend build'i tarafından üretilir (frontend/scripts/prerender-seo.mjs) ve
 // production'da aşağıdaki express.static ile frontend/dist içinden sunulur; burada ayrıca üretilmez.

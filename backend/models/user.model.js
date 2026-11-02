@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
+import { STAFF_FLAG_KEYS, STAFF_NOTE_MAX } from "../lib/staffFlags.js";
 
 const userSchema = new mongoose.Schema(
 	{
@@ -106,6 +107,25 @@ const userSchema = new mongoose.Schema(
 			type: String,
 			enum: ["desktop", "mobile", "tablet", "unknown"],
 			default: "unknown"
+		},
+		// Personelin iç notu ve işaretleri (lib/staffFlags.js). Yalnızca panel okur: varsayılan sorgularda
+		// gelmez (select: false), müşteriye dönen yanıtlara girmez. Yönetici uçları açıkça seçer.
+		staffNote: {
+			type: new mongoose.Schema(
+				{
+					text: { type: String, trim: true, maxlength: STAFF_NOTE_MAX },
+					updatedAt: { type: Date },
+					updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+				},
+				{ _id: false }
+			),
+			default: undefined,
+			select: false,
+		},
+		staffFlags: {
+			type: [{ type: String, enum: STAFF_FLAG_KEYS }],
+			default: undefined,
+			select: false,
 		},
 		// Mobil uygulama kullanımı (services/appActivity.service.js doldurur).
 		// Bir "ziyaret", 30 dakikadan uzun aradan sonra gelen ilk istekle başlar.

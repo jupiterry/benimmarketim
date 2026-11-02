@@ -39,6 +39,7 @@ import AiKnowledgeCenter from "../components/AiKnowledgeCenter";
 import SupportQueueTab from "../components/SupportQueueTab";
 import PushBroadcastTab from "../components/PushBroadcastTab";
 import SiteMessagesTab from "../components/SiteMessagesTab";
+import CampaignCenterTab from "../components/CampaignCenterTab";
 
 import { Package, Upload } from "lucide-react";
 
@@ -680,6 +681,8 @@ const AdminPage = () => {
         return <WeeklyProductsTab />;
       case "bulk-upload":
         return <BulkUploadSection onUpload={handleBulkUpload} />;
+      case "campaigns":
+        return <CampaignCenterTab onNavigate={handleTabChange} />;
       case "coupons":
         return <CouponsTab />;
       case "referrals":
