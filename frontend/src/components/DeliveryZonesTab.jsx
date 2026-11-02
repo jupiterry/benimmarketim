@@ -4,11 +4,14 @@
 // kendi "Kaydet"iyle kaydedilir. Devrek kartında "Teslimat alanı" (OpenStreetMap sınırı) bölümü vardır.
 // Üstte "Adrese teslimat" anahtarı (Kapalı / Pilot / Herkese açık) ve "Her yerde ücretsiz teslimat" kampanyası, altta
 // Kuryeler kartı. Anahtar "Kapalı" iken mevcut uygulama bugünkü gibi çalışır.
+// "Adrese teslimat" kartının altında "Yayına hazırlık" listesi (sınır, ücret, süre, teyit, kurye, uygulama sürümü,
+// saatler, pilot) ve "Pilot karnesi" durur; bölge, alan, kurye ya da yayın ayarı değişince liste yenilenir.
+// "Herkese açık"a geçerken engelleyici madde varsa onay penceresi bunları listeler ("Yine de herkese aç").
 // Uç noktalar: GET /delivery/admin/zones, PUT /delivery/admin/zones/:id, POST /delivery/admin/zones/devrek/area/fetch,
 // PUT/DELETE /delivery/admin/zones/devrek/area, GET/PUT /delivery/admin/settings, GET /settings (genel minimum sepet),
-// GET/PUT /delivery/admin/couriers (Kuryeler kartı), GET /users/search (pilot kullanıcı araması).
-// Değişiklikler sunucuda işlem kaydına yazılır.
-import { useCallback, useEffect, useMemo, useState } from "react";
+// GET/PUT /delivery/admin/couriers (Kuryeler kartı), GET /users/search (pilot kullanıcı araması),
+// GET /delivery/admin/readiness (hazırlık listesi + pilot karnesi). Değişiklikler sunucuda işlem kaydına yazılır.
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Building2, Gift, Landmark, MapPin, RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
 import axios from "../lib/axios";
@@ -19,16 +22,31 @@ import CouriersCard from "./delivery-zones/CouriersCard";
 import ZoneCard from "./delivery-zones/ZoneCard";
 import DevrekAreaSection from "./delivery-zones/DevrekAreaSection";
 import { DEVREK_ID, FIXED_ZONES, errorMessage, normalizeZone, num } from "./delivery-zones/shared";
+import { READINESS_API, blockersOf, normalizeReadiness, runFix } from "./delivery-zones/readiness";
 import "../styles/delivery-zones.css";
 
 const API = "/delivery/admin";
 const ZONE_ICONS = { girlsDorm: Building2, boysDorm: Building2, [DEVREK_ID]: Landmark };
+const READINESS_DEBOUNCE_MS = 400;
 
 const normalizeSettings = (data = {}, previous = null) => ({
   addressOrdering: ["off", "pilot", "public"].includes(data.addressOrdering) ? data.addressOrdering : previous?.addressOrdering || "off",
   freeDeliveryEverywhere: data.freeDeliveryEverywhere === undefined ? Boolean(previous?.freeDeliveryEverywhere) : Boolean(data.freeDeliveryEverywhere),
   pilotUsers: Array.isArray(data.pilotUsers) ? data.pilotUsers : previous?.pilotUsers || [],
 });
+
+/** "Herkese aç" onayında engelleyici maddeler (onay penceresinin metni <p> içinde: yalnızca satır içi öğeler) */
+const BlockerMessage = ({ blockers, warnings }) => (
+  <>
+    <span className="dz-confirm-lead">Yayına hazırlık listesinde şu {blockers.length === 1 ? "madde" : `${blockers.length} madde`} kırmızı:</span>
+    {blockers.map((check) => (
+      <span key={check.id} className="dz-confirm-item"><strong>{check.title}:</strong> {check.detail}</span>
+    ))}
+    <span className="dz-confirm-tail">
+      {warnings ? `Ayrıca ${warnings} uyarı var. ` : ""}Yine de açarsanız güncel uygulamayı kullanan tüm müşteriler açık bölgelere adresle sipariş verebilir.
+    </span>
+  </>
+);
 
 const CardSkeleton = ({ wide }) => (
   <div className="ui-panel dz-card dz-card--skel" data-wide={wide || undefined} aria-hidden="true">
@@ -52,6 +70,13 @@ const DeliveryZonesTab = () => {
   const [generalMinimum, setGeneralMinimum] = useState(null);
   const [busy, setBusy] = useState(""); // "mode" | "campaign"
   const [pilotBusyId, setPilotBusyId] = useState("");
+  const [readiness, setReadiness] = useState(null);
+  const [readinessLoading, setReadinessLoading] = useState(true);
+  const [readinessError, setReadinessError] = useState("");
+  const readinessSeq = useRef(0);
+  const readinessTimer = useRef(null);
+  const readinessRef = useRef(null);
+  readinessRef.current = readiness;
 
   const loadZones = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setZonesLoading(true);
@@ -86,7 +111,35 @@ const DeliveryZonesTab = () => {
       setGeneralMinimum(null); // genel minimum bilinmiyorsa "Genel" yazılır
     }
   }, []);
-  const refreshAll = useCallback(() => { loadZones(); loadSettings(); loadGeneral(); }, [loadZones, loadSettings, loadGeneral]);
+  /** Hazırlık listesi + pilot karnesi; eski (geç gelen) yanıt yenisinin üstüne yazılmaz. Başarıda veriyi döndürür. */
+  const loadReadiness = useCallback(async () => {
+    window.clearTimeout(readinessTimer.current);
+    const seq = readinessSeq.current + 1;
+    readinessSeq.current = seq;
+    setReadinessLoading(true);
+    try {
+      const { data } = await axios.get(READINESS_API);
+      const next = normalizeReadiness(data);
+      if (seq === readinessSeq.current) {
+        setReadiness(next);
+        setReadinessError("");
+      }
+      return next;
+    } catch (error) {
+      if (seq === readinessSeq.current) setReadinessError(errorMessage(error, "Hazırlık listesi yüklenemedi"));
+      return null;
+    } finally {
+      if (seq === readinessSeq.current) setReadinessLoading(false);
+    }
+  }, []);
+  /** Kayıtlardan sonra: art arda değişiklikler tek istekte toplanır */
+  const scheduleReadiness = useCallback(() => {
+    window.clearTimeout(readinessTimer.current);
+    readinessTimer.current = window.setTimeout(() => { loadReadiness(); }, READINESS_DEBOUNCE_MS);
+  }, [loadReadiness]);
+  useEffect(() => () => window.clearTimeout(readinessTimer.current), []);
+
+  const refreshAll = useCallback(() => { loadZones(); loadSettings(); loadGeneral(); loadReadiness(); }, [loadZones, loadSettings, loadGeneral, loadReadiness]);
   useEffect(() => { refreshAll(); }, [refreshAll]);
 
   // ── Türetilmiş ──
@@ -115,13 +168,22 @@ const DeliveryZonesTab = () => {
       patchZone(zone._id, saved ? { ...saved, area: zone.area, areaCandidates: zone.areaCandidates } : payload);
       toast.success(`${title} kaydedildi`);
       loadZones({ silent: true });
+      scheduleReadiness();
       return { ok: true };
     } catch (error) {
       return { error: errorMessage(error, "Kaydedilemedi. Bağlantıyı kontrol edip tekrar deneyin.") };
     }
-  }, [loadZones, patchZone]);
+  }, [loadZones, patchZone, scheduleReadiness]);
 
-  const onAreaChange = useCallback((patch) => patchZone(DEVREK_ID, patch), [patchZone]);
+  const onAreaChange = useCallback((patch) => {
+    patchZone(DEVREK_ID, patch);
+    scheduleReadiness();
+  }, [patchZone, scheduleReadiness]);
+
+  // "Düzelt": ekrandaki karta kaydırır ya da Mağaza ayarlarındaki bölümü açar
+  const fixCheck = useCallback((check) => {
+    if (!runFix(check.fix)) toast.error(`${check.title}: ilgili kart bulunamadı. Sayfayı yenileyip tekrar deneyin.`);
+  }, []);
 
   // ── Adrese teslimat ayarları ──
   const putSettings = async (patch) => {
@@ -130,17 +192,46 @@ const DeliveryZonesTab = () => {
       const base = { ...prev, ...("pilotUserIds" in patch ? {} : patch) };
       return data && typeof data === "object" && "addressOrdering" in data ? normalizeSettings(data, base) : normalizeSettings(base, prev);
     });
+    scheduleReadiness();
+  };
+
+  /** "Herkese açık" onayı: liste o an yeniden denetlenir; kırmızı madde varsa tek tek gösterilir */
+  const confirmPublic = async () => {
+    setBusy("mode");
+    const fresh = await loadReadiness();
+    setBusy("");
+    const latest = fresh || readinessRef.current;
+    const opening = `Güncel uygulamayı kullanan tüm müşteriler ${num(totals.open)} açık bölgeye sipariş verebilecek${devrek?.enabled ? "; Devrek'te adres ve haritada konum girerek" : ""}. Yurt siparişleri bugünkü gibi sürer.`;
+    if (!latest) {
+      return confirm({
+        title: "Hazırlık listesi denetlenemedi",
+        message: `Eksik madde olup olmadığı şu an okunamadı. ${opening}`,
+        confirmText: "Yine de herkese aç",
+        type: "danger",
+      });
+    }
+    const blockers = blockersOf(latest);
+    if (blockers.length) {
+      return confirm({
+        title: blockers.length === 1 ? "Herkese açmadan önce 1 eksik var" : `Herkese açmadan önce ${blockers.length} eksik var`,
+        message: <BlockerMessage blockers={blockers} warnings={latest.counts.warn} />,
+        confirmText: "Yine de herkese aç",
+        type: "danger",
+      });
+    }
+    return confirm({
+      title: "Adrese teslimat herkese açılsın mı?",
+      message: `${opening}${latest.counts.warn ? ` Hazırlık listesinde ${latest.counts.warn} uyarı var; kırmızı madde yok.` : " Hazırlık listesindeki tüm maddeler hazır."}`,
+      confirmText: "Herkese aç",
+      type: "warning",
+    });
   };
 
   const changeMode = async (mode) => {
+    if (busy) return;
     const current = settings?.addressOrdering;
     if (mode === "public") {
-      const ok = await confirm({
-        title: "Adrese teslimat herkese açılsın mı?",
-        message: `Güncel uygulamayı kullanan tüm müşteriler ${num(totals.open)} açık bölgeye sipariş verebilecek${devrek?.enabled ? "; Devrek'te adres ve haritada konum girerek" : ""}. Yurt siparişleri bugünkü gibi sürer.`,
-        confirmText: "Herkese aç",
-        type: "warning",
-      });
+      const ok = await confirmPublic();
       if (!ok) return;
     } else if (current === "public") {
       const ok = await confirm({
@@ -225,7 +316,7 @@ const DeliveryZonesTab = () => {
         description="Üç sabit teslimat bölgesi: Kız KYK Yurdu, Erkek KYK Yurdu ve Genel Devrek (Devrek merkezinin haritadaki sınırı). Bölgeleri açıp kapatın; ücretini, minimum sepeti ve süreyi ayarlayın."
         actions={(
           <button type="button" className="ui-btn ui-btn--sm" onClick={refreshAll} disabled={zonesLoading && settingsLoading} title="Yenile">
-            <RefreshCw className={zonesLoading || settingsLoading ? "ui-spin" : undefined} />Yenile
+            <RefreshCw className={zonesLoading || settingsLoading || readinessLoading ? "ui-spin" : undefined} />Yenile
           </button>
         )}
       />
@@ -244,7 +335,9 @@ const DeliveryZonesTab = () => {
       {/* Pilot kullanıcı araması PilotPicker içinde sunucuda yapılır (GET /users/search); müşteri listesi indirilmez */}
       <RolloutCard settings={settings} loading={settingsLoading} error={settingsError} busy={busy}
         openZones={totals.open} pilotBusyId={pilotBusyId} onRetry={loadSettings} onChangeMode={changeMode} onToggleCampaign={toggleCampaign}
-        onAddPilot={addPilot} onRemovePilot={removePilot} />
+        onAddPilot={addPilot} onRemovePilot={removePilot}
+        readiness={readiness} readinessLoading={readinessLoading} readinessError={readinessError}
+        onRetryReadiness={loadReadiness} onFix={fixCheck} />
       {settingsError && settings && (
         <div className="ui-banner ui-banner--danger" role="alert">
           <AlertTriangle /><span className="ui-grow">Ayarlar yenilenemedi: {settingsError}. Gösterilen değerler son başarılı yüklemeden.</span>
@@ -280,7 +373,7 @@ const DeliveryZonesTab = () => {
         )))}
       </div>
 
-      <CouriersCard />
+      <CouriersCard onChange={scheduleReadiness} />
 
       <p className="ui-hint dz-foot-note dz-page-note"><MapPin aria-hidden="true" />Kapalı bölgeler müşteriye gösterilmez. Bölgeler sabittir; eklenemez ya da silinemez. Değişiklikler işlem kayıtlarına yazılır.</p>
     </div>

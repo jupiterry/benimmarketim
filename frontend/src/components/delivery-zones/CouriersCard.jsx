@@ -1,6 +1,8 @@
 // "Kuryeler" kartı: sipariş ataması ve kurye bazında gün sonu için kurye listesi (ekle / düzenle / pasif yap).
 // Uç noktalar: GET/PUT /delivery/admin/couriers (PUT listenin tamamını gönderir; kimlikler korunur, eski siparişlerdeki
 // kurye adı değişmez). Kurye silinmez, pasif yapılır: pasif kurye yeni siparişe atanamaz ama geçmişte görünür.
+// onChange: başarılı kayıttan sonra çağrılır (ekran "Yayına hazırlık" listesini yeniler). Kart (dz-couriers) ve
+// "Kurye ekle" düğmesi (dz-courier-add) listedeki "Düzelt" bağlantısının hedefidir.
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { AlertTriangle, Bike, Check, Loader2, Pencil, Phone, Plus, RefreshCw, ToggleLeft, ToggleRight, X } from "lucide-react";
@@ -74,7 +76,7 @@ function CourierForm({ initial, couriers, editingId, busy, onSubmit, onCancel })
   );
 }
 
-export default function CouriersCard() {
+export default function CouriersCard({ onChange }) {
   const [couriers, setCouriers] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -102,6 +104,7 @@ export default function CouriersCard() {
       const { data } = await axios.put(API, { couriers: next.map(({ _id, name, phone, active }) => (_id ? { _id, name, phone, active } : { name, phone, active })) });
       setCouriers(normalize(data?.couriers));
       toast.success(success);
+      onChange?.();
       return true;
     } catch (err) {
       toast.error(errorMessage(err, "Kuryeler kaydedilemedi"));
@@ -130,7 +133,7 @@ export default function CouriersCard() {
   );
 
   return (
-    <section className="ui-panel dz-couriers" aria-labelledby="dz-couriers-title">
+    <section className="ui-panel dz-couriers" id="dz-couriers" aria-labelledby="dz-couriers-title">
       <div className="dz-couriers-head">
         <div className="dz-couriers-title">
           <span className="dz-couriers-icon" aria-hidden="true"><Bike /></span>
@@ -140,7 +143,7 @@ export default function CouriersCard() {
           </div>
         </div>
         {couriers && (
-          <button type="button" className="ui-btn ui-btn--sm" onClick={() => setEditing("new")} disabled={editing === "new" || full || Boolean(busyId)}
+          <button type="button" id="dz-courier-add" className="ui-btn ui-btn--sm" onClick={() => setEditing("new")} disabled={editing === "new" || full || Boolean(busyId)}
             title={full ? `En fazla ${LIMITS.max} kurye` : "Kurye ekle"}>
             <Plus aria-hidden="true" />Kurye ekle
           </button>

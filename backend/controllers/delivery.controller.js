@@ -12,20 +12,26 @@
  *   GET /api/delivery/admin/zones, PUT /api/delivery/admin/zones/:id, PATCH /api/delivery/admin/zones/bulk,
  *   POST/DELETE /api/delivery/admin/zones(/:id) → 400 ZONES_FIXED (rota korunur),
  *   POST /api/delivery/admin/zones/devrek/area/fetch, PUT/DELETE /api/delivery/admin/zones/devrek/area,
- *   GET/PUT /api/delivery/admin/settings, GET/PUT /api/delivery/admin/couriers (telefonlar yalnızca burada görünür)
+ *   GET/PUT /api/delivery/admin/settings, GET/PUT /api/delivery/admin/couriers (telefonlar yalnızca burada görünür),
+ *   GET /api/delivery/admin/readiness (yayına hazırlık listesi + pilot karnesi; salt okunur)
  */
 
 import mongoose from "mongoose";
 import DeliveryZone from "../models/deliveryZone.model.js";
+import Feedback from "../models/feedback.model.js";
 import Order from "../models/order.model.js";
 import Settings from "../models/settings.model.js";
 import User from "../models/user.model.js";
 import { buildOrderProducts } from "../services/order.service.js";
 import { diffFields, money, recordAdminAction, yesNo } from "../services/adminAudit.service.js";
+import { isWithinOrderSchedule } from "../services/ai/storeInfo.service.js";
 import { invalidateSettingsCache } from "./settings.controller.js";
 import {
   ADDRESS_ORDERING_MODES,
   DEVREK_ZONE_ID,
+  PILOT_DURATION_SAMPLE,
+  buildPilotReportPipeline,
+  buildReadinessChecks,
   canOrderToAddress,
   computeDeliveryQuote,
   getAddressOrderingMode,
@@ -39,6 +45,7 @@ import {
   serializePublicZone,
   simplifyAreaGeometry,
   summarizeArea,
+  summarizePilotReport,
   syncSettingsFromZones,
   zoneClosedMessage,
 } from "../services/delivery.service.js";
@@ -509,7 +516,13 @@ export const adminUpdateDeliverySettings = async (req, res) => {
       pilotCount: (settings.delivery.pilotUserIds || []).length,
       pilotIds: (settings.delivery.pilotUserIds || []).map(String).join(","),
     };
-    if (addressOrdering !== undefined) settings.delivery.addressOrdering = addressOrdering;
+    if (addressOrdering !== undefined) {
+      settings.delivery.addressOrdering = addressOrdering;
+      // Pilot karnesinin başlangıcı: adrese teslimatın Kapalı'dan ilk kez açıldığı an (sonra değişmez)
+      if (addressOrdering !== "off" && before.addressOrdering === "off" && !settings.delivery.pilotStartedAt) {
+        settings.delivery.pilotStartedAt = new Date();
+      }
+    }
     if (freeDeliveryEverywhere !== undefined) settings.delivery.freeDeliveryEverywhere = freeDeliveryEverywhere;
     if (pilotIds !== undefined) settings.delivery.pilotUserIds = pilotIds;
     await settings.save();
@@ -603,5 +616,80 @@ export const adminUpdateCouriers = async (req, res) => {
     res.json({ couriers: after, changes });
   } catch (error) {
     return serverError(res, "Kuryeler kaydedilemedi", error);
+  }
+};
+
+// ─────────────────────────────────────────────
+// Yönetici: yayına hazırlık listesi ve pilot karnesi
+// ─────────────────────────────────────────────
+
+/** Pilot kullanıcı kimlikleri (geçerli, tekil) ObjectId olarak: aggregate $match değerleri dönüştürmez */
+const pilotObjectIds = (settings) => [...new Set((settings?.delivery?.pilotUserIds || []).map(String))]
+  .filter(isValidObjectId)
+  .map((id) => new mongoose.Types.ObjectId(id));
+
+/** Listede kalan ve hâlâ var olan pilot kullanıcı sayısı (hesabını silen sayılmaz) */
+const countPilotUsers = async (ids) => {
+  if (!ids.length) return 0;
+  try {
+    return await User.countDocuments({ _id: { $in: ids } });
+  } catch (error) {
+    console.warn("Pilot kullanıcılar sayılamadı:", error.message);
+    return ids.length;
+  }
+};
+
+/** Karne sorgusunun üst süresi: yavaş sorgu veritabanını uzun süre meşgul etmesin (liste yine döner) */
+export const PILOT_REPORT_MAX_MS = 15000;
+
+/** Pilot karnesi: adres siparişleri üzerinde tek $facet sorgusu (bkz. buildPilotReportPipeline) */
+export const loadPilotReport = async ({ settings, zones, pilotUserIds = pilotObjectIds(settings) }) => {
+  const [facet] = await Order.aggregate(buildPilotReportPipeline({
+    pilotUserIds,
+    feedbackCollection: Feedback.collection.name,
+    durationSample: PILOT_DURATION_SAMPLE,
+  }), { maxTimeMS: PILOT_REPORT_MAX_MS });
+  return summarizePilotReport(facet || {}, {
+    zones,
+    pilotStartedAt: settings?.delivery?.pilotStartedAt || null,
+    durationSample: PILOT_DURATION_SAMPLE,
+  });
+};
+
+/**
+ * GET /api/delivery/admin/readiness — Devrek'i herkese açmadan önceki kontrol listesi ve pilot karnesi.
+ * Yanıt: { mode, ready, checks: [{ id, status: ok|warn|block, title, detail, fix }], pilot, pilotError, generatedAt }
+ * ready: engelleyici (block) madde yok. Pilot karnesi hesaplanamazsa liste yine döner (pilot: null).
+ */
+export const adminGetReadiness = async (req, res) => {
+  try {
+    const now = new Date();
+    const settings = await Settings.getSettings();
+    const zones = await listZones({ settings });
+    const pilotUserIds = pilotObjectIds(settings);
+    const [pilotUserCount, pilotResult] = await Promise.all([
+      countPilotUsers(pilotUserIds),
+      loadPilotReport({ settings, zones, pilotUserIds }).then((value) => ({ value }), (error) => ({ error })),
+    ]);
+    if (pilotResult.error) console.error("Pilot karnesi hesaplanamadı:", pilotResult.error.message);
+    const pilot = pilotResult.value || null;
+    const orderingOpen = isWithinOrderSchedule({
+      startHour: Number(settings.orderStartHour) || 0,
+      startMinute: Number(settings.orderStartMinute) || 0,
+      endHour: Number(settings.orderEndHour) || 0,
+      endMinute: Number(settings.orderEndMinute) || 0,
+    }, now);
+    const checks = buildReadinessChecks({ settings, zones, couriers: listCouriers(settings), pilotUserCount, pilot, orderingOpen });
+    res.set?.("Cache-Control", "no-store");
+    res.json({
+      mode: getAddressOrderingMode(settings),
+      ready: !checks.some((check) => check.status === "block"),
+      checks,
+      pilot,
+      pilotError: pilot ? null : "Pilot sonuçları şu an hesaplanamadı. Biraz sonra yenileyin.",
+      generatedAt: now.toISOString(),
+    });
+  } catch (error) {
+    return serverError(res, "Yayına hazırlık listesi hazırlanamadı", error);
   }
 };

@@ -18,12 +18,15 @@
  *   yüklü sınırın dışındaysa OUT_OF_AREA. Yurtta hiçbir alan zorunlu değil.
  * - canOrderToAddress: settings.delivery.addressOrdering 'off' → hayır, 'pilot' → pilotUserIds'te mi,
  *   'public' → evet.
+ * - Yayına hazırlık listesi ve pilot karnesi (GET /api/delivery/admin/readiness): buildReadinessChecks,
+ *   buildPilotReportPipeline + summarizePilotReport (saf fonksiyonlar; sorgu denetleyicide çalışır).
  */
 
 import mongoose from "mongoose";
 import DeliveryZone, { DEVREK_ZONE_ID, FIXED_ZONE_IDS, LEGACY_POINTS, ZONE_TYPES } from "../models/deliveryZone.model.js";
 import Order from "../models/order.model.js";
 import Settings from "../models/settings.model.js";
+import { CANCEL_REASONS, DELIVERY_OUTCOMES, LOW_RATING } from "../lib/feedbackOptions.js";
 import { meetsMinimumAmount, roundMoney, toKurus } from "./productPricing.js";
 
 export { DEVREK_ZONE_ID, FIXED_ZONE_IDS, LEGACY_POINTS, ZONE_TYPES };
@@ -762,4 +765,536 @@ export const normalizeZoneInput = (input) => {
     value.requireFirstOrderCallback = input.requireFirstOrderCallback;
   }
   return { value, fixedFields };
+};
+
+// ─────────────────────────────────────────────
+// Yayına hazırlık listesi ve pilot karnesi (GET /api/delivery/admin/readiness)
+// Saf fonksiyonlar: denetleyici sorguyu çalıştırır, burada metin ve sayılar üretilir.
+// ─────────────────────────────────────────────
+
+/** Adrese teslimatı (Devrek bölgesi, adres formu, harita pini) destekleyen en eski mobil sürüm */
+export const ADDRESS_APP_MIN_VERSION = "7.1.0";
+/** Pilot bitiş ölçütleri (docs/devrek-teslimat-plani.md): en az %90 söz verilen sürede, "adres bulunamadı" %3'ün altında */
+export const PILOT_TARGETS = Object.freeze({ onTimeRate: 90, addressNotFoundRate: 3 });
+/** Teslim süresi için bakılan en yeni teslim edilmiş sipariş sayısı (bellek sınırı) */
+export const PILOT_DURATION_SAMPLE = 2000;
+const PILOT_TOP_NEIGHBORHOODS = 6;
+const PILOT_NEIGHBORHOOD_ROWS = 200;
+const PILOT_PROBLEM_LIMIT = 5;
+const PILOT_ZONE_ROWS = 10;
+const DELIVERED_STATUS = "Teslim Edildi";
+const CANCELLED_STATUS = "İptal Edildi";
+const ACTIVE_STATUSES = ["Hazırlanıyor", "Yolda"];
+const MAX_ETA_MINUTES = 24 * 60;
+
+const toCount = (value) => (Number.isFinite(Number(value)) ? Math.max(0, Math.round(Number(value))) : 0);
+const toDateOrNull = (value) => {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+const round1 = (value) => Math.round(value * 10) / 10;
+const finiteOrNull = (value) => (value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value)) ? Number(value) : null);
+const NUMBER_TR = new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 2 });
+/** 40 → "40 TL", 12.5 → "12,5 TL" (paneldeki yazımla aynı) */
+const tlText = (value) => `${NUMBER_TR.format(Number(value) || 0)} TL`;
+const km2Text = (value) => (finiteOrNull(value) === null ? "" : `~${NUMBER_TR.format(Number(value))} km²`);
+/** Türkiye saatine göre "30 Ekim 2026" */
+const dateTextTr = (value) => {
+  const date = toDateOrNull(value);
+  return date ? date.toLocaleDateString("tr-TR", { timeZone: "Europe/Istanbul", day: "numeric", month: "long", year: "numeric" }) : "";
+};
+const clockText = (hour, minute) => `${String(Number(hour) || 0).padStart(2, "0")}:${String(Number(minute) || 0).padStart(2, "0")}`;
+const capitalizeTr = (text) => (text ? `${text.charAt(0).toLocaleUpperCase("tr")}${text.slice(1)}` : text);
+
+/** "7.1.0", "v7.1", "7.1.0+51" → [7, 1, 0]; okunamazsa null */
+export const parseAppVersion = (value) => {
+  const match = /^\s*v?(\d{1,5})(?:\.(\d{1,5}))?(?:\.(\d{1,5}))?(?![\d.])/i.exec(String(value ?? ""));
+  if (!match) return null;
+  return [Number(match[1]), Number(match[2] || 0), Number(match[3] || 0)];
+};
+
+/** a < b → negatif, eşit → 0, a > b → pozitif; biri okunamazsa null */
+export const compareAppVersions = (a, b) => {
+  const left = parseAppVersion(a);
+  const right = parseAppVersion(b);
+  if (!left || !right) return null;
+  for (let i = 0; i < 3; i += 1) if (left[i] !== right[i]) return left[i] - right[i];
+  return 0;
+};
+
+const ETA_TOKEN = /(\d+(?:\.\d+)?)(?:\s*(?:-|–|—|ile|ila)\s*(\d+(?:\.\d+)?))?\s*(dakika|dak|dk|min|saat|sa)[a-zçğıöşü.]*/g;
+const ETA_HOURS_MINUTES = /(\d+(?:\.\d+)?)\s*(?:saat|sa)\.?\s*(?:ve\s*)?(\d+)\s*(?:dakika|dak|dk)/g;
+
+/**
+ * Bölgenin tahmini süre metninden söz verilen EN GEÇ süre (dakika): "30-60 dk" → 60, "45 dakikada" → 45,
+ * "1-2 saat" → 120, "1,5 saat" → 90, "1 saat 30 dk" → 90, birimsiz "30-60" → 60. Okunamazsa null.
+ */
+export const parseEtaMaxMinutes = (text) => {
+  let value = String(text ?? "").toLocaleLowerCase("tr").replace(/,/g, ".").replace(/\s+/g, " ").trim();
+  if (!value) return null;
+  value = value.replace(ETA_HOURS_MINUTES, (_, hours, minutes) => `${Number(hours) * 60 + Number(minutes)} dk`);
+  let max = null;
+  for (const match of value.matchAll(ETA_TOKEN)) {
+    const upper = Number(match[2] ?? match[1]);
+    const minutes = match[3].startsWith("s") ? upper * 60 : upper;
+    if (Number.isFinite(minutes) && (max === null || minutes > max)) max = minutes;
+  }
+  if (max === null) {
+    // Birimsiz yazım ("30-60", "45") dakika sayılır
+    const bare = /^(\d+)(?:\s*(?:-|–|—)\s*(\d+))?$/.exec(value);
+    if (bare) max = Number(bare[2] ?? bare[1]);
+  }
+  if (max === null || !Number.isFinite(max) || max <= 0 || max > MAX_ETA_MINUTES) return null;
+  return Math.round(max);
+};
+
+/** Sıralı dizide yüzdelik (doğrusal ara değer; ortanca = 0.5). Boş dizi → null */
+export const quantile = (sortedValues, q) => {
+  const n = Array.isArray(sortedValues) ? sortedValues.length : 0;
+  if (!n) return null;
+  const position = (n - 1) * Math.min(1, Math.max(0, q));
+  const lower = Math.floor(position);
+  const upper = Math.ceil(position);
+  return sortedValues[lower] + (sortedValues[upper] - sortedValues[lower]) * (position - lower);
+};
+
+// ── Pilot karnesi: tek $facet sorgusu ──
+
+/** Pilot karnesinin siparişleri: adrese teslimat siparişleri ve Devrek bölgesi siparişleri */
+export const pilotOrderMatch = () => ({ $or: [{ deliveryType: "address" }, { "deliveryZone.id": DEVREK_ZONE_ID }] });
+
+const statusIs = (status) => ({ $eq: ["$status", status] });
+const countIf = (condition) => ({ $sum: { $cond: [condition, 1, 0] } });
+const hasScore = (path) => ({ $gte: [{ $ifNull: [path, 0] }, 1] });
+const FAILED_EXPR = { $and: [statusIs(CANCELLED_STATUS), { $gt: [{ $ifNull: ["$deliveryOutcome.code", ""] }, ""] }] };
+const lastStatusAt = (status) => ({
+  $max: {
+    $map: {
+      input: { $filter: { input: { $ifNull: ["$statusHistory", []] }, as: "entry", cond: { $eq: ["$$entry.status", status] } } },
+      as: "entry",
+      in: "$$entry.changedAt",
+    },
+  },
+});
+
+/**
+ * Pilot karnesi için Order.aggregate hattı (tek $facet). Sayılar tüm adres siparişleri üzerinden kesindir;
+ * teslim süresi en yeni `durationSample` teslimattan, sorunlu siparişler en yeni 5 iptalden hesaplanır.
+ * @param {{ pilotUserIds?: mongoose.Types.ObjectId[], feedbackCollection?: string, durationSample?: number }} options
+ */
+export const buildPilotReportPipeline = ({ pilotUserIds = [], feedbackCollection = "feedbacks", durationSample = PILOT_DURATION_SAMPLE } = {}) => {
+  const facet = {
+    totals: [{
+      $group: {
+        _id: null,
+        orders: { $sum: 1 },
+        delivered: countIf(statusIs(DELIVERED_STATUS)),
+        cancelled: countIf(statusIs(CANCELLED_STATUS)),
+        active: countIf({ $in: ["$status", ACTIVE_STATUSES] }),
+        callbacksNeeded: countIf({ $eq: ["$needsCallback", true] }),
+        callbacksConfirmed: countIf({ $and: [{ $eq: ["$needsCallback", true] }, { $ne: [{ $ifNull: ["$callbackConfirmedAt", null] }, null] }] }),
+        callbacksPending: countIf({ $and: [
+          { $eq: ["$needsCallback", true] },
+          { $eq: [{ $ifNull: ["$callbackConfirmedAt", null] }, null] },
+          { $in: ["$status", ACTIVE_STATUSES] },
+        ] }),
+        areaUnverified: countIf({ $eq: ["$areaVerified", false] }),
+        // Ürün cirosu (teslimat ücreti hariç) ve teslimat ücreti: iptaller hariç (Genel bakışla aynı kural)
+        revenue: { $sum: { $cond: [statusIs(CANCELLED_STATUS), 0, { $ifNull: ["$productTotal", "$totalAmount"] }] } },
+        deliveryFees: { $sum: { $cond: [statusIs(CANCELLED_STATUS), 0, { $ifNull: ["$deliveryFee", 0] }] } },
+        firstAt: { $min: "$createdAt" },
+        lastAt: { $max: "$createdAt" },
+      },
+    }],
+    customers: [{ $group: { _id: "$user" } }, { $count: "count" }],
+    failedByReason: [
+      { $match: { status: CANCELLED_STATUS, "deliveryOutcome.code": { $exists: true, $nin: ["", null] } } },
+      { $group: { _id: "$deliveryOutcome.code", count: { $sum: 1 } } },
+    ],
+    zones: [
+      { $group: { _id: { $ifNull: ["$deliveryZone.id", "$deliveryAddress.zoneId"] }, name: { $max: "$deliveryZone.name" }, orders: { $sum: 1 } } },
+      { $sort: { orders: -1, _id: 1 } },
+      { $limit: PILOT_ZONE_ROWS },
+    ],
+    // Mahalle serbest metin: ham yazımlar burada sayılır, "Cumhuriyet" / "Cumhuriyet Mah." birleştirmesi JS'te
+    neighborhoods: [
+      { $match: { "deliveryAddress.neighborhood": { $type: "string", $ne: "" } } },
+      { $group: {
+        _id: "$deliveryAddress.neighborhood",
+        orders: { $sum: 1 },
+        delivered: countIf(statusIs(DELIVERED_STATUS)),
+        cancelled: countIf(statusIs(CANCELLED_STATUS)),
+      } },
+      { $sort: { orders: -1, _id: 1 } },
+      { $limit: PILOT_NEIGHBORHOOD_ROWS },
+    ],
+    // Teslim süresi: sipariş anı → son "Teslim Edildi" kaydı
+    durations: [
+      { $match: { status: DELIVERED_STATUS } },
+      { $sort: { createdAt: -1 } },
+      { $limit: durationSample },
+      { $project: {
+        _id: 0,
+        zoneId: { $ifNull: ["$deliveryZone.id", "$deliveryAddress.zoneId"] },
+        createdAt: 1,
+        deliveredAt: lastStatusAt(DELIVERED_STATUS),
+      } },
+    ],
+    problems: [
+      { $match: { status: CANCELLED_STATUS } },
+      { $sort: { createdAt: -1 } },
+      { $limit: PILOT_PROBLEM_LIMIT },
+      { $project: {
+        createdAt: 1,
+        updatedAt: 1,
+        deliveryOutcome: 1,
+        cancelReason: 1,
+        neighborhood: "$deliveryAddress.neighborhood",
+        zoneName: "$deliveryZone.name",
+        cancelledAt: lastStatusAt(CANCELLED_STATUS),
+      } },
+    ],
+    // Bu siparişlere bağlı değerlendirmeler (yıldız, teslimat puanı, 👍/👎)
+    feedback: [
+      { $project: { _id: 1 } },
+      { $lookup: { from: feedbackCollection, localField: "_id", foreignField: "order", as: "fb" } },
+      { $unwind: "$fb" },
+      { $group: {
+        _id: null,
+        responses: countIf({ $or: [hasScore("$fb.rating"), hasScore("$fb.deliveryRating"), { $in: [{ $ifNull: ["$fb.thumb", ""] }, ["up", "down"]] }] }),
+        rated: countIf(hasScore("$fb.rating")),
+        ratingSum: { $sum: { $cond: [hasScore("$fb.rating"), "$fb.rating", 0] } },
+        deliveryRated: countIf(hasScore("$fb.deliveryRating")),
+        deliveryRatingSum: { $sum: { $cond: [hasScore("$fb.deliveryRating"), "$fb.deliveryRating", 0] } },
+        low: countIf({ $or: [
+          { $and: [hasScore("$fb.rating"), { $lte: ["$fb.rating", LOW_RATING] }] },
+          { $and: [hasScore("$fb.deliveryRating"), { $lte: ["$fb.deliveryRating", LOW_RATING] }] },
+          { $eq: ["$fb.thumb", "down"] },
+        ] }),
+      } },
+    ],
+  };
+  if (Array.isArray(pilotUserIds) && pilotUserIds.length) {
+    facet.users = [
+      { $match: { user: { $in: pilotUserIds } } },
+      { $group: {
+        _id: "$user",
+        orders: { $sum: 1 },
+        delivered: countIf(statusIs(DELIVERED_STATUS)),
+        failed: countIf(FAILED_EXPR),
+        lastAt: { $max: "$createdAt" },
+      } },
+    ];
+  }
+  return [{ $match: pilotOrderMatch() }, { $facet: facet }];
+};
+
+const problemView = (row) => {
+  const orderId = String(row?._id ?? "");
+  const outcome = row?.deliveryOutcome?.code ? row.deliveryOutcome : null;
+  const cancelCode = String(row?.cancelReason?.code || "");
+  const reason = outcome
+    ? `Teslim edilemedi: ${outcome.label || DELIVERY_OUTCOMES[outcome.code] || DELIVERY_OUTCOMES.diger}`
+    : CANCEL_REASONS[cancelCode] ? `İptal nedeni: ${CANCEL_REASONS[cancelCode]}` : "İptal edildi (neden yazılmadı)";
+  const note = cleanText((outcome ? outcome.note : row?.cancelReason?.note) || "").slice(0, 120);
+  return {
+    orderId,
+    code: `#${orderId.slice(-6).toUpperCase()}`,
+    kind: outcome ? "failed" : "cancelled",
+    reason,
+    note,
+    neighborhood: neighborhoodLabel(row?.neighborhood),
+    zoneName: String(row?.zoneName || ""),
+    createdAt: toDateOrNull(row?.createdAt),
+    at: toDateOrNull(outcome?.at) || toDateOrNull(row?.cancelledAt) || toDateOrNull(row?.updatedAt) || toDateOrNull(row?.createdAt),
+  };
+};
+
+/**
+ * $facet sonucunu pilot karnesine çevirir. Veri yoksa sayılar 0, oranlar ve ortalamalar null olur.
+ * @param {object} facet - buildPilotReportPipeline sonucunun ilk belgesi
+ * @param {{ zones?: object[], pilotStartedAt?: Date|null, durationSample?: number }} context
+ *   zones: güncel bölgeler (söz verilen süre etaText'ten okunur)
+ */
+export const summarizePilotReport = (facet = {}, { zones = [], pilotStartedAt = null, durationSample = PILOT_DURATION_SAMPLE } = {}) => {
+  const totals = facet?.totals?.[0] || {};
+  const orders = toCount(totals.orders);
+  const delivered = toCount(totals.delivered);
+  const cancelled = toCount(totals.cancelled);
+  const nonCancelled = Math.max(0, orders - cancelled);
+  const revenue = roundMoney(Number(totals.revenue) || 0);
+
+  // Teslim edilemedi (nedene göre)
+  const reasonCounts = new Map();
+  for (const row of facet?.failedByReason || []) {
+    const code = DELIVERY_OUTCOMES[row?._id] ? row._id : "diger";
+    const count = toCount(row?.count);
+    if (count) reasonCounts.set(code, (reasonCounts.get(code) || 0) + count);
+  }
+  const failedTotal = [...reasonCounts.values()].reduce((sum, count) => sum + count, 0);
+  const byReason = [...reasonCounts]
+    .map(([code, count]) => ({ code, label: DELIVERY_OUTCOMES[code], count }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "tr"));
+
+  // Teslim süresi ve söz verilen sürede teslim (bölgenin güncel tahmini süresine göre)
+  const etaByZone = new Map((zones || []).map((zone) => [String(zone?._id ?? zone?.id ?? ""), parseEtaMaxMinutes(zone?.etaText)]));
+  const minutes = [];
+  let measured = 0;
+  let within = 0;
+  for (const row of facet?.durations || []) {
+    const start = toDateOrNull(row?.createdAt);
+    const end = toDateOrNull(row?.deliveredAt);
+    if (!start || !end) continue;
+    const value = (end.getTime() - start.getTime()) / 60000;
+    if (!Number.isFinite(value) || value < 0) continue;
+    minutes.push(value);
+    const eta = etaByZone.get(String(row?.zoneId ?? ""));
+    if (eta) {
+      measured += 1;
+      if (Math.round(value) <= eta) within += 1;
+    }
+  }
+  minutes.sort((a, b) => a - b);
+  const median = quantile(minutes, 0.5);
+  const p90 = quantile(minutes, 0.9);
+
+  const addressNotFound = reasonCounts.get("adres_bulunamadi") || 0;
+  const attempts = delivered + failedTotal;
+
+  // Mahalleler: aynı mahallenin farklı yazımları birleşir ("Cumhuriyet" = "Cumhuriyet Mahallesi")
+  const hoods = new Map();
+  for (const row of facet?.neighborhoods || []) {
+    const name = neighborhoodLabel(row?._id);
+    if (!name) continue;
+    const key = name.toLocaleLowerCase("tr");
+    const entry = hoods.get(key) || { name, orders: 0, delivered: 0, cancelled: 0, best: 0 };
+    const count = toCount(row?.orders);
+    entry.orders += count;
+    entry.delivered += toCount(row?.delivered);
+    entry.cancelled += toCount(row?.cancelled);
+    if (count > entry.best) {
+      entry.best = count;
+      entry.name = name;
+    }
+    hoods.set(key, entry);
+  }
+  const neighborhoods = [...hoods.values()]
+    .sort((a, b) => b.orders - a.orders || a.name.localeCompare(b.name, "tr"))
+    .slice(0, PILOT_TOP_NEIGHBORHOODS)
+    .map(({ best, ...rest }) => rest);
+
+  const feedback = facet?.feedback?.[0] || {};
+  const rated = toCount(feedback.rated);
+  const deliveryRated = toCount(feedback.deliveryRated);
+
+  const configuredStart = toDateOrNull(pilotStartedAt);
+  const firstOrderAt = toDateOrNull(totals.firstAt);
+  const startedAt = configuredStart && firstOrderAt
+    ? (configuredStart <= firstOrderAt ? configuredStart : firstOrderAt)
+    : configuredStart || firstOrderAt || null;
+
+  return {
+    startedAt,
+    startedAtSource: !startedAt ? null : configuredStart && startedAt.getTime() === configuredStart.getTime() ? "settings" : "firstOrder",
+    lastOrderAt: toDateOrNull(totals.lastAt),
+    orders,
+    delivered,
+    cancelled,
+    active: toCount(totals.active),
+    customers: toCount(facet?.customers?.[0]?.count),
+    failed: { total: failedTotal, byReason },
+    callbacks: {
+      needed: toCount(totals.callbacksNeeded),
+      pending: toCount(totals.callbacksPending),
+      confirmed: toCount(totals.callbacksConfirmed),
+    },
+    areaUnverified: toCount(totals.areaUnverified),
+    revenue,
+    averageBasket: nonCancelled ? roundMoney(revenue / nonCancelled) : null,
+    deliveryFeeRevenue: roundMoney(Number(totals.deliveryFees) || 0),
+    deliveryMinutes: {
+      median: median === null ? null : Math.round(median),
+      p90: p90 === null ? null : Math.round(p90),
+      count: minutes.length,
+      capped: delivered > durationSample,
+    },
+    onTime: {
+      measured,
+      within,
+      rate: measured ? round1((within / measured) * 100) : null,
+      target: PILOT_TARGETS.onTimeRate,
+    },
+    addressNotFound: {
+      count: addressNotFound,
+      attempts,
+      rate: attempts ? round1((addressNotFound / attempts) * 100) : null,
+      target: PILOT_TARGETS.addressNotFoundRate,
+    },
+    feedback: {
+      responses: toCount(feedback.responses),
+      rated,
+      averageRating: rated ? round1((Number(feedback.ratingSum) || 0) / rated) : null,
+      deliveryRated,
+      averageDeliveryRating: deliveryRated ? round1((Number(feedback.deliveryRatingSum) || 0) / deliveryRated) : null,
+      low: toCount(feedback.low),
+    },
+    neighborhoods,
+    neighborhoodCount: hoods.size,
+    zones: (facet?.zones || [])
+      .filter((row) => row?._id)
+      .map((row) => ({ id: String(row._id), name: String(row.name || row._id), orders: toCount(row.orders) })),
+    problems: (facet?.problems || []).map(problemView),
+    users: (facet?.users || [])
+      .filter((row) => row?._id)
+      .map((row) => ({
+        userId: String(row._id),
+        orders: toCount(row.orders),
+        delivered: toCount(row.delivered),
+        failed: toCount(row.failed),
+        lastAt: toDateOrNull(row.lastAt),
+      })),
+  };
+};
+
+// ── Yayına hazırlık listesi ──
+
+/** Aday sınırlardan en küçüğü (merkez sınırı, önerilen) */
+const smallestAreaCandidate = (candidates) => (Array.isArray(candidates) ? candidates : [])
+  .filter((candidate) => finiteOrNull(candidate?.areaKm2) !== null && Number(candidate.areaKm2) > 0)
+  .reduce((best, candidate) => (!best || Number(candidate.areaKm2) < Number(best.areaKm2) ? candidate : best), null);
+
+const hasPhone = (courier) => String(courier?.phone || "").replace(/\D/g, "").length >= 7;
+
+/**
+ * Devrek'i herkese açmadan önceki kontrol listesi. Her madde: { id, status: ok|warn|block, title, detail, fix }.
+ * fix.target ekrandaki kartı (zone-devrek, area, couriers, pilot), fix.tab başka bir sekmeyi (settings + section)
+ * gösterir; fix.focus kart içindeki alanı, fix.hint yapılacak işi söyler.
+ * @param {{ settings: object, zones: object[], couriers: object[], pilotUserCount: number, pilot: object|null,
+ *   orderingOpen: boolean|null }} input - pilot: summarizePilotReport sonucu (okunamadıysa null)
+ */
+export const buildReadinessChecks = ({ settings, zones = [], couriers = [], pilotUserCount = 0, pilot = null, orderingOpen = null } = {}) => {
+  const mode = getAddressOrderingMode(settings);
+  const devrek = (zones || []).find((zone) => zone?._id === DEVREK_ZONE_ID) || null;
+  const checks = [];
+  const add = (id, status, title, detail, fix) => checks.push({ id, status, title, detail, fix });
+  const zoneFix = (focus, hint) => ({ target: "zone-devrek", focus, hint });
+
+  // 1) Genel Devrek bölgesi siparişe açık mı
+  const openFix = zoneFix("enabled", "Genel Devrek kartında “Siparişe açık”ı açıp kaydedin.");
+  if (!devrek) add("devrek_open", "block", "Genel Devrek bölgesi", "Genel Devrek bölgesi bulunamadı. Sayfayı yenileyin.", openFix);
+  else if (!devrek.enabled) {
+    const reason = String(devrek.closedReason || "").trim();
+    add("devrek_open", "block", "Genel Devrek bölgesi", `Kapalı${reason ? ` (${reason})` : ""}: Devrek adreslerine sipariş verilemez.`, openFix);
+  } else add("devrek_open", "ok", "Genel Devrek bölgesi", "Siparişe açık.", openFix);
+
+  // 2) Teslimat alanı (OpenStreetMap sınırı)
+  const areaFix = { target: "area", hint: "Genel Devrek kartındaki “Teslimat alanı” bölümünden sınırı yükleyin ve haritada kontrol edin." };
+  const area = devrek && zoneHasArea(devrek) ? devrek.area : null;
+  if (!area) {
+    add("area", "block", "Teslimat alanı", "Sınır yüklenmedi: Devrek dışındaki konumlar da kabul edilir, siparişler “alan doğrulanmadı” diye işaretlenir.", areaFix);
+  } else {
+    const smallest = smallestAreaCandidate(devrek.areaCandidates);
+    const isSmallest = !smallest || (smallest.osmType === area.osmType && Number(smallest.osmId) === Number(area.osmId));
+    if (!isSmallest && Number(area.areaKm2) > Number(smallest.areaKm2)) {
+      add("area", "warn", "Teslimat alanı", `Seçili sınır (${km2Text(area.areaKm2)}) önerilen merkez sınırından (${km2Text(smallest.areaKm2)}) büyük; köyler de alana girebilir.`, areaFix);
+    } else {
+      const name = String(area.displayName || "").split(",")[0].trim() || "Devrek";
+      const loaded = area.fetchedAt ? `${dateTextTr(area.fetchedAt)} tarihinde yüklendi` : "";
+      add("area", "ok", "Teslimat alanı", `${[`Yüklü: ${name}`, km2Text(area.areaKm2), loaded].filter(Boolean).join(" · ")}.`, areaFix);
+    }
+  }
+
+  // 3) Ücret, ücretsiz eşik ve minimum sepet
+  const pricingFix = zoneFix("fee", "Genel Devrek kartında ücreti, ücretsiz eşiğini ve minimum sepeti girip kaydedin.");
+  const fee = Math.max(0, Number(devrek?.deliveryFee) || 0);
+  const threshold = finiteOrNull(devrek?.freeDeliveryThreshold);
+  const zoneMinimum = finiteOrNull(devrek?.minimumOrderAmount);
+  const minimum = resolveMinimumOrderAmount(devrek, settings);
+  const minimumText = zoneMinimum === null
+    ? `Minimum sepet girilmedi; genel minimum (${minimum > 0 ? tlText(minimum) : "yok"}) geçerli.`
+    : zoneMinimum > 0 ? `Minimum sepet ${tlText(zoneMinimum)}.` : "Minimum sepet yok.";
+  const feeText = fee > 0 ? `${tlText(fee)}${threshold !== null ? ` · ${tlText(threshold)} üstü ücretsiz` : " · ücretsiz eşiği yok"}` : "Ücretsiz";
+  if (!devrek) add("pricing", "warn", "Ücret ve minimum sepet", "Genel Devrek bölgesi okunamadı.", pricingFix);
+  else if (settings?.delivery?.freeDeliveryEverywhere === true) {
+    add("pricing", "warn", "Ücret ve minimum sepet", `“Her yerde ücretsiz teslimat” açık; Devrek'te şu an ücret alınmıyor (bölge ücreti: ${feeText}). ${minimumText}`, pricingFix);
+  } else if (fee === 0) {
+    add("pricing", "warn", "Ücret ve minimum sepet", `Devrek'te teslimat ücretsiz olacak. Bilerek seçtiyseniz sorun yok. ${minimumText}`, pricingFix);
+  } else if (threshold !== null && threshold <= minimum) {
+    add("pricing", "warn", "Ücret ve minimum sepet", `Ücretsiz teslimat eşiği (${tlText(threshold)}) minimum sepetten (${tlText(minimum)}) yüksek değil; her sipariş ücretsiz gider.`, pricingFix);
+  } else add("pricing", "ok", "Ücret ve minimum sepet", `${feeText}. ${minimumText}`, pricingFix);
+
+  // 4) Tahmini teslimat süresi
+  const etaFix = zoneFix("etaText", "Genel Devrek kartında “Tahmini süre”yi 30-60 dk gibi yazıp kaydedin.");
+  const etaText = String(devrek?.etaText || "").trim();
+  const etaMax = parseEtaMaxMinutes(etaText);
+  if (!etaText) add("eta", "warn", "Tahmini teslimat süresi", "Yazılı değil: müşteri tahmini teslimat süresini görmez.", etaFix);
+  else if (etaMax === null) add("eta", "warn", "Tahmini teslimat süresi", `“${etaText}” dakikaya çevrilemiyor; pilot karnesi zamanında teslim oranını ölçemez. “30-60 dk” gibi yazın.`, etaFix);
+  else add("eta", "ok", "Tahmini teslimat süresi", `Müşteri “${etaText}” görür; en geç ${etaMax} dk sayılır.`, etaFix);
+
+  // 5) İlk sipariş telefon teyidi
+  const callbackFix = zoneFix("callback", "Genel Devrek kartında “İlk sipariş teyidi”ni açıp kaydedin.");
+  if (devrek?.requireFirstOrderCallback === true) add("callback", "ok", "İlk sipariş teyidi", "Açık: yeni müşterinin ilk siparişinde arayıp adresi teyit edersiniz.", callbackFix);
+  else add("callback", "warn", "İlk sipariş teyidi", "Kapalı: yeni müşterinin ilk siparişi aranmadan yola çıkar.", callbackFix);
+
+  // 6) Aktif kurye (telefonlu)
+  const courierFix = { target: "couriers", hint: "Kuryeler kartından telefonuyla birlikte kurye ekleyin ya da pasif kuryeyi aktif yapın." };
+  const list = Array.isArray(couriers) ? couriers : [];
+  const active = list.filter((courier) => courier?.active !== false);
+  const withPhone = active.filter(hasPhone);
+  if (!list.length) add("couriers", "block", "Kuryeler", "Kurye eklenmemiş: siparişleri kimin götüreceği belli değil.", courierFix);
+  else if (!active.length) add("couriers", "block", "Kuryeler", `${list.length} kuryenin hepsi pasif: siparişlere kurye atanamaz.`, courierFix);
+  else if (!withPhone.length) add("couriers", "warn", "Kuryeler", `${active.length} aktif kurye var ama hiçbirinin telefonu yazılı değil.`, courierFix);
+  else {
+    const missing = active.length - withPhone.length;
+    add("couriers", "ok", "Kuryeler", `${active.length} aktif kurye${missing ? ` · ${missing} kuryenin telefonu yok` : ""}.`, courierFix);
+  }
+
+  // 7) Uygulama sürümü: zorunlu güncelleme adrese teslimatı destekleyen sürümde mi
+  const appFix = {
+    tab: "settings",
+    section: "app",
+    hint: `Mağaza ayarları › Uygulama: ${ADDRESS_APP_MIN_VERSION} mağazalarda yayındaysa minimum sürümü ${ADDRESS_APP_MIN_VERSION} yapın ve zorunlu güncellemeyi açın.`,
+  };
+  const minimumVersion = String(settings?.appVersion?.minimumVersion ?? "").trim();
+  const versionCompare = compareAppVersions(minimumVersion, ADDRESS_APP_MIN_VERSION);
+  const forceUpdate = settings?.appVersion?.forceUpdate === true;
+  const versionProblems = [];
+  if (versionCompare === null) versionProblems.push(`minimum sürüm okunamadı (“${minimumVersion || "boş"}”)`);
+  else if (versionCompare < 0) versionProblems.push(`minimum sürüm ${minimumVersion}`);
+  if (!forceUpdate) versionProblems.push("zorunlu güncelleme kapalı");
+  if (versionProblems.length) {
+    add("app_version", "block", "Uygulama sürümü", `${capitalizeTr(versionProblems.join(", "))}. Adrese teslimat ${ADDRESS_APP_MIN_VERSION} ve üstünde çalışır; eski sürümdeki müşteri adres seçemez.`, appFix);
+  } else add("app_version", "ok", "Uygulama sürümü", `Minimum sürüm ${minimumVersion}, zorunlu güncelleme açık.`, appFix);
+
+  // 8) Sipariş saatleri (bilgi)
+  const start = clockText(settings?.orderStartHour, settings?.orderStartMinute);
+  const end = clockText(settings?.orderEndHour, settings?.orderEndMinute);
+  const range = start === "00:00" && end === "00:00" ? "24 saat açık" : `${start}–${end}`;
+  const nowText = orderingOpen === true ? " · şu an sipariş alınıyor" : orderingOpen === false ? " · şu an sipariş alınmıyor" : "";
+  add("hours", "ok", "Sipariş saatleri", `${range}${nowText}.`, { tab: "settings", section: "orders", hint: "Saatleri Mağaza ayarları › Sipariş bölümünden değiştirebilirsiniz." });
+
+  // 9) Pilot: kullanıcılar ve gerçek siparişle deneme
+  const pilotFix = { target: "pilot", hint: "“Adrese teslimat” kartında pilot kullanıcı ekleyip “Pilot”u seçin." };
+  const delivered = pilot && finiteOrNull(pilot.delivered) !== null ? toCount(pilot.delivered) : null;
+  const pilotOrders = pilot && finiteOrNull(pilot.orders) !== null ? toCount(pilot.orders) : 0;
+  const users = toCount(pilotUserCount);
+  const usersText = `${users} pilot kullanıcı`;
+  if (mode === "public") {
+    add("pilot", "ok", "Pilot", delivered ? `Herkese açık; ${delivered} adres siparişi teslim edildi.` : "Herkese açık.", pilotFix);
+  } else if (mode === "pilot" && !users) {
+    add("pilot", "warn", "Pilot", "Pilot açık ama listede kimse yok: kimse adrese sipariş veremiyor.", pilotFix);
+  } else if (delivered === null) {
+    add("pilot", "warn", "Pilot", `${mode === "pilot" ? `${usersText}. ` : ""}Pilot sonuçları şu an okunamadı; gerçek bir siparişle denediğinizden emin olun.`, pilotFix);
+  } else if (delivered > 0) {
+    add("pilot", "ok", "Pilot", mode === "pilot" ? `${usersText} · ${delivered} adres siparişi teslim edildi.` : `Pilotta ${delivered} adres siparişi teslim edildi.`, pilotFix);
+  } else if (pilotOrders > 0) {
+    add("pilot", "warn", "Pilot", `${mode === "pilot" ? `${usersText} · ` : ""}${pilotOrders} adres siparişi var ama henüz teslim edilen yok.`, pilotFix);
+  } else if (mode === "pilot") {
+    add("pilot", "warn", "Pilot", `${usersText} var; henüz adres siparişi yok. Herkese açmadan önce gerçek bir siparişle deneyin.`, pilotFix);
+  } else {
+    add("pilot", "warn", "Pilot", "Pilot başlamadı. Kendi hesabınızı ve birkaç güvendiğiniz müşteriyi ekleyip “Pilot”u seçin; gerçek bir siparişle deneyin.", pilotFix);
+  }
+
+  return checks;
 };
