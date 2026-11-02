@@ -540,6 +540,8 @@ const WeeklyForm = ({ mode, item, items, now, onClose, onSaved, onGhost }) => {
   const [isActive, setIsActive] = useState(editing ? item.isActive !== false : true);
   const [endLive, setEndLive] = useState(false);
   const [serverError, setServerError] = useState(null);
+  // Sunucu yayındaki fırsatla çakışma bildirdiyse (liste eskiyse istemci göremeyebilir) seçenek açık kalır
+  const [serverLiveConflict, setServerLiveConflict] = useState(false);
   const [saving, setSaving] = useState(false);
   const [touched, setTouched] = useState(false);
 
@@ -624,7 +626,7 @@ const WeeklyForm = ({ mode, item, items, now, onClose, onSaved, onGhost }) => {
   const otherLive = running && editing && !plannedItem && !item.isActive && isActive ? running : null;
   const fixableLive = (liveClash || (nowClash && plannedItem)) ? running : null;
   const conflictBlocks = Boolean(plannedClash) || Boolean(otherLive) || (Boolean(nowClash) && !plannedItem) || (Boolean(fixableLive) && !endLive);
-  const showEndLive = Boolean(fixableLive) || (serverError && (serverError.code === "LIVE_OVERLAP" || (serverError.code === "ALREADY_LIVE" && plannedItem)));
+  const showEndLive = Boolean(fixableLive) || (serverLiveConflict && canPlan);
 
   const canSave = Boolean(product) && Boolean(price) && !priceError && !startError && !endError && !conflictBlocks;
   const savings = basePrice && priceNum > 0 ? basePrice - priceNum : 0;
@@ -683,7 +685,7 @@ const WeeklyForm = ({ mode, item, items, now, onClose, onSaved, onGhost }) => {
     if (canPlan) {
       if (planning) payload.startDate = new Date(startMs).toISOString();
       else if (plannedItem) payload.startDate = "now";
-      if (endLive) payload.endLiveAtStart = true;
+      if (endLive && showEndLive) payload.endLiveAtStart = true;
     }
     try {
       if (editing) {
@@ -701,6 +703,7 @@ const WeeklyForm = ({ mode, item, items, now, onClose, onSaved, onGhost }) => {
       const data = error.response?.data;
       const message = data?.message || "Kaydedilemedi";
       setServerError({ message, code: data?.code || null });
+      if (data?.code === "LIVE_OVERLAP" || (data?.code === "ALREADY_LIVE" && plannedItem)) setServerLiveConflict(true);
       toast.error(message);
     } finally {
       setSaving(false);
@@ -755,7 +758,7 @@ const WeeklyForm = ({ mode, item, items, now, onClose, onSaved, onGhost }) => {
                 </small>
               </div>
               {!editing && (
-                <button type="button" className="ui-btn ui-btn--sm" onClick={() => { setProduct(null); setPrice(""); setPct(""); setEndLive(false); touch(); }}>Değiştir</button>
+                <button type="button" className="ui-btn ui-btn--sm" onClick={() => { setProduct(null); setPrice(""); setPct(""); setEndLive(false); setServerLiveConflict(false); touch(); }}>Değiştir</button>
               )}
             </div>
           ) : (
@@ -911,7 +914,7 @@ const WeeklyForm = ({ mode, item, items, now, onClose, onSaved, onGhost }) => {
 
         {/* Bitiş */}
         <div>
-          <span className="ui-label">Bitiş{!canPlan ? null : <span className="wky-tz">İstanbul saati</span>}</span>
+          <span className="ui-label">Bitiş <span className="wky-tz">İstanbul saati</span></span>
           <OptionChips
             options={END_OPTIONS}
             value={endMode}
@@ -987,10 +990,10 @@ const WeeklyForm = ({ mode, item, items, now, onClose, onSaved, onGhost }) => {
               <span>
                 {running
                   ? `Yayındaki fırsat: ${money(running.weeklyPrice)} · bitiş ${Number.isFinite(runningEnd) ? formatDateTime(runningEnd) : "süresiz"}.`
-                  : serverError?.message}
+                  : "Ürünün yayındaki fırsatı bu başlangıçtan sonra bitiyor. Listeyi yenileyerek ayrıntısını görebilirsiniz."}
               </span>
               <label className="ui-check wky-check-row">
-                <input type="checkbox" checked={endLive} onChange={(e) => { setEndLive(e.target.checked); setTouched(true); setServerError(null); }} />
+                <input type="checkbox" checked={endLive} onChange={(e) => { setEndLive(e.target.checked); setTouched(true); }} />
                 {planning ? `Mevcut fırsatın bitişini başlangıca çek (${whenShort(startMs, now)})` : "Mevcut fırsatı şimdi bitir"}
               </label>
             </div>

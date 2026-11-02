@@ -886,3 +886,38 @@ test("yazma sırası: eş zamanlı iki istek sırayla çalışır (çift tıklam
   await Promise.all([slow, fast, failing.catch(() => {}), after]);
   assert.deepEqual(order, ["a-start", "a-end", "b", "c"], "hata sırayı bozmaz");
 });
+
+test("düzenleme: fiyat değişmeden kaydedilen form, liste fiyatı fırsatın altına düşse de engellenmez", async (t) => {
+  captureAudit(t);
+  const doc = plannedDoc({ product: { _id: oid(PID(1)), name: "Deterjan", price: 24 }, isActive: true, scheduled: false, startDate: new Date(Date.now() - DAY), endDate: null });
+  mockUpdate(t, doc);
+  const same = response();
+  await updateWeeklyProduct(adminReq({ method: "PUT", params: { id: WID(10) }, body: { weeklyPrice: 25, order: 4, isActive: true } }), same);
+  assert.equal(same.statusCode, 200, JSON.stringify(same.body));
+  assert.equal(doc.order, 4);
+  assert.equal(doc.listPriceAtStart, 30, "fiyat değişmedi: dayanak aynı");
+
+  const changed = response();
+  await updateWeeklyProduct(adminReq({ method: "PUT", params: { id: WID(10) }, body: { weeklyPrice: 26 } }), changed);
+  assert.equal(changed.statusCode, 400, "yeni fiyat liste fiyatından düşük olmalı");
+  assert.match(changed.body.message, /liste fiyatından/);
+});
+
+test("toggle: çakışma yoksa durdurulan fırsat yeniden yayına alınır; önbellek temizlenir, kayıt yazılır", async (t) => {
+  const audit = captureAudit(t);
+  const inv = countInvalidations(t);
+  const paused = { ...plannedDoc({ isActive: false, scheduled: false, startDate: new Date(Date.now() - 5 * DAY), endDate: new Date(Date.now() + DAY) }), product: oid(PID(1)) };
+  t.mock.method(WeeklyProduct, "findById", () => chain(paused));
+  t.mock.method(WeeklyProduct, "find", () => chain([]));
+  t.mock.method(Product, "findById", () => chain({ _id: oid(PID(1)), name: "Deterjan" }));
+  const req = adminReq({ method: "PATCH", params: { id: WID(10) } });
+  const res = response();
+  await toggleWeeklyProductStatus(req, res);
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  assert.equal(paused.isActive, true);
+  assert.equal(paused.saves, 1);
+  assert.equal(inv.n, 1);
+  assert.deepEqual(req.emits, ["weeklyProductsUpdated"]);
+  await flush();
+  assert.equal(audit[0].action, "Haftalık fırsat yayına alındı");
+});
