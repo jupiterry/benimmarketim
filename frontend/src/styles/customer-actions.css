@@ -241,11 +241,6 @@
   background: var(--ui-brand-soft);
   color: var(--ui-brand-ink);
 }
-.admin-layout .ca-chip:focus-visible,
-.admin-layout .ca-strip .ui-btn:focus-visible {
-  outline: 2px solid var(--ui-brand);
-  outline-offset: 2px;
-}
 .admin-layout .ca-date .ui-field {
   width: auto;
   min-height: 30px;
@@ -625,6 +620,11 @@
   }
   .admin-layout .ca-strip-actions > .ui-btn {
     flex: 1 1 auto;
+    /* Uzun hatırlatma düğmesi dar ekranda taşmasın, iki satıra insin */
+    padding-top: 6px;
+    padding-bottom: 6px;
+    line-height: 1.3;
+    white-space: normal;
   }
 }
 @media (max-width: 760px), (pointer: coarse) {
