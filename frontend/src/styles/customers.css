@@ -1594,6 +1594,11 @@
     align-self: stretch;
   }
 }
+@media (max-width: 760px), (hover: none) and (pointer: coarse) {
+  .admin-layout .cus-staff-kbd {
+    display: none;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .admin-layout .cus-mini-spin {
     animation-duration: 2s;

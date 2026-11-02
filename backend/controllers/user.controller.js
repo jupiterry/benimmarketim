@@ -407,8 +407,19 @@ const zoneOf = (order) => {
 };
 const itemCountOf = (order) => (order.products || []).reduce((sum, item) => sum + (Number(item?.quantity) || 0), 0);
 const outcomeLabel = (outcome) => outcome?.label || DELIVERY_OUTCOMES[outcome?.code] || "Teslim edilemedi";
-const failureTimeOf = (order) =>
-  timeOf(order.deliveryOutcome?.at) ?? timeOf(lastHistoryEntry(order, CANCELLED)?.changedAt) ?? timeOf(order.updatedAt) ?? createdAtOf(order);
+/**
+ * Teslim / iptal zamanı: durum geçmişindeki kayıt. Geçmişi olmayan eski siparişte son değişiklik zamanı yalnızca
+ * sipariş gününe düşüyorsa kullanılır (sonradan yapılan toplu bir güncelleme eski siparişi bugüne taşımasın).
+ */
+const LEGACY_STATUS_WINDOW_MS = DAY_MS;
+const statusTimeOf = (order, status, placedAt) => {
+  const fromHistory = timeOf(lastHistoryEntry(order, status)?.changedAt);
+  if (fromHistory !== null) return fromHistory;
+  const updated = timeOf(order.updatedAt);
+  if (placedAt === null) return updated;
+  return updated !== null && updated >= placedAt && updated - placedAt <= LEGACY_STATUS_WINDOW_MS ? updated : placedAt;
+};
+const failureTimeOf = (order) => timeOf(order.deliveryOutcome?.at) ?? statusTimeOf(order, CANCELLED, createdAtOf(order));
 /** "bugün bitiyor" / "yarın bitiyor" / "3 gün kaldı" (İstanbul takvim günü) */
 const expiryText = (expiresAt, now) => {
   const days = istanbulDay(expiresAt) - istanbulDay(now);
@@ -558,7 +569,7 @@ const orderEvents = (order, { userId, names }) => {
   if (order.status === DELIVERED) {
     events.push({
       type: "order_delivered",
-      at: timeOf(lastHistoryEntry(order, DELIVERED)?.changedAt) ?? timeOf(order.updatedAt) ?? placedAt,
+      at: statusTimeOf(order, DELIVERED, placedAt),
       title: `Teslim edildi · ${code}`,
       detail: joinParts([tl(order.totalAmount), zone]),
       tone: "ok",
@@ -581,11 +592,13 @@ const orderEvents = (order, { userId, names }) => {
       const by = idOf(entry?.changedBy);
       const byCustomer = by ? by === userId : Boolean(order.cancelReason?.code);
       const byStaff = Boolean(by) && !byCustomer;
-      const reason = CANCEL_REASONS[order.cancelReason?.code] || "";
-      const note = textSnippet(order.cancelReason?.note, 80);
+      // cancelReason müşterinin seçtiği nedendir; panelden yapılan (son) iptalde gösterilmez (önceki, geri alınmış
+      // bir müşteri iptalinden kalmış olabilir)
+      const reason = byStaff ? "" : CANCEL_REASONS[order.cancelReason?.code] || "";
+      const note = reason ? textSnippet(order.cancelReason?.note, 80) : "";
       events.push({
         type: "order_cancelled",
-        at: timeOf(entry?.changedAt) ?? timeOf(order.updatedAt) ?? placedAt,
+        at: statusTimeOf(order, CANCELLED, placedAt),
         title: `${byCustomer ? "Müşteri iptal etti" : byStaff ? "Panelden iptal edildi" : "İptal edildi"} · ${code}`,
         detail: joinParts([
           reason ? `Neden: ${reason}${note ? ` (${note})` : ""}` : "",
@@ -717,6 +730,7 @@ export const buildTimelineEvents = (
     const chatId = idOf(request.conversation);
     const closedAt = timeOf(request.closedAt);
     if (chatId && closedAt !== null) closedAtByChat.set(chatId, Math.max(closedAtByChat.get(chatId) ?? closedAt, closedAt));
+    if (request.closureOnly) continue; // yalnızca sohbetin kapanış zamanı için okundu
     const event = supportEvent(request, { names });
     if (event) events.push(event);
   }
@@ -828,7 +842,7 @@ export const buildOpenIssues = (
     issues.push({ type: "active_order", tone: "info", title: `Aktif sipariş · ${orderCode(id)}`, detail: joinParts([order.status, tl(order.totalAmount), zoneOf(order)]), at, ref });
   }
   for (const request of supportRequests) {
-    if (!OPEN_SUPPORT_STATUSES.includes(request.status)) continue;
+    if (request.closureOnly || !OPEN_SUPPORT_STATUSES.includes(request.status)) continue;
     const chatId = idOf(request.conversation);
     const waiting = request.status === "waiting";
     const agent = names.get(idOf(request.assignedTo)) || request.assignedTo?.name || "";
@@ -928,6 +942,8 @@ const TIMELINE_ORDER_FIELDS = `status totalAmount deliveryZone createdAt product
 const CHAT_FIELDS = "type order status createdAt updatedAt";
 const SUPPORT_FIELDS = "conversation status reason priority assignedTo acceptedAt closedAt createdAt";
 const FEEDBACK_FIELDS = "kind rating ratings thumb npsScore message category status problemItems milestone reason adminReply.text compensation.code compensation.amount createdAt";
+// Sohbet kapanırken önce sohbet, birkaç milisaniye sonra destek talebi yazılır; kapanış zamanı için pay
+const LATE_CHAT_SLACK_MS = 60 * 1000;
 const couponProjection = (userObjectId) => ({
   code: 1, description: 1, discountType: 1, discountPercentage: 1, discountAmount: 1, maximumDiscount: 1, minimumOrderAmount: 1,
   expirationDate: 1, isActive: 1, isReferralCoupon: 1, createdAt: 1,
@@ -958,12 +974,51 @@ const fetchTimelineSources = async (userId, { before = null, includeOrders = tru
     feedbacks: feedbacks || [],
     coupons: coupons || [],
   };
+  const oldestOf = (rows, limit = TIMELINE_SOURCE_LIMIT) => (rows.length >= limit ? createdAtOf(rows[rows.length - 1]) : null);
+  const oldestOrder = oldestOf(sources.orders, TIMELINE_ORDER_LIMIT);
+  const oldestChat = oldestOf(sources.chats);
   let horizon = null;
-  const capped = [[sources.orders, TIMELINE_ORDER_LIMIT], [sources.chats], [sources.supportRequests], [sources.feedbacks], [sources.coupons]];
-  for (const [rows, limit = TIMELINE_SOURCE_LIMIT] of capped) {
-    if (rows.length < limit) continue;
-    const oldest = createdAtOf(rows[rows.length - 1]);
+  for (const oldest of [oldestOrder, oldestChat, oldestOf(sources.supportRequests), oldestOf(sources.feedbacks), oldestOf(sources.coupons)]) {
     if (oldest !== null) horizon = horizon === null ? oldest : Math.max(horizon, oldest);
+  }
+
+  // Sınırına takılan kaynakta, okunanlardan eski bir kaydın sonraki olayı (teslim, iptal, teyit, teslim edilemedi,
+  // sohbet kapanışı) yine de bu sayfanın aralığına düşebilir: yalnızca o kayıtlar ayrıca okunur. Eski siparişin
+  // "verdi" olayı ufkun gerisinde kalır; yalnızca sonraki olayı bu sayfaya girer.
+  const [lateOrders, lateChats] = await Promise.all([
+    oldestOrder === null ? [] : Order.find({
+      user: userObjectId,
+      createdAt: { $lte: new Date(oldestOrder) },
+      $or: [
+        { "statusHistory.changedAt": { $gt: new Date(oldestOrder) } },
+        { callbackConfirmedAt: { $gt: new Date(oldestOrder) } },
+        { "deliveryOutcome.at": { $gt: new Date(oldestOrder) } },
+        // Durum geçmişi olmayan eski sipariş: tamamlanma zamanı en fazla sipariş günü içindedir
+        { createdAt: { $gt: new Date(oldestOrder - LEGACY_STATUS_WINDOW_MS) } },
+      ],
+    }).select(TIMELINE_ORDER_FIELDS).sort({ createdAt: -1 }).limit(TIMELINE_ORDER_LIMIT).lean(),
+    oldestChat === null ? [] : Chat.find({
+      user: userObjectId,
+      isDeleted: { $ne: true },
+      status: "closed",
+      createdAt: { $lte: new Date(oldestChat) },
+      updatedAt: { $gt: new Date(oldestChat - LATE_CHAT_SLACK_MS) },
+    }).select(CHAT_FIELDS).sort({ updatedAt: -1 }).limit(TIMELINE_SOURCE_LIMIT).lean(),
+  ]);
+  const known = (rows) => new Set(rows.map((row) => idOf(row._id)));
+  const orderIds = known(sources.orders);
+  sources.orders = [...sources.orders, ...(lateOrders || []).filter((row) => !orderIds.has(idOf(row._id)))];
+  const chatIds = known(sources.chats);
+  const addedChats = (lateChats || []).filter((row) => !chatIds.has(idOf(row._id)));
+  if (addedChats.length) {
+    sources.chats = [...sources.chats, ...addedChats];
+    // Bu sohbetlerin kapanış zamanı destek talebinden (kesin) alınır; talepler olay üretmez
+    const requestIds = known(sources.supportRequests);
+    const closures = await SupportRequest.find({ conversation: { $in: addedChats.map((row) => row._id) } }).select(SUPPORT_FIELDS).limit(TIMELINE_SOURCE_LIMIT).lean();
+    sources.supportRequests = [
+      ...sources.supportRequests,
+      ...(closures || []).filter((row) => !requestIds.has(idOf(row._id))).map((row) => ({ ...row, closureOnly: true })),
+    ];
   }
   return { sources, horizon };
 };

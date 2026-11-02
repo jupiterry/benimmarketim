@@ -159,6 +159,30 @@ test("timeline: delivery failure shows the reason and who marked it; first-order
   assert.match(placed.detail, /Kapıda kart \(POS\)/);
 });
 
+test("timeline: an order without status history uses its last change only within the order day; a staff cancel hides an older customer reason", () => {
+  const events = buildTimelineEvents({
+    orders: [
+      order(48, { status: "Teslim Edildi", statusHistory: undefined, updatedAt: at(46 * HOUR) }),
+      order(240, { status: "Teslim Edildi", statusHistory: undefined, updatedAt: at(HOUR) }),
+      order(5, {
+        status: "İptal Edildi", cancelReason: { code: "fikir", note: "eski neden" },
+        statusHistory: [
+          { status: "İptal Edildi", changedAt: at(4 * HOUR), changedBy: USER_ID },
+          { status: "Hazırlanıyor", changedAt: at(3 * HOUR), changedBy: ADMIN._id },
+          { status: "İptal Edildi", changedAt: at(2 * HOUR), changedBy: ADMIN._id },
+        ],
+      }),
+    ],
+  }, { userId: USER_ID, names, now: NOW });
+  const delivered = byType(events, "order_delivered");
+  assert.equal(delivered.find((event) => event.ref.id === ORDER(48)).at, NOW - 46 * HOUR);
+  assert.equal(delivered.find((event) => event.ref.id === ORDER(240)).at, NOW - 240 * HOUR, "sonradan yapılan güncelleme eski siparişi bugüne taşımaz");
+  const cancelled = one(events, "order_cancelled");
+  assert.match(cancelled.title, /^Panelden iptal edildi/);
+  assert.equal(cancelled.at, NOW - 2 * HOUR, "son iptal kaydı");
+  assert.doesNotMatch(cancelled.detail, /Neden|eski neden/, "geri alınmış müşteri iptalinin nedeni personel iptaline yazılmaz");
+});
+
 // ── Sohbet ve destek ───────────────────────────────────────────────
 test("timeline: chat started / handed to human / closed; the support close time is used and the agent is named", () => {
   const events = buildTimelineEvents({
@@ -535,6 +559,58 @@ test("GET profile ?before=: a capped source makes the page stop at its oldest re
   assert.ok(res.body.timeline.every((event) => Date.parse(event.at) > oldest));
   assert.equal(res.body.timelineHasMore, true);
   assert.equal(res.body.timelineNextBefore, new Date(oldest + 1).toISOString());
+});
+
+test("GET profile ?before=: when orders hit the cap, an older order's later delivery still reaches the page (its 'placed' does not)", async (t) => {
+  const before = NOW;
+  const start = NOW - HOUR;
+  const main = Array.from({ length: TIMELINE_ORDER_LIMIT }, (_, i) => order(i + 1, { status: "Yolda", createdAt: new Date(start - i * MIN) }));
+  const oldest = start - (TIMELINE_ORDER_LIMIT - 1) * MIN;
+  const late = order(999, {
+    status: "Teslim Edildi", createdAt: new Date(oldest - MIN),
+    statusHistory: [{ status: "Teslim Edildi", changedAt: new Date(NOW - 30 * MIN) }],
+  });
+  const calls = mockProfile(t, { user: profileUser(), orders: (filter) => (filter.$or ? [late] : main) });
+  const res = response();
+  await getCustomerProfile({ params: { id: USER_ID }, query: { before: new Date(before).toISOString() }, user: ADMIN }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(calls.order.length, 2, "sınır dolunca geç olaylar için ikinci, daraltılmış sorgu");
+  const lateFilter = calls.order[1].filter;
+  assert.equal(lateFilter.createdAt.$lte.getTime(), oldest);
+  assert.equal(lateFilter.$or.length, 4);
+  assert.equal(String(lateFilter.user), USER_ID);
+  const first = res.body.timeline[0];
+  assert.equal(first.type, "order_delivered");
+  assert.equal(first.ref.id, ORDER(999));
+  assert.ok(!res.body.timeline.some((event) => event.id === `order_placed:${ORDER(999)}`), "ufkun gerisindeki 'verdi' bu sayfada yok");
+  assert.equal(res.body.timelineHasMore, true);
+});
+
+test("GET profile: when chats hit the cap, an older chat closed recently still shows (close time from its support request)", async (t) => {
+  const chats = Array.from({ length: TIMELINE_SOURCE_LIMIT }, (_, i) => ({ _id: CHAT(i + 1), type: "general", status: "active", createdAt: at((i + 1) * HOUR), updatedAt: at((i + 1) * HOUR) }));
+  const lateChat = { _id: CHAT(500), type: "general", status: "closed", createdAt: at(80 * HOUR), updatedAt: at(2 * HOUR) };
+  const closure = { _id: REQ(500), conversation: CHAT(500), status: "closed", reason: "Eski konu", createdAt: at(79 * HOUR), closedAt: at(2 * HOUR + 1000) };
+  const calls = mockProfile(t, {
+    user: profileUser({ staffNote: undefined }),
+    chats: (filter) => (filter.status === "closed" ? [lateChat] : chats),
+    supportRequests: (filter) => (filter.conversation ? [closure] : []),
+  });
+  const res = response();
+  await getCustomerProfile({ params: { id: USER_ID }, query: {}, user: ADMIN }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(calls.chat.length, 2);
+  assert.equal(calls.chat[1].filter.status, "closed");
+  assert.deepEqual(calls.chat[1].filter.isDeleted, { $ne: true });
+  assert.deepEqual(calls.support[1].filter.conversation.$in.map(String), [CHAT(500)]);
+  const { timeline, openIssues } = res.body.profile;
+  const closed = timeline.find((event) => event.type === "chat_closed");
+  assert.equal(closed.ref.id, CHAT(500));
+  assert.equal(closed.at, at(2 * HOUR + 1000).toISOString(), "kapanış zamanı destek talebinden (sohbetin son değişikliği değil)");
+  assert.ok(!timeline.some((event) => event.type === "chat_handoff"), "yalnızca kapanış için okunan talep olay üretmez");
+  assert.ok(!timeline.some((event) => event.id === `chat_started:${CHAT(500)}`), "ufkun gerisindeki başlangıç bu sayfada yok");
+  assert.ok(!openIssues.some((issue) => issue.type === "open_support"));
+  assert.equal(res.body.profile.timelineHasMore, true);
+  assert.equal(res.body.profile.timelineNextBefore, new Date(NOW - TIMELINE_SOURCE_LIMIT * HOUR + 1).toISOString());
 });
 
 test("GET profile: bad ?before= → 400, unknown customer → 404 (both modes)", async (t) => {

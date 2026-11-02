@@ -54,7 +54,10 @@ const dayLabel = (key, now) => {
     timeZone: TZ, day: "numeric", month: "long", weekday: "long", ...(key.slice(0, 4) === today.slice(0, 4) ? {} : { year: "numeric" }),
   });
 };
-const validEvent = (event) => Boolean(event?.id) && Number.isFinite(new Date(event.at).getTime());
+const timeOf = (event) => new Date(event?.at).getTime();
+const validEvent = (event) => Boolean(event?.id) && Number.isFinite(timeOf(event));
+/** Yeniden eskiye (eşit zamanda gelen sıra korunur) */
+const newestFirst = (list) => [...list].sort((a, b) => timeOf(b) - timeOf(a));
 
 const TimelineItem = ({ event, onOpen }) => {
   const Icon = eventIcon(event);
@@ -89,12 +92,13 @@ const TimelineItem = ({ event, onOpen }) => {
 
 /** "Geçmiş" görünümü: tür süzgeci, güne göre gruplu olaylar, "Daha fazla göster" */
 const Timeline = ({ userId, initialEvents, initialHasMore, initialNextBefore, now, onOpen }) => {
-  const [events, setEvents] = useState(() => (Array.isArray(initialEvents) ? initialEvents.filter(validEvent) : []));
+  const [events, setEvents] = useState(() => newestFirst(Array.isArray(initialEvents) ? initialEvents.filter(validEvent) : []));
   const [nextBefore, setNextBefore] = useState(initialHasMore && initialNextBefore ? initialNextBefore : null);
   const [filter, setFilter] = useState("all");
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState(null);
   const requestRef = useRef(null);
+  const loadingRef = useRef(false); // hızlı çift tıklama iki istek göndermesin
   const headingId = useId();
   const hasMore = Boolean(nextBefore);
 
@@ -102,9 +106,10 @@ const Timeline = ({ userId, initialEvents, initialHasMore, initialNextBefore, no
   useEffect(() => () => requestRef.current?.abort(), []);
 
   const loadMore = async () => {
-    if (loadingMore || !nextBefore) return;
+    if (loadingRef.current || !nextBefore) return;
     const controller = new AbortController();
     requestRef.current = controller;
+    loadingRef.current = true;
     setLoadingMore(true);
     setMoreError(null);
     try {
@@ -112,13 +117,14 @@ const Timeline = ({ userId, initialEvents, initialHasMore, initialNextBefore, no
       const page = Array.isArray(data?.timeline) ? data.timeline.filter(validEvent) : [];
       setEvents((current) => {
         const seen = new Set(current.map((event) => event.id));
-        return [...current, ...page.filter((event) => !seen.has(event.id))];
+        return newestFirst([...current, ...page.filter((event) => !seen.has(event.id))]);
       });
       setNextBefore(data?.timelineHasMore && data?.timelineNextBefore ? data.timelineNextBefore : null);
     } catch (error) {
       if (controller.signal.aborted) return;
       setMoreError(error.response?.data?.message || "Daha eski kayıtlar yüklenemedi");
     } finally {
+      loadingRef.current = false;
       if (!controller.signal.aborted) setLoadingMore(false);
     }
   };

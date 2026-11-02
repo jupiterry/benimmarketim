@@ -23,7 +23,8 @@ const StaffNotePanel = ({ userId, note, flags, deliveryFailures, onChange, onDir
   const [suggestHidden, setSuggestHidden] = useState(false);
   const baseRef = useRef(null); // düzenlemeye başlanan notun sürümü (updatedAt | null)
   const textareaRef = useRef(null);
-  const busyRef = useRef(false);
+  const busyRef = useRef(false); // işaret kaydı sürüyor (çift tıklama iki istek göndermesin)
+  const savingRef = useRef(false); // not kaydı sürüyor (hızlı iki Ctrl+Enter iki istek göndermesin)
   const fieldId = useId();
   const hintId = useId();
   const headingId = useId();
@@ -62,7 +63,7 @@ const StaffNotePanel = ({ userId, note, flags, deliveryFailures, onChange, onDir
   };
 
   const saveNote = async () => {
-    if (savingNote) return;
+    if (savingRef.current) return;
     const text = draft.trim();
     if (text.length > STAFF_NOTE_MAX) { toast.error(`İç not en fazla ${STAFF_NOTE_MAX} karakter olabilir`); return; }
     if (text === savedText && !conflict) { cancelEdit(); return; }
@@ -76,6 +77,8 @@ const StaffNotePanel = ({ userId, note, flags, deliveryFailures, onChange, onDir
       });
       if (!ok) return;
     }
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSavingNote(true);
     try {
       const { data } = await axios.patch(`/users/${userId}/staff-note`, { text, baseUpdatedAt: baseRef.current });
@@ -96,6 +99,7 @@ const StaffNotePanel = ({ userId, note, flags, deliveryFailures, onChange, onDir
         toast.error(errorText(error, "İç not kaydedilemedi"));
       }
     } finally {
+      savingRef.current = false;
       setSavingNote(false);
     }
   };
@@ -203,7 +207,9 @@ const StaffNotePanel = ({ userId, note, flags, deliveryFailures, onChange, onDir
             readOnly={savingNote}
           />
           <div className="cus-staff-actions">
-            <span id={hintId} className="ui-hint cus-staff-count ui-num" aria-live="polite">{length}/{STAFF_NOTE_MAX}</span>
+            <span id={hintId} className="ui-hint cus-staff-count ui-num">
+              {length}/{STAFF_NOTE_MAX} karakter<span className="cus-staff-kbd"> · Ctrl+Enter ile kaydedin</span>
+            </span>
             <span className="ui-grow" />
             <button type="button" className="ui-btn ui-btn--sm" onClick={cancelEdit} disabled={savingNote}>Vazgeç</button>
             <button type="submit" className={`ui-btn ui-btn--sm ${!length && savedText ? "ui-btn--danger" : "ui-btn--primary"}`} disabled={savingNote || (!dirty && !conflict)}>
