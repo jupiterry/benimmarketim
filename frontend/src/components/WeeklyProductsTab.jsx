@@ -1473,7 +1473,7 @@ const DealRow = ({
         {perfItem && (
           <span
             className="wky-perf"
-            title={`${perfItem.from ? formatDateTime(perfItem.from) : "Başlangıç"} – ${perfItem.to ? formatDateTime(perfItem.to) : "şimdi"} arası siparişler${Number(perfItem.inferredLines) > 0 ? ". Bazı eski siparişlerde fiyat kaynağı kayıtlı olmadığından tahmin edildi." : ""}`}
+            title={`${Number.isFinite(msOf(perfItem.from)) ? formatDateTime(perfItem.from) : "Başlangıç"} – ${Number.isFinite(msOf(perfItem.to)) ? formatDateTime(perfItem.to) : "şimdi"} arası siparişler${Number(perfItem.inferredLines) > 0 ? ". Bazı eski siparişlerde fiyat kaynağı kayıtlı olmadığından tahmin edildi." : ""}`}
           >
             <TrendingUp aria-hidden="true" />
             {perfText(perfItem, state)}
