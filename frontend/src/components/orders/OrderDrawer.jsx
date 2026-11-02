@@ -5,24 +5,25 @@
 // (footer yok; Esc / X detaya döner). "?" kısayolu konteynerin; burada işlenmez. Stil: orders-drawer.css (so-d-).
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertTriangle, ArrowRight, Bike, Calendar, Check, CheckSquare, ChevronLeft, ChevronRight, Copy, Info, Landmark, Loader2, Mail, MapPin,
-  MessageCircle, MoreHorizontal, PackagePlus, PackageX, Phone, Printer, RotateCcw, Save, Smartphone, Square, Trash2, Wallet, X, XCircle,
+  AlertTriangle, ArrowRight, Bike, Calendar, Check, CheckSquare, ChevronLeft, ChevronRight, Copy, Flag, Info, Landmark, Loader2, Mail, MapPin,
+  MessageCircle, MoreHorizontal, PackagePlus, PackageX, Phone, Printer, Replace, RotateCcw, Save, Smartphone, Square, Trash2, Wallet, X, XCircle,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Drawer, formatDateTime, isTypingTarget, money, useMediaQuery } from "../admin/ui";
 import { formatPhoneTR } from "../../lib/orderTools";
 import { useConfirm } from "../ConfirmModal";
 import {
-  CallbackBadge, CourierChip, CustomerFace, MenuButton, NextStepButton, PaymentChip, PointChip, PrintedMark, SlaChip, SrOnly, StatusBadge,
-  TrustBadges,
+  CallbackBadge, CourierChip, CustomerFace, MenuButton, NextStepButton, PaymentChip, PointChip, PrintedMark, SiblingChip, SlaChip, SrOnly,
+  StaffFlagChips, StatusBadge, TrustBadges, courierSplitProps,
 } from "./atoms";
 import {
-  CLICK_GUARD_MS, TZ, buildWhatsAppLink, customerName, customerPhone, describeChanges, getSla, inGChord, isActiveStatus,
-  isDeletedCustomer, isDoneStatus, lastStatusTime, moveTargets, nextAction, orderCode, orderCodeTitle, paymentKey, paymentLong,
+  CLICK_GUARD_MS, TZ, buildWhatsAppLink, buildWhatsAppText, copyText, customerName, customerPhone, describeChanges, getSla, inGChord,
+  isActiveStatus, isDeletedCustomer, isDoneStatus, lastStatusTime, moveTargets, nextAction, orderCode, orderCodeTitle, paymentKey, paymentLong,
   platformLabel, pointLabel, shortWhen, statusUi, telHref, toMs, deliveryFeeLabel, hasDeliveryFeeLine, isAddressOrder, orderDeliveryFee,
   deliveryOutcomeLabel,
 } from "./shared";
 import AddItemPanel from "./AddItemPanel";
+import SubstitutePanel from "./SubstitutePanel";
 import ContactActions from "./drawer/ContactActions";
 import CustomerPanel from "./drawer/CustomerPanel";
 import DeliveryAddress from "./drawer/DeliveryAddress";
@@ -131,7 +132,7 @@ function HeroContact({ order }) {
 }
 
 // ── Özet (hero) ───────────────────────────────────────────────────────
-function Hero({ order, now, position, nextUp, printedAt, headingRef, onNavigate, onOpenOrder }) {
+function Hero({ order, now, position, nextUp, printedAt, headingRef, onNavigate, onOpenOrder, siblings }) {
   const index = position?.index ?? -1;
   const total = position?.total ?? 0;
   const showNav = index >= 0 && total > 1;
@@ -153,9 +154,11 @@ function Hero({ order, now, position, nextUp, printedAt, headingRef, onNavigate,
           </div>
           <div className="so-d-hero-chips">
             <CallbackBadge order={order} />
+            <StaffFlagChips order={order} />
             <PaymentChip order={order} />
             <PointChip order={order} />
             <CourierChip order={order} />
+            <SiblingChip siblings={siblings} onOpen={onOpenOrder} />
             <TrustBadges order={order} />
             <PrintedMark at={printedAt} />
           </div>
@@ -348,11 +351,14 @@ export default function OrderDrawer({
   onClose, onNavigate, onOpenOrder, onUndoLast, onAdvance, onUndo, onMove, onPrint, onDelete, onCopySummary, onToggleSelect,
   onSaveTracking, onUpdateQuantity, onRemoveItem, onAddProduct, onAddCustom, onMarkOutOfStock, onOpenProfile,
   couriers, couriersStatus, onConfirmCallback, onAssignCourier, onDeliveryFailed,
+  courierUi = null, siblings, onSendToCourier, onReplaceItem,
 }) {
   const { confirm } = useConfirm();
   // ≥1280 px'te çekmece sayfayı kilitlemez (orders.css: şeffaf, tıklanabilir arka plan): modal değildir
   const modal = !useMediaQuery("(min-width: 1280px)");
-  const [mode, setMode] = useState("detail");
+  const [mode, setMode] = useState("detail"); // "detail" | "add" | "substitute"
+  const [subKey, setSubKey] = useState(null); // muadili seçilen satırın lineKey'i
+  const subReturnRef = useRef(null); // { lineKey, replaced } — muadil görünümünden dönünce odak için
   const [unlocked, setUnlocked] = useState(() => unlockedOrders.has(order?.orderId));
   const [stock, setStock] = useState({});
   const heroRef = useRef(null);
@@ -374,7 +380,9 @@ export default function OrderDrawer({
   useLayoutEffect(() => {
     modeRef.current = "detail";
     heroFocusRef.current = true;
+    subReturnRef.current = null;
     setMode("detail");
+    setSubKey(null);
     setUnlocked(unlockedOrders.has(orderId));
   }, [orderId]);
   useLayoutEffect(() => {
@@ -394,12 +402,30 @@ export default function OrderDrawer({
   useEffect(() => {
     if (missing) setMode("detail");
   }, [missing]);
-  // Ekleme görünümünden dönünce odak "Ekle" düğmesine (sipariş değişiminde değil)
+  // Ekleme görünümünden dönünce odak "Ekle" düğmesine; muadil görünümünden dönünce değişiklik yapıldıysa hazır mesaja
+  // ("WhatsApp ile bildir"), yapılmadıysa satırın menüsüne (sipariş değişiminde değil)
   useEffect(() => {
     const prev = modeRef.current;
     modeRef.current = mode;
     if (prev === "add" && mode === "detail") requestAnimationFrame(() => (addRef.current || heroRef.current)?.focus({ preventScroll: true }));
+    if (prev === "substitute" && mode === "detail") {
+      const back = subReturnRef.current;
+      subReturnRef.current = null;
+      requestAnimationFrame(() => {
+        const root = heroRef.current?.closest(".ui-drawer");
+        const key = back?.lineKey ? String(back.lineKey).replace(/["\\]/g, "") : "";
+        const target = (back?.replaced && root?.querySelector(".so-d-changes-msg"))
+          || (key && root?.querySelector(`[data-line-key="${key}"] .so-d-line-menu`))
+          || heroRef.current;
+        target?.focus({ preventScroll: false });
+      });
+    }
   }, [mode]);
+  // Muadili seçilen satır artık yoksa (başka yerde değişti) ya da sipariş listeden düştüyse detaya dönülür
+  const subLine = mode === "substitute" ? (order?.products || []).find((p) => p.lineKey === subKey) || null : null;
+  useEffect(() => {
+    if (mode === "substitute" && (!subLine || missing || order?.status !== "Hazırlanıyor")) setMode("detail");
+  }, [mode, subLine, missing, order?.status]);
 
   // Toplama işaretleri (yalnızca güncel satırlar)
   const pickedSet = useMemo(() => {
@@ -434,6 +460,14 @@ export default function OrderDrawer({
     if (!products?.length && !productsLoading) onLoadProducts?.();
     setMode("add");
   }, [missing, locked, unlock, products?.length, productsLoading, onLoadProducts]);
+  /** Satır menüsü → "Muadille değiştir" (yalnızca Hazırlanıyor siparişte) */
+  const openSubstitute = useCallback((lineKey) => {
+    if (missing || status !== "Hazırlanıyor" || !lineKey) return;
+    if (!products?.length && !productsLoading) onLoadProducts?.();
+    subReturnRef.current = { lineKey, replaced: false };
+    setSubKey(lineKey);
+    setMode("substitute");
+  }, [missing, status, products?.length, productsLoading, onLoadProducts]);
 
   const markOut = async (productId) => {
     if (!productId || stock[productId] === "busy") return;
@@ -508,6 +542,37 @@ export default function OrderDrawer({
   const code = orderCode(order);
   const name = customerName(order);
 
+  // ── Muadil görünümü ──
+  if (mode === "substitute" && subLine) {
+    return (
+      <Drawer
+        title="Muadille değiştir"
+        subtitle={<><span className="so-code" title={orderCodeTitle(order)}>{code}</span> · {name}</>}
+        icon={Replace}
+        width={520}
+        className="so-d"
+        bodyClassName="so-d-body"
+        modal={modal}
+        onClose={() => setMode("detail")}
+        footer={null}
+      >
+        <SubstitutePanel
+          line={subLine}
+          products={products}
+          loading={productsLoading}
+          error={productsError}
+          onReload={onLoadProducts}
+          onChoose={(product, opts) => {
+            const ok = Boolean(onReplaceItem?.(order, subLine.lineKey, product, opts));
+            if (ok) subReturnRef.current = { lineKey: subLine.lineKey, replaced: true };
+            return ok;
+          }}
+          onDone={() => setMode("detail")}
+        />
+      </Drawer>
+    );
+  }
+
   // ── Ekleme görünümü ──
   if (mode === "add") {
     return (
@@ -550,14 +615,29 @@ export default function OrderDrawer({
   const active = isActiveStatus(status);
   const transfer = paymentKey(order) === "bank_transfer";
   const changeList = Array.isArray(changes) ? changes : EMPTY_CHANGES;
+  // Çıkarılan ve muadille değiştirilen (eksik) ürünler: "tükendi işaretle" düğmeleri
   const removedProducts = [];
   for (const c of changeList) {
-    if (c.type === "removed" && c.productId && !removedProducts.some((r) => r.productId === c.productId)) removedProducts.push(c);
+    if ((c.type === "removed" || c.type === "replaced") && c.productId && !removedProducts.some((r) => r.productId === c.productId)) {
+      removedProducts.push(c.type === "replaced" ? { ...c, name: c.from } : c);
+    }
   }
   const storeOut = (productId) => (products || []).some((p) => String(p?._id) === String(productId) && p.isOutOfStock);
-  const changedLink = buildWhatsAppLink(order, "changed", { changes: changeList });
+  // Muadil varsa müşteriye "… kalmamıştı, yerine … koyduk" mesajı; yoksa "siparişinde değişiklik yaptık"
+  const changeTemplate = changeList.some((c) => c.type === "replaced") ? "substitute" : "changed";
+  const changeCtx = { changes: changeList };
+  const changedLink = buildWhatsAppLink(order, changeTemplate, changeCtx);
+  const changeText = changeList.length ? buildWhatsAppText(order, changeTemplate, changeCtx) : "";
+  const changeTel = telHref(order);
+  const copyChangeText = async () => {
+    if (await copyText(changeText)) toast.success("Mesaj kopyalandı");
+    else toast.error("Mesaj kopyalanamadı");
+  };
   const hasNext = Boolean(nextAction(status) || order.pending);
   const completed = done ? lastStatusTime(order, status) : null;
+  // Kuryesi olmayan Hazırlanıyor siparişinde (2+ aktif kurye) bölünmüş "Ali ile yola çıkar ▾"
+  const split = missing ? null : courierSplitProps(order, courierUi, { advance: onAdvance });
+  const staffNote = typeof order.user?.staffNote === "string" ? order.user.staffNote.trim() : "";
 
   const menuItems = [
     { type: "label", label: "Durumu değiştir" },
@@ -593,7 +673,8 @@ export default function OrderDrawer({
       </button>
       {hasNext ? (
         <NextStepButton order={order} variant="solid" size="lg" block kbd="e" disabled={missing}
-          onAdvance={onAdvance} onUndo={onUndo} className="so-d-next" />
+          onAdvance={split?.onAdvance || onAdvance} onUndo={onUndo} className="so-d-next"
+          label={split?.label} ariaLabel={split?.ariaLabel} menu={split?.menu} menuLabel="Kurye seçenekleri" />
       ) : (
         <span className="so-d-foot-note">
           <StatusBadge status={status} />
@@ -615,7 +696,7 @@ export default function OrderDrawer({
       footer={footer}
     >
       <Hero order={order} now={now} position={position} nextUp={nextUp} printedAt={ui?.printedAt?.get?.(orderId)}
-        headingRef={heroRef} onNavigate={onNavigate} onOpenOrder={onOpenOrder} />
+        headingRef={heroRef} onNavigate={onNavigate} onOpenOrder={onOpenOrder} siblings={siblings} />
 
       {(missing || order.pending || (active && transfer) || changeList.length > 0) && (
         <div className="so-d-banners">
@@ -647,7 +728,7 @@ export default function OrderDrawer({
               actions={(
                 <>
                   {changedLink ? (
-                    <a className="ui-btn ui-btn--sm" href={changedLink} target="_blank" rel="noopener noreferrer">
+                    <a className="ui-btn ui-btn--sm so-d-changes-msg" href={changedLink} target="_blank" rel="noopener noreferrer">
                       <MessageCircle aria-hidden="true" />WhatsApp ile bildir
                     </a>
                   ) : (
@@ -655,6 +736,14 @@ export default function OrderDrawer({
                       <MessageCircle aria-hidden="true" />WhatsApp ile bildir
                     </button>
                   )}
+                  {changeTel && (
+                    <a className="ui-btn ui-btn--sm" href={changeTel} title="Müşteriyi arayıp değişikliği söyleyin">
+                      <Phone aria-hidden="true" />Ara
+                    </a>
+                  )}
+                  <button type="button" className="ui-btn ui-btn--sm ui-btn--ghost" onClick={copyChangeText} title="Hazır mesajı kopyala (SMS ya da başka bir uygulama için)">
+                    <Copy aria-hidden="true" />Mesajı kopyala
+                  </button>
                   {removedProducts.map((c) => {
                     const state = stock[c.productId] || (storeOut(c.productId) ? "done" : undefined);
                     const label = state === "done"
@@ -672,6 +761,9 @@ export default function OrderDrawer({
                 </>
               )}>
               <strong>Sipariş değişti:</strong> {describeChanges(changeList)} · Yeni toplam <strong className="ui-num">{money(order.totalAmount)}</strong>
+              {changeTemplate === "substitute" && (
+                <span className="so-d-msg-preview">Müşteriye hazır mesaj: “{changeText}”</span>
+              )}
             </Banner>
           )}
         </div>
@@ -690,10 +782,20 @@ export default function OrderDrawer({
         </div>
       )}
 
+      {staffNote && (
+        <div className="ui-note so-d-note so-d-staff-note">
+          <Flag aria-hidden="true" />
+          <div>
+            <p className="ui-note-label">İç not <span className="so-d-staff-scope">· yalnızca panelde görünür</span></p>
+            <p className="ui-note-body">{staffNote}</p>
+          </div>
+        </div>
+      )}
+
       <DeliveryAddress order={order} />
 
       <DeliveryOpsSection order={order} missing={missing} couriers={couriers} couriersStatus={couriersStatus}
-        onAssignCourier={onAssignCourier} onDeliveryFailed={onDeliveryFailed} />
+        onAssignCourier={onAssignCourier} onDeliveryFailed={onDeliveryFailed} onSendToCourier={onSendToCourier} />
 
       <OrderItems
         order={order}
@@ -709,6 +811,7 @@ export default function OrderDrawer({
         onAdd={openAdd}
         onUnlock={unlock}
         addRef={addRef}
+        onSubstitute={typeof onReplaceItem === "function" ? openSubstitute : undefined}
       />
 
       <ContactActions order={order} changes={changeList} onCopySummary={onCopySummary} />

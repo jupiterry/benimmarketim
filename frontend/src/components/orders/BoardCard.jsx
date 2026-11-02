@@ -6,8 +6,8 @@ import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 
 import { CheckSquare, GripVertical, MinusSquare } from "lucide-react";
 import { formatDateTime, money } from "../admin/ui";
 import {
-  CallbackBadge, CourierChip, CustomerFace, MenuButton, NextStepButton, NoteChip, OrderCode, OutcomeChip, PaymentChip, PickProgress,
-  PointChip, PrintedMark, SelectCheck, SlaChip, TrustBadges, UnseenBadge,
+  AdvanceStep, CallbackBadge, CourierChip, CustomerFace, MenuButton, NextStepButton, NoteChip, OrderCode, OutcomeChip, PaymentChip, PickProgress,
+  PointChip, PrintedMark, SelectCheck, SiblingChip, SlaChip, StaffFlagChips, TrustBadges, UnseenBadge,
 } from "./atoms";
 import {
   completedAt, courierKey, customerName, durationMinutes, formatMinutes, getSla, isDoneStatus, moveTargets, needsCallbackPending,
@@ -70,6 +70,7 @@ const useChipOverflow = (ref, sig, enabled) => {
 function BoardCard({
   order, index, now, active = false, cursor = false, selected = false, fresh = false, unseen = false, printedAt, picked,
   actions, dragHandleProps, draggableProps, innerRef, isDragging = false, dragDisabled = false, selecting = false,
+  siblings, courier,
 }) {
   const chipsRef = useRef(null);
   const rootRef = useRef(null);
@@ -83,7 +84,8 @@ function BoardCard({
   const sig = order && !done
     ? [pointKey(order), paymentKey(order), order.hasNote ? 1 : 0, order.isFirstOrder ? 1 : 0,
       order.cancelBadge || 0, picked?.done || 0, picked?.total || 0, printedAt || 0,
-      needsCallbackPending(order) ? 1 : 0, courierKey(order)].join("|")
+      needsCallbackPending(order) ? 1 : 0, courierKey(order), (order.user?.staffFlags || []).join(","),
+      (siblings || []).map((o) => o.orderId).join(",")].join("|")
     : "";
   const more = useChipOverflow(chipsRef, sig, Boolean(order) && !done);
   if (!order) return null;
@@ -219,6 +221,8 @@ function BoardCard({
         <div className="so-b-chips" ref={chipsRef}>
           <CallbackBadge order={order} />
           <PointChip order={order} />
+          <StaffFlagChips order={order} />
+          <SiblingChip siblings={siblings} onOpen={actions?.open} />
           <PaymentChip order={order} />
           <CourierChip order={order} />
           <NoteChip order={order} />
@@ -235,7 +239,9 @@ function BoardCard({
 
       {showFoot && (
         <div className="so-b-foot">
-          <NextStepButton order={order} onAdvance={actions?.advance} onUndo={actions?.undo} variant="soft" size="sm" block />
+          {done
+            ? <NextStepButton order={order} onAdvance={actions?.advance} onUndo={actions?.undo} variant="soft" size="sm" block />
+            : <AdvanceStep order={order} actions={actions} courier={courier} variant="soft" size="sm" block compact />}
           {!done && menu}
         </div>
       )}

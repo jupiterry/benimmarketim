@@ -3,15 +3,19 @@
 // dosyada birbirine bağlanır. Sözleşme: scratchpad/orders-design/CONTRACTS.md §6.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { Inbox, Package2, RefreshCw } from "lucide-react";
+import { Bike, Inbox, MessageCircle, Package2, RefreshCw, UserMinus } from "lucide-react";
 import {
   HANDOFF, ShortcutHelp, formatDate, isTypingTarget, money, setHandoff, takeHandoff, undoable, useDebounced, useIsMobile,
   useListShortcuts, usePref,
 } from "../admin/ui";
 import { useUserStore } from "../../stores/useUserStore";
-import { buildOrderSummaryText, buildOrdersCsv, downloadTextFile, printReceipts, printRunSheet } from "../../lib/orderTools";
+import {
+  buildCourierMessage, buildOrderSummaryText, buildOrdersCsv, courierWhatsAppLink, downloadTextFile, formatPhoneTR, printReceipts, printRunSheet,
+} from "../../lib/orderTools";
 import useOrdersData from "./useOrdersData";
 import useCouriers from "./useCouriers";
+import useAdvanceFlow from "./useAdvanceFlow";
+import { useChoiceDialog } from "./ChoiceDialog";
 import OrdersHeader from "./OrdersHeader";
 import OrdersKpis from "./OrdersKpis";
 import OrdersToolbar from "./OrdersToolbar";
@@ -30,7 +34,7 @@ import {
   isActiveStatus, isDoneStatus, isLate, isUnseenCandidate, matchesQuery, nextAction, normalizeFilters, notificationPermission,
   parseQuery, pickedStore, pointGroups, pointKey, pointLabel, printedStore, readSavedFilters, readView, seenStore, sortOrders,
   startOfDay, toSavedFilter, urgencySort, writeSavedFilters, writeView, hasZoneOrders, zoneFilterOptions,
-  courierFilterOptions, courierKey, courierLabel, needsCallbackPending,
+  courierFilterOptions, courierKey, courierLabel, needsCallbackPending, buildActiveSiblings, orderCode,
 } from "./shared";
 import {
   KbdHint, LiveRegion, LoadErrorPanel, LoadOlderButton, OrdersSkeleton, StaleBanner, StatePanel, useOrdersNow,
@@ -46,6 +50,17 @@ const IDLE_SEARCH = Object.freeze({ state: "idle", count: 0, query: "", ids: [] 
 const POPUP_BLOCKED = "Yazdırma penceresi açılamadı. Tarayıcıda bu site için açılır pencerelere izin verin.";
 const LOAD_FAILED = "Siparişler yüklenemedi";
 const FLASH_MS = 1400;
+const CANCELLED = "İptal Edildi";
+const EMPTY_SIBLINGS = new Map();
+/**
+ * Sözleşme (p1-alerts): sipariş detayı açılınca ve sipariş Hazırlanıyor'dan ilerletilince (ayrıca "Gördüm", fiş
+ * yazdırma ve teyit) her sipariş için window'a "admin-order-seen" { orderId } gönderilir; tekrarlayan yeni sipariş
+ * sesi bununla susar.
+ */
+const announceSeen = (ids) => {
+  if (typeof window === "undefined") return;
+  for (const id of ids) window.dispatchEvent(new CustomEvent("admin-order-seen", { detail: { orderId: String(id) } }));
+};
 
 const oldestFirst = (orders) => [...(orders || [])].sort((a, b) => a.createdMs - b.createdMs);
 const completedMs = (order) => completedAt(order)?.getTime() ?? 0;
@@ -130,6 +145,10 @@ export default function OrdersScreen() {
   const [dragging, setDragging] = useState(false);
   const [announcement, setAnnouncement] = useState(null);
   const [permission, setPermission] = useState(notificationPermission);
+  // Açık toplama listesindeyken iptal edilen siparişler (kapatılana kadar üstü çizili gösterilir): [{ order, at }]
+  const [pickCancelled, setPickCancelled] = useState([]);
+  const pickWatchRef = useRef(new Map());
+  const choice = useChoiceDialog();
 
   const searchRef = useRef(null);
   const draggingRef = useRef(false);
@@ -145,6 +164,36 @@ export default function OrdersScreen() {
   const loading = data.status === "loading";
   const failed = data.status === "error";
   const { windowOrders, ordersById, extraIds, refresh: refreshData, searchServer } = data;
+  // Bildirimdeki düğmeler (geri alma ekleri) render'dan sonra tıklanır: en güncel siparişler buradan okunur
+  const ordersByIdRef = useRef(ordersById);
+  ordersByIdRef.current = ordersById;
+
+  // Aynı müşterinin diğer aktif siparişleri (kart çipi, "birlikte yola çıkar" sorusu, çekmece)
+  const siblings = useMemo(() => (ready ? buildActiveSiblings(data.orders) : EMPTY_SIBLINGS), [ready, data.orders]);
+  const siblingsRef = useRef(siblings);
+  siblingsRef.current = siblings;
+
+  // "Görüldü": "Yeni" işareti kalkar (bu cihaz) ve p1 sözleşmesi için admin-order-seen olayı gönderilir
+  const markSeen = useCallback((ids) => {
+    const list = [...new Set((ids || []).filter(Boolean).map(String))];
+    if (!list.length) return;
+    setSeen(seenStore.add(list));
+    announceSeen(list);
+  }, []);
+  // Yola çıkarma / teslim akışı: teyit, aynı müşteri, kurye soruları (useAdvanceFlow)
+  const flow = useAdvanceFlow({
+    data,
+    couriers: courierData,
+    ask: choice.ask,
+    onSeen: markSeen,
+    onShowCallbacks: (ids) => implRef.current?.showCallbacks(ids),
+    siblingsOf: (id) => siblingsRef.current.get(id) || [],
+  });
+  const lastCourierId = flow.lastCourierId;
+  const courierUi = useMemo(
+    () => (courierData.status === "ready" ? { active: courierData.active, lastId: lastCourierId } : null),
+    [courierData.status, courierData.active, lastCourierId],
+  );
 
   // ── Türetilmiş listeler ─────────────────────────────────────────────
   const eff = useMemo(() => ({ ...filters, q: qDebounced }), [filters, qDebounced]);
@@ -274,10 +323,11 @@ export default function OrdersScreen() {
   // Liste altbilgisi: sunucu aramasından gelen arşiv siparişleri gösterilirken kapsam notu bunu da söyler
   const listScopeNote = listSource !== windowOrders ? `${scopeNote || "Yüklü siparişler"} + sunucu araması` : scopeNote;
 
+  // courier: { active, lastId } (kurye listesi hazırsa; bölünmüş "Ali ile yola çıkar" düğmesi) · siblings: aynı müşteri
   const ui = useMemo(() => ({
     now, activeId: openId, cursorId, selectedIds: selected, freshIds: data.freshIds, unseenIds, printedAt: printed,
-    picked: pickedMap, extraIds, selecting: selected.size > 0,
-  }), [now, openId, cursorId, selected, data.freshIds, unseenIds, printed, pickedMap, extraIds]);
+    picked: pickedMap, extraIds, selecting: selected.size > 0, courier: courierUi, siblings,
+  }), [now, openId, cursorId, selected, data.freshIds, unseenIds, printed, pickedMap, extraIds, courierUi, siblings]);
 
   // Detay çekmecesi: canlı kopya, yoksa son görülen kopya ("listede değil" şeridiyle)
   const liveOpen = openId ? ordersById.get(openId) || null : null;
@@ -314,6 +364,42 @@ export default function OrdersScreen() {
     selectedOrders.length > 0 && { value: "selected", label: "Seçili", count: selectedOrders.length },
     picking.custom && { value: "custom", label: picking.custom.label, count: customOrders.length },
   ].filter(Boolean), [preparingOrders.length, selectedOrders.length, picking.custom, customOrders.length]);
+  // Toplanacaklar: iptal edilenler listeden çıkar (açık listedeyken iptal edilenler ayrıca üstü çizili gösterilir)
+  const pickingActive = useMemo(() => pickingOrders.filter((o) => o.status !== CANCELLED), [pickingOrders]);
+
+  // Açık toplama listesindeki bir sipariş iptal edilince satırları kapatılana kadar "İptal edildi · ürünleri rafa geri
+  // koyun" olarak kalır. İzleme yalnızca liste açıkken yapılır; iptal geri alınırsa uyarı kendiliğinden kalkar.
+  useEffect(() => {
+    if (layer !== "picking") {
+      pickWatchRef.current = new Map();
+      return;
+    }
+    const watch = pickWatchRef.current;
+    const activeIds = new Set(pickingActive.map((o) => o.orderId));
+    const cancelled = [];
+    for (const [id, snapshot] of watch) {
+      if (activeIds.has(id)) continue;
+      watch.delete(id);
+      if (ordersById.get(id)?.status === CANCELLED) cancelled.push(snapshot);
+    }
+    for (const order of pickingActive) watch.set(order.orderId, order);
+    if (!cancelled.length) return;
+    const at = Date.now();
+    setPickCancelled((prev) => [
+      ...prev.filter((entry) => !cancelled.some((order) => order.orderId === entry.order.orderId)),
+      ...cancelled.map((order) => ({ order, at })),
+    ]);
+  }, [layer, pickingActive, ordersById]);
+  useEffect(() => {
+    setPickCancelled((prev) => {
+      if (!prev.length) return prev;
+      const next = prev.filter((entry) => {
+        const live = ordersById.get(entry.order.orderId);
+        return !live || live.status === CANCELLED;
+      });
+      return next.length === prev.length ? prev : next;
+    });
+  }, [ordersById]);
 
   // ── Yardımcı eylemler ───────────────────────────────────────────────
   const announce = useCallback((text) => setAnnouncement({ text, at: Date.now() }), []);
@@ -341,10 +427,6 @@ export default function OrdersScreen() {
     setCursorId(null);
   }, []);
   const changeView = useCallback((next) => applyView(next), [applyView]);
-  const markSeen = useCallback((ids) => {
-    const list = (ids || []).filter(Boolean);
-    if (list.length) setSeen(seenStore.add(list));
-  }, []);
   const refresh = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -456,22 +538,33 @@ export default function OrdersScreen() {
       const order = ordersById.get(id);
       if (order) implRef.current.open(order);
     },
-    advance: async (order) => {
-      const ok = await data.advance(order);
-      if (ok) markSeen([order.orderId]);
-      return ok;
-    },
+    // İlerletme akışı (useAdvanceFlow): teyit, aynı müşteri ve kurye soruları; görüldü işareti akışın içinde
+    advance: (order, opts) => flow.advance(order, opts),
     undo: (order) => data.undo(order?.orderId ?? order),
-    move: async (order, status) => {
-      const ok = await data.changeStatus(order, status, { source: "move" });
-      if (ok) markSeen([order.orderId]);
+    move: (order, status) => flow.move(order, status),
+    changeStatus: (target, to, opts) => data.changeStatus(target, to, opts),
+    advanceMany: (orders) => flow.advanceMany(orders),
+    needsPrompt: (order, to) => flow.needsPrompt(order, to),
+    /** Kart / satırdaki "Arandı, teyit edildi" */
+    confirmCallback: async (order) => {
+      if (!order?.orderId) return false;
+      const ok = await data.confirmCallback(order);
+      if (ok) {
+        toast.success(`${orderCode(order)} teyit edildi`, { id: `so-callback-${order.orderId}` });
+        markSeen([order.orderId]);
+      }
       return ok;
     },
-    changeStatus: (target, to, opts) => data.changeStatus(target, to, opts),
-    advanceMany: async (orders) => {
-      const ok = await data.advanceMany(orders);
-      if (ok) markSeen((orders || []).map((o) => o.orderId));
-      return ok;
+    /** "N sipariş teyit beklediği için yola çıkarılmadı · Göster": tek siparişte detay, birden çokta teyit süzgeci */
+    showCallbacks: (ids) => {
+      const list = (ids || []).map((id) => ordersById.get(id)).filter(Boolean);
+      if (list.length === 1) {
+        implRef.current.open(list[0]);
+        return;
+      }
+      setOpenId(null);
+      setFilters((prev) => normalizeFilters({ ...prev, attention: "callback" }));
+      setPage(1);
     },
     toggleSelect: (orderId) => {
       if (!orderId) return;
@@ -627,11 +720,13 @@ export default function OrdersScreen() {
   };
   const actions = useMemo(() => ({
     open: (order) => implRef.current.open(order),
-    advance: (order) => implRef.current.advance(order),
+    advance: (order, opts) => implRef.current.advance(order, opts),
     undo: (order) => implRef.current.undo(order),
     move: (order, status) => implRef.current.move(order, status),
     changeStatus: (target, to, opts) => implRef.current.changeStatus(target, to, opts),
     advanceMany: (orders) => implRef.current.advanceMany(orders),
+    needsPrompt: (order, to) => implRef.current.needsPrompt(order, to),
+    confirmCallback: (order) => implRef.current.confirmCallback(order),
     toggleSelect: (orderId) => implRef.current.toggleSelect(orderId),
     selectMany: (orderIds, on) => implRef.current.selectMany(orderIds, on),
     print: (order) => implRef.current.print(order),
@@ -676,11 +771,11 @@ export default function OrdersScreen() {
   };
 
   // Toplu durum: seçili siparişlerden durumu gerçekten değişecek olanlar; uygulanınca seçim bırakılır
+  // (teyit bekleyenler atlanır, yola çıkarmada kurye bir kez sorulur — useAdvanceFlow)
   const bulkStatus = async (orders, to) => {
     if (!orders.length) return;
-    const ok = await data.changeStatus(orders, to, { source: "bulk" });
+    const ok = await flow.setStatusMany(orders, to);
     if (!ok) return;
-    markSeen(orders.map((o) => o.orderId));
     setSelected(new Set());
     requestAnimationFrame(() => focusItem(cursorId, { scroll: false }));
   };
@@ -688,12 +783,92 @@ export default function OrdersScreen() {
   const bulkCourier = async (courier) => {
     if (!selectedOrders.length) return;
     const ok = await data.assignCourier(selectedOrders, courier);
-    if (ok) toast.success(courier ? `${selectedOrders.length} sipariş ${courier.name} kuryesine atandı` : `${selectedOrders.length} siparişin kurye ataması kaldırıldı`);
+    if (!ok) return;
+    if (courier) flow.rememberCourier(courier);
+    toast.success(courier ? `${selectedOrders.length} sipariş ${courier.name} kuryesine atandı` : `${selectedOrders.length} siparişin kurye ataması kaldırıldı`);
   };
   const printCourierSheet = (id) => {
     const sheet = courierSheets.find((c) => c.id === id);
     if (sheet) actions.runSheet(sheet.orders, sheet.name);
   };
+  /**
+   * Siparişleri kuryeye WhatsApp ile gönderir (kuryenin numarasına wa.me). Numara kayıtlı / geçerli değilse mesaj panoya
+   * kopyalanır. courier: { _id | id, name, phone }
+   */
+  const sendToCourier = async (courier, orders) => {
+    const list = (orders || []).filter(Boolean);
+    if (!courier || !list.length) return;
+    const known = courierData.couriers.find((c) => c._id === String(courier._id ?? courier.id));
+    const target = { name: known?.name || courier.name || "Kurye", phone: known?.phone || courier.phone || "" };
+    const link = courierWhatsAppLink(target, list);
+    if (link) {
+      const opened = window.open(link, "_blank", "noopener,noreferrer");
+      if (!opened) toast.error("WhatsApp açılamadı. Tarayıcıda bu site için açılır pencerelere izin verin.", { id: "so-wa-blocked" });
+      return;
+    }
+    const ok = await copyText(buildCourierMessage(list, { courierName: target.name }));
+    if (ok) toast(`${target.name} için geçerli bir telefon kayıtlı değil; mesaj panoya kopyalandı. Telefonu Teslimat bölgeleri ekranından ekleyebilirsiniz.`, { id: "so-wa-copied", duration: 6000 });
+    else toast.error("Mesaj kopyalanamadı");
+  };
+  const sendCourierSheet = (id) => {
+    const sheet = courierSheets.find((c) => c.id === id);
+    if (!sheet) return;
+    sendToCourier({ _id: sheet.id, name: sheet.name }, sheet.orders);
+  };
+  /** Geri alma bildirimindeki "Değiştir": bu eylemde seçilen kuryeyi değiştirir (seçim sürerken kayıt bekletilir) */
+  const changePendingCourier = async (ids) => {
+    const release = data.holdUndo();
+    try {
+      const active = courierData.status === "ready" ? courierData.active : [];
+      const currentId = ordersByIdRef.current.get(ids[0])?.courier?.id || null;
+      const picked = await choice.ask({
+        title: "Kuryeyi değiştir",
+        message: ids.length === 1 ? `${orderCode(ids[0])} hangi kuryeyle yola çıksın?` : `${ids.length} sipariş hangi kuryeyle yola çıksın?`,
+        tone: "courier",
+        options: [
+          ...active.map((c) => ({
+            id: c._id, label: c.name, icon: Bike,
+            description: c._id === currentId ? "Şu anki kurye" : (c.phone ? formatPhoneTR(c.phone) : undefined),
+            variant: c._id === currentId ? "primary" : "default", autoFocus: c._id === currentId,
+          })),
+          { id: "none", label: "Kuryesiz", icon: UserMinus, autoFocus: !currentId },
+        ],
+      });
+      if (!picked) return;
+      const courier = picked === "none" ? null : active.find((c) => c._id === picked) || null;
+      if (picked !== "none" && !courier) return;
+      if (!data.setPendingCourier(ids, courier)) {
+        toast("Değişiklik kaydedildi; kuryeyi sipariş detayından değiştirin", { id: "so-courier-late" });
+        return;
+      }
+      if (courier) flow.rememberCourier(courier);
+    } finally {
+      release();
+    }
+  };
+  // Geri alma bildirimine kurye eki: "#AB12CD yola çıktı · Kurye: Ali" [Değiştir] [WhatsApp] [Geri al]
+  const undoExtrasRef = useRef(null);
+  undoExtrasRef.current = (items) => {
+    const assigned = items.filter(({ entry }) => entry.courierSet && entry.to === ROAD);
+    if (!assigned.length) return null;
+    const couriers = new Set(assigned.map(({ entry }) => entry.courier?.id || "none"));
+    if (couriers.size !== 1) return null; // farklı kuryeler: ek gösterilmez
+    const ids = assigned.map(({ orderId }) => orderId);
+    const courier = assigned[0].entry.courier;
+    const actionsList = [
+      { id: "courier-change", label: "Değiştir", icon: Bike, title: "Kuryeyi değiştir", onClick: () => changePendingCourier(ids) },
+      courier && {
+        id: "courier-wa", label: "WhatsApp", icon: MessageCircle, title: "WhatsApp ile kuryeye gönder",
+        onClick: () => sendToCourier(courier, ids.map((id) => ordersByIdRef.current.get(id)).filter(Boolean)),
+      },
+    ];
+    return { suffix: courier ? `Kurye: ${courier.name}` : "Kuryesiz", actions: actionsList.filter(Boolean) };
+  };
+  const { setUndoExtras } = data;
+  useEffect(() => {
+    setUndoExtras((items) => undoExtrasRef.current?.(items) ?? null);
+    return () => setUndoExtras(null);
+  }, [setUndoExtras]);
   const keepVisible = () => setSelected((prev) => new Set([...prev].filter((id) => visibleIds.has(id))));
   const clearSelection = useCallback(() => setSelected(new Set()), []);
 
@@ -1039,6 +1214,7 @@ export default function OrdersScreen() {
         onExportCsv={exportCurrent}
         courierSheets={courierSheets.map(({ id, name, orders }) => ({ id, name, count: orders.length }))}
         onCourierSheet={printCourierSheet}
+        onCourierWhatsApp={sendCourierSheet}
         onOpenDayClose={() => openLayer("dayclose")}
         unprintedCount={unprinted.length}
         onPrintUnprinted={() => actions.printMany(unprinted)}
@@ -1165,8 +1341,16 @@ export default function OrdersScreen() {
           onOpenProfile={openProfile}
           couriers={courierData.couriers}
           couriersStatus={courierData.status}
-          onConfirmCallback={data.confirmCallback}
-          onAssignCourier={(order, courier) => data.assignCourier([order], courier)}
+          courierUi={courierUi}
+          siblings={siblings.get(openOrder.orderId)}
+          onConfirmCallback={(order) => actions.confirmCallback(order)}
+          onAssignCourier={async (order, courier) => {
+            const ok = await data.assignCourier([order], courier);
+            if (ok && courier) flow.rememberCourier(courier);
+            return ok;
+          }}
+          onSendToCourier={sendToCourier}
+          onReplaceItem={data.replaceItem}
           onDeliveryFailed={data.markDeliveryFailed}
         />
       )}
@@ -1214,13 +1398,15 @@ export default function OrdersScreen() {
       )}
       {layer === "picking" && (
         <PickingDrawer
-          orders={pickingOrders}
+          orders={pickingActive}
           scope={pickingScope}
           scopes={pickingScopes}
           onScope={(scope) => setPicking((p) => ({ ...p, scope }))}
           onClose={closeLayer}
           picked={picked}
           onPicked={onPicked}
+          cancelled={pickCancelled}
+          onDismissCancelled={(orderId) => setPickCancelled((prev) => prev.filter((entry) => entry.order.orderId !== orderId))}
         />
       )}
       {layer === "dayclose" && (
@@ -1233,6 +1419,7 @@ export default function OrdersScreen() {
         />
       )}
       <ShortcutHelp open={helpOpen} onClose={() => setHelpOpen(false)} items={SHORTCUT_ITEMS} />
+      {choice.element}
       <LiveRegion message={announcement} />
     </div>
   );

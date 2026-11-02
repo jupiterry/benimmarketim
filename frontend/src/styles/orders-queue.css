@@ -868,3 +868,34 @@
       ".     side side";
   }
 }
+
+/* ── Mahalle alt grupları (Devrek): "Cumhuriyet Mah. · 3 sipariş · Nakit ₺520" ── */
+.admin-layout .so-q-subs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s3);
+  min-width: 0;
+}
+.admin-layout .so-q-sub {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s2);
+  min-width: 0;
+  padding-left: var(--ui-s2);
+  border-left: 2px solid color-mix(in srgb, var(--ui-info) 30%, var(--ui-line));
+}
+.admin-layout .so-q-sub-head {
+  padding-left: 2px;
+}
+.admin-layout .so-q-sub-title {
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+}
+.admin-layout .so-q-sub-title > svg {
+  color: var(--ui-info);
+}
+@media (max-width: 760px) {
+  .admin-layout .so-q-sub {
+    padding-left: var(--ui-s1);
+  }
+}

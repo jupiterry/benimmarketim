@@ -1,13 +1,15 @@
 // Şimdi görünümünün sipariş kartı (React.memo). Sözleşme: CONTRACTS.md §4 (öğe durumları, gerilmiş bağlantı) ve §7.5.
-// Kartın tamamı .so-open düğmesinin ::after katmanıyla detayı açar; onay kutusu ve sonraki adım düğmesi
-// bu düğmenin KARDEŞLERİDİR (iç içe etkileşimli öğe yok). Durum biçimleri (seviye şeridi, seçili, imleç,
+// Kartın tamamı .so-open düğmesinin ::after katmanıyla detayı açar; onay kutusu, "+1 aktif sipariş" çipi ve sonraki adım
+// düğmesi bu düğmenin KARDEŞLERİDİR (iç içe etkileşimli öğe yok). Durum biçimleri (seviye şeridi, seçili, imleç,
 // bekleyen, yeni) yalnızca orders.css'tedir; burada sadece data-* öznitelikleri verilir.
+// Birincil eylem (AdvanceStep): teyit bekleyen ilk siparişte "Önce ara" + "Arandı, teyit edildi"; kuryesi olmayan
+// siparişte (2+ kurye) "Ali ile yola çıkar ▾"; aksi halde "Yola çıkar" / "Teslim et".
 import { memo } from "react";
 import { StickyNote } from "lucide-react";
 import { money } from "../admin/ui";
 import {
-  AddressLine, CallbackBadge, CourierChip, FlashChip, CustomerFace, NextStepButton, OrderCode, PaymentChip, PickProgress, PointChip, PrintedMark,
-  SelectCheck, SlaChip, TrustBadges, UnseenBadge,
+  AddressLine, AdvanceStep, CallbackBadge, CourierChip, FlashChip, CustomerFace, OrderCode, PaymentChip, PickProgress, PointChip, PrintedMark,
+  SelectCheck, SiblingChip, SlaChip, StaffFlagChips, TrustBadges, UnseenBadge,
 } from "./atoms";
 import { customerName, getSla, isAddressOrder, needsCallbackPending, orderAriaLabel, orderCode } from "./shared";
 import "../../styles/orders-queue.css";
@@ -16,6 +18,7 @@ const flag = (value) => (value ? "true" : undefined);
 
 function QueueCard({
   order, now, active = false, cursor = false, selected = false, fresh = false, unseen = false, printedAt, picked, actions,
+  siblings, courier,
 }) {
   if (!order) return null;
   const id = order.orderId;
@@ -59,6 +62,7 @@ function QueueCard({
             {customerName(order)}
           </button>
           <CallbackBadge order={order} />
+          <StaffFlagChips order={order} />
           <TrustBadges order={order} />
           {unseen && <UnseenBadge />}
         </div>
@@ -71,6 +75,7 @@ function QueueCard({
         <PointChip order={order} />
         <PaymentChip order={order} />
         <CourierChip order={order} />
+        <SiblingChip siblings={siblings} onOpen={actions?.open} />
         <FlashChip order={order} />
         <PrintedMark at={printedAt} />
         <PickProgress info={picked} />
@@ -87,7 +92,7 @@ function QueueCard({
 
       <div className="so-q-side">
         <SlaChip order={order} now={now} bar size="md" />
-        <NextStepButton order={order} onAdvance={actions?.advance} onUndo={actions?.undo} variant="soft" size="md" block />
+        <AdvanceStep order={order} actions={actions} courier={courier} variant="soft" size="md" block />
       </div>
     </article>
   );

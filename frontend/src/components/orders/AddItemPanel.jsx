@@ -8,32 +8,20 @@ import { AlertTriangle, ArrowLeft, Check, Loader2, Minus, Package2, Plus, Refres
 import toast from "react-hot-toast";
 import { EmptyState, Segmented, Skeleton, money, useDebounced } from "../admin/ui";
 import { cloudinaryImage } from "../../lib/image";
-import { normalizeSearch } from "../../lib/orderTools";
 import { parseAmount } from "./shared";
+import { buildProductIndex, effectivePrice, searchProducts } from "./productSearch";
 import "../../styles/orders-drawer.css";
 
 const RESULT_LIMIT = 30;
 const NO_PRODUCTS = [];
 const QTY_MAX = 99;
 const AMOUNT_MAX = 100000;
-const PLACEHOLDER_NAME = normalizeSearch("Özel Ekleme");
 const TABS = [
   { value: "catalog", label: "Katalogdan" },
   { value: "manual", label: "Manuel tutar" },
 ];
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
-/** Sunucunun resolveEffectiveUnitPrice kuralı: haftalık fiyat, geçerli indirim (flash sale dahil) ve liste fiyatının en düşüğü */
-const effectivePrice = (product) => {
-  const price = Number(product?.price) || 0;
-  let best = price;
-  const discounted = Number(product?.discountedPrice);
-  if (product?.isDiscounted && Number.isFinite(discounted) && discounted >= 0 && discounted < best) best = discounted;
-  const weekly = product?.weeklyPrice;
-  if (weekly !== null && weekly !== undefined && Number.isFinite(Number(weekly)) && Number(weekly) >= 0 && Number(weekly) < best) best = Number(weekly);
-  return best;
-};
-const isPlaceholder = (product) => Boolean(product?.isHidden) && normalizeSearch(product?.name) === PLACEHOLDER_NAME;
 
 function CatalogSkeleton() {
   return (
@@ -71,21 +59,9 @@ export default function AddItemPanel({ order, products = NO_PRODUCTS, loading = 
   const listId = `so-d-add-list-${uid}`;
   const optionId = (index) => `so-d-add-opt-${uid}-${index}`;
 
-  // Arama dizini: ürün başına bir kez (ad + kategori, Türkçe duyarsız)
-  const index = useMemo(() => (Array.isArray(products) ? products : [])
-    .filter((p) => p && p._id && !isPlaceholder(p))
-    .map((p) => ({ product: p, name: normalizeSearch(p.name), text: normalizeSearch(`${p.name || ""} ${p.category || ""}`), price: effectivePrice(p) })), [products]);
-
-  const matches = useMemo(() => {
-    const tokens = normalizeSearch(q).split(" ").filter(Boolean);
-    if (!tokens.length) return index;
-    const rank = (entry) => (entry.name.startsWith(tokens[0]) ? 0 : entry.name.split(" ").some((w) => w.startsWith(tokens[0])) ? 1 : 2);
-    return index
-      .filter((entry) => tokens.every((t) => entry.text.includes(t)))
-      .map((entry, i) => ({ entry, i, r: rank(entry) }))
-      .sort((a, b) => a.r - b.r || a.i - b.i)
-      .map(({ entry }) => entry);
-  }, [index, q]);
+  // Arama dizini: ürün başına bir kez (ad + kategori, Türkçe duyarsız) — productSearch.js
+  const index = useMemo(() => buildProductIndex(products), [products]);
+  const matches = useMemo(() => searchProducts(index, q), [index, q]);
   const results = matches.slice(0, RESULT_LIMIT);
 
   // Siparişte zaten olan ürünler (ürün kimliğine göre adet)

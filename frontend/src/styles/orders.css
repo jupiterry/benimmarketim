@@ -786,3 +786,346 @@
     transition: none !important;
   }
 }
+
+/* ══ p7: teyit adımı, kuryeyle yola çıkar, personel işaretleri, aynı müşteri, seçim penceresi ══════════════ */
+
+/* ── Bölünmüş "Ali ile yola çıkar ▾" ─────────────────────────────── */
+.admin-layout .so-next-wrap[data-split="true"] {
+  gap: 0;
+}
+.admin-layout .so-next[data-split="true"] {
+  min-width: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.admin-layout .so-next[data-split="true"] > .so-next-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.admin-layout .so-next-wrap[data-split="true"] > .so-next-undo {
+  margin-left: var(--ui-s1);
+}
+.admin-layout .so-next-caret.ui-icon-btn {
+  flex-shrink: 0;
+  width: 30px;
+  height: auto;
+  min-height: 32px;
+  align-self: stretch;
+  margin-left: -1px;
+  border: 1px solid transparent;
+  border-radius: 0 var(--ui-radius) var(--ui-radius) 0;
+  background: var(--ui-surface-3);
+  color: var(--ui-text);
+}
+.admin-layout .so-next-caret[data-size="sm"] {
+  width: 28px;
+  min-height: 28px;
+}
+.admin-layout .so-next-caret[data-size="lg"] {
+  width: 40px;
+  min-height: 44px;
+}
+.admin-layout .so-next-caret[data-variant="soft"][data-kind="way"] {
+  border-color: color-mix(in srgb, var(--ui-info) 30%, transparent);
+  border-left-color: color-mix(in srgb, var(--ui-info) 45%, transparent);
+  background: var(--ui-info-bg);
+  color: var(--ui-info-ink);
+}
+.admin-layout .so-next-caret[data-variant="soft"][data-kind="way"]:hover:not(:disabled) {
+  border-color: var(--ui-info);
+}
+.admin-layout .so-next-caret[data-variant="solid"] {
+  border-color: var(--ui-brand);
+  border-left-color: color-mix(in srgb, var(--ui-surface) 45%, var(--ui-brand));
+  background: var(--ui-brand);
+  color: var(--ui-surface);
+}
+.admin-layout .so-next-caret[data-variant="solid"]:hover:not(:disabled) {
+  background: var(--ui-brand-strong);
+}
+.admin-layout[data-theme="dark"] .so-next-caret[data-variant="solid"] {
+  color: var(--ui-bg);
+}
+.admin-layout .so-next-caret > svg {
+  width: 15px;
+  height: 15px;
+}
+.admin-layout .so-next-caret:focus-visible {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: 1px;
+}
+
+/* ── Teyit bekleyen sipariş: "Önce ara" + "Arandı, teyit edildi" ─── */
+.admin-layout .so-cb-step {
+  flex-wrap: wrap;
+  gap: var(--ui-s1);
+}
+.admin-layout .so-cb-step[data-block="true"] > .so-next,
+.admin-layout .so-cb-step[data-block="true"] > .so-next-alt {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.admin-layout a.so-next {
+  text-decoration: none;
+}
+.admin-layout .so-next[data-kind="call"] {
+  border-color: color-mix(in srgb, var(--ui-danger) 40%, transparent);
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+}
+.admin-layout .so-next[data-kind="call"]:hover:not(:disabled) {
+  border-color: var(--ui-danger);
+}
+.admin-layout .so-next-alt {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font: inherit;
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color var(--ui-ease), color var(--ui-ease);
+}
+.admin-layout .so-next-alt > svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--ui-ok);
+}
+.admin-layout .so-next-alt:hover:not(:disabled) {
+  border-color: var(--ui-ok);
+  color: var(--ui-ok-ink);
+}
+.admin-layout .so-next-alt:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+.admin-layout .so-next-alt:focus-visible,
+.admin-layout a.so-next:focus-visible {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: 1px;
+}
+.admin-layout .so-next-alt[data-size="sm"] {
+  min-height: 28px;
+  padding: 0 8px;
+}
+.admin-layout .so-next-alt[data-size="lg"] {
+  min-height: 44px;
+  font-size: var(--ui-fs-sm);
+}
+
+/* ── Personel işaretleri ve aynı müşterinin diğer siparişi ───────── */
+.admin-layout .so-chip.so-staff {
+  font-weight: 650;
+}
+.admin-layout .so-chip.so-staff .so-chip-text {
+  max-width: 18ch;
+}
+.admin-layout .so-chip.so-sib {
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--ui-info) 35%, transparent);
+  font: inherit;
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+  cursor: pointer;
+  transition: border-color var(--ui-ease);
+}
+.admin-layout .so-chip.so-sib:hover {
+  border-color: var(--ui-info);
+}
+.admin-layout .so-chip.so-sib:focus-visible {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: 1px;
+}
+/* Dokunmatikte 40 px'lik dokunma alanı (görünen çip küçük kalır, düzen kaymaz) */
+@media (pointer: coarse) {
+  .admin-layout .so-chip.so-sib::after {
+    content: "";
+    position: absolute;
+    inset: -9px -3px;
+  }
+}
+
+/* ── Bildirim balonundaki ek düğmeler (react-hot-toast .admin-layout dışında çizilir) ── */
+.so-undo {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+.so-undo-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.so-undo-extra {
+  min-height: 30px;
+}
+.so-notice .so-notice-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: #b45309;
+}
+body:has(.admin-layout[data-theme="dark"]) .so-notice .so-notice-icon {
+  color: #f0c56a;
+}
+@media (pointer: coarse) {
+  .so-undo .ui-undo-btn {
+    min-height: 40px;
+    padding: 0 12px;
+  }
+}
+
+/* ── Seçim penceresi (useChoiceDialog) ───────────────────────────── */
+.admin-layout .so-choice {
+  max-width: 440px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.admin-layout .so-choice-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-s3);
+  padding: 18px 18px 10px;
+}
+.admin-layout .so-choice-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--ui-info-bg);
+  color: var(--ui-info-ink);
+}
+.admin-layout .so-choice[data-tone="warn"] .so-choice-icon {
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+.admin-layout .so-choice[data-tone="danger"] .so-choice-icon,
+.admin-layout .so-choice[data-tone="call"] .so-choice-icon {
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+}
+.admin-layout .so-choice-icon > svg {
+  width: 18px;
+  height: 18px;
+}
+.admin-layout .so-choice-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.admin-layout .so-choice-title {
+  margin: 0;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-lg);
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.admin-layout .so-choice-message {
+  margin: 4px 0 0;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.admin-layout .so-choice-close {
+  flex-shrink: 0;
+  margin: -4px -4px 0 0;
+}
+.admin-layout .so-choice-link {
+  align-self: flex-start;
+  margin: 0 18px 4px 66px;
+  text-decoration: none;
+}
+.admin-layout .so-choice-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s2);
+  padding: 10px 18px 18px;
+}
+.admin-layout .so-choice-opt {
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 44px;
+  height: auto;
+  padding: 8px 14px;
+  text-align: left;
+  white-space: normal;
+}
+.admin-layout .so-choice-opt > svg {
+  flex-shrink: 0;
+}
+.admin-layout .so-choice-opt-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.admin-layout .so-choice-opt-label {
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.admin-layout .so-choice-opt-text > small {
+  color: inherit;
+  font-size: var(--ui-fs-xs);
+  font-weight: 500;
+  opacity: 0.8;
+}
+.admin-layout .so-choice-opt[data-variant="primary"] {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand);
+  color: var(--ui-surface);
+}
+.admin-layout .so-choice-opt[data-variant="primary"]:hover {
+  border-color: var(--ui-brand-strong);
+  background: var(--ui-brand-strong);
+}
+.admin-layout[data-theme="dark"] .so-choice-opt[data-variant="primary"] {
+  color: var(--ui-bg);
+}
+.admin-layout .so-choice-opt[data-variant="warn"] {
+  border-color: color-mix(in srgb, var(--ui-warn) 45%, var(--ui-line));
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+.admin-layout .so-choice-opt[data-variant="warn"]:hover {
+  border-color: var(--ui-warn);
+}
+.admin-layout .so-choice-opt:focus-visible,
+.admin-layout .so-choice-cancel:focus-visible,
+.admin-layout .so-choice-link:focus-visible {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: 2px;
+}
+.admin-layout .so-choice-cancel {
+  min-height: 40px;
+}
+/* Seçimden hemen sonra çift tıklamanın ikinci tıklamasını yutan görünmez kalkan */
+.admin-layout .so-click-shield {
+  position: fixed;
+  inset: 0;
+  z-index: 97;
+  background: transparent;
+}
+@media (max-width: 700px) {
+  .admin-layout .so-choice {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .admin-layout .so-choice-link {
+    margin-left: 18px;
+  }
+}

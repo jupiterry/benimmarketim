@@ -3,15 +3,17 @@
 // ('admin-order-picked', konteyner onPicked ile yazar) ekler/çıkarır. Böylece kartlardaki
 // PickProgress / "Hazır" ve "Hazır olanları yola çıkar" bu işaretlerden beslenir.
 // Tek kaydırma alanı: ilerleme çubuğu gövdenin üstüne yapışır, liste ayrı bir kaydırıcı değildir.
+// Liste açıkken iptal edilen siparişin satırları "İptal edildi · ürünleri rafa geri koyun" başlığıyla üstü çizili kalır
+// ("Tamam" diyene kadar; konteyner izler). Aynı müşterinin bir noktadaki siparişleri yan yana, birleşik tutarla gösterilir.
 // Sözleşme: scratchpad/orders-design/CONTRACTS.md §7.14
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { CheckCircle2, ClipboardList, Home, MapPin, Package, PackageCheck, Phone, Printer, RotateCcw } from "lucide-react";
+import { CheckCircle2, ClipboardList, Home, Layers, MapPin, Package, PackageCheck, Phone, Printer, RotateCcw, XCircle } from "lucide-react";
 import { Drawer, EmptyState, Segmented, money, undoable } from "../admin/ui";
 import { buildPickingList, formatPhoneTR, printPickingList } from "../../lib/orderTools";
 import { cloudinaryImage } from "../../lib/image";
 import { PaymentChip, PickProgress, SrOnly } from "./atoms";
-import { orderCodeTitle, pickProgress, telHref } from "./shared";
+import { customerName, orderCode, orderCodeTitle, pickProgress, telHref } from "./shared";
 import "../../styles/orders-tools.css";
 
 const POPUP_BLOCKED = "Yazdırma penceresi açılamadı. Tarayıcıda bu site için açılır pencerelere izin verin.";
@@ -58,7 +60,40 @@ const PickBox = ({ checked, partial, onChange, describedBy }) => {
   );
 };
 
-export default function PickingDrawer({ orders = [], scope, scopes = [], onScope, onClose, picked, onPicked }) {
+/** Açık listedeyken iptal edilen sipariş: satırlar üstü çizili, toplanmış olanlar işaretli; "Tamam" ile kapanır */
+const CancelledNotice = ({ order, pickedKeys, onDismiss }) => {
+  const keys = new Set(pickedKeys || []);
+  const code = orderCode(order);
+  const products = Array.isArray(order?.products) ? order.products : [];
+  const pickedCount = products.filter((p) => keys.has(p.lineKey)).length;
+  return (
+    <div className="so-t-cancel" role="alert">
+      <div className="so-t-cancel-head">
+        <XCircle aria-hidden="true" />
+        <span className="so-t-cancel-text">
+          <strong>{code} · {customerName(order)}</strong>
+          <span>İptal edildi · ürünleri rafa geri koyun{pickedCount ? ` (${pickedCount} satır toplanmıştı)` : ""}</span>
+        </span>
+        <button type="button" className="ui-btn ui-btn--sm so-t-cancel-ok" onClick={() => onDismiss?.(order.orderId)}
+          aria-label={`${code} iptal uyarısını kapat`}>
+          Tamam
+        </button>
+      </div>
+      <ul className="so-t-cancel-lines" aria-label={`${code} siparişinin ürünleri`}>
+        {products.map((p) => (
+          <li key={p.lineKey || p.name} data-picked={keys.has(p.lineKey) ? "true" : undefined}>
+            <s><b className="ui-num">{Number(p.quantity) || 0}×</b> {p.name || "Ürün"}</s>
+            {keys.has(p.lineKey) && <span className="so-t-cancel-picked">toplanmıştı</span>}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+export default function PickingDrawer({
+  orders = [], scope, scopes = [], onScope, onClose, picked, onPicked, cancelled = [], onDismissCancelled,
+}) {
   const uid = useId();
   const bodyRef = useRef(null);
   const picking = useMemo(() => buildPickingList(orders), [orders]);
@@ -158,6 +193,13 @@ export default function PickingDrawer({ orders = [], scope, scopes = [], onScope
       )}
     >
       <div className="so-t-stack so-t-stack--tight" ref={bodyRef}>
+        {cancelled.length > 0 && (
+          <section className="so-t-cancelled" aria-label="Toplama listesindeyken iptal edilen siparişler">
+            {cancelled.map(({ order }) => (
+              <CancelledNotice key={order.orderId} order={order} pickedKeys={pickedMap.get(order.orderId)?.keys} onDismiss={onDismissCancelled} />
+            ))}
+          </section>
+        )}
         {empty ? (
           <EmptyState
             icon={CheckCircle2}
@@ -224,7 +266,15 @@ export default function PickingDrawer({ orders = [], scope, scopes = [], onScope
                         const phone = formatPhoneTR(entry.phone);
                         const progress = order ? pickProgress(order, pickedMap.get(entry.orderId)) : null;
                         return (
-                          <li key={entry.orderId} className="so-t-point-row" data-addr={entry.address ? "true" : undefined}>
+                          <Fragment key={entry.orderId}>
+                          {entry.together && (
+                            <li className="so-t-point-group">
+                              <Layers aria-hidden="true" />
+                              <span className="so-t-point-group-text">Aynı müşteri · {entry.together.customer}</span>
+                              <strong className="ui-num">{entry.together.label}</strong>
+                            </li>
+                          )}
+                          <li className="so-t-point-row" data-addr={entry.address ? "true" : undefined} data-grouped={entry.grouped ? "true" : undefined}>
                             <span className="so-code" title={orderCodeTitle(entry.orderId)}>#{entry.shortId}</span>
                             <span className="so-t-point-name ui-truncate">{entry.customer}</span>
                             {phone && tel ? (
@@ -245,6 +295,7 @@ export default function PickingDrawer({ orders = [], scope, scopes = [], onScope
                               </span>
                             )}
                           </li>
+                          </Fragment>
                         );
                       })}
                     </ul>

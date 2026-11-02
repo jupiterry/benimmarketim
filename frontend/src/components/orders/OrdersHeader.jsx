@@ -1,7 +1,7 @@
 // Siparişler ekranının sayfa başlığı (C2): canlı durum satırı + "Otomatik yenile" anahtarı, görünüm seçici,
 // Toplama listesi, Yenile, "Diğer işlemler" menüsü ve kısayol düğmesi.
 // Stil: styles/orders-overview.css (önek so-ov-). Sözleşme: scratchpad/orders-design/CONTRACTS.md §7.1
-import { Bell, Bike, Calculator, ClipboardList, Download, Keyboard, Printer, RefreshCw } from "lucide-react";
+import { Bell, Bike, Calculator, ClipboardList, Download, Keyboard, MessageCircle, Printer, RefreshCw } from "lucide-react";
 import { PageHeader, Segmented, formatTime, timeAgo, useIsMobile } from "../admin/ui";
 import { MenuButton } from "./atoms";
 import { VIEWS, formatTimeSeconds, toMs } from "./shared";
@@ -54,7 +54,7 @@ const LiveStatus = ({ loading, live }) => {
 
 export default function OrdersHeader({
   loading = false, view, onView, prepCount = 0, onOpenPicking, onRefresh, syncing = false, live,
-  onExportCsv, onOpenDayClose, unprintedCount = 0, onPrintUnprinted, onHelp, notify, courierSheets = [], onCourierSheet,
+  onExportCsv, onOpenDayClose, unprintedCount = 0, onPrintUnprinted, onHelp, notify, courierSheets = [], onCourierSheet, onCourierWhatsApp,
 }) {
   const isMobile = useIsMobile();
   const prep = Math.max(0, Number(prepCount) || 0);
@@ -83,6 +83,12 @@ export default function OrdersHeader({
       id: `runsheet-${c.id}`, label: `${c.name} (${c.count})`, icon: Bike,
       description: "Kuryenin hazırlanan ve yoldaki siparişleri", onSelect: () => onCourierSheet?.(c.id), disabled: loading,
     })),
+    // Aynı siparişler kuryenin telefonuna tek WhatsApp mesajı olarak (adres, tarif, konum, tahsilat)
+    courierSheets.length > 0 && onCourierWhatsApp && { type: "label", label: "Kuryeye WhatsApp" },
+    ...(onCourierWhatsApp ? courierSheets.map((c) => ({
+      id: `courier-wa-${c.id}`, label: `${c.name} (${c.count})`, icon: MessageCircle,
+      description: "Adres, tarif, konum ve tahsilat tek mesajda", onSelect: () => onCourierWhatsApp(c.id), disabled: loading,
+    })) : []),
     { type: "divider" },
     notify?.permission === "default" && {
       id: "notify", label: "Tarayıcı bildirimlerini aç", icon: Bell, description: "Yeni sipariş gelince bildirim gösterilir", onSelect: () => notify.onRequest?.(),

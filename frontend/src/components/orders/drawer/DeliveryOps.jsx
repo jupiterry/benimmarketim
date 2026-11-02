@@ -5,10 +5,10 @@
 // Uç noktalar: PUT /orders-analytics/confirm-callback, /assign-courier, /delivery-failed (useOrdersData üzerinden).
 // Stil: styles/orders-ops.css (önek so-ops-).
 import { useEffect, useId, useState } from "react";
-import { Bike, Check, CheckCircle2, Loader2, PackageX, Phone, PhoneCall, Settings2, X } from "lucide-react";
+import { Bike, Check, CheckCircle2, Loader2, MessageCircle, PackageX, Phone, PhoneCall, Settings2, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { formatDateTime } from "../../admin/ui";
-import { formatPhoneTR } from "../../../lib/orderTools";
+import { formatPhoneTR, toWhatsAppNumber } from "../../../lib/orderTools";
 import { useConfirm } from "../../ConfirmModal";
 import {
   DELIVERY_OUTCOMES, DELIVERY_OUTCOME_NOTE_MAX, customerPhone, deliveryOutcomeLabel, isActiveStatus, needsCallbackPending, orderCode, telHref,
@@ -83,7 +83,7 @@ export function OutcomeNote({ order }) {
 }
 
 // ── Kurye seçimi ─────────────────────────────────────────────────────────
-function CourierField({ order, couriers, couriersStatus, disabled, onAssign }) {
+function CourierField({ order, couriers, couriersStatus, disabled, onAssign, onSendToCourier }) {
   const id = useId();
   const [busy, setBusy] = useState(false);
   const current = order?.courier?.id ? String(order.courier.id) : "";
@@ -91,6 +91,8 @@ function CourierField({ order, couriers, couriersStatus, disabled, onAssign }) {
   // Pasif ya da silinmiş kurye atanmışsa seçenek olarak yine görünür
   const options = list.filter((c) => c.active || c._id === current);
   const missing = current && !options.some((c) => c._id === current);
+  // Atanmış kurye (telefonuyla); kurye listede yoksa siparişteki adla
+  const assigned = current ? (list.find((c) => c._id === current) || { _id: current, name: order?.courier?.name || "Kurye", phone: "" }) : null;
 
   if (couriersStatus === "error") {
     return <p className="ui-hint so-ops-hint">Kurye listesi yüklenemedi. {order?.courier?.name ? `Atanan kurye: ${order.courier.name}` : ""}</p>;
@@ -125,6 +127,12 @@ function CourierField({ order, couriers, couriersStatus, disabled, onAssign }) {
         </select>
         {busy && <Loader2 className="ui-spin so-ops-busy" aria-label="Kaydediliyor" />}
       </div>
+      {assigned && isActiveStatus(order?.status) && typeof onSendToCourier === "function" && (
+        <button type="button" className="ui-btn ui-btn--sm so-ops-wa" onClick={() => onSendToCourier(assigned, [order])} disabled={disabled}
+          title={toWhatsAppNumber(assigned.phone) ? `Sipariş bilgileri ${assigned.name} kuryesine WhatsApp ile gönderilir` : "Kuryenin telefonu kayıtlı değil; mesaj panoya kopyalanır"}>
+          <MessageCircle aria-hidden="true" />WhatsApp ile kuryeye gönder
+        </button>
+      )}
     </div>
   );
 }
@@ -216,7 +224,9 @@ function FailedDelivery({ order, disabled, onFail }) {
 }
 
 /** Kurye + "Teslim edilemedi" bölümü. İptal edilmiş siparişte yalnızca kurye bilgisi (varsa) gösterilir. */
-export default function DeliveryOpsSection({ order, missing = false, couriers, couriersStatus = "loading", onAssignCourier, onDeliveryFailed }) {
+export default function DeliveryOpsSection({
+  order, missing = false, couriers, couriersStatus = "loading", onAssignCourier, onDeliveryFailed, onSendToCourier,
+}) {
   const headId = useId();
   const cancelled = order?.status === "İptal Edildi";
   if (cancelled && !order?.courier?.name) return null;
@@ -229,7 +239,8 @@ export default function DeliveryOpsSection({ order, missing = false, couriers, c
         <p className="ui-hint so-ops-hint">Kurye: {order.courier.name}</p>
       ) : (
         <div className="so-ops-row">
-          <CourierField order={order} couriers={couriers} couriersStatus={couriersStatus} disabled={missing} onAssign={onAssignCourier} />
+          <CourierField order={order} couriers={couriers} couriersStatus={couriersStatus} disabled={missing} onAssign={onAssignCourier}
+            onSendToCourier={onSendToCourier} />
           <FailedDelivery order={order} disabled={missing} onFail={onDeliveryFailed} />
         </div>
       )}
