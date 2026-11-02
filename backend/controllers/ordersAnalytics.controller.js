@@ -9,6 +9,7 @@ import User from "../models/user.model.js";
 import { paymentMethodLabel } from "../lib/paymentMethods.js";
 import { money, recordAdminAction, yesNo } from "../services/adminAudit.service.js";
 import { signalOrderAlarm } from "../services/orderAlarm.service.js";
+import { CUSTOMER_CANCEL_EVENT, customerCancelPayload, notifyAdmins } from "../services/adminFeed.service.js";
 import {
   ORDER_STATUSES,
   applyOrderStatusChange,
@@ -1082,6 +1083,8 @@ export const cancelOrder = async (req, res) => {
         newStatus: order.status,
         message: cancelReason ? `Müşteri siparişi iptal etti: ${CANCEL_REASONS[cancelReason.code]}` : "Müşteri siparişi iptal etti",
       });
+      // Panel her ekranda kalıcı kırmızı uyarı gösterir; olay zil listesine de yazılır
+      notifyAdmins(req.app.get("io"), CUSTOMER_CANCEL_EVENT, customerCancelPayload(order, { cancelReason, actor: req.user }));
     } catch (socketError) {
       console.error("Socket.IO iptal bildirimi gönderilirken hata:", socketError);
     }
