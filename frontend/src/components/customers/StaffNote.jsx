@@ -23,6 +23,7 @@ const StaffNotePanel = ({ userId, note, flags, deliveryFailures, onChange, onDir
   const [suggestHidden, setSuggestHidden] = useState(false);
   const baseRef = useRef(null); // düzenlemeye başlanan notun sürümü (updatedAt | null)
   const textareaRef = useRef(null);
+  const viewButtonRef = useRef(null); // "Düzenle" / "İç not ekle": düzenleme bitince odak buraya döner
   const busyRef = useRef(false); // işaret kaydı sürüyor (çift tıklama iki istek göndermesin)
   const savingRef = useRef(false); // not kaydı sürüyor (hızlı iki Ctrl+Enter iki istek göndermesin)
   const fieldId = useId();
@@ -56,11 +57,13 @@ const StaffNotePanel = ({ userId, note, flags, deliveryFailures, onChange, onDir
       field.setSelectionRange(field.value.length, field.value.length);
     });
   };
-  const cancelEdit = () => {
+  const closeEditor = () => {
     setEditing(false);
     setDraft("");
     setConflict(null);
+    requestAnimationFrame(() => viewButtonRef.current?.focus());
   };
+  const cancelEdit = closeEditor;
 
   const saveNote = async () => {
     if (savingRef.current) return;
@@ -83,9 +86,7 @@ const StaffNotePanel = ({ userId, note, flags, deliveryFailures, onChange, onDir
     try {
       const { data } = await axios.patch(`/users/${userId}/staff-note`, { text, baseUpdatedAt: baseRef.current });
       apply(data);
-      setEditing(false);
-      setDraft("");
-      setConflict(null);
+      closeEditor();
       toast.success(text ? "İç not kaydedildi" : "İç not silindi");
     } catch (error) {
       const data = error.response?.data;
@@ -226,10 +227,10 @@ const StaffNotePanel = ({ userId, note, flags, deliveryFailures, onChange, onDir
               {[note?.updatedBy?.name || "Bir yönetici", note?.updatedAt ? formatDateTime(note.updatedAt) : ""].filter(Boolean).join(" · ")}
             </span>
           </div>
-          <button type="button" className="ui-btn ui-btn--sm" onClick={startEdit}><Pencil />Düzenle</button>
+          <button ref={viewButtonRef} type="button" className="ui-btn ui-btn--sm" onClick={startEdit}><Pencil />Düzenle</button>
         </div>
       ) : (
-        <button type="button" className="cus-staff-add" onClick={startEdit}>
+        <button ref={viewButtonRef} type="button" className="cus-staff-add" onClick={startEdit}>
           <Plus aria-hidden="true" />
           <span>İç not ekle</span>
           <span className="cus-when-sub">Kapı, adres tarifi, ödeme alışkanlığı gibi ekibin bilmesi gerekenler</span>
