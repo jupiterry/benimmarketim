@@ -193,13 +193,16 @@ export const playAlertSound = async ({ sound, volume }) => {
   }
 };
 
-/** Müşteri iptali uyarısı. Web Audio kullanılamazsa seçili sesten farklı kısa bir dosya çalınır. */
+/**
+ * Müşteri iptali uyarısı. Web Audio kullanılamazsa seçili sesten farklı kısa bir dosya çalınır. Web Audio'nun
+ * çalması <audio> oynatıcısının kilidinin açık olduğu anlamına gelmez (iOS kilidi öğe başına tutar); "Ses kapalı"
+ * uyarısına yalnızca oynatıcının sonucu karar verir.
+ */
 export const playCancelWarning = async ({ sound, volume }) => {
   const ctx = await readyContext();
   if (ctx) {
     try {
       scheduleTones(ctx, volume, CANCEL_PATTERN);
-      setState({ blocked: false });
       return "played";
     } catch {
       // dosyaya düş
@@ -252,8 +255,10 @@ export const probeAutoplay = () => {
 };
 
 /**
- * Ses engelliyken sayfadaki ilk tıklama/tuş/dokunuşta sessiz bir çalma denenir: tarayıcı artık izin veriyorsa uyarı
+ * Ses engelliyken sayfadaki ilk tıklama/tuşta sessiz bir çalma denenir: tarayıcı artık izin veriyorsa uyarı
  * kendiliğinden kalkar. [data-audio-unlock] öğeleri (uyarının kendisi) sesli açtığı için atlanır. Kaldırma fonksiyonu döner.
+ * Yalnızca "click" ve "keydown" dinlenir: basma (pointerdown/touchend) anında açılsaydı uyarı şeridi tıklama bitmeden
+ * kalkar, altındaki içerik yukarı kayar ve tıklama başka bir öğeye düşebilirdi. Tıklama hareketin son olayıdır.
  */
 export const installGestureUnlock = () => {
   if (!hasWindow) return () => {};
@@ -267,7 +272,7 @@ export const installGestureUnlock = () => {
       unlocking = false;
     });
   };
-  const types = ["pointerdown", "pointerup", "keydown", "touchend", "click"];
+  const types = ["click", "keydown"];
   types.forEach((type) => window.addEventListener(type, onGesture, true));
   return () => types.forEach((type) => window.removeEventListener(type, onGesture, true));
 };

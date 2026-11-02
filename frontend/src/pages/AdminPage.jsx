@@ -563,17 +563,40 @@ const AdminPage = () => {
   const openAlarmPhones = useCallback(() => {
     handleTabChange("dashboard");
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const behavior = reduceMotion ? "auto" : "smooth";
+    // Kartın ortası ekranın orta bölümünde mi
+    const centered = (card) => {
+      const rect = card.getBoundingClientRect();
+      const middle = (rect.top + rect.bottom) / 2;
+      return middle > window.innerHeight * 0.2 && middle < window.innerHeight * 0.8;
+    };
+    // Genel bakışın özeti yüklenince kartın üstüne içerik eklenir ve kart aşağı kayar: kısa süre izlenip yeniden
+    // ortalanır. Kullanıcı kendisi kaydırırsa (tekerlek, dokunma, tuş) izleme bırakılır.
+    let userMoved = false;
+    const onUserMove = () => {
+      userMoved = true;
+    };
+    const moveEvents = ["wheel", "touchmove", "keydown"];
+    moveEvents.forEach((type) => window.addEventListener(type, onUserMove, { passive: true }));
+    const stopWatching = () => moveEvents.forEach((type) => window.removeEventListener(type, onUserMove));
     let tries = 0;
     const reveal = () => {
       const card = document.querySelector('.admin-layout section[aria-label="Sipariş alarmı telefonları"]:not(.app-pop)');
       if (!card) {
         tries += 1;
-        if (tries < 40) window.setTimeout(reveal, 100);
+        if (tries < 50) window.setTimeout(reveal, 100);
+        else stopWatching();
         return;
       }
-      card.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
+      card.scrollIntoView({ behavior, block: "center" });
       card.setAttribute("data-alert-flash", "");
       window.setTimeout(() => card.removeAttribute("data-alert-flash"), 2400);
+      [700, 1600, 2800].forEach((delay, index, delays) => {
+        window.setTimeout(() => {
+          if (!userMoved && card.isConnected && !centered(card)) card.scrollIntoView({ behavior, block: "center" });
+          if (index === delays.length - 1) stopWatching();
+        }, delay);
+      });
     };
     window.setTimeout(reveal, 0);
   }, [handleTabChange]);

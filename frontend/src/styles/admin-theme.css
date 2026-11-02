@@ -2784,3 +2784,12 @@ body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok:hover {
     display: none !important;
   }
 }
+/* Zil paneli ses ayarlarıyla birlikte uzar: kısa ekranda (dizüstü) alt kısmı ekran dışında kalmasın, panel kendi
+   içinde kaysın. Telefonda (≤760 px) panel zaten ekrana sabitlenip alt çubuğun üstünde kayıyor. */
+@media (min-width: 761px) {
+  .app-pop--bell {
+    max-height: calc(100vh - var(--app-top) - 16px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ArrowRight, RefreshCw, Smartphone, X } from "lucide-react";
 import { useSettingsStore } from "../../../stores/useSettingsStore";
 import { timeAgo, useNow } from "../ui";
@@ -7,11 +8,23 @@ import { alarmTone, countAlarmDevices, isAlarmDeviceOnline, isWithinOrderHours }
  * Başlıktaki "Alarm: 2/2 telefon bağlı" çipi ve açıklama paneli. Sipariş saatinde hiçbir telefon bağlı değilse
  * kırmızı, bir kısmı bağlıysa sarı; eşli telefon yoksa ya da sipariş saati dışındaysa nötrdür.
  * alarm: useOrderAlerts durumundaki alarm alanı ({ ready, error, devices, skewMs, checkedAt }).
+ * onRefresh: durumu yeniden ister (söz döndürür; sürerken "Yenile" döner ve basılamaz).
  */
 export default function AlarmPhonesChip({ alarm, open, onToggle, onClose, onManage, onRefresh, buttonRef }) {
   const now = useNow(30000);
   const settings = useSettingsStore((state) => state.settings);
+  const [refreshing, setRefreshing] = useState(false);
   if (!alarm?.ready) return null;
+
+  const refresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await onRefresh?.();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const devices = Array.isArray(alarm.devices) ? alarm.devices : [];
   const serverNow = now + (Number(alarm.skewMs) || 0);
@@ -79,7 +92,11 @@ export default function AlarmPhonesChip({ alarm, open, onToggle, onClose, onMana
                 uygulamasının çalışır durumda olduğunu kontrol edin.
               </p>
             )}
-            {paired === 0 && !unknown ? (
+            {unknown ? (
+              <p className="app-alarm-warn" role="alert">
+                Alarm telefonlarının durumu alınamadı. İnternet bağlantınızı kontrol edip “Yenile”ye basın.
+              </p>
+            ) : paired === 0 ? (
               <p>
                 Telefona “Sipariş Alarmı” uygulamasını kurup yönetici hesabıyla giriş yapın. Yeni siparişte telefon, biri “Gördüm”
                 ya da “Kabul Et” diyene kadar çalar; bir telefondaki onay paneldeki tekrar eden sesi de susturur.
@@ -107,8 +124,8 @@ export default function AlarmPhonesChip({ alarm, open, onToggle, onClose, onMana
             </p>
           </div>
           <div className="app-pop-foot">
-            <button type="button" onClick={onRefresh}>
-              <RefreshCw size={12} aria-hidden="true" /> Yenile
+            <button type="button" onClick={refresh} disabled={refreshing} aria-busy={refreshing || undefined}>
+              <RefreshCw size={12} className={refreshing ? "ui-spin" : ""} aria-hidden="true" /> {refreshing ? "Yenileniyor…" : "Yenile"}
             </button>
             <button type="button" onClick={onManage}>
               Telefonları yönet <ArrowRight size={12} aria-hidden="true" />

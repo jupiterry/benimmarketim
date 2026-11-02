@@ -105,6 +105,8 @@ export default function useOrderAlerts({ enabled = true, onOpenOrder, onPreparin
         const rest = orders.length - shown.length;
         if (rest > 0) toast(`${rest} sipariş daha bekliyor`, { id: "orders-more", icon: "🛍️", duration: TOAST_MS, position: "top-right" });
       },
+      // Sipariş onaylandı, ilerletildi, telefonda görüldü ya da iptal edildi: bildirim kartı ekranda kalmasın
+      resolved: (ids) => ids.forEach((id) => toast.dismiss(`order-${id}`)),
       cancelled: (entry, { live }) => {
         if (live) handlers.current.onBellItem?.(bellCancelItem(entry));
         // Sekme açıkken kırmızı uyarı ve ses yeterli; arka plandaysa masaüstü bildirimi de gider

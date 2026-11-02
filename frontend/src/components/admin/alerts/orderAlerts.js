@@ -3,9 +3,10 @@
 //  - Tekrar biten durumlar: "Gördüm" / "Siparişi incele", sipariş Hazırlanıyor'dan çıktı (orderStatusUpdated), silindi,
 //    bir alarm telefonunda onaylandı (GET /api/order-alarm/status → recentAcks), Siparişler ekranında görüldü
 //    ("admin-order-seen" olayı ya da ekranın cihaz deposu), müşteri iptal etti ya da ilk duyurudan 30 dk geçti.
-//  - Canlı bağlantı 30 sn'den uzun koparsa siparişler 30 sn'de bir HTTP ile kontrol edilir; yeniden bağlanınca, internet
-//    gelince ve 1 dk'dan uzun gizli kalan sekme açılınca da kontrol edilir. Panelin hiç duyurmadığı yeni siparişler bir
-//    kez duyurulur (ses + bildirim) ve rozet güncellenir.
+//  - Canlı bağlantı 30 sn'den uzun koparsa siparişler 30 sn'de bir HTTP ile kontrol edilir; her yeniden bağlanışta,
+//    internet gelince, 1 dk'dan uzun gizli kalan sekme açılınca ve bağlantı açıkken de 2 dk'da bir kontrol edilir.
+//    Panelin hiç duyurmadığı yeni siparişler bir kez duyurulur (ses + bildirim) ve rozet güncellenir. Sayfa az önce
+//    yenilendiyse (5 dk içinde) önceki oturumun sınırından devam edilir; aradaki sipariş yutulmaz.
 //  - Alarm telefonlarından kaçının bağlı olduğu (panel görünürken dakikada bir, sipariş çalarken 30 sn'de bir).
 //  - Müşteri iptali ("orderCancelledByCustomer"): kendiliğinden kapanmayan kırmızı uyarı ve farklı bir uyarı sesi.
 //    Bağlantı kopukken kaçırılan iptaller zil listesinden (sunucuda saklanır) yakalanır.
@@ -17,12 +18,14 @@ import { alertPrefs } from "./alertPrefs";
 import { installGestureUnlock, playAlertSound, playCancelWarning, probeAutoplay } from "./alertAudio";
 import {
   ALARM_POLL_MS, ALARM_POLL_RINGING_MS, HIDDEN_RESYNC_MS, MINUTE, OFFLINE_AFTER_MS, OFFLINE_POLL_MS, PREPARING, RING_WINDOW_MS,
-  countAlarmDevices, flattenActiveOrders, isOrderId, newestCreatedMs, normalizeCancel, orderCode, parseSeenIds, phoneAckIds,
-  pickMissedOrders, reconcileRinging, toMs,
+  countAlarmDevices, flattenActiveOrders, isOrderId, normalizeCancel, orderCode, parseSeenIds, phoneAckIds,
+  pickMissedOrders, reconcileRinging, resumeBaseline, ringStartAt, snapshotBaseline, toMs,
 } from "./alertRules";
 
 export const RING_STORE_KEY = "admin-order-alerts-v1";
 export const CANCEL_STORE_KEY = "admin-cancel-alerts-v1";
+/** Kaçırılan sipariş sınırı { ms, savedAt }: sayfa yenilenince aradaki siparişler yutulmasın (bkz. resumeBaseline) */
+export const BASELINE_STORE_KEY = "admin-order-alerts-baseline-v1";
 /** Siparişler ekranının cihaz deposu (components/orders/shared.js SEEN_KEY); burada yalnızca okunur */
 const ORDERS_SEEN_KEY = "admin-order-seen";
 /** Sözleşme: Siparişler ekranı bir siparişin çekmecesini açınca / ilerletince / görüldü deyince yayınlar ({ orderId }) */
@@ -39,7 +42,6 @@ const MAX_CANCELS = 20;
 const MAX_KNOWN = 2000;
 const PLAY_DEBOUNCE_MS = 2500; // aynı anda gelen siparişler (ya da aynı cihazdaki iki sekme) tek ses
 const PHONE_CHECK_BEFORE_REPEAT_MS = 15_000; // tekrar çalmadan önce telefon onayları bundan eskiyse tazelenir
-const RECONNECT_SYNC_AFTER_MS = 3000; // bundan kısa kopmalarda HTTP kontrolü gerekmez
 // Canlı bağlantı açık görünse de (ör. olay sunucuda kaybolduysa) siparişler arada bir HTTP ile de kontrol edilir
 const SAFETY_SYNC_MS = 2 * MINUTE;
 // Kontrol yanıtı canlı olaydan önce gelirse çok yeni sipariş "kaçırıldı" sayılmasın: canlı olay biraz beklenir
@@ -133,7 +135,8 @@ const remember = (set, id) => {
 
 // ── Denetleyici ───────────────────────────────────────────────────────────
 /**
- * ui: { openOrder(id), preparingCount(n), newOrders(orders, source: "live"|"missed"), cancelled(entry, { live }) }
+ * ui: { openOrder(id), preparingCount(n), newOrders(orders, source: "live"|"missed"), resolved(ids),
+ *       cancelled(entry, { live }) }
  * Arayüz geri çağrıları denetleyiciyi bekletmez; hataları denetleyiciyi bozmaz.
  */
 export function createOrderAlerts(ui = {}) {
@@ -167,8 +170,9 @@ export function createOrderAlerts(ui = {}) {
   let phoneAcked = new Set();
   const knownIds = new Set(); // panelin gördüğü siparişler (kontrol ya da canlı olay)
   const alertedIds = new Set(); // duyurulan siparişler (bir sipariş bir kez duyurulur)
-  let baselineMs = null; // bilinen en yeni sipariş / anlık görüntü zamanı (sunucu saati)
+  let baselineMs = null; // kaçırılan sipariş sınırı: yalnızca HTTP kontrolüyle ilerler (sunucu saati; bkz. snapshotBaseline)
   let baselineReady = false;
+  let serverSkewMs = null; // sunucu saati − bu cihazın saati (son başarılı kontrolden)
   let firstSyncFailed = false;
   let ringReady = false; // ilk sipariş kontrolü bitmeden (yenilenen sayfada) tekrar çalınmaz
   let disconnectedAt = null;
@@ -202,7 +206,7 @@ export function createOrderAlerts(ui = {}) {
     writeJson(RING_STORE_KEY, ringStore);
     applyRing();
   };
-  /** Çalmayı bitirir; kimlik bir daha çalmaz (onaylandı, durumu değişti, görüldü…) */
+  /** Çalmayı bitirir; kimlik bir daha çalmaz (onaylandı, durumu değişti, görüldü…). Açık bildirim kartı da kapanır. */
   const resolveIds = (ids) => {
     const list = [...new Set(ids)].filter((id) => isOrderId(id) && (ringStore.ringing[id] || !ringStore.done[id]));
     if (!list.length) return;
@@ -213,6 +217,7 @@ export function createOrderAlerts(ui = {}) {
         store.done[id] = now;
       }
     });
+    callUi("resolved", list);
   };
   const ordersScreenSeen = () => {
     try {
@@ -273,6 +278,8 @@ export function createOrderAlerts(ui = {}) {
   // ── Duyuru ──
   const raise = (orders, source) => {
     const seen = ordersScreenSeen();
+    // Aynı cihazdaki diğer sekmelerin son yazdıkları (onaylananlar, çalanlar) da hesaba katılır
+    ringStore = mergeRingStores(ringStore, cleanRingStore(readJson(RING_STORE_KEY)));
     const fresh = [];
     const ringable = [];
     for (const order of orders) {
@@ -283,17 +290,21 @@ export function createOrderAlerts(ui = {}) {
       // Zaten ilgilenilmiş sipariş (durumu ilerledi, görüldü, telefonda onaylandı) çalmaz; kaçırılmışsa duyurulmaz da
       const handled = Boolean(ringStore.done[id] || seen.has(id) || phoneAcked.has(id) || (order.status && order.status !== PREPARING));
       if (handled && source === "missed") continue;
+      // Bu cihazda zaten çalıyor (başka sekme ya da yenilemeden önce duyurdu): şeritte görünür, ikinci kez duyurulmaz
+      if (source === "missed" && ringStore.ringing[id]) continue;
       fresh.push({ ...order, id });
       if (!handled) ringable.push({ ...order, id });
     }
     if (!fresh.length) return;
     if (ringable.length) {
       const now = Date.now();
+      const serverNow = serverSkewMs === null ? NaN : now + serverSkewMs;
       mutateRing((store) => {
         for (const order of ringable) {
           if (store.ringing[order.id] || store.done[order.id]) continue;
           store.ringing[order.id] = {
-            firstAt: now,
+            // Kaçırılan sipariş verildiği andan sayılan süre kadar çalar (bkz. ringStartAt)
+            firstAt: source === "missed" ? ringStartAt(order.createdAt, { nowMs: now, serverNowMs: serverNow }) : now,
             createdAt: isoOrNull(order.createdAt),
             name: String(order.customerName || "Müşteri").slice(0, 80),
             total: Number(order.totalAmount) || 0,
@@ -303,6 +314,15 @@ export function createOrderAlerts(ui = {}) {
       ring();
     }
     callUi("newOrders", fresh, source);
+  };
+
+  /**
+   * Kaçırılan siparişleri duyurur. Kesinti sırasında bir alarm telefonunda onaylanmış sipariş için panel çalmasın diye
+   * önce telefon onayları tazelenir (son kontrol eskiyse; istek hata vermez, en kötü eski bilgiyle devam edilir).
+   */
+  const raiseMissed = async (orders) => {
+    if (phoneCheckUseful() && Date.now() - state.alarm.checkedAt > PHONE_CHECK_BEFORE_REPEAT_MS) await refreshAlarm();
+    if (!stopped) raise(orders, "missed");
   };
 
   // ── HTTP kontrolü (GET /api/orders-analytics?active=1) ──
@@ -317,9 +337,14 @@ export function createOrderAlerts(ui = {}) {
       missed = pickMissedOrders(orders, { knownIds, baselineMs: openedAt });
     }
     for (const order of orders) remember(knownIds, order.id);
-    const newest = Math.max(newestCreatedMs(orders), Number.isFinite(snapshotMs) ? snapshotMs : -Infinity);
-    if (Number.isFinite(newest)) baselineMs = Math.max(baselineMs ?? -Infinity, newest);
+    baselineMs = snapshotBaseline(baselineMs, { orders, snapshotMs });
     baselineReady = true;
+    if (baselineMs !== null) {
+      // Aynı cihazdaki sekmelerin en ileri sınırı saklanır (yenilenen sayfa buradan sürdürür)
+      const stored = readJson(BASELINE_STORE_KEY);
+      const storedMs = typeof stored?.ms === "number" && Number.isFinite(stored.ms) ? stored.ms : -Infinity;
+      writeJson(BASELINE_STORE_KEY, { ms: Math.max(baselineMs, storedMs), savedAt: Date.now() });
+    }
     reconcile({ active: new Map(orders.map((order) => [order.id, order.status])), snapshotMs });
     if (missed.length && state.connected && Number.isFinite(snapshotMs)) {
       // Birkaç saniye önce verilen sipariş canlı olaydan önce bu yanıtla gelmiş olabilir: canlı olay beklenir,
@@ -329,12 +354,12 @@ export function createOrderAlerts(ui = {}) {
         missed = missed.filter((order) => !racing.includes(order));
         const timer = setTimeout(() => {
           raceTimers.delete(timer);
-          if (!stopped) raise(racing, "missed");
+          if (!stopped) raiseMissed(racing);
         }, LIVE_RACE_WAIT_MS);
         raceTimers.add(timer);
       }
     }
-    if (missed.length) raise(missed, "missed");
+    if (missed.length) raiseMissed(missed);
   };
   const runSync = async () => {
     const requestedAt = Date.now();
@@ -345,8 +370,9 @@ export function createOrderAlerts(ui = {}) {
       const data = response?.data?.orderAnalyticsData;
       if (!data || !Array.isArray(data.usersOrders)) return;
       const snapshotMs = toMs(data.meta?.serverTime);
-      // Sunucu ile bu cihazın saat farkı (yalnızca açılış sınırını sunucu saatine çevirmek için)
+      // Sunucu ile bu cihazın saat farkı: açılış sınırı ve kaçırılan siparişin çalma süresi sunucu saatiyle hesaplanır
       const skewMs = Number.isFinite(snapshotMs) ? snapshotMs - Math.round((requestedAt + Date.now()) / 2) : 0;
+      serverSkewMs = Number.isFinite(snapshotMs) ? skewMs : null;
       ingestSnapshot(flattenActiveOrders(data), { snapshotMs, skewMs });
       set({ lastCheckAt: Date.now() });
     } catch {
@@ -419,7 +445,11 @@ export function createOrderAlerts(ui = {}) {
     cancelStore = mergeCancelStores(cancelStore, cleanCancelStore(readJson(CANCEL_STORE_KEY)));
     const fresh = entries.filter((entry) => !cancelStore.items[entry.orderId] && !cancelStore.done[entry.orderId]);
     resolveIds(entries.map((entry) => entry.orderId));
-    if (!fresh.length) return;
+    if (!fresh.length) {
+      // Aynı cihazdaki başka sekme önce yazdıysa uyarı burada da görünsün (ses o sekmede çaldı)
+      applyCancels();
+      return;
+    }
     mutateCancels((store) => {
       for (const entry of fresh) store.items[entry.orderId] = entry;
     });
@@ -429,11 +459,10 @@ export function createOrderAlerts(ui = {}) {
   };
 
   // ── Olaylar ──
+  // Canlı sipariş kaçırılan sınırını (baselineMs) ilerletmez: kopukken gelmiş daha eski bir sipariş gizlenmesin
   const onNewOrder = (data) => {
     const order = data?.order;
     if (!order?.id || order.id === "test") return;
-    const createdMs = toMs(order.createdAt);
-    if (Number.isFinite(createdMs)) baselineMs = Math.max(baselineMs ?? -Infinity, createdMs);
     raise([order], "live");
   };
   // Hazırlanıyor'dan çıkan ya da silinen sipariş bir daha çalmaz (çalıyorsa susar)
@@ -450,11 +479,12 @@ export function createOrderAlerts(ui = {}) {
     feedHighWater = Math.max(feedHighWater, toMs(entry.at));
     addCancels([entry], { live: true });
   };
+  // Her bağlanışta siparişler kontrol edilir: istemci kopukluğu ancak sunucunun ping süresi dolunca (~45 sn) fark
+  // ettiğinden kısa görünen bir kesinti de olay kaybettirmiş olabilir; tek istek, ucuz.
   const onConnect = () => {
-    const downFor = disconnectedAt === null ? 0 : Date.now() - disconnectedAt;
     disconnectedAt = null;
     set({ connected: true, offline: false });
-    if (downFor > RECONNECT_SYNC_AFTER_MS) sync({ fresh: true });
+    sync({ fresh: true });
   };
   const onDisconnect = () => {
     if (disconnectedAt === null) disconnectedAt = Date.now();
@@ -527,6 +557,14 @@ export function createOrderAlerts(ui = {}) {
     cancelStore = mergeCancelStores(cancelStore, cleanCancelStore(readJson(CANCEL_STORE_KEY)));
     applyRing();
     applyCancels();
+    // Sayfa az önce yenilendiyse önceki oturumun sınırından devam edilir: ilk kontrol aradaki siparişleri de duyurur
+    if (!baselineReady) {
+      const resumed = resumeBaseline(readJson(BASELINE_STORE_KEY), startedAt);
+      if (resumed !== null) {
+        baselineMs = resumed;
+        baselineReady = true;
+      }
+    }
 
     const socket = socketService.connect();
     const connected = Boolean(socket?.connected);

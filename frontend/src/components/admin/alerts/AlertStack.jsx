@@ -67,6 +67,19 @@ export default function AlertStack({
       setRetrying(false);
     }
   };
+  // "Gördüm" / "Tamam, ilgilendim" basılan düğmeyi kaldırır: klavye odağı sayfanın başına düşmesin, şeritteki ilk
+  // düğmeye (şerit kalktıysa içerik alanına) geçsin
+  const keepFocus = (action) => {
+    const hadFocus = Boolean(boxRef.current?.contains(document.activeElement));
+    action();
+    if (!hadFocus) return;
+    requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (active && active !== document.body && active.isConnected) return;
+      const target = boxRef.current?.querySelector("button") || document.getElementById("admin-workspace");
+      target?.focus?.({ preventScroll: true });
+    });
+  };
 
   if (!visible) return <div ref={sentinelRef} className="app-alerts-sentinel" aria-hidden="true" />;
 
@@ -91,7 +104,7 @@ export default function AlertStack({
                 {cancels.length > 1 && (
                   <div className="app-alert-head">
                     <strong>{cancels.length} sipariş müşteri tarafından iptal edildi</strong>
-                    <button type="button" className="app-alert-link" onClick={() => onDismissAllCancels?.()}>
+                    <button type="button" className="app-alert-link" onClick={() => keepFocus(() => onDismissAllCancels?.())}>
                       Hepsini kapat
                     </button>
                   </div>
@@ -112,7 +125,7 @@ export default function AlertStack({
                         <button type="button" className="app-alert-btn" onClick={() => onOpenOrder?.(entry.orderId)}>
                           <ExternalLink aria-hidden="true" />Siparişi aç
                         </button>
-                        <button type="button" className="app-alert-btn app-alert-btn--solid" onClick={() => onDismissCancel?.(entry.orderId)}>
+                        <button type="button" className="app-alert-btn app-alert-btn--solid" onClick={() => keepFocus(() => onDismissCancel?.(entry.orderId))}>
                           <CheckCheck aria-hidden="true" />Tamam, ilgilendim
                         </button>
                       </div>
@@ -185,7 +198,7 @@ export default function AlertStack({
               <div className="app-alert-actions">
                 {single ? (
                   <>
-                    <button type="button" className="app-alert-btn" onClick={() => onAck?.(single.id)}>
+                    <button type="button" className="app-alert-btn" onClick={() => keepFocus(() => onAck?.(single.id))}>
                       <CheckCheck aria-hidden="true" />Gördüm
                     </button>
                     <button type="button" className="app-alert-btn app-alert-btn--solid" onClick={() => onOpenOrder?.(single.id)}>
@@ -194,7 +207,7 @@ export default function AlertStack({
                   </>
                 ) : (
                   <>
-                    <button type="button" className="app-alert-btn" onClick={() => onAckAll?.()}>
+                    <button type="button" className="app-alert-btn" onClick={() => keepFocus(() => onAckAll?.())}>
                       <CheckCheck aria-hidden="true" />Hepsini gördüm
                     </button>
                     <button type="button" className="app-alert-btn app-alert-btn--solid" onClick={() => onGoOrders?.()}>

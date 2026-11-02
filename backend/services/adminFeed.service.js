@@ -4,6 +4,7 @@
 // panel açılınca buradan okunur. "Temizle" yöneticinin hesabına işlenir (aynı hesap tüm cihazlarda aynı listeyi görür).
 import mongoose from "mongoose";
 import { CANCEL_REASONS } from "../lib/feedbackOptions.js";
+import { roundMoney } from "./productPricing.js";
 
 export const FEED_COLLECTION = "admin_notifications";
 export const READS_COLLECTION = "admin_notification_reads";
@@ -38,7 +39,7 @@ export const customerCancelPayload = (order, { cancelReason = null, actor = null
     reason: reasonCode ? CANCEL_REASONS[reasonCode] : "",
     reasonCode,
     note: reasonCode ? text(cancelReason.note, 300) : "",
-    totalAmount: Math.round((Number(order?.totalAmount) || 0) * 100) / 100,
+    totalAmount: roundMoney(order?.totalAmount),
     deliveryPointName: text(order?.deliveryPointName, 80),
     at: now.toISOString(),
   };
@@ -113,7 +114,7 @@ export const feedItemFromEvent = (event, data, now = new Date()) => {
       title: CUSTOMER_CANCEL_TITLE,
       detail: text([code, customerName, note ? `${reasonText} · “${text(note, 80)}”` : reasonText].filter(Boolean).join(" · "), 200),
       orderId,
-      cancel: { code, customerName, reason, note, totalAmount: Number(data.totalAmount) || 0 },
+      cancel: { code, customerName, reason, note, totalAmount: roundMoney(data.totalAmount) },
       at: validDate(data.at, now),
     };
   }

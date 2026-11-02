@@ -27,6 +27,12 @@ export const ALARM_POLL_RINGING_MS = 30_000;
 export const ALERT_SOUND_MAX_MS = 15_000;
 /** Anlık görüntü (snapshot) bu kadar eski siparişleri kesin içerir; daha yenisi henüz listeye girmemiş olabilir. */
 export const SNAPSHOT_GRACE_MS = 5_000;
+/**
+ * Sayfa yenilenince (ya da sekme kapanıp hemen açılınca) önceki oturumun sınırı bu süre içindeyse sürdürülür: aradaki
+ * birkaç saniyede gelen sipariş "bilinen" sayılıp sessizce yutulmaz. Kontrol en geç 2 dk'da bir yapıldığı için 5 dk
+ * yeniden yüklemeyi kapsar; daha uzun kapalı kalan panel açılınca eski siparişler için çalmaz.
+ */
+export const RESUME_WINDOW_MS = 5 * MINUTE;
 
 // ── Ses tercihleri ────────────────────────────────────────────────────────
 /** frontend/public içindeki dosyalar (/{id}.mp3) */
@@ -182,9 +188,33 @@ export const newestCreatedMs = (orders) => {
   return newest;
 };
 /**
- * Bağlantı kopukken gelen, panelin hiç duyurmadığı siparişler: durumu Hazırlanıyor, kimliği bilinmeyen ve bilinen
- * son siparişten (baselineMs, sunucu saati) eski olmayan. Sınırla aynı milisaniyedeki bilinmeyen sipariş de yenidir
- * (bilinenler kimlikle elenir). baselineMs null → bilinmeyen her Hazırlanıyor. Eskiden yeniye.
+ * Kontrolden sonraki sınır (sunucu saati): bu andan sonra verilip panelin hiç görmediği sipariş "kaçırılmış" sayılır.
+ *  - Anlık görüntü zamanı (snapshotMs) varsa ondan SNAPSHOT_GRACE_MS önce: sorgu sürerken kaydedilen sipariş listeye
+ *    girmemiş olabilir, sınır onu geçmesin (bilinen siparişler zaten kimlikle elenir).
+ *  - Yoksa (eski sunucu) listedeki en yeni sipariş.
+ * Sınır yalnızca geri gitmez; canlı olaylar sınırı ilerletmez. Aksi hâlde kopukken kaçırılan bir sipariş, ondan sonra
+ * canlı gelen bir siparişin arkasında kalır ve hiç duyurulmazdı.
+ */
+export const snapshotBaseline = (previousMs, { orders = [], snapshotMs = NaN } = {}) => {
+  const candidate = Number.isFinite(snapshotMs) ? snapshotMs - SNAPSHOT_GRACE_MS : newestCreatedMs(orders);
+  const previous = Number.isFinite(previousMs) ? previousMs : -Infinity;
+  const next = Math.max(previous, Number.isFinite(candidate) ? candidate : -Infinity);
+  return Number.isFinite(next) ? next : null;
+};
+/**
+ * Cihazda saklanan sınır { ms (sunucu saati), savedAt (bu cihazın saati) } → sürdürülecek sınır ya da null.
+ * Kayıt bozuksa, gelecekteyse ya da RESUME_WINDOW_MS'den eskiyse null (panel ilk açılıştaki gibi davranır).
+ */
+export const resumeBaseline = (stored, nowMs = Date.now()) => {
+  if (!stored || typeof stored !== "object" || typeof stored.ms !== "number" || typeof stored.savedAt !== "number") return null;
+  if (!Number.isFinite(stored.ms) || !Number.isFinite(stored.savedAt)) return null;
+  const age = nowMs - stored.savedAt;
+  return age >= 0 && age < RESUME_WINDOW_MS ? stored.ms : null;
+};
+/**
+ * Bağlantı kopukken gelen, panelin hiç duyurmadığı siparişler: durumu Hazırlanıyor, kimliği bilinmeyen ve sınırdan
+ * (baselineMs, sunucu saati; bkz. snapshotBaseline) eski olmayan. Sınırla aynı milisaniyedeki bilinmeyen sipariş de
+ * yenidir (bilinenler kimlikle elenir). baselineMs null → bilinmeyen her Hazırlanıyor. Eskiden yeniye.
  */
 export const pickMissedOrders = (orders, { knownIds, baselineMs = null } = {}) =>
   (orders || [])
@@ -192,6 +222,17 @@ export const pickMissedOrders = (orders, { knownIds, baselineMs = null } = {}) =
       && (baselineMs === null || toMs(order.createdAt) >= baselineMs))
     .sort((a, b) => toMs(a.createdAt) - toMs(b.createdAt));
 
+/**
+ * Çalmaya başlarken kaydedilen "ilk duyuru" zamanı (bu cihazın saati). Yeni sipariş en çok RING_WINDOW_MS çalar ve bu
+ * süre siparişin verildiği andan sayılır: kaçırılıp geç duyurulan sipariş yalnızca kalan süre kadar tekrar çalar;
+ * süresi çoktan dolmuşsa (ör. uykudan uyanan dizüstü) bir kez duyurulur ama tekrar çalmaz. Sunucu saati
+ * (serverNowMs) ya da sipariş zamanı bilinmiyorsa şimdi (canlı sipariş).
+ */
+export const ringStartAt = (createdAt, { nowMs = Date.now(), serverNowMs = NaN } = {}) => {
+  const created = toMs(createdAt);
+  if (!Number.isFinite(created) || !Number.isFinite(serverNowMs)) return nowMs;
+  return nowMs - Math.min(Math.max(serverNowMs - created, 0), RING_WINDOW_MS);
+};
 /**
  * Hâlâ çalması gereken siparişler. Bırakılanlar:
  *  - ilk duyurudan (firstAt, bu cihazın saati) RING_WINDOW_MS geçenler
