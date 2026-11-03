@@ -1,6 +1,8 @@
 // Personelin iç notu ve işaretleri (yalnızca panel; müşteri hiçbir yerde görmez).
-// PATCH /users/:id/staff-note { text?, flags?, baseUpdatedAt? } → { success, staffNote, staffFlags }
+// PATCH /users/:id/staff-note { text?, flags?, baseFlags?, baseUpdatedAt? } → { success, staffNote, staffFlags }
 // baseUpdatedAt: düzenlemeye başlanan notun sürümü; bu arada başka yönetici kaydettiyse sunucu 409 döner, not ezilmez.
+// baseFlags: işarete basılırken ekranda görünen liste; sunucu yalnızca bu dokunuştaki değişikliği uygular (başka
+// yöneticinin bu arada eklediği / kaldırdığı işaret ezilmez).
 import { useEffect, useId, useRef, useState } from "react";
 import { Check, Lock, Pencil, PhoneCall, Plus, Save, StickyNote, X } from "lucide-react";
 import toast from "react-hot-toast";
@@ -64,6 +66,18 @@ const StaffNotePanel = ({ userId, note, flags, deliveryFailures, onChange, onDir
     requestAnimationFrame(() => viewButtonRef.current?.focus());
   };
   const cancelEdit = closeEditor;
+  /** Çakışmada güncel notu taslağa alır; düğme kaybolacağı için odak not alanına geçer */
+  const takeLatest = () => {
+    if (!conflict?.text) return;
+    setDraft(conflict.text);
+    setConflict(null);
+    requestAnimationFrame(() => {
+      const field = textareaRef.current;
+      if (!field) return;
+      field.focus();
+      field.setSelectionRange(field.value.length, field.value.length);
+    });
+  };
 
   const saveNote = async () => {
     if (savingRef.current) return;
@@ -112,7 +126,7 @@ const StaffNotePanel = ({ userId, note, flags, deliveryFailures, onChange, onDir
     busyRef.current = true;
     setFlagBusy(key);
     try {
-      const { data } = await axios.patch(`/users/${userId}/staff-note`, { flags: next });
+      const { data } = await axios.patch(`/users/${userId}/staff-note`, { flags: next, baseFlags: activeFlags });
       apply(data, { staffFlags: next });
       toast.success(on ? `“${STAFF_FLAG_BY_KEY[key].label}” kaldırıldı` : `“${STAFF_FLAG_BY_KEY[key].label}” eklendi`);
     } catch (error) {
@@ -127,10 +141,13 @@ const StaffNotePanel = ({ userId, note, flags, deliveryFailures, onChange, onDir
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
       event.preventDefault();
       saveNote();
-    } else if (event.key === "Escape" && !savingNote) {
-      // Alan içindeyken çekmece kapanmaz (data-esc-clear). Değişiklik yoksa düzenleme kapanır; varsa odak alandan
-      // çıkar, ikinci Esc çekmecenin "kaydedilmemiş değişiklik" sorusunu açar.
+    } else if (event.key === "Escape") {
+      // Esc burada işlenir; çekmeceye ve arkadaki listenin kısayollarına ulaşmaz (liste aramasını silmesin).
+      // Değişiklik yoksa düzenleme kapanır; varsa odak alandan çıkar, ikinci Esc çekmecenin "kaydedilmemiş
+      // değişiklik" sorusunu açar.
+      event.stopPropagation();
       event.preventDefault();
+      if (savingNote) return;
       if (dirty) event.currentTarget.blur();
       else cancelEdit();
     }
@@ -188,7 +205,7 @@ const StaffNotePanel = ({ userId, note, flags, deliveryFailures, onChange, onDir
               <strong>Başka bir yönetici notu değiştirdi.</strong>
               {conflict.text ? <p>{conflict.text}</p> : <p>Not silinmiş.</p>}
               {conflict.text && (
-                <button type="button" className="ui-btn ui-btn--sm" onClick={() => { setDraft(conflict.text); setConflict(null); }}>Güncel notu kullan</button>
+                <button type="button" className="ui-btn ui-btn--sm" onClick={takeLatest}>Güncel notu kullan</button>
               )}
             </div>
           )}

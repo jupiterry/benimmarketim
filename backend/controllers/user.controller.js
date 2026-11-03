@@ -1116,7 +1116,11 @@ export const getCustomerProfile = async (req, res) => {
 // ── PATCH /users/:userId/staff-note (yönetici) ──
 // Personelin iç notu ve işaretleri. Yalnızca panel görür (user.model'de select: false). İşlem kaydına notun metni
 // yazılmaz; yalnızca "eklendi / güncellendi / silindi" ve işaret değişikliği yazılır.
+// Gövde: { text?, flags?, baseFlags?, baseUpdatedAt? }. baseUpdatedAt: düzenlenen notun sürümü (eşzamanlı not
+// değişikliği 409); baseFlags: istemcinin gördüğü işaretler (yalnızca bu istekteki ekleme / kaldırma uygulanır).
 export const STAFF_FLAGS_INPUT_MAX = 20;
+// Temizlemeden önceki üst sınır (satır sonu / boşluk payı): çok büyük gövde karakter karakter işlenmeden reddedilir
+const STAFF_NOTE_RAW_MAX = STAFF_NOTE_MAX * 4;
 const NOTE_CONFLICT_MESSAGE = "İç not bu arada başka bir yönetici tarafından değiştirildi. Güncel hali yüklendi; kontrol edip yeniden kaydedin.";
 /** Satır sonları sadeleşir, kontrol karakterleri atılır, 2'den fazla boş satır kısalır */
 export const cleanStaffNoteText = (value) => {
@@ -1134,22 +1138,49 @@ const canonicalFlags = (flags) => {
   return STAFF_FLAG_KEYS.filter((key) => set.has(key));
 };
 const flagLabels = (flags) => STAFF_FLAGS.filter((flag) => flags.includes(flag.key)).map((flag) => flag.label).join(", ") || "Yok";
+/** İşaret listesi: dizi, en fazla 20 kısa metin → { flags } (geçerli anahtarlar, sabit sırada) ya da { error } */
+const parseFlagList = (list) => {
+  if (!Array.isArray(list)) return { error: "İşaretler liste olmalı" };
+  if (list.length > STAFF_FLAGS_INPUT_MAX) return { error: "Çok fazla işaret gönderildi" };
+  if (list.some((flag) => typeof flag !== "string" || flag.length > 40)) return { error: "Geçersiz işaret" };
+  return { flags: canonicalFlags(list) };
+};
+/**
+ * Kaydedilecek işaretler. base (istemcinin değişiklikten önce gördüğü liste) verilirse yalnızca bu istekte eklenen ve
+ * kaldırılan işaretler güncel listeye uygulanır: bu arada başka bir yöneticinin eklediği / kaldırdığı işaret ezilmez.
+ * base yoksa gönderilen liste olduğu gibi yazılır.
+ */
+export const mergeStaffFlags = (current, next, base) => {
+  const wanted = canonicalFlags(next);
+  if (!Array.isArray(base)) return wanted;
+  const seen = canonicalFlags(base);
+  const added = wanted.filter((key) => !seen.includes(key));
+  const removed = seen.filter((key) => !wanted.includes(key));
+  const result = new Set([...canonicalFlags(current), ...added]);
+  return STAFF_FLAG_KEYS.filter((key) => result.has(key) && !removed.includes(key));
+};
 
-/** İstek gövdesi → { value: { text?, flags?, baseUpdatedAt? } } ya da { error } */
+/** İstek gövdesi → { value: { text?, flags?, baseFlags?, baseUpdatedAt? } } ya da { error } */
 export const parseStaffNoteBody = (body) => {
   if (!body || typeof body !== "object" || Array.isArray(body)) return { error: "Geçersiz istek" };
   const value = {};
   if (body.text !== undefined) {
     if (body.text !== null && typeof body.text !== "string") return { error: "İç not metin olmalı" };
+    if (typeof body.text === "string" && body.text.length > STAFF_NOTE_RAW_MAX) return { error: `İç not en fazla ${STAFF_NOTE_MAX} karakter olabilir` };
     const text = cleanStaffNoteText(body.text ?? "");
     if (text.length > STAFF_NOTE_MAX) return { error: `İç not en fazla ${STAFF_NOTE_MAX} karakter olabilir` };
     value.text = text;
   }
   if (body.flags !== undefined) {
-    if (!Array.isArray(body.flags)) return { error: "İşaretler liste olmalı" };
-    if (body.flags.length > STAFF_FLAGS_INPUT_MAX) return { error: "Çok fazla işaret gönderildi" };
-    if (body.flags.some((flag) => typeof flag !== "string" || flag.length > 40)) return { error: "Geçersiz işaret" };
-    value.flags = canonicalFlags(body.flags);
+    const parsed = parseFlagList(body.flags);
+    if (parsed.error) return { error: parsed.error };
+    value.flags = parsed.flags;
+    // İstemcinin değişiklikten önce gördüğü işaretler (isteğe bağlı): yalnızca bu istekteki ekleme / kaldırma uygulanır
+    if (body.baseFlags !== undefined && body.baseFlags !== null) {
+      const base = parseFlagList(body.baseFlags);
+      if (base.error) return { error: base.error };
+      value.baseFlags = base.flags;
+    }
   }
   if (value.text === undefined && value.flags === undefined) return { error: "Kaydedilecek bir değişiklik yok" };
   // Notun düzenlemeye başlandığı andaki sürümü (null: not yoktu). Verilirse eşzamanlı değişiklik 409 ile reddedilir.
@@ -1190,8 +1221,9 @@ export const updateStaffNote = async (req, res) => {
     const currentVersion = currentText ? timeOf(current.staffNote?.updatedAt) : null;
     const storedVersion = timeOf(current.staffNote?.updatedAt);
     const currentFlags = canonicalFlags(current.staffFlags);
+    const nextFlags = value.flags === undefined ? undefined : mergeStaffFlags(currentFlags, value.flags, value.baseFlags);
     const textChanged = value.text !== undefined && value.text !== currentText;
-    const flagsChanged = value.flags !== undefined && value.flags.join(",") !== currentFlags.join(",");
+    const flagsChanged = nextFlags !== undefined && nextFlags.join(",") !== currentFlags.join(",");
     const conflict = async (latest) => res.status(409).json({
       success: false,
       conflict: true,
@@ -1214,7 +1246,7 @@ export const updateStaffNote = async (req, res) => {
       else unset.staffNote = 1;
     }
     if (flagsChanged) {
-      if (value.flags.length) set.staffFlags = value.flags;
+      if (nextFlags.length) set.staffFlags = nextFlags;
       else unset.staffFlags = 1;
     }
     // Not okunduktan sonra başka bir kayıt geldiyse üzerine yazılmaz (koşullu güncelleme)
@@ -1232,7 +1264,7 @@ export const updateStaffNote = async (req, res) => {
 
     const changes = [];
     if (textChanged) changes.push({ label: "İç not", from: currentText ? "Vardı" : "Yok", to: value.text ? (currentText ? "Güncellendi" : "Eklendi") : "Silindi" });
-    if (flagsChanged) changes.push({ label: "İşaretler", from: flagLabels(currentFlags), to: flagLabels(value.flags) });
+    if (flagsChanged) changes.push({ label: "İşaretler", from: flagLabels(currentFlags), to: flagLabels(nextFlags) });
     recordAdminAction(req, {
       action: textChanged ? "İç not güncellendi" : "Müşteri işaretleri güncellendi",
       category: "customer",

@@ -1053,6 +1053,10 @@
 }
 
 /* ── Çekmece: müşteri eylemleri ───────────────────────────────────── */
+/* İçerik sarmalayıcısı yalnızca olay yakalar; çekmece gövdesinin düzeni (sütun, aralık) aynen kalır */
+.admin-layout .cus-drawer-content {
+  display: contents;
+}
 .admin-layout .cus-profile-actions {
   display: flex;
   flex-wrap: wrap;
