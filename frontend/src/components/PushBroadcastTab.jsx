@@ -119,6 +119,8 @@ export default function PushBroadcastTab() {
 
   const audience = useMemo(() => overview.audiences.find((item) => item.id === form.audience), [overview.audiences, form.audience]);
   const audienceLabel = (item) => {
+    // "custom": Müşteriler ekranından seçili kişilere ya da bir süzgece uyanlara gönderilen bildirim
+    if (item.audience === "custom") return "Seçili müşteriler";
     if (item.audience !== TEST_AUDIENCE) return overview.audiences.find((entry) => entry.id === item.audience)?.label || item.audience;
     const to = item.testRecipient?.name || item.testRecipient?.email;
     return to ? `Alıcı: ${to}` : "Alıcı: gönderen yönetici"; // "Deneme" rozeti ayrıca gösterilir

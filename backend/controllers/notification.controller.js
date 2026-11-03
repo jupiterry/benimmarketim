@@ -11,6 +11,7 @@ import FlashSale from "../models/flashSale.model.js";
 import Product from "../models/product.model.js";
 import { getStatsSnapshot } from "../services/recommendation.service.js";
 import { activeWeeklyFilter, isWeeklyDealLive } from "../services/productPricing.js";
+import { weeklyDiscountPercent } from "../services/weeklyPrice.service.js";
 import { PUSH_CATEGORIES, inspectPushUser, isPushConfigured, normalizePreferences, sendPushToUsers } from "../services/push.service.js";
 import { describeTestSend, resolveTestRecipient, toTestRecipient } from "../services/notificationAutomation.service.js";
 
@@ -70,7 +71,9 @@ export const gatherStoreFacts = async (now = new Date()) => {
     ]);
     for (const item of weekly) {
       if (!item.product || item.product.isHidden || item.product.isOutOfStock || !isWeeklyDealLive(item, now)) continue;
-      facts.push(`Haftalık fırsat: ${item.product.name} ${formatTl(item.weeklyPrice)}${item.discountPercentage ? ` (%${item.discountPercentage} indirimli)` : ""}`);
+      // İndirim yüzdesi ürünün GÜNCEL liste fiyatından (kayıtlı yüzde, liste fiyatı değişince eskir)
+      const percent = weeklyDiscountPercent(item.product.price, item.weeklyPrice);
+      facts.push(`Haftalık fırsat: ${item.product.name} ${formatTl(item.weeklyPrice)}${percent ? ` (%${percent} indirimli)` : ""}`);
     }
     for (const sale of flash) {
       if (!sale.product) continue;

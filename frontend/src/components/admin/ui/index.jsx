@@ -341,7 +341,9 @@ export const useListShortcuts = (handlers, { enabled = true } = {}) => {
       const h = ref.current || {};
       if (e.key === "Escape") {
         if (helpOpen) { setHelpOpen(false); e.preventDefault(); return; }
-        if (isTypingTarget(e.target)) { if (h.searchEscape) h.searchEscape(e); return; }
+        // Arama temizleme yalnızca ekranın arama kutusunda (data-esc-clear): çekmecedeki not ya da form alanında
+        // Esc'e basmak liste aramasını silmesin
+        if (isTypingTarget(e.target)) { if (h.searchEscape && e.target.dataset?.escClear) h.searchEscape(e); return; }
         if (hasOpenLayer()) return;
         h.escape?.(e);
         return;
