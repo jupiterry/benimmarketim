@@ -165,8 +165,9 @@ export const giveCouponsToCustomers = async (req, res) => {
       matched: outcome.matched,
       broadcastId: outcome.broadcastId,
       coupon: outcome.coupon,
-      // Tek müşteriye verilen kuponun kodu (ör. telefonda müşteriye söylemek için); toplu verilişte kodlar dönmez
-      code: outcome.created === 1 ? outcome.codes[0] : null,
+      // Tek müşteriye verilen kuponun kodu (ör. telefonda müşteriye söylemek için); toplu verilişte (diğerleri az önce
+      // almış olsa bile) kodlar dönmez: kimin kodu olduğu belirsiz kalırdı
+      code: outcome.total === 1 && outcome.created === 1 ? outcome.codes[0] : null,
       message: summary,
     });
   } catch (error) {

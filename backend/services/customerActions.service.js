@@ -19,7 +19,7 @@ import User from "../models/user.model.js";
 import Coupon from "../models/coupon.model.js";
 import PushBroadcast from "../models/pushBroadcast.model.js";
 import {
-  USER_APP_FILTERS, USER_LIST_SEGMENTS, buildUserListFilter, duplicatePhoneGroups, orderStatsByUser, parseUserListQuery,
+  USER_APP_FILTERS, USER_LIST_SEGMENTS, buildSearchClause, buildUserListFilter, duplicatePhoneGroups, orderStatsByUser, parseUserListQuery,
 } from "../controllers/userController.js";
 import { isPushConfigured, sendPushToUsers } from "./push.service.js";
 import {
@@ -199,7 +199,9 @@ export const parseTarget = (raw, now = Date.now()) => {
     options.appSince = istanbulDayStart(now);
     filter.appSince = options.appSince.toISOString();
   }
-  if (options.segment === "all" && !options.app && !options.registeredSince && !options.q) {
+  // Arama metni ancak bir koşula dönüşüyorsa süzgeçtir: yalnızca aksan işareti gibi aranamayan bir metin liste ucunda
+  // da yok sayılır ve hedef sessizce tüm müşterilere genişlerdi
+  if (options.segment === "all" && !options.app && !options.registeredSince && !buildSearchClause(options.q)) {
     throw invalid("Süzgeç seçilmedi. Tüm müşterilere göndermek için Bildirimler ekranını kullanın.", "empty_filter");
   }
   return { type: "filter", filter, options };
@@ -322,7 +324,8 @@ export const resetCustomerActionMemory = () => {
 };
 const acquire = (key) => {
   if (inFlight.has(key)) {
-    throw new CustomerActionError(409, "in_progress", "Aynı işlem şu anda sürüyor. Birkaç saniye sonra sonucu görürsünüz; tekrar göndermeyin.");
+    // Aynı pencerede çift gönderim zaten engellenir; buraya başka bir sekmeden ya da başka bir yöneticiden gelinir
+    throw new CustomerActionError(409, "in_progress", "Aynı gönderim şu anda başka bir pencerede sürüyor. Birkaç saniye bekleyip sonucu Bildirimler geçmişinden ya da Kuponlar ekranından kontrol edin; tekrar göndermeyin.");
   }
   inFlight.add(key);
   return () => inFlight.delete(key);

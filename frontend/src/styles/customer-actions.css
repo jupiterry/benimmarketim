@@ -129,7 +129,8 @@
   color: var(--ui-warn-ink);
 }
 
-.admin-layout .ca-quiet-note {
+.admin-layout .ca-quiet-note,
+.admin-layout .ca-expiry-note {
   display: flex;
   align-items: flex-start;
   gap: var(--ui-s2);
@@ -138,7 +139,11 @@
   line-height: 1.45;
   color: var(--ui-warn-ink);
 }
-.admin-layout .ca-quiet-note svg {
+.admin-layout .ca-expiry-note {
+  margin-top: 6px;
+}
+.admin-layout .ca-quiet-note svg,
+.admin-layout .ca-expiry-note svg {
   flex-shrink: 0;
   width: 14px;
   height: 14px;
@@ -322,6 +327,11 @@
   font-size: var(--ui-fs-sm);
   font-weight: 650;
   color: var(--ui-text);
+}
+/* Adım değişince odak başlığa taşınır (ekran okuyucu için); başlık tıklanabilir görünmesin */
+.admin-layout .ca-confirm-title:focus,
+.admin-layout .ui-modal-body.ca-done h3:focus {
+  outline: none;
 }
 .admin-layout .ca-kv {
   display: flex;

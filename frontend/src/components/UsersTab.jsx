@@ -324,6 +324,12 @@ const UsersTab = ({ onOpenChat }) => {
   };
   // Süzgecin o anki hali sunucuya aynen gider (GET /users ile aynı anlam); pencere açıkken liste değişse de hedef sabit kalır
   const openForFilter = (mode, preset = null) => {
+    // Ekran gece yarısından önce açıldıysa dönem başı (anchor) dünde kalmıştır: "Bugün sipariş vermeyenlere" hatırlatması
+    // dün uğrayanlara da "Bugün uygulamaya uğradın" diye giderdi. Gün döndüyse hedef bugünden kurulur, liste de tazelenir.
+    const nowMs = Date.now();
+    const dayChanged = startOfLocalDay(nowMs).getTime() !== startOfLocalDay(anchor).getTime();
+    const base = dayChanged ? nowMs : anchor;
+    if (dayChanged) refreshAll();
     const appLabel = appFilter ? APP_FILTERS.find((f) => f.id === appFilter)?.label : null;
     const label = [
       segment !== "all" ? SEGMENTS.find((s) => s.id === segment)?.label : null,
@@ -334,9 +340,10 @@ const UsersTab = ({ onOpenChat }) => {
     openAction(mode, {
       filter: {
         ...(segment !== "all" ? { segment } : {}),
-        ...(appFilter ? { app: appFilter, appSince: new Date(appSince).toISOString() } : {}),
-        ...(onlyToday ? { registeredSince: todayStart } : {}),
-        ...(search ? { q: search } : {}),
+        ...(appFilter ? { app: appFilter, appSince: new Date(appPeriodStart(appPeriod, base)).toISOString() } : {}),
+        ...(onlyToday ? { registeredSince: startOfLocalDay(base).toISOString() } : {}),
+        // Liste ucu aramayı 100 karakterde keser; hedef de aynı metinle çözülsün
+        ...(search ? { q: search.slice(0, 100) } : {}),
       },
     }, `Süzgece uyan herkes · ${label}`, preset);
   };

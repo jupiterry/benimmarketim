@@ -3,7 +3,7 @@
 // Müşteriler ekranının toplu çubuğundan, "Süzgece uyan herkes" şeridinden ve müşteri çekmecesinden açılır.
 // Akış: yaz → kontrol et → gönder. Uçlar: POST /customer-actions/preview, /customer-actions/push, /customer-actions/coupons.
 // Müşteriye giden metinler (bildirim, kupon açıklaması) "sen" dilindedir; panel yazıları "siz" dilindedir.
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle, ArrowLeft, Bell, CheckCircle2, Clock, Moon, RefreshCw, RotateCcw, Send, Ticket, Users, X,
 } from "lucide-react";
@@ -40,6 +40,12 @@ const EXPIRY_PICKS = [
   { days: 30, label: "30 gün" },
 ];
 const VALUE_PICKS = { percentage: [10, 15, 20, 25], fixed: [25, 50, 75, 100] };
+// Adım değişir değişmez gelen tıklama yeni adımın düğmesine işlemez: "Devam"a çift tıklamanın ikinci tıklaması aynı
+// yerdeki "Gönder"e düşüp kontrol adımını atlatmasın
+const STEP_GUARD_MS = 600;
+// "Bugün" biten kuponda bundan az süre kaldıysa uyarılır (siparişler gece 01:00'e kadar sürer)
+const SHORT_EXPIRY_MINUTES = 180;
+const DAY_CHANGED = "Gece yarısı geçti; kupon bilgileri yeni güne göre güncellendi. Kontrol edip yeniden onaylayın.";
 const INITIAL_COUPON = Object.freeze({
   discountType: "percentage",
   value: "10",
@@ -58,11 +64,25 @@ const num = (value) => Number(value || 0).toLocaleString("tr-TR");
 const errorText = (error, fallback) => error?.response?.data?.message || fallback;
 const dayKeyFormat = new Intl.DateTimeFormat("tr-TR", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" });
 const clockFormat = new Intl.DateTimeFormat("tr-TR", { timeZone: TZ, hour: "2-digit", minute: "2-digit" });
+const clockPartsFormat = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const lockDateFormat = new Intl.DateTimeFormat("tr-TR", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" });
 /** İstanbul'da bugünün takvim günü: "2026-11-02" (yerel biçimden bağımsız: parçalardan kurulur) */
 const istanbulToday = () => {
   const parts = Object.fromEntries(dayKeyFormat.formatToParts(new Date()).map((part) => [part.type, part.value]));
   return `${parts.year}-${parts.month}-${parts.day}`;
+};
+/** İstanbul'da bugün 23:59'a kalan dakika */
+const minutesLeftToday = () => {
+  const parts = Object.fromEntries(clockPartsFormat.formatToParts(new Date()).map((part) => [part.type, part.value]));
+  return Math.max(0, 23 * 60 + 59 - ((Number(parts.hour) % 24) * 60 + Number(parts.minute)));
+};
+/** 135 → "2 saat 15 dakika", 40 → "40 dakika", 0 → "1 dakikadan az" */
+const durationText = (minutes) => {
+  if (minutes < 1) return "1 dakikadan az";
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (!hours) return `${rest} dakika`;
+  return rest ? `${hours} saat ${rest} dakika` : `${hours} saat`;
 };
 const keyToUtc = (key) => {
   const [year, month, day] = String(key).split("-").map(Number);
@@ -83,7 +103,8 @@ const parseAmount = (text) => {
   else if (/^\d{1,3}(\.\d{3})+$/.test(value)) value = value.replace(/\./g, "");
   return /^\d+(\.\d+)?$/.test(value) ? Number(value) : Number.NaN;
 };
-const roundMoney = (value) => Math.round(value * 100) / 100;
+// Sunucudaki roundMoney (productPricing.toKurus) ile aynı yuvarlama: 1,005 → 1,01
+const roundMoney = (value) => Math.sign(value) * Math.round(Math.abs(value) * 100 + 1e-7) / 100;
 
 // Türkçe iyelik + yönelme eki: 18 → "18'ine", 6 → "6'sına", 10 → "10'una", 3 → "3'üne"
 const ONES = ["", "bir", "iki", "üç", "dört", "beş", "altı", "yedi", "sekiz", "dokuz"];
@@ -309,6 +330,10 @@ export default function CustomerActionDialog({ mode: initialMode = "push", targe
   const fieldId = useId();
   const dialogRef = useRef(null);
   const firstFieldRef = useRef(null);
+  const confirmTitleRef = useRef(null);
+  const doneTitleRef = useRef(null);
+  const openedAtRef = useRef(0); // pencerenin açıldığı an (arka plan tıklaması için)
+  const stepAtRef = useRef(0); // son adım değişikliğinin anı (çift tıklama koruması)
   const [mode, setMode] = useState(initialMode === "coupon" ? "coupon" : "push");
   const [step, setStep] = useState("compose"); // compose → confirm → done
   const [preview, setPreview] = useState({ status: "loading", data: null, error: "" });
@@ -367,8 +392,10 @@ export default function CustomerActionDialog({ mode: initialMode = "push", targe
   const notify = couponForm.notify && pushConfigured;
   const message = mode === "push" ? { title: pushTitle, body: pushBody } : { title: couponTitle, body: couponBody };
   const willPush = mode === "push" || notify;
-  // Sessiz saat onayı yalnızca bildirim gerçekten birine gidecekse istenir (sunucu da aynı kuralı uygular)
-  const needsQuietOk = willPush && reachable > 0 && quietActive;
+  // Sessiz saat onayı yalnızca bildirim gerçekten birine gidecekse istenir (sunucu da aynı kuralı uygular). Sunucu
+  // "sessiz saat" dediyse önizlemedeki sayı ne olursa olsun sorulur: önizlemede kimseye ulaşmayan kupon bildirimi
+  // gönderim anında birine ulaşabilir; onay kutusu çıkmazsa gönder düğmesi her seferinde aynı redde takılırdı.
+  const needsQuietOk = willPush && quietActive && (reachable > 0 || Boolean(serverQuiet));
 
   const errors = useMemo(() => {
     const out = {};
@@ -418,6 +445,7 @@ export default function CustomerActionDialog({ mode: initialMode = "push", targe
   // Odak: açılınca ilk alana (dokunmatik ekranda klavye açılmasın diye pencereye), kapanınca açan öğeye döner
   useEffect(() => {
     const previous = document.activeElement;
+    openedAtRef.current = Date.now();
     const fine = window.matchMedia?.("(pointer: fine)").matches;
     requestAnimationFrame(() => (fine && firstFieldRef.current ? firstFieldRef.current : dialogRef.current)?.focus({ preventScroll: true }));
     // Odak pencerenin dışındayken (ör. arka plana tıklandıysa) Esc yine kapatır
@@ -455,6 +483,31 @@ export default function CustomerActionDialog({ mode: initialMode = "push", targe
     }
   };
 
+  // Adım değişince odak yeni adıma taşınır: kontrol ve sonuç adımında başlığa (ekran okuyucu okur; basılı tutulan
+  // Enter gönder düğmesine düşmez), yazma adımında ilk alana (dokunmatikte pencereye). Kaldırılan düğmede kalan odak
+  // sayfaya düşüp Tab'ı pencereden kaçırırdı.
+  const shownStep = useRef(step);
+  useEffect(() => {
+    if (shownStep.current === step) return;
+    shownStep.current = step;
+    stepAtRef.current = Date.now();
+    const fine = window.matchMedia?.("(pointer: fine)").matches;
+    const target = step === "confirm" ? confirmTitleRef.current
+      : step === "done" ? doneTitleRef.current
+        : (fine ? firstFieldRef.current : null);
+    (target || dialogRef.current)?.focus();
+  }, [step]);
+  /** Çift tıklamanın ikincisi ya da adım değişir değişmez gelen tıklama değil mi? */
+  const deliberate = (event) => !(event?.detail > 1) && Date.now() - stepAtRef.current > STEP_GUARD_MS;
+
+  /** Pencere açıkken gece yarısı geçtiyse "bugün" tazelenir; true: gün değişti */
+  const refreshToday = () => {
+    const fresh = istanbulToday();
+    if (fresh === today) return false;
+    setToday(fresh);
+    return true;
+  };
+
   // ── Adımlar ──
   const switchMode = (next) => {
     if (busyRef.current || next === mode) return;
@@ -466,8 +519,12 @@ export default function CustomerActionDialog({ mode: initialMode = "push", targe
   const goConfirm = (event) => {
     event?.preventDefault();
     if (step !== "compose" || busyRef.current) return;
-    setToday(istanbulToday()); // pencere gece yarısını geçtiyse "bugün" tazelenir
     setAttempted(true);
+    // Gün değiştiyse kupon (son gün, "bugün/yarın" metni) yeni güne göre yeniden hesaplanır; yönetici görüp yeniden onaylar
+    if (refreshToday() && mode === "coupon") {
+      toast(DAY_CHANGED);
+      return;
+    }
     if (blocked || !valid) {
       requestAnimationFrame(() => dialogRef.current?.querySelector('[aria-invalid="true"]')?.focus());
       return;
@@ -480,6 +537,14 @@ export default function CustomerActionDialog({ mode: initialMode = "push", targe
   const submit = async ({ confirmDuplicate = false } = {}) => {
     if (busyRef.current || blocked || !valid) return;
     if (needsQuietOk && !quietOk) return;
+    // Kontrol adımı gece yarısından önce açıldıysa gösterilen son gün ve bildirimdeki "yarın" artık yanlıştır
+    // (ör. "Yarın 23:59'a kadar" yazıp bugün biten kupon): yeni güne göre yeniden kontrol ettirilir
+    if (mode === "coupon" && refreshToday()) {
+      setStep("compose");
+      setIssue(null);
+      toast(DAY_CHANGED);
+      return;
+    }
     busyRef.current = true;
     setBusy(true);
     setIssue(null);
@@ -528,6 +593,9 @@ export default function CustomerActionDialog({ mode: initialMode = "push", targe
   const isPush = mode === "push";
   const routeKey = isPush ? pushForm.route : couponForm.route;
   const cost = !isPush && couponRead.ok ? worstCase(coupon, total) : null;
+  // "Bugün" biten kuponun kullanılabileceği süre (gece geç saatte verilen kupon birkaç dakikada bitmesin diye uyarılır)
+  const minutesLeft = !isPush && coupon.daysLeft === 0 ? minutesLeftToday() : Number.POSITIVE_INFINITY;
+  const shortExpiry = minutesLeft < SHORT_EXPIRY_MINUTES;
   const sendLabel = isPush
     ? (reachable ? `${num(reachable)} kişiye gönder` : "Gönder")
     : `${num(total)} kupon oluştur`;
@@ -582,7 +650,14 @@ export default function CustomerActionDialog({ mode: initialMode = "push", targe
   );
 
   return (
-    <div className="ui-modal-backdrop ca-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) requestClose(); }}>
+    <div
+      className="ui-modal-backdrop ca-backdrop"
+      onMouseDown={(event) => {
+        // Pencereyi açan düğmeye çift tıklamanın ikincisi arka plana düşüp pencereyi hemen kapatmasın
+        if (event.target !== event.currentTarget || event.detail > 1 || Date.now() - openedAtRef.current < STEP_GUARD_MS) return;
+        requestClose();
+      }}
+    >
       <div
         ref={dialogRef}
         className="ui-modal ui-modal--wide ca-dialog"
@@ -605,7 +680,7 @@ export default function CustomerActionDialog({ mode: initialMode = "push", targe
         {step === "done" && result ? (
           <div className="ui-modal-body ca-done">
             {isPush || result.created ? <CheckCircle2 className="ca-done-icon" aria-hidden="true" /> : <Ticket className="ca-done-icon" data-tone="muted" aria-hidden="true" />}
-            <h3>{isPush ? "Bildirim gönderildi" : result.created ? "Kuponlar oluşturuldu" : "Yeni kupon oluşturulmadı"}</h3>
+            <h3 ref={doneTitleRef} tabIndex={-1}>{isPush ? "Bildirim gönderildi" : result.created ? "Kuponlar oluşturuldu" : "Yeni kupon oluşturulmadı"}</h3>
             <p className="ui-muted">{result.message}</p>
             <dl className="ca-stats">
               {isPush ? (
@@ -752,6 +827,12 @@ export default function CustomerActionDialog({ mode: initialMode = "push", targe
                       {isDayKey(coupon.expiresOn) && !errors.expiry && (
                         <p className="ui-hint">Son gün: <strong>{longDay(coupon.expiresOn)} 23:59</strong> (İstanbul saati)</p>
                       )}
+                      {shortExpiry && !errors.expiry && (
+                        <p className="ca-expiry-note" role="status">
+                          <Clock aria-hidden="true" />
+                          Kupon bu gece 23:59&apos;da biter ({durationText(minutesLeft)} kaldı). Daha uzun süre için “Yarın”ı seçin.
+                        </p>
+                      )}
                       <FieldError id={`${fieldId}-expiry-error`}>{showError("expiry")}</FieldError>
                     </div>
                     {couponRead.ok && (
@@ -804,7 +885,7 @@ export default function CustomerActionDialog({ mode: initialMode = "push", targe
                 )
               ) : (
                 <div className="ca-confirm">
-                  <h3 className="ca-confirm-title">Göndermeden önce kontrol edin</h3>
+                  <h3 ref={confirmTitleRef} tabIndex={-1} className="ca-confirm-title">Göndermeden önce kontrol edin</h3>
                   <dl className="ca-kv">
                     <div><dt>Kime</dt><dd>{total === 1 && data?.sample?.[0] ? (data.sample[0].name || "İsimsiz müşteri") : `${isFilter ? "Süzgece uyan" : "Seçili"} ${num(total)} kişi`}{data?.capped ? ` (süzgece ${num(data.matched)} kişi uyuyor)` : ""}</dd></div>
                     {isPush ? (
@@ -817,13 +898,13 @@ export default function CustomerActionDialog({ mode: initialMode = "push", targe
                       <>
                         <div><dt>Kupon</dt><dd>{valueText(coupon)} indirim{capText(coupon)} · kişi başına 1 adet, tek kullanımlık</dd></div>
                         <div><dt>Alt sepet</dt><dd>{coupon.minimumOrderAmount > 0 ? money(coupon.minimumOrderAmount) : "Yok"}</dd></div>
-                        <div><dt>Son gün</dt><dd>{longDay(coupon.expiresOn)} 23:59</dd></div>
+                        <div><dt>Son gün</dt><dd>{longDay(coupon.expiresOn)} 23:59{shortExpiry ? ` · ${durationText(minutesLeft)} kaldı` : ""}</dd></div>
                         <div><dt>En kötü durumda</dt><dd>{cost ? <strong>{money(cost.total)}</strong> : "Üst sınır yok"}</dd></div>
                         <div><dt>Bildirim</dt><dd>{notify ? (reachable ? `${num(reachable)} kişiye “${couponTitle}”` : "Kimseye ulaşmaz") : "Gönderilmeyecek"}</dd></div>
                       </>
                     )}
                   </dl>
-                  <p className="ui-hint">{isPush ? "Gönderilen bildirim geri alınamaz. Aynı bildirim 10 dakika içinde aynı kişilere ikinci kez gitmez." : "Kuponlar hemen müşterilerin uygulamadaki kuponlarına düşer. Aynı kupon 10 dakika içinde aynı kişiye ikinci kez verilmez."}</p>
+                  <p className="ui-hint">{isPush ? "Gönderilen bildirim geri alınamaz. Aynı bildirim 10 dakika içinde aynı kişilere ikinci kez gidecekse önce onayınız istenir." : "Kuponlar hemen müşterilerin uygulamadaki kuponlarına düşer. Aynı kupon 10 dakika içinde aynı kişiye ikinci kez verilmez."}</p>
                   {quietBox}
                   {issueBox}
                 </div>
@@ -841,25 +922,28 @@ export default function CustomerActionDialog({ mode: initialMode = "push", targe
           </form>
         )}
 
+        {/* Her adımın düğmeleri ayrı anahtarla yeniden kurulur: "Devam" düğmesi yerinde "Gönder"e dönüşüp odağı ve
+            tıklamayı taşımasın. Yeni adımdaki düğmeler adım değişir değişmez gelen tıklamayı (çift tıklama) yok sayar. */}
         <div className="ui-modal-footer ca-foot">
           {step === "done" ? (
-            <button type="button" className="ui-btn ui-btn--primary" onClick={() => onClose?.()}>Kapat</button>
+            <button key="done" type="button" className="ui-btn ui-btn--primary" onClick={() => onClose?.()}>Kapat</button>
           ) : step === "confirm" ? (
-            <>
+            <Fragment key="confirm">
               <button type="button" className="ui-btn" onClick={() => { setStep("compose"); setIssue(null); }} disabled={busy}><ArrowLeft />Düzenle</button>
               <span className="ui-grow" />
-              <button type="button" className="ui-btn ui-btn--primary" onClick={() => submit()} disabled={busy || blocked || !valid || (needsQuietOk && !quietOk)}>
+              <button type="button" className="ui-btn ui-btn--primary" onClick={(event) => { if (deliberate(event)) submit(); }}
+                disabled={busy || blocked || !valid || (needsQuietOk && !quietOk)}>
                 {isPush ? <Send /> : <Ticket />}{busy ? (isPush ? "Gönderiliyor…" : "Oluşturuluyor…") : sendLabel}
               </button>
-            </>
+            </Fragment>
           ) : (
-            <>
-              <button type="button" className="ui-btn" onClick={requestClose}>Vazgeç</button>
+            <Fragment key="compose">
+              <button type="button" className="ui-btn" onClick={(event) => { if (deliberate(event)) requestClose(); }}>Vazgeç</button>
               <span className="ui-grow" />
               <button type="submit" form={`${fieldId}-form`} className="ui-btn ui-btn--primary" disabled={preview.status !== "ready" || blocked}>
                 Devam
               </button>
-            </>
+            </Fragment>
           )}
         </div>
       </div>
