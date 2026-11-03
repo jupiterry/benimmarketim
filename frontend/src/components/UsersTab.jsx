@@ -1,10 +1,11 @@
 // Müşteriler ekranı: KPI kartları, içgörü panelleri, arama/süzgeç/sıralama, sunucu sayfalı liste ve profil çekmecesi.
 // Uç noktalar: GET /users (sayfa, arama, sıralama, segment; hafif alanlar + sipariş özeti), GET /users/stats (KPI,
 // süzgeç sayıları, uygulama hunisi, kayıt grafiği), en iyi müşteriler için GET /users?sort=spent&limit=6. Panel açılışında liste ön yüklenmez;
-// ekran açılınca yalnızca görünen sayfa istenir.
+// ekran açılınca yalnızca görünen sayfa istenir. Seçili kişilere, süzgece uyan herkese ya da çekmecedeki tek müşteriye
+// bildirim / kişiye özel kupon CustomerActionDialog ile gönderilir (POST /customer-actions/*).
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Keyboard, Phone, RefreshCw, Search, ShoppingBag, Trash2, UserPlus, Users, X, Zap,
+  AlertTriangle, Bell, BellRing, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Keyboard, Phone, RefreshCw, Search, Send, ShoppingBag, Ticket, Trash2, UserPlus, Users, X, Zap,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import axios from "../lib/axios";
@@ -15,11 +16,13 @@ import {
 import { toCsv } from "../lib/customers";
 import CustomerRow from "./customers/CustomerRow";
 import CustomerDrawer from "./customers/CustomerDrawer";
+import CustomerActionDialog from "./customers/CustomerActionDialog";
 import { AppTrackingPanel, BestCustomersPanel, RegistrationsPanel } from "./customers/Insights";
 import {
   ACTIVE_DAYS, APP_FILTERS, PAGE_SIZES, SEGMENTS, appPeriodStart, browserTimeZone, customerTags, isAdmin, lastSeenAt, orderInfoOf, registeredAt, startOfLocalDay,
 } from "./customers/shared";
 import "../styles/customers.css";
+import "../styles/customer-actions.css";
 
 const SORTS = [
   { id: "seen", label: "Son görülme" },
@@ -37,6 +40,27 @@ const errorText = (error, fallback) => error?.response?.data?.message || fallbac
 const num = (value) => Number(value || 0).toLocaleString("tr-TR");
 // Listeye yalnızca hafif alanlar alınır (PUT yanıtı tam kullanıcıyı döndürür)
 const SAFE_EDIT_FIELDS = ["name", "email", "phone", "avatar", "role"];
+// Bildirim / kupon tek seferde en fazla bu kadar müşteriye (sunucuyla aynı sınır: customerActions.service TARGET_LIMIT)
+const ACTION_LIMIT = 1000;
+const PERIOD_TEXT = { today: "bugün", week: "7 gün", month: "30 gün" };
+// "Açtı, sipariş vermedi" süzgecinde tek tıkla açılan hatırlatma (müşteriye giden metin: "sen" dili)
+const REMINDERS = {
+  today: {
+    button: "Bugün sipariş vermeyenlere hatırlatma gönder",
+    title: "Bir şey mi unuttun? 🛒",
+    body: "Bugün uygulamaya uğradın ama sipariş vermedin. Eksiklerini şimdi sepete ekle, kapına getirelim.",
+  },
+  week: {
+    button: "Son 7 günde sipariş vermeyenlere hatırlatma gönder",
+    title: "Bir şey mi unuttun? 🛒",
+    body: "Geçenlerde uygulamaya uğradın ama sipariş vermedin. Eksiklerini şimdi sepete ekle, kapına getirelim.",
+  },
+  month: {
+    button: "Son 30 günde sipariş vermeyenlere hatırlatma gönder",
+    title: "Seni özledik 💚",
+    body: "Bir süredir uygulamaya uğrayıp sipariş vermedin. Aradığın her şey birkaç dokunuşla kapında; sepetine göz at.",
+  },
+};
 
 /** « 1 … 4 5 6 … 20 » için sayfa listesi */
 const pageList = (page, pages) => {
@@ -76,6 +100,7 @@ const UsersTab = ({ onOpenChat }) => {
   const [cursor, setCursor] = useState(-1);
   const [removed, setRemoved] = useState(() => new Set()); // iyimser silinen (geri alınabilir) kayıtlar
   const [open, setOpen] = useState(null); // { id, tab, focusPassword, user }
+  const [action, setAction] = useState(null); // bildirim / kupon penceresi: { mode, target, audienceLabel, preset, key }
   const [exporting, setExporting] = useState(false);
   // Dönem başlangıcı yalnızca yenilemede / dönem değişiminde kayar (her 30 sn'de liste yeniden istenmesin)
   const [anchor, setAnchor] = useState(() => Date.now());
@@ -284,6 +309,57 @@ const UsersTab = ({ onOpenChat }) => {
     return () => window.removeEventListener("admin-handoff", onHandoff);
   }, []);
 
+  // ── Bildirim / kupon (seçililere, süzgece uyan herkese ya da tek müşteriye) ──
+  const openAction = useCallback((mode, target, audienceLabel, preset = null) => {
+    setAction({ mode: mode === "coupon" ? "coupon" : "push", target, audienceLabel, preset, key: Date.now() });
+  }, []);
+  const openForSelected = (mode) => {
+    const ids = [...selected];
+    if (!ids.length) return;
+    if (ids.length > ACTION_LIMIT) {
+      toast.error(`Tek seferde en fazla ${num(ACTION_LIMIT)} kişi seçilebilir; şu an ${num(ids.length)} kişi seçili. Seçimi azaltın.`);
+      return;
+    }
+    openAction(mode, { userIds: ids }, `Seçili ${num(ids.length)} kişi`);
+  };
+  // Süzgecin o anki hali sunucuya aynen gider (GET /users ile aynı anlam); pencere açıkken liste değişse de hedef sabit kalır
+  const openForFilter = (mode, preset = null) => {
+    // Ekran gece yarısından önce açıldıysa dönem başı (anchor) dünde kalmıştır: "Bugün sipariş vermeyenlere" hatırlatması
+    // dün uğrayanlara da "Bugün uygulamaya uğradın" diye giderdi. Gün döndüyse hedef bugünden kurulur, liste de tazelenir.
+    const nowMs = Date.now();
+    const dayChanged = startOfLocalDay(nowMs).getTime() !== startOfLocalDay(anchor).getTime();
+    const base = dayChanged ? nowMs : anchor;
+    if (dayChanged) refreshAll();
+    const appLabel = appFilter ? APP_FILTERS.find((f) => f.id === appFilter)?.label : null;
+    const label = [
+      segment !== "all" ? SEGMENTS.find((s) => s.id === segment)?.label : null,
+      onlyToday ? "Bugün kayıt olan" : null,
+      appLabel ? `${appLabel}${appFilter !== "now" ? ` · ${PERIOD_TEXT[appPeriod] || PERIOD_TEXT.month}` : ""}` : null,
+      search ? `“${search}”` : null,
+    ].filter(Boolean).join(" · ");
+    openAction(mode, {
+      filter: {
+        ...(segment !== "all" ? { segment } : {}),
+        ...(appFilter ? { app: appFilter, appSince: new Date(appPeriodStart(appPeriod, base)).toISOString() } : {}),
+        ...(onlyToday ? { registeredSince: startOfLocalDay(base).toISOString() } : {}),
+        // Liste ucu aramayı 100 karakterde keser; hedef de aynı metinle çözülsün
+        ...(search ? { q: search.slice(0, 100) } : {}),
+      },
+    }, `Süzgece uyan herkes · ${label}`, preset);
+  };
+  const reminder = REMINDERS[appPeriod] || REMINDERS.month;
+  const openReminder = () => openForFilter("push", { title: reminder.title, body: reminder.body, route: "home" });
+  // Çekmecedeki "Kupon tanımla" / "Bildirim gönder" (CustomerDrawer → onCustomerAction(kind, user))
+  const onCustomerAction = useCallback((kind, user) => {
+    const person = user?._id ? user : open?.user;
+    if (!person?._id) return;
+    if (isAdmin(person)) {
+      toast.error("Yöneticilere kupon ya da bildirim gönderilmez");
+      return;
+    }
+    openAction(kind === "coupon" ? "coupon" : "push", { userIds: [String(person._id)] }, person.name || "İsimsiz müşteri");
+  }, [open, openAction]);
+
   // ── Eylemler ──
   const deleteUser = useCallback((user) => {
     setOpen((current) => (current?.id === user._id ? null : current));
@@ -424,6 +500,8 @@ const UsersTab = ({ onOpenChat }) => {
   const failed = Boolean(listError) && !list && !listLoading; // liste hiç gelmedi
   const appFilterLabel = appFilter ? APP_FILTERS.find((f) => f.id === appFilter)?.label : null;
   const busy = listLoading || statsLoading;
+  // "Süzgece uyan herkes" yalnızca bir süzgeç varken (tüm müşterilere toplu bildirim Bildirimler ekranındadır); yöneticiler hedeflenmez
+  const canTargetFilter = hasFilter && segment !== "admin" && (stale || total > 0);
 
   return (
     <div className="ui-page cus">
@@ -537,11 +615,39 @@ const UsersTab = ({ onOpenChat }) => {
               </div>
             )}
 
+            {canTargetFilter && (
+              <div className={`ca-strip${appFilter === "noOrder" ? " ca-strip--cta" : ""}`} role="group" aria-label="Süzgece uyan herkese bildirim ya da kupon">
+                <span className="ca-strip-label">
+                  {appFilter === "noOrder" ? <BellRing aria-hidden="true" /> : <Users aria-hidden="true" />}
+                  <span>
+                    Süzgece uyan herkes <strong className="ui-num">({stale ? "…" : num(total)})</strong>
+                    {!stale && total > ACTION_LIMIT && <span className="ui-muted"> · en son görülen {num(ACTION_LIMIT)} kişi</span>}
+                  </span>
+                </span>
+                <span className="ui-grow" />
+                <div className="ca-strip-actions">
+                  {appFilter === "noOrder" ? (
+                    <button type="button" className="ui-btn ui-btn--sm ui-btn--primary" disabled={stale} onClick={openReminder}><Send />{reminder.button}</button>
+                  ) : (
+                    <button type="button" className="ui-btn ui-btn--sm" disabled={stale} onClick={() => openForFilter("push")}><Bell />Bildirim gönder</button>
+                  )}
+                  <button type="button" className="ui-btn ui-btn--sm" disabled={stale} onClick={() => openForFilter("coupon")}><Ticket />Kupon ver</button>
+                </div>
+              </div>
+            )}
+
             {selected.size > 0 && (
               <div className="ui-bulkbar cus-bulkbar">
                 <span className="ui-bulkbar-count"><Users />{selected.size} kişi seçildi</span>
                 <span className="ui-grow" />
-                <button type="button" className="ui-btn ui-btn--sm ui-btn--danger" onClick={bulkDelete}><Trash2 />Seçilenleri sil</button>
+                {/* 1.000'i aşan seçimde düğme kapanmaz: dokunmatik ekranda ipucu görünmez, tıklayınca nedeni söylenir */}
+                <button type="button" className="ui-btn ui-btn--sm ca-bulk-btn" onClick={() => openForSelected("push")} title="Seçilenlere bildirim gönder">
+                  <Bell />Bildirim gönder
+                </button>
+                <button type="button" className="ui-btn ui-btn--sm ca-bulk-btn" onClick={() => openForSelected("coupon")} title="Seçilenlere kişiye özel kupon ver">
+                  <Ticket />Kupon ver
+                </button>
+                <button type="button" className="ui-btn ui-btn--sm ui-btn--danger ca-bulk-btn" onClick={bulkDelete}><Trash2 />Seçilenleri sil</button>
                 <button type="button" className="ui-icon-btn ui-icon-btn--sm" onClick={() => setSelected(new Set())} aria-label="Seçimi temizle" title="Seçimi temizle (Esc)"><X /></button>
               </div>
             )}
@@ -639,6 +745,17 @@ const UsersTab = ({ onOpenChat }) => {
           onSaved={onSaved}
           onRoleChanged={onRoleChanged}
           onDelete={deleteUser}
+          onCustomerAction={onCustomerAction}
+        />
+      )}
+      {action && (
+        <CustomerActionDialog
+          key={action.key}
+          mode={action.mode}
+          target={action.target}
+          audienceLabel={action.audienceLabel}
+          preset={action.preset}
+          onClose={() => setAction(null)}
         />
       )}
       <ShortcutHelp open={helpOpen} onClose={() => setHelpOpen(false)} items={SHORTCUT_ITEMS} />
