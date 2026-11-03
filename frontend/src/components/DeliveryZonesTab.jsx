@@ -184,10 +184,31 @@ const DeliveryZonesTab = () => {
     scheduleReadiness();
   }, [patchZone, scheduleReadiness]);
 
-  // "Düzelt": ekrandaki karta kaydırır ya da Mağaza ayarlarındaki bölümü açar
-  const fixCheck = useCallback((check) => {
-    if (!runFix(check.fix)) toast.error(`${check.title}: ilgili kart bulunamadı. Sayfayı yenileyip tekrar deneyin.`);
+  // Kaydedilmemiş bölge kartları: başka ekrana geçen bağlantılar ("Düzelt", karnedeki sipariş bağlantıları) önce
+  // sorar; ekran değişince kartların formu kaybolur
+  const dirtyZones = useRef(new Set());
+  const onZoneDirty = useCallback((id, isDirty) => {
+    if (isDirty) dirtyZones.current.add(id);
+    else dirtyZones.current.delete(id);
   }, []);
+
+  /** Başka ekrana geçmeden önce: kaydedilmemiş bölge kartı varsa sorar (true → geçilebilir) */
+  const confirmLeave = useCallback(async () => {
+    if (!dirtyZones.current.size) return true;
+    return confirm({
+      title: "Kaydedilmemiş değişiklik var",
+      message: "Bölge kartlarında kaydetmediğiniz değişiklik var. Başka ekrana geçerseniz bu değişiklikler kaybolur.",
+      confirmText: "Yine de geç",
+      cancelText: "Vazgeç",
+      type: "warning",
+    });
+  }, [confirm]);
+
+  // "Düzelt": ekrandaki karta kaydırır ya da Mağaza ayarlarındaki bölümü açar
+  const fixCheck = useCallback(async (check) => {
+    if (check.fix?.tab && !(await confirmLeave())) return;
+    if (!runFix(check.fix)) toast.error(`${check.title}: ilgili kart bulunamadı. Sayfayı yenileyip tekrar deneyin.`);
+  }, [confirmLeave]);
 
   // ── Adrese teslimat ayarları ──
   const putSettings = async (patch) => {
@@ -346,7 +367,7 @@ const DeliveryZonesTab = () => {
         openZones={totals.open} pilotBusyId={pilotBusyId} onRetry={loadSettings} onChangeMode={changeMode} onToggleCampaign={toggleCampaign}
         onAddPilot={addPilot} onRemovePilot={removePilot}
         readiness={readiness} readinessLoading={readinessLoading} readinessError={readinessError}
-        onRetryReadiness={loadReadiness} onFix={fixCheck} />
+        onRetryReadiness={loadReadiness} onFix={fixCheck} confirmLeave={confirmLeave} />
       {settingsError && settings && (
         <div className="ui-banner ui-banner--danger" role="alert">
           <AlertTriangle /><span className="ui-grow">Ayarlar yenilenemedi: {settingsError}. Gösterilen değerler son başarılı yüklemeden.</span>
@@ -371,7 +392,7 @@ const DeliveryZonesTab = () => {
           </div>
         ) : cards.map(({ id, title, note, zone }) => (zone ? (
           <ZoneCard key={id} zone={zone} title={title} note={note} icon={ZONE_ICONS[id]} generalMinimum={generalMinimum} campaign={campaign}
-            onSave={saveZone} wide={id === DEVREK_ID}>
+            onSave={saveZone} onDirtyChange={onZoneDirty} wide={id === DEVREK_ID}>
             {id === DEVREK_ID ? <DevrekAreaSection zone={zone} onAreaChange={onAreaChange} /> : null}
           </ZoneCard>
         ) : (

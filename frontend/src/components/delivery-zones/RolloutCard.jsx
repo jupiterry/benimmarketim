@@ -34,7 +34,7 @@ const MODE_INFO = {
 const RolloutCard = ({
   settings, loading, error, busy, openZones, pilotBusyId,
   onRetry, onChangeMode, onToggleCampaign, onAddPilot, onRemovePilot,
-  readiness, readinessLoading, readinessError, onRetryReadiness, onFix,
+  readiness, readinessLoading, readinessError, onRetryReadiness, onFix, confirmLeave,
 }) => {
   const groupRef = useRef(null);
   const now = useNow(60000);
@@ -141,7 +141,7 @@ const RolloutCard = ({
         <ReadinessChecklist readiness={readiness} loading={readinessLoading} error={readinessError}
           onRetry={onRetryReadiness} onFix={onFix} />
         <PilotReport pilot={readiness?.pilot || null} pilotError={readiness?.pilotError || readinessError}
-          mode={mode} loading={readinessLoading} now={now} />
+          mode={mode} loading={readinessLoading} now={now} confirmLeave={confirmLeave} />
       </div>
     </section>
   );

@@ -18,7 +18,7 @@ const emptyText = (mode, startedAt) => {
     : "Pilot henüz başlamadı. Pilotu açıp kendi hesabınızla gerçek bir sipariş verin; sonuçlar burada görünür.";
 };
 
-const Facts = ({ pilot, now }) => {
+const Facts = ({ pilot, now, leaveTo }) => {
   const { callbacks, failed, neighborhoods, zones } = pilot;
   const moreHoods = Math.max(0, pilot.neighborhoodCount - neighborhoods.length);
   return (
@@ -30,7 +30,7 @@ const Facts = ({ pilot, now }) => {
             <span className={callbacks.pending ? "dz-fact-warn" : undefined}>{num(callbacks.pending)} bekliyor</span>
             {" · "}{num(callbacks.confirmed)} teyit edildi
             {callbacks.pending > 0 && (
-              <button type="button" className="dz-fact-link" onClick={() => openOrdersPreset("callback")}>
+              <button type="button" className="dz-fact-link" onClick={() => leaveTo(() => openOrdersPreset("callback"))}>
                 Bekleyenleri aç<ChevronRight aria-hidden="true" />
               </button>
             )}
@@ -91,14 +91,14 @@ const Facts = ({ pilot, now }) => {
   );
 };
 
-const Problems = ({ problems, now }) => (
+const Problems = ({ problems, now, leaveTo }) => (
   <div className="dz-karne-problems">
     <h4 className="dz-karne-h">Son sorunlu siparişler</h4>
     {problems.length ? (
       <ul className="dz-problems">
         {problems.map((row) => (
           <li key={row.orderId}>
-            <button type="button" className="dz-problem" data-kind={row.kind} onClick={() => openOrder(row.orderId)}
+            <button type="button" className="dz-problem" data-kind={row.kind} onClick={() => leaveTo(() => openOrder(row.orderId))}
               aria-label={`${row.code} siparişini aç: ${row.reason}`}>
               <span className="dz-problem-code ui-num">{row.code}</span>
               <span className="dz-problem-main">
@@ -117,8 +117,13 @@ const Problems = ({ problems, now }) => (
   </div>
 );
 
-const PilotReport = ({ pilot, pilotError, mode, loading, now }) => {
+/** confirmLeave: Siparişler'e geçmeden önce (kaydedilmemiş bölge kartı varsa) sorar; false → geçilmez */
+const PilotReport = ({ pilot, pilotError, mode, loading, now, confirmLeave }) => {
   const [open, setOpen] = usePref("dz-karne-open", true);
+  const leaveTo = async (go) => {
+    if (confirmLeave && !(await confirmLeave())) return;
+    go();
+  };
   const bodyId = useId();
   const hasData = Boolean(pilot?.orders);
   const ordersText = pilot?.orders ? `${num(pilot.orders)} sipariş` : "";
@@ -196,8 +201,8 @@ const PilotReport = ({ pilot, pilotError, mode, loading, now }) => {
               <p className="dz-karne-note">Teslim süreleri en yeni {num(pilot.deliveryMinutes.count)} teslimattan hesaplandı.</p>
             )}
             <div className="dz-karne-details">
-              <Facts pilot={pilot} now={now} />
-              <Problems problems={pilot.problems} now={now} />
+              <Facts pilot={pilot} now={now} leaveTo={leaveTo} />
+              <Problems problems={pilot.problems} now={now} leaveTo={leaveTo} />
             </div>
             <p className="dz-karne-note">Düşük puan: {num(pilot.feedback.lowThreshold)} yıldız ve altı (ürün ya da teslimat) veya 👎. Söz verilen süre, bölgenin şu anki tahmini süresinin üst sınırıdır.</p>
           </>
