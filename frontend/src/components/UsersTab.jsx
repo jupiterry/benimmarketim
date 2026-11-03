@@ -317,7 +317,7 @@ const UsersTab = ({ onOpenChat }) => {
     const ids = [...selected];
     if (!ids.length) return;
     if (ids.length > ACTION_LIMIT) {
-      toast.error(`Tek seferde en fazla ${num(ACTION_LIMIT)} kişiye gönderilebilir; daha fazlası için süzgeci kullanın`);
+      toast.error(`Tek seferde en fazla ${num(ACTION_LIMIT)} kişi seçilebilir; şu an ${num(ids.length)} kişi seçili. Seçimi azaltın.`);
       return;
     }
     openAction(mode, { userIds: ids }, `Seçili ${num(ids.length)} kişi`);
@@ -640,12 +640,11 @@ const UsersTab = ({ onOpenChat }) => {
               <div className="ui-bulkbar cus-bulkbar">
                 <span className="ui-bulkbar-count"><Users />{selected.size} kişi seçildi</span>
                 <span className="ui-grow" />
-                <button type="button" className="ui-btn ui-btn--sm ca-bulk-btn" onClick={() => openForSelected("push")} disabled={selected.size > ACTION_LIMIT}
-                  title={selected.size > ACTION_LIMIT ? `Tek seferde en fazla ${num(ACTION_LIMIT)} kişi; daha fazlası için süzgeci kullanın` : "Seçilenlere bildirim gönder"}>
+                {/* 1.000'i aşan seçimde düğme kapanmaz: dokunmatik ekranda ipucu görünmez, tıklayınca nedeni söylenir */}
+                <button type="button" className="ui-btn ui-btn--sm ca-bulk-btn" onClick={() => openForSelected("push")} title="Seçilenlere bildirim gönder">
                   <Bell />Bildirim gönder
                 </button>
-                <button type="button" className="ui-btn ui-btn--sm ca-bulk-btn" onClick={() => openForSelected("coupon")} disabled={selected.size > ACTION_LIMIT}
-                  title={selected.size > ACTION_LIMIT ? `Tek seferde en fazla ${num(ACTION_LIMIT)} kişi; daha fazlası için süzgeci kullanın` : "Seçilenlere kişiye özel kupon ver"}>
+                <button type="button" className="ui-btn ui-btn--sm ca-bulk-btn" onClick={() => openForSelected("coupon")} title="Seçilenlere kişiye özel kupon ver">
                   <Ticket />Kupon ver
                 </button>
                 <button type="button" className="ui-btn ui-btn--sm ui-btn--danger ca-bulk-btn" onClick={bulkDelete}><Trash2 />Seçilenleri sil</button>

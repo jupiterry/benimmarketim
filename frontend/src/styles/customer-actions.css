@@ -650,7 +650,8 @@
   .admin-layout .cus-bulkbar .ca-bulk-btn {
     min-height: 40px;
   }
-  .admin-layout .ca-close {
+  .admin-layout .ca-close,
+  .admin-layout .cus-bulkbar .ui-icon-btn {
     width: 40px;
     height: 40px;
   }
