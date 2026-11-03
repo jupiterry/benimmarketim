@@ -165,7 +165,9 @@ const Timeline = ({ userId, initialEvents, initialHasMore, initialNextBefore, no
         <EmptyState icon={History} title="Henüz kayıt yok" description="Sipariş, sohbet, geri bildirim ya da kupon olduğunda burada görünür." compact />
       ) : days.length === 0 ? (
         <p className="cus-tl-empty">
-          {hasMore ? "Yüklenen dönemde bu türde kayıt yok. Daha eski kayıtlar için “Daha fazla göster”e basın." : "Bu türde kayıt yok."}
+          {hasMore
+            ? `Yüklenen dönemde ${filter === "all" ? "" : "bu türde "}kayıt yok. Daha eski kayıtlar için “Daha fazla göster”e basın.`
+            : "Bu türde kayıt yok."}
         </p>
       ) : (
         <ol className="cus-tl-days">
