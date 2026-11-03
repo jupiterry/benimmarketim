@@ -18,6 +18,7 @@ import {
   adminUpdateDeliverySettings,
   adminGetCouriers,
   adminUpdateCouriers,
+  adminGetReadiness,
 } from "../controllers/delivery.controller.js";
 
 // Mount: /api/delivery
@@ -43,5 +44,7 @@ router.get("/admin/settings", protectRoute, adminRoute, adminGetDeliverySettings
 router.put("/admin/settings", protectRoute, adminRoute, adminUpdateDeliverySettings);
 router.get("/admin/couriers", protectRoute, adminRoute, adminGetCouriers);
 router.put("/admin/couriers", protectRoute, adminRoute, adminUpdateCouriers);
+// Yayına hazırlık listesi + pilot karnesi (salt okunur)
+router.get("/admin/readiness", protectRoute, adminRoute, adminGetReadiness);
 
 export default router;

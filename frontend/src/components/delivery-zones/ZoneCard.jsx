@@ -2,6 +2,8 @@
 // siparişe açar/kapatır (kapanma nedeniyle), ücreti (Ücretsiz / Ücretli + "X TL üstü ücretsiz"), minimum sepeti
 // (boş = genel), tahmini süreyi ve ilk sipariş telefon teyidini ayarlar. Her kart kendi "Kaydet" düğmesiyle
 // PUT /delivery/admin/zones/:id gönderir. Devrek kartı ek olarak "Teslimat alanı" bölümünü (children) taşır.
+// Kimlikler (dz-<bölge>-card, -enabled, -feebox, -fee, -etaText, -callback) "Yayına hazırlık" listesindeki
+// "Düzelt" bağlantısının hedefidir (readiness.js). onDirtyChange(bölgeKimliği, kirli): kaydedilmemiş değişiklik bildirimi.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Info, Loader2, PhoneCall, RotateCcw, Save, ToggleLeft, ToggleRight } from "lucide-react";
 import { Segmented } from "../admin/ui";
@@ -10,7 +12,7 @@ import { CLOSE_REASONS, ETA_PRESETS, LIMITS, cardFormFromZone, feeSummary, num, 
 
 const FieldError = ({ id, children }) => (children ? <p className="dz-error" id={id} role="alert">{children}</p> : null);
 
-const ZoneCard = ({ zone, title, note, icon: Icon, generalMinimum, campaign, onSave, children, wide = false }) => {
+const ZoneCard = ({ zone, title, note, icon: Icon, generalMinimum, campaign, onSave, onDirtyChange, children, wide = false }) => {
   const { confirm } = useConfirm();
   const initial = useMemo(() => cardFormFromZone(zone), [zone]);
   const [form, setForm] = useState(initial);
@@ -25,6 +27,9 @@ const ZoneCard = ({ zone, title, note, icon: Icon, generalMinimum, campaign, onS
   const dirty = !sameForm(form, initial);
   const dirtyRef = useRef(dirty);
   dirtyRef.current = dirty;
+  // Ekran, kaydedilmemiş kart varken başka ekrana geçmeden önce sorar ("Düzelt" ve karnedeki sipariş bağlantıları)
+  useEffect(() => { onDirtyChange?.(zone._id, dirty); }, [onDirtyChange, zone._id, dirty]);
+  useEffect(() => () => onDirtyChange?.(zone._id, false), [onDirtyChange, zone._id]);
   useEffect(() => {
     if (!dirtyRef.current) setForm(initial);
   }, [initial]);
@@ -79,7 +84,7 @@ const ZoneCard = ({ zone, title, note, icon: Icon, generalMinimum, campaign, onS
     : minimum === 0 ? "Minimum yok" : `Min. sepet ${tl(minimum)}`;
 
   return (
-    <section className="ui-panel dz-card" data-open={form.enabled || undefined} data-wide={wide || undefined} aria-labelledby={`${uid}-title`}>
+    <section id={`${uid}-card`} className="ui-panel dz-card" data-open={form.enabled || undefined} data-wide={wide || undefined} aria-labelledby={`${uid}-title`}>
       <form className="dz-card-form" onSubmit={submit} noValidate
         onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) submit(e); }}>
         <header className="dz-card-head">
@@ -130,7 +135,7 @@ const ZoneCard = ({ zone, title, note, icon: Icon, generalMinimum, campaign, onS
               )}
             </div>
 
-            <div className="dz-fieldset">
+            <div className="dz-fieldset" id={`${uid}-feebox`}>
               <span className="ui-label">Teslimat ücreti</span>
               <Segmented ariaLabel={`${title} teslimat ücreti`} value={form.feeMode}
                 onChange={(v) => { set("feeMode")(v); if (v === "paid") setTimeout(() => feeRef.current?.focus(), 0); }}

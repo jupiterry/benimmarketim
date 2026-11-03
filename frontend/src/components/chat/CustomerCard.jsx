@@ -1,7 +1,10 @@
 /* eslint-disable react-refresh/only-export-components */
-// Sağ sütun: müşteri kartı — iletişim, sipariş özeti, bağlı destek talebi ve diğer ekranlara geçiş.
-import { CalendarDays, Clock, Mail, Package2, Phone, ShoppingBag, UserRound, UserCheck, ExternalLink } from "lucide-react";
+// Sağ sütun: müşteri kartı — personelin iç notu ve işaretleri, iletişim, sipariş özeti, bağlı destek talebi ve
+// diğer ekranlara geçiş. İç not / işaretler GET /chat/:chatId/context → staffNote, staffFlags (yalnızca panel).
+import { CalendarDays, Clock, Lock, Mail, Package2, Phone, ShoppingBag, StickyNote, UserRound, UserCheck, ExternalLink } from "lucide-react";
 import { Skeleton, formatDate, formatDateTime, money, timeAgo, HANDOFF, setHandoff } from "../admin/ui";
+import { staffFlagsOf } from "../../lib/staffFlags";
+import { STAFF_FLAG_ICONS } from "../customers/shared";
 import { ChatAvatar, PRIORITIES, REQUEST_STATUS, modeOf } from "./chatShared";
 
 const ORDER_BADGE = { "Hazırlanıyor": "ui-badge--warn", "Yolda": "ui-badge--info", "Teslim Edildi": "ui-badge--ok", "İptal Edildi": "ui-badge--danger" };
@@ -30,6 +33,8 @@ export default function CustomerCard({ chat, context, loading, error, onRetry, o
   const mode = modeOf(chat);
   const ModeIcon = mode.icon;
   const waiting = chat.mode === "WAITING_FOR_AGENT" && chat.status !== "closed";
+  const staffFlags = staffFlagsOf(context?.staffFlags);
+  const staffNote = typeof context?.staffNote?.text === "string" && context.staffNote.text.trim() ? context.staffNote : null;
 
   return (
     <aside className="cht-customer" aria-label="Müşteri kartı">
@@ -45,6 +50,36 @@ export default function CustomerCard({ chat, context, loading, error, onRetry, o
           {online?.isOnline ? <span className="ui-badge ui-badge--ok">Şu an uygulamada</span>
             : user.lastActive && <span className="ui-muted">Son görülme {timeAgo(user.lastActive, now)}</span>}
         </div>
+
+        {(staffFlags.length > 0 || staffNote) && (
+          <div className="cht-section cht-staff" role="group" aria-label="İç not ve işaretler">
+            <span className="cht-section-title">
+              İç not
+              <span className="cht-staff-private"><Lock aria-hidden="true" />Yalnızca ekip görür</span>
+            </span>
+            {staffFlags.length > 0 && (
+              <div className="cht-staff-flags">
+                {staffFlags.map((flag) => {
+                  const Icon = STAFF_FLAG_ICONS[flag.key];
+                  return (
+                    <span key={flag.key} className={`ui-badge ui-badge--${flag.tone}`}>
+                      {Icon && <Icon aria-hidden="true" />}{flag.label}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+            {staffNote && (
+              <div className="cht-staff-note">
+                <StickyNote aria-hidden="true" />
+                <div>
+                  <p>{staffNote.text}</p>
+                  <span>{[staffNote.updatedBy?.name || "Bir yönetici", staffNote.updatedAt ? formatDateTime(staffNote.updatedAt) : ""].filter(Boolean).join(" · ")}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {error ? (
           <div className="ui-banner ui-banner--danger" role="alert" style={{ borderRadius: "var(--ui-radius)" }}>

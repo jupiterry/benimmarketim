@@ -4,7 +4,7 @@
 // Sözleşme: CONTRACTS.md §7.4 / §7.5. Stil: styles/orders-queue.css (önek so-q-).
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import {
-  ArrowDown, CheckCheck, CheckCircle2, ChevronRight, ClipboardList, Clock, Home, ListChecks, MapPin, PackageCheck, Printer,
+  ArrowDown, CheckCheck, CheckCircle2, ChevronRight, ClipboardList, Clock, Home, ListChecks, MapPin, MapPinned, PackageCheck, Printer,
   SearchX, Truck,
 } from "lucide-react";
 import { EmptyState, Skeleton, formatDateTime, formatTime, money, useIsMobile } from "../admin/ui";
@@ -72,6 +72,8 @@ const CardList = ({ orders, ui, actions }) => (
           unseen={ui.unseenIds.has(id)}
           printedAt={ui.printedAt.get(id)}
           picked={ui.picked.get(id)}
+          siblings={ui.siblings.get(id)}
+          courier={ui.courier}
           actions={actions}
         />
       );
@@ -79,11 +81,76 @@ const CardList = ({ orders, ui, actions }) => (
   </div>
 );
 
-/** Yurt bölümü: özet, toplu seçim kutusu ve bölüm eylemleri */
+/** Toplu seçim kutusu durumu: grup / alt grup başlıkları için */
+const selectionOf = (orders, selectedIds) => {
+  const ids = orders.map((o) => o.orderId);
+  const count = ids.reduce((n, id) => n + (selectedIds.has(id) ? 1 : 0), 0);
+  const all = ids.length > 0 && count === ids.length;
+  return { ids, all, some: count > 0 && !all };
+};
+
+/**
+ * Mahalle alt grubu (Devrek): "Cumhuriyet Mah. · 3 sipariş · Nakit ₺520" + alt grup eylemleri
+ * (Hazırlanıyor: yola çıkar, toplama listesi, kurye fişi · Yolda: teslim et, kurye fişi)
+ */
+const NeighborhoodGroup = ({ group, parent, status, ui, actions, laneKey }) => {
+  const { ids, all, some } = selectionOf(group.orders, ui.selectedIds);
+  const titleId = `so-q-${laneKey}-${group.key.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+  const n = group.orders.length;
+  const { summary } = group;
+  const label = `${parent.short} · ${group.label}`;
+  return (
+    <section className="so-q-sub" aria-labelledby={titleId}>
+      <div className="so-q-group-head so-q-sub-head">
+        <SelectCheck
+          className="so-q-group-check"
+          checked={all}
+          indeterminate={some}
+          label={`${group.label}: ${all ? "seçimi kaldır" : "tümünü seç"}`}
+          onChange={(checked) => actions?.selectMany?.(ids, checked)}
+        />
+        <div className="so-q-group-text">
+          <h4 id={titleId} className="so-q-group-title so-q-sub-title"><MapPinned aria-hidden="true" />{group.label}</h4>
+          <p className="so-q-group-sum">
+            <span className="so-q-pay-part"><b className="ui-num">{n}</b> sipariş</span>
+            {(summary.cash.count > 0 || summary.card.count > 0 || summary.transfer.count > 0) && (
+              <span className="so-q-sep" aria-hidden="true">·</span>
+            )}
+            <PaymentParts summary={summary} check />
+          </p>
+        </div>
+        <div className="so-q-group-actions">
+          {status === PREP ? (
+            <>
+              <button type="button" className="ui-btn ui-btn--sm so-q-btn" data-kind="way" onClick={() => actions?.advanceMany?.(group.orders)}
+                aria-label={`${group.label}: ${n} siparişi yola çıkar`}>
+                <Truck aria-hidden="true" />Yola çıkar ({n})
+              </button>
+              <button type="button" className="ui-btn ui-btn--sm ui-btn--ghost" onClick={() => actions?.pickMany?.(group.orders, label)}
+                aria-label={`${group.label}: toplama listesi`}>
+                <ListChecks aria-hidden="true" />Toplama
+              </button>
+            </>
+          ) : (
+            <button type="button" className="ui-btn ui-btn--sm so-q-btn" data-kind="done" onClick={() => actions?.advanceMany?.(group.orders)}
+              aria-label={`${group.label}: ${n} siparişi teslim et`}>
+              <CheckCircle2 aria-hidden="true" />Teslim et ({n})
+            </button>
+          )}
+          <button type="button" className="ui-btn ui-btn--sm ui-btn--ghost" onClick={() => actions?.runSheet?.(group.orders, label)}
+            aria-label={`${group.label}: kurye fişi yazdır`} title="Kurye için sipariş listesi (telefon, adres, tutar, ödeme)">
+            <ClipboardList aria-hidden="true" />Kurye fişi
+          </button>
+        </div>
+      </div>
+      <CardList orders={group.orders} ui={ui} actions={actions} />
+    </section>
+  );
+};
+
+/** Yurt / bölge bölümü: özet, toplu seçim kutusu ve bölüm eylemleri; adresli bölge (Devrek) mahallelere ayrılır */
 const PointGroup = ({ group, status, ui, actions, laneKey }) => {
-  const ids = group.orders.map((o) => o.orderId);
-  const selectedCount = ids.reduce((n, id) => n + (ui.selectedIds.has(id) ? 1 : 0), 0);
-  const all = ids.length > 0 && selectedCount === ids.length;
+  const { ids, all, some } = selectionOf(group.orders, ui.selectedIds);
   const titleId = `so-q-${laneKey}-${group.key}`;
   const n = group.orders.length;
   const { summary } = group;
@@ -93,7 +160,7 @@ const PointGroup = ({ group, status, ui, actions, laneKey }) => {
         <SelectCheck
           className="so-q-group-check"
           checked={all}
-          indeterminate={selectedCount > 0 && !all}
+          indeterminate={some}
           label={`${group.label}: ${all ? "seçimi kaldır" : "tümünü seç"}`}
           onChange={(checked) => actions?.selectMany?.(ids, checked)}
         />
@@ -139,7 +206,15 @@ const PointGroup = ({ group, status, ui, actions, laneKey }) => {
           )}
         </div>
       </div>
-      <CardList orders={group.orders} ui={ui} actions={actions} />
+      {group.subgroups ? (
+        <div className="so-q-subs">
+          {group.subgroups.map((sub) => (
+            <NeighborhoodGroup key={sub.key} group={sub} parent={group} status={status} ui={ui} actions={actions} laneKey={laneKey} />
+          ))}
+        </div>
+      ) : (
+        <CardList orders={group.orders} ui={ui} actions={actions} />
+      )}
     </section>
   );
 };
@@ -358,6 +433,8 @@ function QueueView({
     unseenIds: uiProp?.unseenIds || EMPTY_SET,
     printedAt: uiProp?.printedAt || EMPTY_MAP,
     picked: uiProp?.picked || EMPTY_MAP,
+    siblings: uiProp?.siblings || EMPTY_MAP,
+    courier: uiProp?.courier || null,
   }), [uiProp]);
   const focus = laneFocus === ROAD || laneFocus === DONE ? laneFocus : PREP;
 

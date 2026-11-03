@@ -36,12 +36,25 @@ const EMPTY_MAP = new Map();
 const STALE_TOAST_ID = "orders-sync-stale";
 const PRODUCT_MISSING = "Ürün bulunamadı ya da gizli; stok durumu değiştirilmedi";
 const LAST_LINE = "Siparişte en az bir ürün kalmalı; siparişi iptal edin ya da silin";
+const CALLBACK_REQUIRED = "CALLBACK_REQUIRED"; // sunucu: teyit bekleyen sipariş Hazırlanıyor'dan ileri taşınamaz
+const ROAD = "Yolda";
 
 // ── Saf yardımcılar ───────────────────────────────────────────────────────
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+/** Tam sayı kuruş (fiyat farkları kayan nokta kırıntısız hesaplansın) */
+const kurus = (n) => Math.round((Number(n) || 0) * 100);
 const iso = (ms) => new Date(ms).toISOString();
 const errorMessage = (error, fallback) => error?.response?.data?.message || fallback;
 const idOf = (value) => String((value && typeof value === "object" ? value.orderId : value) ?? "").trim();
+/**
+ * Durumla birlikte atanacak kurye { id, name, phone } ya da null. Kurye listesi (useCouriers) _id, siparişteki kayıt
+ * ve bekleyen kayıt id taşır; ikisi de kabul edilir. Geçerli bir kimlik yoksa null (kuryesiz).
+ */
+const courierValue = (courier) => {
+  const id = String(courier?._id ?? courier?.id ?? "").trim();
+  if (!OBJECT_ID.test(id)) return null;
+  return { id, name: String(courier.name || "").trim(), phone: String(courier.phone || "").trim() };
+};
 
 /** enrichOrders ile birebir aynı satır anahtarları (aynı ad+fiyat tekrarında "#2", "#3") */
 const lineKeysOf = (products) => {
@@ -75,22 +88,61 @@ const withoutLines = (order, keys) => {
   return withTotalsDelta({ ...order, products }, delta);
 };
 
-/** Bekleyen / kaydedilmekte olan durum değişikliklerini sentetik geçmiş kaydıyla uygular */
+/**
+ * Bekleyen / kaydedilmekte olan durum değişikliklerini sentetik geçmiş kaydıyla uygular. Kuryeyle yola çıkarmada
+ * (entry.courier) atanacak kurye de hemen görünür; kayıt durumla birlikte gider (geri alınırsa hiç gitmez).
+ */
 const withStatusStack = (order, stack) => {
   let status = order.status;
   let updatedAt = order.updatedAt;
   let pending;
+  let courier;
   const history = Array.isArray(order.statusHistory) ? [...order.statusHistory] : [];
   for (const entry of stack) {
     const from = status;
     status = entry.to;
     updatedAt = iso(entry.at);
     history.push({ status: entry.to, changedAt: updatedAt });
+    if (entry.courier?.id) courier = { id: String(entry.courier.id), name: entry.courier.name };
     pending = entry.state === "pending" ? { from, to: entry.to, at: entry.at } : undefined;
   }
   const next = { ...order, status, updatedAt, statusHistory: history };
+  if (courier) next.courier = courier;
   if (pending) next.pending = pending;
   return next;
+};
+
+/**
+ * Bekleyen muadil değişikliklerini uygular (lineKey → { product, price, listPrice }): satır aynı adetle muadile döner,
+ * toplamlar kuruş farkıyla düzelir. Satır artık yoksa (sunucu yanıtı gelmiş) dokunulmaz. pending: satır "kaydedilmeyi
+ * bekliyor" işaretini (replacing) taşır; kayıttan sonra tabana yazılırken işaretsiz uygulanır.
+ */
+const withReplacements = (order, map, { pending = true } = {}) => {
+  const lineKeys = lineKeysOf(order.products);
+  let deltaKurus = 0;
+  let changed = false;
+  const products = (order.products || []).map((p, i) => {
+    const entry = map.get(lineKeys[i]);
+    if (!entry) return p;
+    changed = true;
+    deltaKurus += (kurus(entry.price) - kurus(p?.price)) * (Number(p?.quantity) || 0);
+    const discounted = kurus(entry.listPrice) > kurus(entry.price);
+    return {
+      ...p,
+      name: entry.product.name,
+      price: entry.price,
+      image: entry.product.image || null,
+      productId: String(entry.product._id),
+      isManual: false,
+      originalPrice: discounted ? entry.listPrice : undefined,
+      unitDiscount: discounted ? round2(entry.listPrice - entry.price) : undefined,
+      priceSource: undefined,
+      flashDiscountPercentage: undefined,
+      pricingInferred: undefined,
+      replacing: pending ? { from: p?.name || "Ürün" } : undefined,
+    };
+  });
+  return changed ? withTotalsDelta({ ...order, products }, deltaKurus / 100) : order;
 };
 
 /** Katalog ürününün geçerli birim fiyatı: sunucunun kuralı (haftalık / indirim-flash sale / liste fiyatının en düşüğü) */
@@ -190,10 +242,17 @@ function createOrdersController({ confirm }) {
   let windowStart = iso(Date.now() - WINDOW_DAYS * DAY);
 
   // Kaplamalar
-  const stacks = new Map(); // orderId → durum kayıtları [{token, from, to, expected, at, state:'pending'|'committing', cancelled}]
+  // orderId → durum kayıtları [{token, from, to, expected, at, state:'pending'|'committing', cancelled, force, courier, courierSet}]
+  //  force: teyit bekleyen siparişi "yine de" taşı · courier: durumla birlikte atanacak kurye {id, name, phone} · courierSet: kurye
+  //  bu eylemde seçildi (kuryesiz seçimi dahil; geri alma bildirimindeki "Kurye: Ali · Değiştir" bunlardan)
+  const stacks = new Map();
   const removedLines = new Map(); // orderId → Map<lineKey, {name, timer, toastId, committing, prior}>
+  // orderId → Map<lineKey, {product, price, listPrice, qty, oldName, oldProductId, oldPrice, estimate, markOut, timer, toastId, committing, prior}>
+  const replacedLines = new Map();
   const removedOrders = new Map(); // orderId → {timer, toastId, committing}
   let batch = null; // açık geri alma penceresi {id, toastId, items: Map<orderId, entry>, openedAt, timer}
+  let undoExtras = null; // (items: [{orderId, entry}]) → { suffix?, actions? } | null — geri alma bildirimine ek (ekran verir)
+  let holds = 0; // >0 iken geri alma penceresi kaydedilmez (ör. "Değiştir" ile kurye seçilirken)
   // Bu oturumda durumu değiştirilen pencere içi siparişler: 30 günden eski bir aktif sipariş teslim / iptal edilince
   // (bekleyen kaplama ya da kayıt sonrası) arşive düşüp görünümlerden kaybolmasın; bir sonraki TAM yüklemeye kadar
   // pencerede kalır (eski ekranla aynı). ?ids / ?q ile gelen arşiv siparişleri buraya hiç girmez.
@@ -259,6 +318,8 @@ function createOrdersController({ confirm }) {
       let order = raw;
       const removed = removedLines.get(id);
       if (removed?.size) order = withoutLines(order, new Set(removed.keys()));
+      const replaced = replacedLines.get(id);
+      if (replaced?.size) order = withReplacements(order, replaced);
       const stack = stacks.get(id);
       if (stack?.length) order = withStatusStack(order, stack);
       const key = base.userKey.get(id) ?? "null";
@@ -488,6 +549,11 @@ function createOrdersController({ confirm }) {
       removed.forEach((entry) => { clearTimeout(entry.timer); dropToast(entry.toastId); });
       removedLines.delete(id);
     }
+    const replaced = replacedLines.get(id);
+    if (replaced) {
+      replaced.forEach((entry) => { clearTimeout(entry.timer); dropToast(entry.toastId); });
+      replacedLines.delete(id);
+    }
     for (const [key, session] of qtySessions) {
       if (session.id === id) { clearTimeout(session.timer); qtySessions.delete(key); }
     }
@@ -673,6 +739,7 @@ function createOrdersController({ confirm }) {
   const notices = (() => {
     let conflicts = [];
     let fails = [];
+    let callbacks = [];
     let timer = null;
     const flush = () => {
       timer = null;
@@ -685,15 +752,28 @@ function createOrdersController({ confirm }) {
       }
       if (fails.length > 2) toast.error(`${fails.length} siparişin durumu güncellenemedi`);
       else fails.forEach((id) => toast.error(statusFailMessage({ orderId: id })));
+      // Sunucu teyit bekleyen siparişi taşımadı (başka cihazdan / eski veriyle gelen istek)
+      const verb = (list) => {
+        const targets = new Set(list.map((c) => c.to));
+        if (targets.size > 1) return "ilerletilmedi";
+        return targets.has("Teslim Edildi") ? "teslim edilmedi" : "yola çıkarılmadı";
+      };
+      if (callbacks.length > 1) toast.error(`${callbacks.length} sipariş telefonla teyit beklediği için ${verb(callbacks)}`);
+      else callbacks.forEach((c) => toast.error(`${orderCode(c.id)} telefonla teyit beklediği için ${verb([c])}`));
       conflicts = [];
       fails = [];
+      callbacks = [];
     };
     const later = () => { if (!timer) timer = setTimeout(flush, NOTICE_MS); };
     return {
       conflict: (id, status) => { conflicts.push({ id, status }); later(); },
       fail: (id) => { fails.push(id); later(); },
+      callback: (id, to) => { callbacks.push({ id, to }); later(); },
     };
   })();
+
+  /** Ekranın geri alma bildirimine eklediği metin ve düğmeler (kurye: "Kurye: Ali · Değiştir · WhatsApp") */
+  const setUndoExtras = (fn) => { undoExtras = typeof fn === "function" ? fn : null; };
 
   /** Tek birleşik geri alma bildirimi (sabit kimlik, yerinde güncellenir) */
   const syncBatchToast = () => {
@@ -703,8 +783,16 @@ function createOrdersController({ confirm }) {
       return;
     }
     const current = batch;
-    const message = statusChangeMessage([...current.items].map(([orderId, entry]) => ({ order: { orderId }, to: entry.to })));
-    toast(() => createElement(UndoToast, { message, onUndo: () => { if (batch === current) undoLast(); } }), {
+    const items = [...current.items].map(([orderId, entry]) => ({ orderId, entry }));
+    let extra = null;
+    try {
+      extra = undoExtras?.(items) || null;
+    } catch (error) {
+      console.error("Geri alma bildirimi ekleri hazırlanamadı:", error);
+    }
+    const base = statusChangeMessage(items.map(({ orderId, entry }) => ({ order: { orderId }, to: entry.to })));
+    const message = extra?.suffix ? `${base} · ${extra.suffix}` : base;
+    toast(() => createElement(UndoToast, { message, actions: extra?.actions, onUndo: () => { if (batch === current) undoLast(); } }), {
       id: current.toastId,
       duration: Infinity,
     });
@@ -730,12 +818,35 @@ function createOrdersController({ confirm }) {
   const scheduleBatch = (now) => {
     if (!batch) return;
     clearTimeout(batch.timer);
+    if (holds) return; // pencere bekletiliyor (bırakılınca yeniden kurulur)
     const delay = Math.max(0, Math.min(UNDO_MS, batch.openedAt + UNDO_MAX_MS - now));
     batch.timer = setTimeout(fireBatch, delay);
   };
+  /**
+   * Geri alma penceresini bekletir (ör. "Değiştir" ile kurye seçilirken kayıt gitmesin). Dönen fonksiyon bırakır;
+   * bırakılınca bekleyen değişiklikler yeni bir tam geri alma süresi alır. Açık pencere yoksa etkisizdir.
+   */
+  const holdUndo = () => {
+    if (!batch) return () => {};
+    holds += 1;
+    clearTimeout(batch.timer);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      holds = Math.max(0, holds - 1);
+      if (holds || !batch) return;
+      const now = Date.now();
+      for (const entry of batch.items.values()) entry.at = now;
+      batch.openedAt = now;
+      scheduleBatch(now);
+      syncBatchToast();
+      emit(true);
+    };
+  };
   const fireBatch = () => {
     const current = batch;
-    if (!current) return;
+    if (!current || holds) return;
     const now = Date.now();
     const due = [];
     let earliest = Infinity;
@@ -762,9 +873,10 @@ function createOrdersController({ confirm }) {
     emit(true);
   };
 
-  const sendStatus = async (ids, to, expected, mode) => {
+  /** force: teyit bekleyen siparişi "yine de" taşı (sunucu işlem kaydına "teyitsiz yola çıkarıldı" yazar) */
+  const sendStatus = async (ids, to, expected, mode, force = false) => {
     const keepalive = mode !== "normal";
-    const extra = expected ? { status: to, expectedStatus: expected } : { status: to };
+    const extra = { status: to, ...(expected ? { expectedStatus: expected } : {}), ...(force ? { force: true } : {}) };
     if (ids.length === 1) {
       const [id] = ids;
       try {
@@ -772,28 +884,61 @@ function createOrdersController({ confirm }) {
         return res?.data?.unchanged ? { unchanged: [id] } : { ok: [id] };
       } catch (error) {
         const code = error?.response?.status;
+        if (code === 409 && error.response.data?.code === CALLBACK_REQUIRED) return { callback: [id] };
         if (code === 409) return { conflicts: [{ id, status: error.response.data?.status }] };
         if (code === 404) return { missing: [id] };
         return { failed: [id] };
       }
     }
-    try {
-      const res = await http("put", "/orders-analytics/bulk-status", { orderIds: ids, ...extra }, keepalive);
-      const skipped = new Map((Array.isArray(res?.data?.skipped) ? res.data.skipped : []).map((s) => [String(s?.orderId), s]));
-      const out = { ok: [], unchanged: [], conflicts: [], missing: [] };
+    const fromBulk = (data) => {
+      const skipped = new Map((Array.isArray(data?.skipped) ? data.skipped : []).map((s) => [String(s?.orderId), s]));
+      const out = { ok: [], unchanged: [], conflicts: [], missing: [], callback: [] };
       for (const id of ids) {
         const skip = skipped.get(id);
         if (!skip) out.ok.push(id);
         else if (skip.reason === "missing") out.missing.push(id);
         else if (skip.reason === "unchanged") out.unchanged.push(id);
+        else if (skip.reason === "callback") out.callback.push(id);
         else out.conflicts.push({ id, status: skip.status });
       }
       return out;
+    };
+    try {
+      const res = await http("put", "/orders-analytics/bulk-status", { orderIds: ids, ...extra }, keepalive);
+      return fromBulk(res?.data);
     } catch (error) {
+      // Hiçbiri taşınamadı ve en az biri teyit beklediği için: 409 gövdesi atlananları taşır
+      if (error?.response?.status === 409 && error.response.data?.code === CALLBACK_REQUIRED) return fromBulk(error.response.data);
       // Yeni sunucu: hepsi yok → 404; eski sunucu: biri yoksa 404. İkisinde de ?ids ile uzlaştırılır.
       if (error?.response?.status === 404) return { reconcile: ids };
       return { failed: ids };
     }
+  };
+
+  /**
+   * Kuryeyle yola çıkarmada kurye ataması (durum isteğinden önce, aynı kuyruk görevinde). Başarıda taban veri güncellenir;
+   * hata durumu engellemez (sipariş kuryesiz yola çıkar, bildirim gösterilir).
+   */
+  const sendCouriers = async (live, mode) => {
+    const byCourier = new Map();
+    for (const item of live) {
+      const courier = item.e.courier;
+      if (!courier?.id) continue;
+      if (!byCourier.has(courier.id)) byCourier.set(courier.id, { courier, ids: [] });
+      byCourier.get(courier.id).ids.push(item.id);
+    }
+    await Promise.all([...byCourier.values()].map(async ({ courier, ids }) => {
+      try {
+        await http("put", "/orders-analytics/assign-courier", { orderIds: ids, courierId: courier.id }, mode !== "normal");
+        const value = { id: String(courier.id), name: courier.name };
+        ids.forEach((id) => {
+          patchBase(id, (raw) => ({ ...raw, courier: value }));
+          guard.set(id, reqSeq);
+        });
+      } catch (error) {
+        toast.error(errorMessage(error, `${courier.name || "Kurye"} atanamadı`));
+      }
+    }));
   };
 
   const settleStatus = (live, result) => {
@@ -826,6 +971,11 @@ function createOrdersController({ confirm }) {
       dropEntry(id, entries.get(id), true);
       notices.fail(id);
     }
+    for (const id of result.callback || []) {
+      notices.callback(id, entries.get(id)?.to);
+      dropEntry(id, entries.get(id), true);
+      refetch.push(id);
+    }
     (result.missing || []).forEach((id) => removeLocal(id));
     if (result.reconcile?.length) {
       result.reconcile.forEach((id) => dropEntry(id, entries.get(id), true));
@@ -836,13 +986,16 @@ function createOrdersController({ confirm }) {
     emit(true);
   };
 
-  /** Aynı hedef + beklenen durum grupları; tek sipariş update-status, birden çok bulk-status (≤100) */
+  /**
+   * Aynı hedef + beklenen durum + force grupları; tek sipariş update-status, birden çok bulk-status (≤100).
+   * Kuryeyle yola çıkarmada kurye ataması durumdan önce gider (sayfa kapanırken ikisi birlikte, beklemeden).
+   */
   const commitEntries = (items, mode) => {
     const groups = new Map();
     for (const item of items) {
       if (item.e.cancelled) continue;
       item.e.state = "committing";
-      const key = `${item.e.to}\u0000${item.e.expected ?? ""}`;
+      const key = `${item.e.to}\u0000${item.e.expected ?? ""}\u0000${item.e.force ? 1 : 0}`;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(item);
     }
@@ -852,7 +1005,14 @@ function createOrdersController({ confirm }) {
         const task = async () => {
           const live = part.filter((item) => !item.e.cancelled && stacks.get(item.id)?.includes(item.e));
           if (!live.length) return;
-          const result = await sendStatus(live.map((item) => item.id), live[0].e.to, live[0].e.expected, mode);
+          const send = () => sendStatus(live.map((item) => item.id), live[0].e.to, live[0].e.expected, mode, live[0].e.force === true);
+          let result;
+          if (mode === "normal") {
+            await sendCouriers(live, mode);
+            result = await send();
+          } else {
+            [, result] = await Promise.all([sendCouriers(live, mode), send()]);
+          }
           settleStatus(live, result);
         };
         Promise.resolve(schedule(ids, task, mode)).catch(() => {});
@@ -927,7 +1087,8 @@ function createOrdersController({ confirm }) {
     return { changing, reverts };
   };
 
-  const applyStatus = (changing, to, reverts) => {
+  /** meta: Map<orderId, { force?, courier?, courierSet? }> (yola çıkarma akışından) */
+  const applyStatus = (changing, to, reverts, meta) => {
     const now = Date.now();
     reverts.forEach(undoOne);
     const windowMs = toMs(windowStart);
@@ -937,7 +1098,12 @@ function createOrdersController({ confirm }) {
       const raw = base.orders.get(id);
       if (raw && !(toMs(raw.createdAt) < windowMs && !isActiveStatus(raw.status))) keepInWindow.add(id);
       const from = currentStatus(id);
-      const entry = { token: ++tokenSeq, from, to, expected: from, at: now, state: "pending", cancelled: false };
+      const extra = meta?.get?.(id) || null;
+      const courier = to === ROAD ? courierValue(extra?.courier) : null;
+      const entry = {
+        token: ++tokenSeq, from, to, expected: from, at: now, state: "pending", cancelled: false,
+        force: extra?.force === true, courier, courierSet: to === ROAD && extra?.courierSet === true,
+      };
       const stack = stacks.get(id) || [];
       stack.push(entry);
       stacks.set(id, stack);
@@ -951,20 +1117,44 @@ function createOrdersController({ confirm }) {
   /**
    * C5: onaylar geçince kaplama EŞZAMANLI uygulanır (onay yoksa hiç await'ten önce; sürükle-bırak geri
    * zıplamaz) ve true döner — sunucu kaydı beklenmez. Hiçbir şey değişmediyse / onay iptalse false.
+   * opts.meta: sipariş başına force / kurye (yola çıkarma akışı); opts.bulkConfirmed: ileri yöndeki toplu işlem başka
+   * bir pencerede onaylandı ("10'dan fazla" onayı sorulmaz; iptal / geri yön onayı her zaman sorulur).
    */
-  const changeStatus = async (target, to) => {
+  const changeStatus = async (target, to, opts = {}) => {
     if (!ORDER_STATUSES.includes(to)) return false;
     let { changing, reverts } = resolveTargets(target, to);
     if (!changing.length && !reverts.length) return false;
-    const spec = changing.length ? buildStatusConfirm(changing, to) : null;
+    const confirmOpts = { bulkConfirmed: opts?.bulkConfirmed === true };
+    const spec = changing.length ? buildStatusConfirm(changing, to, confirmOpts) : null;
     if (spec) {
       const ok = await confirmSafe(confirm, spec);
       if (!ok) return false;
       ({ changing, reverts } = resolveTargets(target, to)); // onay beklerken değişmiş olabilir
       if (!changing.length && !reverts.length) return false;
     }
-    applyStatus(changing, to, reverts);
+    applyStatus(changing, to, reverts, opts?.meta);
     return true;
+  };
+
+  /**
+   * Bekleyen (geri alınabilir) yola çıkarmalarda bu eylemde seçilen kuryeyi değiştirir (courier null → kuryesiz).
+   * Yalnızca courierSet kayıtları değişir; değişen kayıt sayısını döner.
+   */
+  const setPendingCourier = (ids, courier) => {
+    if (!batch) return 0;
+    const value = courierValue(courier);
+    let changed = 0;
+    for (const id of ids || []) {
+      const entry = batch.items.get(idOf(id));
+      if (!entry || entry.to !== ROAD || !entry.courierSet) continue;
+      entry.courier = value;
+      changed += 1;
+    }
+    if (changed) {
+      syncBatchToast();
+      emit(true);
+    }
+    return changed;
   };
   const advance = (order) => {
     const next = nextAction(currentStatus(idOf(order)) ?? order?.status);
@@ -1036,7 +1226,7 @@ function createOrdersController({ confirm }) {
   const updateQuantity = (order, lk, qty) => {
     const id = idOf(order);
     const value = Math.round(Number(qty));
-    if (!Number.isFinite(value) || removedOrders.has(id) || removedLines.get(id)?.has(lk)) return;
+    if (!Number.isFinite(value) || removedOrders.has(id) || removedLines.get(id)?.has(lk) || replacedLines.get(id)?.has(lk)) return;
     const line = lineAt(id, lk);
     if (!line) return;
     const next = Math.min(999, Math.max(1, value));
@@ -1101,7 +1291,7 @@ function createOrdersController({ confirm }) {
   };
   const removeItem = (order, lk) => {
     const id = idOf(order);
-    if (removedOrders.has(id) || removedLines.get(id)?.has(lk)) return;
+    if (removedOrders.has(id) || removedLines.get(id)?.has(lk) || replacedLines.get(id)?.has(lk)) return;
     const line = lineAt(id, lk);
     if (!line) return;
     const removed = removedLines.get(id);
@@ -1125,6 +1315,166 @@ function createOrdersController({ confirm }) {
     });
     entry.timer = setTimeout(() => commitRemove(id, lk), UNDO_MS);
     emit(true);
+  };
+
+  // ── Eksik ürünü muadille değiştirme (tek istek, tek "Geri al") ──
+  /**
+   * Günlüğe "yerine" kaydı. Muadil de yoksa ve satır yeniden değiştirilirse (aynı satır ya da kayıttan sonra yeni
+   * kimlikle gelen satır) zincir tek kayıtta kalır: müşterinin asıl istediği ürün ve toplam fark korunur
+   * ("Kakaolu Süt kalmamıştı, yerine Y koyduk"); asıl ürüne geri dönülürse kayıt düşer. Önceki kayıt döner (geri alma için).
+   */
+  const logReplaced = (id, lk, entry, amount) => {
+    let prior = null;
+    setLog(id, (list) => {
+      prior = list.find((c) => c.type === "replaced"
+        && (c.lineKey === lk || (entry.oldProductId && String(c.newProductId) === String(entry.oldProductId)))) || null;
+      const rest = prior ? list.filter((c) => c !== prior) : list;
+      const fromProduct = prior ? prior.productId : entry.oldProductId;
+      if (fromProduct && String(fromProduct) === String(entry.product._id)) return rest;
+      return [...rest, {
+        type: "replaced", name: entry.product.name, from: prior ? prior.from : entry.oldName, qty: entry.qty,
+        amount: round2((prior ? Number(prior.amount) || 0 : 0) + amount),
+        productId: fromProduct, newProductId: entry.product._id, lineKey: lk, at: Date.now(),
+      }];
+    });
+    return prior;
+  };
+  /** Kaydı geri alır; bu değişiklikten önceki zincir kaydı (prior) varsa yerine konur */
+  const unlogReplaced = (id, lk, prior = null) => setLog(id, (list) => {
+    const rest = list.filter((c) => !(c.type === "replaced" && c.lineKey === lk));
+    if (prior && !rest.includes(prior)) return [...rest, prior];
+    return rest.length === list.length ? list : rest;
+  });
+  const dropReplace = (id, lk) => {
+    const map = replacedLines.get(id);
+    if (!map) return;
+    map.delete(lk);
+    if (!map.size) replacedLines.delete(id);
+  };
+  /**
+   * Sunucunun kaydettiği fiyat farkı panelin tahmininden farklıysa (katalog panelde eski kalmış olabilir: haftalık fırsat
+   * bitmiş, indirim değişmiş) günlükteki "yerine" kaydı düzeltilir; müşteriye giden "(+₺…)" kaydedilen tutarı söyler.
+   */
+  const correctReplacedAmount = (id, lk, delta) => setLog(id, (list) => {
+    let changed = false;
+    const next = list.map((c) => {
+      if (c.type !== "replaced" || c.lineKey !== lk) return c;
+      changed = true;
+      return { ...c, amount: round2((Number(c.amount) || 0) + delta) };
+    });
+    return changed ? next : list;
+  });
+  const commitReplace = (id, lk, mode = "normal") => {
+    const entry = replacedLines.get(id)?.get(lk);
+    if (!entry || entry.committing) return;
+    entry.committing = true;
+    clearTimeout(entry.timer);
+    dropToast(entry.toastId);
+    let ok = false;
+    let serverDiff = null; // sunucunun kuruş hassasiyetindeki fiyat farkı (adet × birim fark)
+    const task = async () => {
+      const line = lineAt(id, lk);
+      if (!line) {
+        unlogReplaced(id, lk, entry.prior);
+        toast.error("Ürün satırı bu arada değişmiş; muadil eklenmedi");
+        return;
+      }
+      try {
+        const res = await http("put", "/orders-analytics/replace-item", { orderId: id, ...lineRef(line), productId: entry.product._id }, mode !== "normal");
+        ok = true;
+        const diff = Number(res?.data?.priceDifference);
+        if (res?.data?.priceDifference !== null && res?.data?.priceDifference !== undefined && Number.isFinite(diff)) serverDiff = diff;
+      } catch (error) {
+        unlogReplaced(id, lk, entry.prior);
+        toast.error(errorMessage(error, "Muadil eklenemedi"));
+      }
+    };
+    Promise.resolve(schedule([id], task, mode)).catch(() => {}).finally(() => {
+      // Başarıda değişiklik tabana yazılır (tazeleme gelene kadar eski satır geri görünmez), sonra sunucudan tazelenir.
+      // Birim fiyat ve günlükteki fark sunucunun kaydettiği farka göre (tahminden farklıysa) düzeltilir.
+      let saved = entry;
+      if (ok && serverDiff !== null && kurus(serverDiff) !== kurus(entry.estimate)) {
+        const unitKurus = kurus(entry.oldPrice) + Math.round(kurus(serverDiff) / entry.qty);
+        saved = { ...entry, price: Math.max(0, unitKurus) / 100 };
+        correctReplacedAmount(id, lk, (kurus(serverDiff) - kurus(entry.estimate)) / 100);
+      }
+      if (ok) patchBase(id, (order) => withReplacements(order, new Map([[lk, saved]]), { pending: false }));
+      dropReplace(id, lk);
+      emit(true);
+      unlock(id).catch(() => {});
+      if (ok && entry.markOut && entry.oldProductId && mode === "normal") markOutOfStock(entry.oldProductId);
+    });
+  };
+  const undoReplace = (id, lk) => {
+    const entry = replacedLines.get(id)?.get(lk);
+    if (!entry || entry.committing) return;
+    clearTimeout(entry.timer);
+    dropToast(entry.toastId);
+    dropReplace(id, lk);
+    unlogReplaced(id, lk, entry.prior);
+    unlock(id, { refetch: false });
+    emit(true);
+  };
+  /**
+   * Hazırlanıyor siparişindeki satırı katalogdaki muadille değiştirir: aynı adet, ödeme adımındaki birim fiyat.
+   * Hemen görünür; UNDO_MS sonra tek istekle (replace-item) kaydedilir, o süre içinde "Geri al" hiç istek göndermez.
+   * markOut: kayıttan sonra eksik ürün "tükendi" işaretlenir. Uygulanınca true.
+   */
+  const replaceItem = (order, lk, product, { markOut = false } = {}) => {
+    const id = idOf(order);
+    if (!product?._id || !base.orders.has(id) || removedOrders.has(id)) return false;
+    if (removedLines.get(id)?.has(lk) || replacedLines.get(id)?.has(lk)) return false;
+    const line = lineAt(id, lk);
+    if (!line) return false;
+    if (currentStatus(id) !== "Hazırlanıyor") {
+      toast.error("Muadil yalnızca hazırlanan siparişte seçilebilir");
+      return false;
+    }
+    if (!line.product?.lineId) {
+      toast.error("Bu eski siparişte satır değiştirilemiyor; ürünü çıkarıp muadilini ekleyin");
+      return false;
+    }
+    if (line.product.isManual) {
+      toast.error("Elle eklenen tutar satırı muadille değiştirilemez");
+      return false;
+    }
+    // Muadil başka bir ürün olmalı (sunucu da reddeder): aynı ürün yalnızca satırı yeniden fiyatlardı
+    if (String(line.product.productId || "") === String(product._id)) {
+      toast.error("Muadil olarak aynı ürün seçildi");
+      return false;
+    }
+    const price = unitPrice(product);
+    const key = `${id}|${lk}`;
+    if (qtySessions.has(key)) commitQty(key);
+    lock(id);
+    const fresh = lineAt(id, lk) || line;
+    const qty = Math.max(1, Number(fresh.product.quantity) || 1);
+    const entry = {
+      product: { _id: String(product._id), name: String(product.name || "Ürün"), image: product.image || null },
+      price,
+      listPrice: Number(product.price) || price,
+      qty,
+      oldName: fresh.product.name || "Ürün",
+      oldProductId: fresh.product.productId ? String(fresh.product.productId) : null,
+      oldPrice: Number(fresh.product.price) || 0,
+      // Panelin tahmini fark (adet × birim fark); kayıttan sonra sunucunun farkıyla karşılaştırılır
+      estimate: ((kurus(price) - kurus(fresh.product.price)) * qty) / 100,
+      markOut: Boolean(markOut),
+      toastId: `orders-replace-${++uid}`,
+      timer: null,
+      committing: false,
+      prior: null,
+    };
+    entry.prior = logReplaced(id, lk, entry, entry.estimate);
+    if (!replacedLines.has(id)) replacedLines.set(id, new Map());
+    replacedLines.get(id).set(lk, entry);
+    toast(() => createElement(UndoToast, { message: `${entry.oldName} yerine ${entry.product.name}`, onUndo: () => undoReplace(id, lk) }), {
+      id: entry.toastId,
+      duration: Infinity,
+    });
+    entry.timer = setTimeout(() => commitReplace(id, lk), UNDO_MS);
+    emit(true);
+    return true;
   };
 
   const addProduct = async (order, product, qty) => {
@@ -1203,11 +1553,24 @@ function createOrdersController({ confirm }) {
     return ok;
   };
 
-  /** courier: { _id, name } ya da null (atamayı kaldır) */
+  /**
+   * courier: { _id, name } ya da null (atamayı kaldır). Elle yapılan atama, aynı siparişin geri alma penceresindeki
+   * "kuryeyle yola çıkar" seçiminin önüne geçer: bekleyen kayıt artık kurye göndermez (yoksa 5 sn sonra eski seçim
+   * sunucuda bu atamanın üzerine yazılırdı).
+   */
   const assignCourier = async (orders, courier) => {
     const ids = [...new Set((Array.isArray(orders) ? orders : [orders]).map(idOf))]
       .filter((id) => base.orders.has(id) && !removedOrders.has(id));
     if (!ids.length) return false;
+    let detached = false;
+    for (const id of ids) {
+      const entry = pendingEntry(id);
+      if (!entry?.courierSet) continue;
+      entry.courierSet = false;
+      entry.courier = null;
+      detached = true;
+    }
+    if (detached) syncBatchToast();
     ids.forEach(lock);
     let ok = false;
     try {
@@ -1354,6 +1717,8 @@ function createOrdersController({ confirm }) {
   // ── Bekleyen her şeyi gönder (ekrandan ayrılma / sayfa kapanışı) ──
   const flushAll = (mode) => {
     for (const key of [...qtySessions.keys()]) commitQty(key, mode);
+    // Muadil yalnızca Hazırlanıyor siparişte kaydedilir: durum değişikliğinden ÖNCE kuyruğa girer
+    for (const [id, map] of [...replacedLines]) for (const lk of [...map.keys()]) commitReplace(id, lk, mode);
     commitBatch(mode);
     for (const [id, map] of [...removedLines]) for (const lk of [...map.keys()]) commitRemove(id, lk, mode);
     for (const id of [...removedOrders.keys()]) commitDelete(id, mode);
@@ -1457,8 +1822,9 @@ function createOrdersController({ confirm }) {
     subscribe, getSnapshot, mount, connectSocket, poll,
     refresh, loadOlder, fetchByIds: (ids) => fetchByIds(ids), searchServer,
     changeStatus, advance, advanceMany, undo, undoLast,
-    updateQuantity, removeItem, addProduct, addCustomItem, saveTracking, deleteOrder, markOutOfStock,
+    updateQuantity, removeItem, replaceItem, addProduct, addCustomItem, saveTracking, deleteOrder, markOutOfStock,
     dismissChanges, confirmCallback, assignCourier, markDeliveryFailed,
+    setUndoExtras, refreshUndoToast: syncBatchToast, holdUndo, setPendingCourier,
   };
 }
 
@@ -1552,6 +1918,7 @@ export default function useOrdersData({ accessToken } = {}) {
     hasPending: snap.hasPending,
     updateQuantity: ctl.updateQuantity,
     removeItem: ctl.removeItem,
+    replaceItem: ctl.replaceItem,
     addProduct: ctl.addProduct,
     addCustomItem: ctl.addCustomItem,
     saveTracking: ctl.saveTracking,
@@ -1562,6 +1929,10 @@ export default function useOrdersData({ accessToken } = {}) {
     markOutOfStock: ctl.markOutOfStock,
     changeLog: snap.changeLog,
     dismissChanges: ctl.dismissChanges,
+    setUndoExtras: ctl.setUndoExtras,
+    refreshUndoToast: ctl.refreshUndoToast,
+    holdUndo: ctl.holdUndo,
+    setPendingCourier: ctl.setPendingCourier,
     preparingCount: snap.preparing,
     products,
     productsLoading: catalog.loading && products.length === 0,

@@ -15,6 +15,7 @@ import {
   removeItemFromOrder,
   updateItemQuantity,
   addProductToOrder,
+  replaceOrderItem,
   toggleManualFlag,
   getDashboardSummary,
   confirmCallback,
@@ -200,6 +201,9 @@ router.put("/update-item-quantity", protectRoute, adminRoute, updateItemQuantity
 
 // Siparişe katalog ürünü ekleme endpoint'i
 router.put("/add-product", protectRoute, adminRoute, addProductToOrder);
+
+// Eksik ürünü muadille değiştirme (tek kayıt: satır çıkar + muadil aynı adetle eklenir; işlem kaydı denetleyicide)
+router.put("/replace-item", protectRoute, adminRoute, replaceOrderItem);
 
 // Ürünün manuel işaretini değiştirme endpoint'i
 router.put("/toggle-manual", protectRoute, adminRoute, toggleManualFlag);

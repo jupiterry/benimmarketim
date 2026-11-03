@@ -4,6 +4,10 @@ import User from "../models/user.model.js";
 import Order from "../models/order.model.js";
 import Referral from "../models/referral.model.js";
 import AdminAudit from "../models/adminAudit.model.js";
+import Chat from "../models/chat.model.js";
+import SupportRequest from "../models/supportRequest.model.js";
+import Feedback from "../models/feedback.model.js";
+import Coupon from "../models/coupon.model.js";
 import { buildCustomerProfile, getCustomerProfile, updateUserRole } from "../controllers/user.controller.js";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -113,8 +117,18 @@ test("buildCustomerProfile: referral info names the inviter and the people this 
   assert.equal(referral.own.invited[0].status, "rewarded");
 });
 
+// Zaman çizelgesinin diğer kaynakları (sohbet, destek, geri bildirim, kupon) boş döner
+const mockEmptyTimeline = (t) => {
+  const empty = () => {
+    const chain = { select: () => chain, sort: () => chain, limit: () => chain, populate: () => chain, lean: async () => [] };
+    return chain;
+  };
+  for (const Model of [Chat, SupportRequest, Feedback, Coupon]) t.mock.method(Model, "find", empty);
+};
+
 test("GET /users/:id/profile: queries only this customer's orders and both referral directions", async (t) => {
   const filters = [];
+  mockEmptyTimeline(t);
   t.mock.method(User, "findById", () => ({ select: () => ({ lean: async () => customer() }) }));
   t.mock.method(Order, "find", (filter) => {
     filters.push(filter);
@@ -139,6 +153,14 @@ test("GET /users/:id/profile: queries only this customer's orders and both refer
   assert.equal(res.body.profile.referral.invitedBy.name, "Mehmet Demir");
   assert.equal(res.body.profile.referral.own.code, "REFOWN");
   assert.ok(res.body.serverTime);
+  // Zaman çizelgesi ve iç not alanları eklenir (mevcut alanlar değişmez)
+  // Teslim zamanı kaydı olmayan eski siparişte teslim, sipariş anına düşer ve aynı anda "verdi"nin üstünde durur
+  assert.deepEqual(res.body.profile.timeline.map((event) => event.type), ["order_delivered", "order_placed", "order_delivered", "order_placed"]);
+  assert.equal(res.body.profile.timelineHasMore, false);
+  assert.deepEqual(res.body.profile.openIssues, []);
+  assert.equal(res.body.profile.staffNote, null);
+  assert.deepEqual(res.body.profile.staffFlags, []);
+  assert.equal(res.body.profile.deliveryFailures.total, 0);
 });
 
 test("GET /users/:id/profile: invalid id → 400, unknown user → 404", async (t) => {

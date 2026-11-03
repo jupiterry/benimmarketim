@@ -984,3 +984,111 @@
     justify-content: center;
   }
 }
+
+/* ══ p7: toplama listesinde iptal edilen sipariş ve aynı müşteri grubu ═════════════════════════════════════ */
+.admin-layout .so-t-cancelled {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s2);
+}
+.admin-layout .so-t-cancel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 45%, var(--ui-line));
+  border-left: 3px solid var(--ui-danger);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+}
+.admin-layout .so-t-cancel-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-s2);
+}
+.admin-layout .so-t-cancel-head > svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.admin-layout .so-t-cancel-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  font-size: var(--ui-fs-sm);
+  overflow-wrap: anywhere;
+}
+.admin-layout .so-t-cancel-ok {
+  flex-shrink: 0;
+}
+.admin-layout .so-t-cancel-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0 0 0 26px;
+  list-style: none;
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .so-t-cancel-lines > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--ui-s2);
+  overflow-wrap: anywhere;
+}
+.admin-layout .so-t-cancel-lines s {
+  text-decoration-thickness: 2px;
+}
+.admin-layout .so-t-cancel-lines > li[data-picked="true"] s {
+  font-weight: 650;
+}
+.admin-layout .so-t-cancel-picked {
+  padding: 0 6px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  color: var(--ui-danger-ink);
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+}
+
+/* Aynı müşterinin bir noktadaki siparişleri: birleşik tutar satırı + girintili satırlar */
+.admin-layout .so-t-point-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px var(--ui-s2);
+  padding: 6px 12px;
+  border-top: 1px solid var(--ui-line);
+  background: var(--ui-info-bg);
+  color: var(--ui-info-ink);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+}
+.admin-layout .so-t-point-list > .so-t-point-group:first-child {
+  border-top: 0;
+}
+.admin-layout .so-t-point-group > svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+.admin-layout .so-t-point-group-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.admin-layout .so-t-point-group + .so-t-point-row {
+  border-top: 0;
+}
+.admin-layout .so-t-point-row[data-grouped="true"] {
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--ui-info) 45%, transparent);
+}
+@media (max-width: 760px) {
+  .admin-layout .so-t-cancel-ok {
+    min-height: 40px;
+  }
+}

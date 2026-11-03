@@ -662,3 +662,14 @@
     background: var(--ui-surface);
   }
 }
+
+/* ── Kuryeyle yola çıkar ve teyit adımı (dar eylem sütunu) ───────── */
+/* Bölünmüş düğmenin ok kısmı alt satıra düşmez; uzun kurye adı üç noktayla kısalır */
+.admin-layout .so-l-act > .so-next-wrap[data-split="true"] {
+  flex-wrap: nowrap;
+}
+/* "Önce ara" ve "Teyit edildi" sığmazsa alt alta, sütun genişliğinde */
+.admin-layout .so-l-act > .so-cb-step > .so-next,
+.admin-layout .so-l-act > .so-cb-step > .so-next-alt {
+  flex: 1 1 auto;
+}

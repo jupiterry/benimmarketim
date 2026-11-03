@@ -22,6 +22,7 @@ import {
   ScanLine,
   Radar,
   UserX,
+  Megaphone,
   MapPin,
 } from "lucide-react";
 
@@ -54,6 +55,7 @@ export const adminMenuGroups = [
     id: "marketing",
     title: "Kampanya ve vitrin",
     items: [
+      { id: "campaigns", short: "Kampanya merkezi", label: "Kampanya merkezi", icon: Megaphone, keywords: "kampanya takvim yayında planlı flaş haftalık kupon getiri ciro indirim maliyet" },
       { id: "weekly-products", short: "Haftalık fırsatlar", label: "Haftalık fırsatlar", icon: CalendarDays, keywords: "fırsat kampanya" },
       { id: "coupons", short: "Kuponlar", label: "Kuponlar", icon: Tag, keywords: "indirim kodu görev" },
       { id: "banners", short: "Vitrin görselleri", label: "Vitrin görselleri", icon: Image, keywords: "banner afiş slider" },

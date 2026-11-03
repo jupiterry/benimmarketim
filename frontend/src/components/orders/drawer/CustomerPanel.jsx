@@ -5,6 +5,8 @@
 import { useId } from "react";
 import { ArrowUpRight, UserRound, UserX } from "lucide-react";
 import { formatDate, money, timeAgo } from "../../admin/ui";
+import { staffFlagsOf } from "../../../lib/staffFlags";
+import { StaffFlagChips } from "../atoms";
 import { MINUTE, isDeletedCustomer, orderCode, orderCodeTitle, shortWhen, statusUi } from "../shared";
 
 const OTHERS_MAX = 4;
@@ -14,6 +16,7 @@ export default function CustomerPanel({ order, customer, now, onOpenOrder, onOpe
   if (!order || !customer) return null;
   const deleted = isDeletedCustomer(order);
   const canOpenProfile = !deleted && Boolean(order.user?.id) && typeof onOpenProfile === "function";
+  const flags = deleted ? [] : staffFlagsOf(order.user?.staffFlags);
   const lifetime = customer.source === "stats";
   const others = customer.others || [];
   const shown = others.slice(0, OTHERS_MAX);
@@ -71,6 +74,14 @@ export default function CustomerPanel({ order, customer, now, onOpenOrder, onOpe
           {hint && <span>{hint}</span>}
           {!lifetime && <span className="so-d-cust-scope">Daha eski siparişler hesaba katılmadı.</span>}
         </p>
+      )}
+
+      {flags.length > 0 && (
+        <div className="so-d-cust-staff">
+          <p className="so-d-sub">Personel işaretleri</p>
+          <div className="so-d-cust-flags"><StaffFlagChips order={order} full /></div>
+          {canOpenProfile && <p className="ui-hint">İşaretleri ve iç notu müşteri profilinden düzenleyebilirsiniz.</p>}
+        </div>
       )}
 
       {shown.length > 0 && (

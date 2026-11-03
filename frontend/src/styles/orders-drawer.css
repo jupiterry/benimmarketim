@@ -1475,3 +1475,158 @@
     transition: none !important;
   }
 }
+
+/* ══ p7: satır menüsü, muadil, iç not, hazır mesaj ═══════════════════════════════════════════════════════ */
+.admin-layout .so-d-line-menu.ui-icon-btn {
+  flex-shrink: 0;
+}
+.admin-layout .so-d-line[data-replacing="true"] {
+  background: color-mix(in srgb, var(--ui-info-bg) 55%, var(--ui-surface));
+}
+.admin-layout .so-d-replacing {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-layout .so-d-replacing > svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+/* Muadil görünümü (AddItemPanel sınıflarını da kullanır) */
+.admin-layout .so-d-sub-missing {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-s3);
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--ui-warn) 35%, var(--ui-line));
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+.admin-layout .so-d-sub-missing > svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.admin-layout .so-d-sub-missing p {
+  margin: 0;
+}
+.admin-layout .so-d-sub-missing-name {
+  font-size: var(--ui-fs-md);
+  overflow-wrap: anywhere;
+}
+.admin-layout .so-d-sub-missing-meta {
+  margin-top: 2px;
+  font-size: var(--ui-fs-xs);
+  opacity: 0.9;
+}
+.admin-layout .so-d-sub-markout {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-s2);
+  min-height: 40px;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+  cursor: pointer;
+}
+.admin-layout .so-d-sub-markout > input {
+  flex-shrink: 0;
+  margin: 0;
+}
+.admin-layout .so-d-sub-sec {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s2);
+  min-width: 0;
+}
+.admin-layout .so-d-sub-h {
+  margin: 0;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.admin-layout .so-d-sub-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-layout .so-d-sub-opt {
+  width: 100%;
+}
+.admin-layout .so-d-sub-diff {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.admin-layout .so-d-sub-empty {
+  margin: 0;
+}
+
+/* İç not (personel; yalnızca panel) — müşteri notundan ayrı, bilgi tonunda */
+.admin-layout .so-d-staff-note.ui-note {
+  border-color: color-mix(in srgb, var(--ui-info) 35%, var(--ui-line));
+  border-left-color: var(--ui-info);
+  background: var(--ui-info-bg);
+}
+.admin-layout .so-d-staff-note.ui-note > svg,
+.admin-layout .so-d-staff-note .ui-note-label,
+.admin-layout .so-d-staff-note .ui-note-body {
+  color: var(--ui-info-ink);
+}
+.admin-layout .so-d-staff-scope {
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+/* "Sipariş değişti" şeridindeki hazır müşteri mesajı */
+.admin-layout .so-d-msg-preview {
+  display: block;
+  margin-top: 4px;
+  font-size: var(--ui-fs-xs);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  opacity: 0.95;
+}
+
+/* Müşteri bölümündeki personel işaretleri */
+.admin-layout .so-d-cust-staff {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.admin-layout .so-d-cust-staff .ui-hint {
+  margin: 0;
+}
+.admin-layout .so-d-cust-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+.admin-layout .so-d-cust-flags .so-chip.so-staff .so-chip-text {
+  max-width: none;
+}
+
+@media (max-width: 760px), (pointer: coarse) {
+  .admin-layout .so-d-sub .so-d-add-search > .ui-field {
+    min-height: 44px;
+    font-size: 16px; /* iOS odakta yakınlaştırmasın */
+  }
+  .admin-layout .so-d-line-menu.ui-icon-btn {
+    width: 40px;
+    height: 40px;
+  }
+  .admin-layout .so-d-sub-opt {
+    min-height: 64px;
+  }
+}

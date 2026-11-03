@@ -2,6 +2,7 @@ import User from "../models/user.model.js";
 import AdminAudit from "../models/adminAudit.model.js";
 import Order from "../models/order.model.js";
 import { applyOrderStatusChange } from "../services/order.service.js";
+import { CALLBACK_REQUIRED_CODE, callbackBlocksStatusChange } from "./ordersAnalytics.controller.js";
 import {
   ORDER_STATUSES,
   acknowledgeOrder,
@@ -121,10 +122,15 @@ export const todayOrdersHandler = async (req, res) => {
   }
 };
 
+/** Teyit bekleyen siparişi telefondan ilerletme denemesinin yanıt metni (telefon 409 mesajını gösterir) */
+export const ALARM_CALLBACK_MESSAGE =
+  "İlk sipariş henüz telefonla teyit edilmedi. Müşteriyi arayın, panelde “Arandı, teyit edildi” deyin; sonra yola çıkarabilirsiniz.";
+
 /**
  * PUT /api/order-alarm/orders/:orderId/status  { status: "Yolda" | "Teslim Edildi" }
  * Paneldeki durum güncellemesiyle aynı servis ve yan etkiler (müşteri bildirimi, görev ve davet ödülü, canlı panel).
- * Telefondan yalnızca ileri adım atılır; iptal ve geri alma panelde kalır.
+ * Telefondan yalnızca ileri adım atılır; iptal ve geri alma panelde kalır. Teyit bekleyen ilk sipariş telefondan
+ * ilerletilemez (409, code: CALLBACK_REQUIRED); teyit ve "yine de yola çıkar" yalnızca paneldedir.
  */
 export const changeOrderStatusHandler = async (req, res) => {
   try {
@@ -140,6 +146,9 @@ export const changeOrderStatusHandler = async (req, res) => {
     if (previousStatus === status) return res.json({ success: true, order: { id: String(order._id), status } });
     if (!canPhoneChangeStatus(previousStatus, status)) {
       return res.status(409).json({ success: false, status: previousStatus, message: `Sipariş şu an "${previousStatus}". Bu değişiklik yalnızca panelden yapılabilir.` });
+    }
+    if (callbackBlocksStatusChange(order, status)) {
+      return res.status(409).json({ success: false, code: CALLBACK_REQUIRED_CODE, status: previousStatus, message: ALARM_CALLBACK_MESSAGE });
     }
 
     // Paneldeki durum güncellemesiyle aynı servis: müşteri bildirimi, görevler, davet (referral)

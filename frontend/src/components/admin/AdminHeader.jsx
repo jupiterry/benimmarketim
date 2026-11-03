@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   Search,
   Bell,
+  BellOff,
   Menu,
   RefreshCw,
   ArrowUpRight,
@@ -19,8 +20,14 @@ import {
   Moon,
   Wifi,
   WifiOff,
+  Volume2,
+  VolumeX,
+  XCircle,
 } from "lucide-react";
 import { useUserStore } from "../../stores/useUserStore";
+import SoundSettings from "./alerts/SoundSettings";
+import AlarmPhonesChip from "./alerts/AlarmPhonesChip";
+import { SOUND_SETTINGS_EVENT, useAlertPrefs } from "./alerts/alertPrefs";
 
 export default function AdminHeader({
   pageTitle,
@@ -37,22 +44,29 @@ export default function AdminHeader({
   status = { connected: true, orders: 0, chats: 0 },
   theme = "light",
   onToggleTheme,
+  alarm = null,
+  onOpenAlarmPhones,
+  onRefreshAlarm,
 }) {
   const [panel, setPanel] = useState(null);
+  // Zil panelinde ses ayarları açık mı; focusSound: hesap menüsünden gelindiyse ilk alan odaklanır
+  const [soundOpen, setSoundOpen] = useState(false);
+  const [focusSound, setFocusSound] = useState(false);
   const root = useRef(null);
   const notificationButton = useRef(null);
   const accountButton = useRef(null);
+  const alarmButton = useRef(null);
   const { logout } = useUserStore();
+  const prefs = useAlertPrefs();
+  const muted = prefs.muted || prefs.volume <= 0;
   useEffect(() => {
     const outside = (e) => {
       if (!root.current?.contains(e.target)) setPanel(null);
     };
     const key = (e) => {
       if (e.key === "Escape" && panel) {
-        (panel === "notifications"
-          ? notificationButton
-          : accountButton
-        ).current?.focus();
+        const buttons = { notifications: notificationButton, account: accountButton, alarm: alarmButton };
+        buttons[panel]?.current?.focus();
         setPanel(null);
       }
     };
@@ -63,6 +77,28 @@ export default function AdminHeader({
       document.removeEventListener("keydown", key);
     };
   }, [panel]);
+  // Ses ayarlarını açma isteği (uyarı şeridindeki "Ses ayarları"). Başlık sayfayla birlikte kayar: sayfa aşağıdaysa
+  // önce başlık görünür yapılır, yoksa panel ekran dışında açılır (telefonda da üstteki sabit uyarıların altında kalır)
+  useEffect(() => {
+    const open = () => {
+      setSoundOpen(true);
+      setFocusSound(true);
+      setPanel("notifications");
+      const header = root.current;
+      if (header && header.getBoundingClientRect().top < 0) header.scrollIntoView({ block: "start" });
+    };
+    window.addEventListener(SOUND_SETTINGS_EVENT, open);
+    return () => window.removeEventListener(SOUND_SETTINGS_EVENT, open);
+  }, []);
+  const togglePanel = (name) => {
+    setFocusSound(false);
+    setPanel(panel === name ? null : name);
+  };
+  const openSoundSettings = () => {
+    setSoundOpen(true);
+    setFocusSound(true);
+    setPanel("notifications");
+  };
   return (
     <header className="app-top" ref={root}>
       <button
@@ -91,7 +127,24 @@ export default function AdminHeader({
           <button type="button" className="app-status-chip" data-tone={status.chats > 0 ? "info" : ""} onClick={() => onNavigate?.("chat")} title="Okunmamış mesajlar">
             <MessageCircle size={13} /><b>{status.chats}</b><span>mesaj</span>
           </button>
+          {muted && (
+            <button type="button" className="app-status-chip app-mute-chip" data-tone="warn" onClick={openSoundSettings} title="Yeni sipariş sesi kapalı. Açmak için tıklayın." aria-label="Yeni sipariş sesi kapalı, ses ayarlarını aç">
+              <VolumeX size={13} aria-hidden="true" /><span>Ses kapalı</span>
+            </button>
+          )}
         </div>
+        <AlarmPhonesChip
+          alarm={alarm}
+          open={panel === "alarm"}
+          onToggle={() => togglePanel("alarm")}
+          onClose={() => setPanel(null)}
+          onRefresh={() => onRefreshAlarm?.()}
+          onManage={() => {
+            setPanel(null);
+            onOpenAlarmPhones?.();
+          }}
+          buttonRef={alarmButton}
+        />
         <span className="app-top-date">
           <CalendarDays size={14} />
           {new Date().toLocaleDateString("tr-TR", {
@@ -137,40 +190,59 @@ export default function AdminHeader({
           <button
             ref={notificationButton}
             className="app-icon-btn"
-            onClick={() =>
-              setPanel(panel === "notifications" ? null : "notifications")
-            }
-            aria-label={`Bildirimler, ${notifications.length} bildirim`}
+            onClick={() => togglePanel("notifications")}
+            aria-label={`Bildirimler, ${notifications.length} bildirim${muted ? ", yeni sipariş sesi kapalı" : ""}`}
             aria-expanded={panel === "notifications"}
           >
-            <Bell size={17} />
+            {/* Telefonda "Ses kapalı" çipine yer yok: ses kapalıyken zil üstü çizili görünür (CSS) */}
+            <Bell size={17} className={muted ? "app-bell-icon" : undefined} />
+            {muted && <BellOff size={17} className="app-bell-muted" aria-hidden="true" />}
             {notifications.length > 0 && (
               <i className="app-bell-count">{Math.min(99, notifications.length)}</i>
             )}
           </button>
           {panel === "notifications" && (
             <section
-              className="app-pop app-pop--wide"
+              className="app-pop app-pop--wide app-pop--bell"
               aria-label="Bildirimler"
             >
               <div className="app-pop-head">
                 <strong>
                   Bildirimler <span>{notifications.length}</span>
                 </strong>
-                <button
-                  className="app-icon-btn"
-                  aria-label="Bildirimleri kapat"
-                  onClick={() => setPanel(null)}
-                >
-                  <X size={16} />
-                </button>
+                <div className="app-pop-head-actions">
+                  <button
+                    type="button"
+                    className="app-icon-btn app-sound-toggle"
+                    data-active={soundOpen || undefined}
+                    data-muted={muted || undefined}
+                    aria-label="Bildirim sesi ayarları"
+                    aria-expanded={soundOpen}
+                    title="Bildirim sesi ayarları"
+                    onClick={() => {
+                      setFocusSound(false);
+                      setSoundOpen((open) => !open);
+                    }}
+                  >
+                    {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                  </button>
+                  <button
+                    className="app-icon-btn"
+                    aria-label="Bildirimleri kapat"
+                    onClick={() => setPanel(null)}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
               </div>
+              {soundOpen && <SoundSettings autoFocus={focusSound} />}
               <div className="app-pop-list">
                 {notifications.length ? (
                   notifications.map((n, i) => (
                     <button
                       className="app-notice"
                       key={n.id || i}
+                      data-kind={n.kind || "order"}
                       onClick={() => {
                         setPanel(null);
                         onViewNotifications?.(n);
@@ -182,6 +254,8 @@ export default function AdminHeader({
                         <MessageCircle size={15} />
                       ) : n.kind === "app-open" ? (
                         <Smartphone size={15} />
+                      ) : n.kind === "cancel" ? (
+                        <XCircle size={15} />
                       ) : (
                         <ShoppingBag size={15} />
                       )}
@@ -196,6 +270,11 @@ export default function AdminHeader({
                           <small>
                             {n.kind === "support" ? "Destek talebi" : "Yeni mesaj"} · {String(n.detail || "").slice(0, 60)}
                           </small>
+                        </span>
+                      ) : n.kind === "cancel" ? (
+                        <span>
+                          <strong>{n.title || "Müşteri siparişi iptal etti"}</strong>
+                          <small className="app-notice-detail">{String(n.detail || "").slice(0, 160)}</small>
                         </span>
                       ) : (
                       <span>
@@ -221,7 +300,7 @@ export default function AdminHeader({
                 ) : (
                   <div className="app-pop-empty">
                     <strong>Her şey güncel</strong>
-                    <p>Yeni sipariş, destek talebi ve mesajlar burada görünecek.</p>
+                    <p>Yeni sipariş, iptal, destek talebi ve mesajlar burada görünecek.</p>
                   </div>
                 )}
               </div>
@@ -247,7 +326,7 @@ export default function AdminHeader({
           <button
             ref={accountButton}
             className="app-profile"
-            onClick={() => setPanel(panel === "account" ? null : "account")}
+            onClick={() => togglePanel("account")}
             aria-label="Hesap menüsü"
             aria-expanded={panel === "account"}
           >
@@ -272,6 +351,10 @@ export default function AdminHeader({
                 }}
               >
                 <Settings size={15} /> Mağaza ayarları
+              </button>
+              <button onClick={openSoundSettings}>
+                {muted ? <VolumeX size={15} /> : <Volume2 size={15} />} Bildirim sesi
+                <small className="app-pop-menu-hint">{muted ? "Kapalı" : "Açık"}</small>
               </button>
               <a href="/" target="_blank" rel="noreferrer">
                 <ArrowUpRight size={15} /> Mağazayı görüntüle

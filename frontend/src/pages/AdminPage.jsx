@@ -14,6 +14,10 @@ import AdminHeader from "../components/admin/AdminHeader";
 import CommandPalette from "../components/admin/CommandPalette";
 import { HANDOFF, PageHeader, setHandoff, usePref } from "../components/admin/ui";
 import ErrorBoundary from "../components/admin/ui/ErrorBoundary";
+import AlertStack from "../components/admin/alerts/AlertStack";
+import useOrderAlerts from "../components/admin/alerts/useOrderAlerts";
+import { alertPrefs, useAlertPrefs } from "../components/admin/alerts/alertPrefs";
+import { unlockWithSound, useAudioState } from "../components/admin/alerts/alertAudio";
 
 // Tab Components
 import CreateProductForm from "../components/CreateProductForm";
@@ -39,8 +43,9 @@ import AiKnowledgeCenter from "../components/AiKnowledgeCenter";
 import SupportQueueTab from "../components/SupportQueueTab";
 import PushBroadcastTab from "../components/PushBroadcastTab";
 import SiteMessagesTab from "../components/SiteMessagesTab";
+import CampaignCenterTab from "../components/CampaignCenterTab";
 
-import { Package, Upload } from "lucide-react";
+import { Upload } from "lucide-react";
 
 // Zil bildirimleri sunucuda saklanır (her cihazda aynı liste). Saat: bugünse "18:52", değilse "10 Eki 18:52".
 const notificationTime = (at) => {
@@ -114,27 +119,58 @@ const AdminPage = () => {
       return isDark ? "light" : "dark";
     });
   }, [setThemePref, systemDark]);
-  // Canlı bağlantı durumu (başlıktaki durum çubuğu)
-  const [socketConnected, setSocketConnected] = useState(() => Boolean(socketService.socket?.connected));
   const activeTabRef = useRef(activeTab);
   useEffect(() => {
     activeTabRef.current = activeTab;
   }, [activeTab]);
   const handledOrderIdsRef = useRef(new Set());
-  useEffect(() => {
-    const socket = socketService.connect();
-    const on = () => setSocketConnected(true);
-    const off = () => setSocketConnected(false);
-    setSocketConnected(Boolean(socket.connected));
-    socket.on("connect", on);
-    socket.on("disconnect", off);
-    socket.on("connect_error", off);
-    return () => { socket.off("connect", on); socket.off("disconnect", off); socket.off("connect_error", off); };
-  }, []);
+  // Zil listesini sunucudan yeniden yükler (aşağıdaki socket etkisi atar; canlı bağlantı yokken uyarılar kullanır)
+  const loadFeedRef = useRef(null);
 
   // Stores
   const { fetchAllProducts, products } = useProductStore();
   const { user } = useUserStore();
+
+  // Zil listesine satır ekler (en yeni önce, aynı kimlik tek satır)
+  const pushNotification = useCallback((notification) => {
+    setNotifications((current) => {
+      // Uygulama açılışları sık gelir; sipariş ve mesaj bildirimlerini
+      // listeden itmemesi için en yeni 10 tanesi tutulur (sunucu da aynı kuralı uygular).
+      let appOpens = 0;
+      return [
+        { at: new Date().toISOString(), ...notification },
+        ...current.filter((item) => item.id !== notification.id),
+      ]
+        .filter((item) => item.kind !== "app-open" || ++appOpens <= 10)
+        .slice(0, 30);
+    });
+  }, []);
+
+  // Siparişi Siparişler ekranında açar (ekran HANDOFF.order ile siparişin çekmecesini açar)
+  const openOrder = useCallback((orderId) => {
+    if (!orderId) return;
+    setHandoff(HANDOFF.order, String(orderId));
+    setActiveTab("orders");
+    setMobileMenuOpen(false);
+  }, []);
+
+  // Sipariş kaçırmamak için: ses ve tekrar, alarm telefonları, kopan bağlantıda HTTP kontrolü, müşteri iptali
+  const { state: alerts, actions: alertActions } = useOrderAlerts({
+    enabled: user?.role === "admin",
+    onOpenOrder: openOrder,
+    // Siparişler ekranı açıkken rozetin kaynağı ekranın kendi canlı sayısıdır (geri alma penceresindeki sipariş
+    // dahil); sunucunun henüz işlenmemiş sayısı rozeti bir önceki değere döndürmesin
+    onPreparingCount: (count) => {
+      if (activeTabRef.current === "orders") return;
+      setAdminBadges((prev) => (prev.orders === count ? prev : { ...prev, orders: count }));
+    },
+    onBellItem: (item) => pushNotification(withTime(item)),
+    onOfflineCheck: () => loadFeedRef.current?.(),
+  });
+  const alertSoundPrefs = useAlertPrefs();
+  const { blocked: soundBlocked } = useAudioState();
+  // Canlı bağlantı durumu (başlıktaki durum çubuğu)
+  const socketConnected = alerts.connected;
 
   // Product edit state
   const [editingProduct, setEditingProduct] = useState(null);
@@ -158,6 +194,7 @@ const AdminPage = () => {
       users: "Müşteriler",
       "account-cleanup": "Pasif hesap temizliği",
       "delivery-zones": "Teslimat bölgeleri",
+      campaigns: "Kampanya merkezi",
       coupons: "Kuponlar",
       referrals: "Davet sistemi",
       feedback: "Geri Bildirimler",
@@ -173,13 +210,15 @@ const AdminPage = () => {
     [],
   );
 
-  // Tarayıcı sekmesi: bekleyen sipariş sayısı + açık bölüm
+  // Tarayıcı sekmesi: bekleyen sipariş sayısı + açık bölüm; onaylanmamış yeni sipariş varsa başta 🔔 ve sayısı
+  const ringingCount = alerts.ringing.length;
   useEffect(() => {
     const previous = document.title;
     const pending = adminBadges.orders > 0 ? `(${adminBadges.orders}) ` : "";
-    document.title = `${pending}${tabLabels[activeTab] || "Yönetim"} · Benim Marketim`;
+    const ringing = ringingCount > 0 ? `🔔 ${ringingCount} yeni sipariş · ` : "";
+    document.title = `${ringing}${pending}${tabLabels[activeTab] || "Yönetim"} · Benim Marketim`;
     return () => { document.title = previous; };
-  }, [activeTab, adminBadges.orders, tabLabels]);
+  }, [activeTab, adminBadges.orders, ringingCount, tabLabels]);
 
   const tabDescriptions = {
     analytics:
@@ -260,12 +299,26 @@ const AdminPage = () => {
     };
   }, []);
 
+  const fetchAdminBadges = useCallback(async ({ fresh = false } = {}) => {
+    // Bekleyen sipariş sayısı sipariş uyarılarının HTTP kontrolünden gelir (onPreparingCount): rozet yalnızca aktif
+    // siparişlere bakar; panelin duyurmadığı yeni sipariş varsa aynı kontrol onu bir kez duyurur.
+    const orders = alertActions.sync({ fresh });
+    try {
+      const chatResponse = await axios.get("/chat/unread-count");
+      const chats = Number(chatResponse.data?.count || chatResponse.data?.unreadCount || 0);
+      setAdminBadges((prev) => (prev.chats === chats ? prev : { ...prev, chats }));
+    } catch {
+      // Rozet verisi yardımcı bilgidir; ana paneli engellemez.
+    }
+    await orders;
+  }, [alertActions]);
+
   // Fetch data on mount
   useEffect(() => {
     fetchAllProducts();
     fetchAdminBadges();
     updateLastSync();
-  }, [fetchAllProducts]);
+  }, [fetchAllProducts, fetchAdminBadges]);
 
   // Siparişler ekranı açıkken rozet, ekranın kendi canlı sayısıyla anında güncellenir (ek istek yok)
   useEffect(() => {
@@ -276,28 +329,6 @@ const AdminPage = () => {
     window.addEventListener("admin-orders-count", onCount);
     return () => window.removeEventListener("admin-orders-count", onCount);
   }, []);
-
-  const fetchAdminBadges = async () => {
-    try {
-      const [ordersResponse, chatResponse] = await Promise.all([
-        // Rozet yalnızca aktif siparişlere bakar; tüm sipariş geçmişini indirmeye gerek yok
-        axios.get("/orders-analytics", { params: { active: 1 } }),
-        axios.get("/chat/unread-count"),
-      ]);
-      const usersOrders =
-        ordersResponse.data?.orderAnalyticsData?.usersOrders || [];
-      const orders = usersOrders.flatMap((entry) => entry.orders || []);
-      setAdminBadges({
-        orders: orders.filter((order) => order.status === "Hazırlanıyor")
-          .length,
-        chats: Number(
-          chatResponse.data?.count || chatResponse.data?.unreadCount || 0,
-        ),
-      });
-    } catch {
-      // Rozet verisi yardımcı bilgidir; ana paneli engellemez.
-    }
-  };
 
   const updateLastSync = () => {
     setLastSync(
@@ -311,7 +342,7 @@ const AdminPage = () => {
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await Promise.all([fetchAllProducts(), fetchAdminBadges()]);
+      await Promise.all([fetchAllProducts(), fetchAdminBadges({ fresh: true }), alertActions.refreshAlarm()]);
       // Açık ekran (ör. Müşteriler) kendi verisini yeniler
       window.dispatchEvent(new CustomEvent("admin-refresh"));
       updateLastSync();
@@ -321,7 +352,7 @@ const AdminPage = () => {
     } finally {
       setRefreshing(false);
     }
-  }, [fetchAllProducts]);
+  }, [fetchAllProducts, fetchAdminBadges, alertActions]);
 
   // Yeni siparişleri yönetici panelinin hangi sekmesi açık olursa olsun dinle.
   // Bildirimler sunucuda da saklanır: panel açılınca, bağlantı yenilenince ve sekmeye dönülünce
@@ -342,11 +373,16 @@ const AdminPage = () => {
     const loadFeed = async () => {
       try {
         const response = await axios.get("/admin-notifications");
-        if (!cancelled) setNotifications((response.data?.items || []).map(withTime));
+        if (cancelled) return;
+        const items = Array.isArray(response.data?.items) ? response.data.items : [];
+        setNotifications(items.map(withTime));
+        // Bağlantı kopukken kaçırılan müşteri iptalleri (sunucu zil kaydı) kırmızı uyarıya eklenir
+        alertActions.ingestFeed(items);
       } catch {
         // Ağ hatasında mevcut liste korunur; bir sonraki bağlantıda yeniden denenir
       }
     };
+    loadFeedRef.current = loadFeed;
     const joinAdminRoom = () => {
       socketService.joinAdminRoom(user?.accessToken);
       loadFeed();
@@ -355,19 +391,6 @@ const AdminPage = () => {
       if (document.visibilityState === "visible") loadFeed();
     };
     const nowLabel = () => notificationTime(Date.now());
-    const pushNotification = (notification) => {
-      setNotifications((current) => {
-        // Uygulama açılışları sık gelir; sipariş ve mesaj bildirimlerini
-        // listeden itmemesi için en yeni 10 tanesi tutulur (sunucu da aynı kuralı uygular).
-        let appOpens = 0;
-        return [
-          { at: new Date().toISOString(), ...notification },
-          ...current.filter((item) => item.id !== notification.id),
-        ]
-          .filter((item) => item.kind !== "app-open" || ++appOpens <= 10)
-          .slice(0, 30);
-      });
-    };
     // Aynı hesap başka bir cihazda "Bildirimleri temizle" dediyse burada da temizlenir
     const handleFeedCleared = (data) => {
       if (data?.userId && String(data.userId) === String(user?._id)) setNotifications([]);
@@ -435,8 +458,10 @@ const AdminPage = () => {
       const { userId, ...fields } = data;
       window.dispatchEvent(new CustomEvent("admin-user-activity", { detail: { userId: String(userId), patch: fields } }));
     };
+    // Yeni sipariş: zil satırı, rozet ve son yenileme. Ses, tekrar, panel ve tarayıcı bildirimi sipariş uyarılarında
+    // (useOrderAlerts) aynı olayı dinleyerek yapılır.
     const handleNewOrder = (data) => {
-      if (!data?.order || data.order.id === "test") return;
+      if (!data?.order?.id || data.order.id === "test") return;
 
       const order = data.order;
       if (handledOrderIdsRef.current.has(order.id)) return;
@@ -445,89 +470,17 @@ const AdminPage = () => {
         () => handledOrderIdsRef.current.delete(order.id),
         60000,
       );
-      const notification = {
+      const createdMs = new Date(order.createdAt || Date.now()).getTime();
+      const at = new Date(Number.isFinite(createdMs) ? createdMs : Date.now()).toISOString();
+      pushNotification({
         id: order.id,
         message: `${order.customerName || "Müşteri"} yeni sipariş verdi · ₺${Number(order.totalAmount || 0).toFixed(2)}`,
-        at: new Date(order.createdAt || Date.now()).toISOString(),
-        time: notificationTime(order.createdAt),
+        at,
+        time: notificationTime(at),
         order,
-      };
-
-      pushNotification(notification);
+      });
       setAdminBadges((current) => ({ ...current, orders: current.orders + 1 }));
       updateLastSync();
-
-      const selectedSound =
-        localStorage.getItem("notificationSound") || "ringtone";
-      const audio = new Audio(`/${selectedSound}.mp3`);
-      audio.volume = 0.75;
-      audio.play().catch(() => {
-        // Tarayıcı ilk kullanıcı etkileşimine kadar otomatik sesi engelleyebilir.
-      });
-
-      toast.custom(
-        (t) => (
-          <div
-            className={`${t.visible ? "animate-enter" : "animate-leave"} admin-toast`}
-          >
-            <div className="admin-toast-head">
-              <span className="admin-toast-icon">
-                <Package size={16} />
-              </span>
-              <div>
-                <p className="admin-toast-title">Yeni sipariş alındı</p>
-                <p className="admin-toast-name">
-                  {order.customerName || "Müşteri"}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => toast.dismiss(t.id)}
-                className="admin-toast-close"
-              >
-                Kapat
-              </button>
-            </div>
-            <p className="admin-toast-meta">
-              #{String(order.id).slice(-6).toUpperCase()} ·{" "}
-              {order.products?.length || 0} ürün ·{" "}
-              {order.deliveryPointName || order.city || "Teslimat"}
-            </p>
-            <div className="admin-toast-foot">
-              <p className="admin-toast-amount">
-                ₺{Number(order.totalAmount || 0).toFixed(2)}
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  toast.dismiss(t.id);
-                  setActiveTab("orders");
-                }}
-                className="admin-toast-action"
-              >
-                Siparişi incele
-              </button>
-            </div>
-          </div>
-        ),
-        { id: `order-${order.id}`, duration: 9000, position: "top-right" },
-      );
-
-      if ("Notification" in window && Notification.permission === "granted") {
-        const browserNotification = new Notification(
-          "Benim Marketim · Yeni Sipariş",
-          {
-            body: `${order.customerName || "Müşteri"} · ₺${Number(order.totalAmount || 0).toFixed(2)}`,
-            icon: "/favicon.ico",
-            tag: `order-${order.id}`,
-          },
-        );
-        browserNotification.onclick = () => {
-          window.focus();
-          setActiveTab("orders");
-          browserNotification.close();
-        };
-      }
     };
 
     socket.on("connect", joinAdminRoom);
@@ -555,9 +508,10 @@ const AdminPage = () => {
       socket.off("adminFeedCleared", handleFeedCleared);
       document.removeEventListener("visibilitychange", onVisible);
       cancelled = true;
+      loadFeedRef.current = null;
       window.__adminGlobalOrderNotifications = false;
     };
-  }, [user?.role, user?.accessToken, user?._id]);
+  }, [user?.role, user?.accessToken, user?._id, alertActions, pushNotification]);
 
   // Temizleme hesaba işlenir: aynı hesapla açık diğer cihazlarda da liste boşalır
   const clearNotifications = useCallback(() => {
@@ -614,6 +568,54 @@ const AdminPage = () => {
     if (tab === "orders" && preset) setHandoff(HANDOFF.orderPreset, preset);
     setActiveTab(tab);
     setMobileMenuOpen(false);
+  }, []);
+
+  // Başlıktaki alarm çipinden "Telefonları yönet": Genel bakıştaki "Sipariş alarmı telefonları" kartına götürür
+  const openAlarmPhones = useCallback(() => {
+    handleTabChange("dashboard");
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const behavior = reduceMotion ? "auto" : "smooth";
+    // Kartın ortası ekranın orta bölümünde mi
+    const centered = (card) => {
+      const rect = card.getBoundingClientRect();
+      const middle = (rect.top + rect.bottom) / 2;
+      return middle > window.innerHeight * 0.2 && middle < window.innerHeight * 0.8;
+    };
+    // Genel bakışın özeti yüklenince kartın üstüne içerik eklenir ve kart aşağı kayar: kısa süre izlenip yeniden
+    // ortalanır. Kullanıcı kendisi kaydırırsa (tekerlek, dokunma, tuş) izleme bırakılır.
+    let userMoved = false;
+    const onUserMove = () => {
+      userMoved = true;
+    };
+    const moveEvents = ["wheel", "touchmove", "keydown"];
+    moveEvents.forEach((type) => window.addEventListener(type, onUserMove, { passive: true }));
+    const stopWatching = () => moveEvents.forEach((type) => window.removeEventListener(type, onUserMove));
+    let tries = 0;
+    const reveal = () => {
+      const card = document.querySelector('.admin-layout section[aria-label="Sipariş alarmı telefonları"]:not(.app-pop)');
+      if (!card) {
+        tries += 1;
+        if (tries < 50) window.setTimeout(reveal, 100);
+        else stopWatching();
+        return;
+      }
+      card.scrollIntoView({ behavior, block: "center" });
+      card.setAttribute("data-alert-flash", "");
+      window.setTimeout(() => card.removeAttribute("data-alert-flash"), 2400);
+      [700, 1600, 2800].forEach((delay, index, delays) => {
+        window.setTimeout(() => {
+          if (!userMoved && card.isConnected && !centered(card)) card.scrollIntoView({ behavior, block: "center" });
+          if (index === delays.length - 1) stopWatching();
+        }, delay);
+      });
+    };
+    window.setTimeout(reveal, 0);
+  }, [handleTabChange]);
+
+  // "Ses kapalı · açmak için tıklayın": tıklama anında kısa bir parça çalar, tarayıcı kilidi açılır
+  const unlockSound = useCallback(() => {
+    const prefs = alertPrefs.get();
+    unlockWithSound({ sound: prefs.sound, volume: prefs.volume });
   }, []);
 
   // Ekran bileşenleri başka bir bölüme geçmek için bu olayı yayınlar:
@@ -680,6 +682,8 @@ const AdminPage = () => {
         return <WeeklyProductsTab />;
       case "bulk-upload":
         return <BulkUploadSection onUpload={handleBulkUpload} />;
+      case "campaigns":
+        return <CampaignCenterTab onNavigate={handleTabChange} />;
       case "coupons":
         return <CouponsTab />;
       case "referrals":
@@ -738,6 +742,11 @@ const AdminPage = () => {
           onClearNotifications={clearNotifications}
           onViewNotifications={(notification) => {
             if (notification?.kind === "support") return setActiveTab("support-queue");
+            // Müşteri iptali: siparişin çekmecesi açılır
+            if (notification?.kind === "cancel") {
+              if (notification.orderId) return openOrder(notification.orderId);
+              return setActiveTab("orders");
+            }
             if (notification?.kind === "app-open") {
               // Müşteriler ekranı bu müşterinin profil çekmecesini açar (UsersTab HANDOFF.user dinler)
               if (notification.userId) setHandoff(HANDOFF.user, notification.userId);
@@ -752,6 +761,9 @@ const AdminPage = () => {
               }
               return setActiveTab("chat");
             }
+            // Yeni sipariş satırı: o siparişi açar ve sesin tekrarını bitirir
+            const orderId = notification ? String(notification.order?.id || notification.id || "") : "";
+            if (/^[0-9a-f]{24}$/i.test(orderId)) return alertActions.open(orderId);
             return setActiveTab("orders");
           }}
           onNavigate={handleTabChange}
@@ -760,6 +772,28 @@ const AdminPage = () => {
           status={{ connected: socketConnected, orders: adminBadges.orders, chats: adminBadges.chats }}
           theme={resolvedTheme}
           onToggleTheme={toggleTheme}
+          alarm={alerts.alarm}
+          onOpenAlarmPhones={openAlarmPhones}
+          onRefreshAlarm={alertActions.refreshAlarm}
+        />
+
+        {/* Sipariş kaçırmamak için: müşteri iptali, kopan bağlantı, kapalı ses, bekleyen yeni sipariş */}
+        <AlertStack
+          ringing={alerts.ringing}
+          cancels={alerts.cancels}
+          offline={alerts.offline}
+          networkDown={alerts.networkDown}
+          lastCheckAt={alerts.lastCheckAt}
+          soundBlocked={soundBlocked && !alertSoundPrefs.muted && alertSoundPrefs.volume > 0}
+          prefs={alertSoundPrefs}
+          onOpenOrder={alertActions.open}
+          onAck={alertActions.ack}
+          onAckAll={alertActions.ackAll}
+          onGoOrders={() => handleTabChange("orders", "active")}
+          onDismissCancel={alertActions.dismissCancel}
+          onDismissAllCancels={alertActions.dismissAllCancels}
+          onRetry={alertActions.retry}
+          onUnlockSound={unlockSound}
         />
 
         {/* Content Area */}

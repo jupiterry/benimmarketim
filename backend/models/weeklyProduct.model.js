@@ -31,6 +31,25 @@ const weeklyProductSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    // Planlı fırsat: isActive:false + scheduled:true + ileri bir startDate ile saklanır. Müşteri uç noktaları
+    // yalnızca isActive:true kayıtları okuduğu için başlayana kadar görünmez ve fiyata yansımaz.
+    // Başlangıç anı gelince weeklyPrice.service dakikalık işi yayına alır (isActive:true, scheduled:false).
+    scheduled: {
+      type: Boolean,
+      default: false,
+    },
+    // Fırsat fiyatı belirlendiğindeki ürün liste fiyatı. Liste fiyatı sonradan değişirse panel uyarı
+    // gösterir. Eski kayıtlarda yoktur (null).
+    // Elle durdurulduğu an (bitişinden önce yayından kalktıysa). Ölçüm ve "geçen hafta" hesabı bunu kullanır;
+    // sıralama gibi sonraki düzenlemeler updatedAt'i değiştirse de durma anı kaymaz. Yeniden açılınca silinir.
+    stoppedAt: {
+      type: Date,
+      default: null,
+    },
+    listPriceAtStart: {
+      type: Number,
+      default: null,
+    },
   },
   {
     timestamps: true,

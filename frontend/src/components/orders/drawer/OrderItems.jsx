@@ -3,9 +3,12 @@
 // - Adet: −/+ iyimser güncellenir; kayıt veri kancasında satır başına gecikmeli yapılır (burada toast yok).
 // - Çıkarma: geri alınabilir ("{ad} çıkarıldı · Geri al", veri kancası); tek kalan satır çıkarılamaz.
 // - Kilit: Teslim edildi / İptal edildi siparişte salt okunur; "Düzenle" onaydan sonra oturum boyunca açar.
+// - Hazırlanıyor siparişinde her satırın menüsü: "Muadille değiştir" (eksik ürün; aynı adet, tek "Geri al") ve "Çıkar".
+//   Kaydedilmeyi bekleyen muadil satırında "… yerine" rozeti çıkar, satır düzenlenemez.
 import { useId } from "react";
-import { CalendarDays, ListChecks, Lock, Minus, Package2, Pencil, Percent, Plus, Tag, Trash2, Zap } from "lucide-react";
+import { CalendarDays, ListChecks, Lock, Minus, MoreHorizontal, Package2, Pencil, Percent, Plus, Replace, Tag, Trash2, Zap } from "lucide-react";
 import { money } from "../../admin/ui";
+import { MenuButton } from "../atoms";
 import { deliveryFeeLabel, hasDeliveryFeeLine, orderDeliveryFee, orderProductTotal } from "../shared";
 import { cloudinaryImage } from "../../../lib/image";
 
@@ -36,14 +39,18 @@ function PriceTag({ product }) {
 }
 const LAST_LINE_TITLE = "Siparişte en az bir ürün kalmalı; siparişi iptal edin ya da silin";
 
-function ItemLine({ product, editable, disabled, pickable, picked, single, onTogglePicked, onQuantity, onRemove }) {
+function ItemLine({ product, editable, disabled: disabledProp, pickable, picked, single, substitutable, onTogglePicked, onQuantity, onRemove, onSubstitute }) {
   const pickId = useId();
   const qty = Number(product.quantity) || 0;
   const price = Number(product.price) || 0;
   const Name = pickable ? "label" : "span";
   const nameProps = pickable ? { htmlFor: pickId } : {};
+  const replacing = product.replacing || null;
+  const disabled = disabledProp || Boolean(replacing);
+  const label = product.name || "Ürün";
   return (
-    <li className="so-d-line" data-pickable={pickable ? "true" : undefined} data-picked={picked ? "true" : undefined}>
+    <li className="so-d-line" data-line-key={product.lineKey} data-pickable={pickable ? "true" : undefined} data-picked={picked ? "true" : undefined}
+      data-replacing={replacing ? "true" : undefined}>
       {pickable && (
         <label className="so-d-pick" title={picked ? "Toplandı" : "Toplandı olarak işaretle"}>
           <input id={pickId} type="checkbox" className="ui-checkbox" checked={picked} disabled={disabled}
@@ -58,6 +65,11 @@ function ItemLine({ product, editable, disabled, pickable, picked, single, onTog
       <Name className="so-d-line-name" {...nameProps}>
         <span className="so-d-line-title">{product.name || "Ürün"}</span>
         {product.isManual && <span className="ui-badge so-d-manual" title="Panelden elle eklenen tutar">Elle eklendi</span>}
+        {replacing && (
+          <span className="ui-badge ui-badge--info so-d-replacing" title="Muadil birkaç saniye içinde kaydedilecek; bildirimden geri alabilirsiniz">
+            <Replace aria-hidden="true" />{replacing.from} yerine
+          </span>
+        )}
         <PriceTag product={product} />
       </Name>
       <strong className="so-d-line-total ui-num">{money(price * qty)}</strong>
@@ -79,11 +91,38 @@ function ItemLine({ product, editable, disabled, pickable, picked, single, onTog
                 <Plus aria-hidden="true" />
               </button>
             </span>
-            <button type="button" className="ui-icon-btn ui-icon-btn--sm ui-icon-btn--danger so-d-remove"
-              aria-label={`Ürünü çıkar: ${product.name || "Ürün"}`} title={single ? LAST_LINE_TITLE : "Ürünü çıkar"}
-              disabled={disabled || single} onClick={() => onRemove?.(product.lineKey)}>
-              <Trash2 aria-hidden="true" />
-            </button>
+            {substitutable ? (
+              <MenuButton
+                iconOnly
+                size="sm"
+                icon={MoreHorizontal}
+                label={`${label}: ürün işlemleri`}
+                menuLabel={label}
+                className="so-d-line-menu"
+                title="Muadille değiştir ya da çıkar"
+                disabled={disabled}
+                buttonProps={{ "aria-label": `${label}: muadille değiştir ya da çıkar` }}
+                items={[
+                  {
+                    id: "substitute", label: "Muadille değiştir", icon: Replace,
+                    description: product.isManual
+                      ? "Elle eklenen tutarın muadili olmaz"
+                      : product.lineId ? "Aynı kategoriden öneri; aynı adet" : "Eski satır: çıkarıp muadilini ekleyin",
+                    disabled: !product.lineId || Boolean(product.isManual), onSelect: () => onSubstitute?.(product.lineKey),
+                  },
+                  {
+                    id: "remove", label: "Çıkar", icon: Trash2, danger: true, disabled: single,
+                    description: single ? LAST_LINE_TITLE : "5 sn içinde geri alabilirsiniz", onSelect: () => onRemove?.(product.lineKey),
+                  },
+                ]}
+              />
+            ) : (
+              <button type="button" className="ui-icon-btn ui-icon-btn--sm ui-icon-btn--danger so-d-remove"
+                aria-label={`Ürünü çıkar: ${label}`} title={single ? LAST_LINE_TITLE : "Ürünü çıkar"}
+                disabled={disabled || single} onClick={() => onRemove?.(product.lineKey)}>
+                <Trash2 aria-hidden="true" />
+              </button>
+            )}
           </span>
         )}
       </span>
@@ -93,6 +132,7 @@ function ItemLine({ product, editable, disabled, pickable, picked, single, onTog
 
 export default function OrderItems({
   order, editable, locked, disabled, statusLabel, pickable, pickedKeys, onTogglePicked, onQuantity, onRemove, onAdd, onUnlock, addRef,
+  onSubstitute,
 }) {
   const headId = useId();
   const products = order.products || [];
@@ -153,9 +193,11 @@ export default function OrderItems({
               pickable={pickable}
               picked={Boolean(pickable && pickedKeys?.has(product.lineKey))}
               single={total <= 1}
+              substitutable={order.status === "Hazırlanıyor" && editable && typeof onSubstitute === "function"}
               onTogglePicked={onTogglePicked}
               onQuantity={onQuantity}
               onRemove={onRemove}
+              onSubstitute={onSubstitute}
             />
           ))}
         </ul>

@@ -3,12 +3,15 @@ import Order from "../models/order.model.js";
 import Product from "../models/product.model.js";
 import FlashSale from "../models/flashSale.model.js";
 import { CANCEL_REASONS, DELIVERY_OUTCOMES, DELIVERY_OUTCOME_NOTE_MAX, deliveryOutcomeText } from "../lib/feedbackOptions.js";
+import { CUSTOMER_CANCEL_EVENT, customerCancelPayload, notifyAdmins } from "../services/adminFeed.service.js";
 import Settings from "../models/settings.model.js";
 import { listCouriers } from "../services/delivery.service.js";
 import User from "../models/user.model.js";
 import { paymentMethodLabel } from "../lib/paymentMethods.js";
+import { normalizeStaffFlags } from "../lib/staffFlags.js";
 import { money, recordAdminAction, yesNo } from "../services/adminAudit.service.js";
 import { signalOrderAlarm } from "../services/orderAlarm.service.js";
+import { toKurus } from "../services/productPricing.js";
 import {
   ORDER_STATUSES,
   applyOrderStatusChange,
@@ -149,12 +152,21 @@ const sendOrderError = (res, error, logLabel) => {
 // ── Liste ────────────────────────────────────────────────────────────────────
 
 // Hesabı silinen müşterinin siparişi listede kalır: kullanıcı belgesi yoksa gerçek kimlikle yer tutucu döner
-// (her silinmiş hesap ayrı müşteri olarak kalır; tek bir "silinmiş" grubunda birleşmez)
+// (her silinmiş hesap ayrı müşteri olarak kalır; tek bir "silinmiş" grubunda birleşmez).
+// Personelin iç işaretleri ve notu (staffFlags, staffNote) şemada select: false'tur; yalnızca burada açıkça
+// seçilir ve yalnızca yönetici sipariş listesine girer (müşteri yanıtlarına asla girmez).
+export const USER_POPULATE_FIELDS = "name email avatar staffFlags staffNote";
 export const userPopulate = () => ({
   path: "user",
-  select: "name email avatar",
+  select: USER_POPULATE_FIELDS,
   transform: (doc, id) => doc ?? { _id: id ?? null, deleted: true },
 });
+
+/** Personel notu metni (boş / eksik → null) */
+const staffNoteText = (note) => {
+  const text = typeof note?.text === "string" ? note.text.trim() : "";
+  return text || null;
+};
 
 const listQuery = (filter) =>
   Order.find(filter)
@@ -270,6 +282,9 @@ export const groupOrdersByUser = (orders) => {
           avatar: customer.profile?.avatar || null,
           phone: order.phone,
           address: order.city || "",
+          // Personelin iç işaretleri (anahtar dizisi) ve notu (metin ya da null); yalnızca panel görür
+          staffFlags: customer.deleted ? [] : normalizeStaffFlags(customer.profile?.staffFlags),
+          staffNote: customer.deleted ? null : staffNoteText(customer.profile?.staffNote),
           ...(customer.deleted ? { deleted: true } : {}),
         },
         orders: [],
@@ -564,15 +579,37 @@ export const getOrderAnalyticsData = async (options = {}) => {
 
 const isStatusOrEmpty = (value) => value === undefined || value === null || value === "" || ORDER_STATUSES.includes(value);
 
+// ── İlk sipariş teyidi kuralı ────────────────────────────────────────────────
+// Teyit bekleyen sipariş (needsCallback, callbackConfirmedAt yok) Hazırlanıyor'dan Yolda / Teslim Edildi'ye
+// ancak "yine de" (force: true) ile taşınır. İptal ve geri alma her zaman serbesttir. Panel, toplu işlem ve
+// alarm telefonu aynı kuralı kullanır.
+export const CALLBACK_REQUIRED_CODE = "CALLBACK_REQUIRED";
+export const CALLBACK_REQUIRED_MESSAGE =
+  "İlk sipariş henüz telefonla teyit edilmedi. Müşteriyi arayıp “Arandı, teyit edildi” deyin ya da yine de yola çıkarmayı seçin.";
+const CALLBACK_GUARDED_TARGETS = ["Yolda", "Teslim Edildi"];
+// İptal edilmiş teyitsiz ilk sipariş de (ör. müşteriye ulaşılamadığı için iptal edildi) teyitsiz yola çıkarılamaz
+const CALLBACK_GUARDED_FROM = [PREPARING_STATUS, "İptal Edildi"];
+/** Bu durum değişikliği teyit gerektiriyor mu (Hazırlanıyor ya da İptal Edildi'den yola/teslime, teyitsiz siparişte) */
+export const callbackBlocksStatusChange = (order, nextStatus) =>
+  order?.needsCallback === true &&
+  !order?.callbackConfirmedAt &&
+  CALLBACK_GUARDED_FROM.includes(order?.status) &&
+  CALLBACK_GUARDED_TARGETS.includes(nextStatus);
+const UNCONFIRMED_ACTION = "Sipariş teyitsiz yola çıkarıldı";
+const unconfirmedChange = { label: "Telefon teyidi", from: "Bekliyor", to: "Teyitsiz yola çıkarıldı" };
+
 /**
- * Admin sipariş durumunu günceller. Gövde: { orderId, status, expectedStatus? }
+ * Admin sipariş durumunu günceller. Gövde: { orderId, status, expectedStatus?, force? }
  *  - status mevcut durumla aynı → 200 { unchanged: true } (geçmiş, bildirim, soket, ödül yok)
  *  - expectedStatus verildi ve mevcut durum farklı → 409 { status: <mevcut> } (geri alma penceresi güvenli)
+ *  - teyit bekleyen siparişi Hazırlanıyor'dan ileri taşımak → 409 { code: "CALLBACK_REQUIRED" } (force: true hariç;
+ *    force ile taşınınca işlem kaydına "teyitsiz yola çıkarıldı" yazılır)
  *  - aksi halde kaydedilir; bildirim/ödül/kupon/soket ortak servisten, alarm telefonları uyarılır
  */
 export const updateOrderStatus = async (req, res) => {
   try {
     const { orderId, status, expectedStatus } = req.body || {};
+    const force = req.body?.force === true;
 
     if (!ORDER_STATUSES.includes(status) || !isStatusOrEmpty(expectedStatus)) {
       return res.status(400).json({ message: "Geçersiz sipariş durumu!" });
@@ -594,6 +631,12 @@ export const updateOrderStatus = async (req, res) => {
     if (expectedStatus && order.status !== expectedStatus) {
       return res.status(409).json({ message: STATUS_CONFLICT_MESSAGE, status: order.status, order });
     }
+    const unconfirmed = callbackBlocksStatusChange(order, status);
+    if (unconfirmed && !force) {
+      return res.status(409).json({
+        code: CALLBACK_REQUIRED_CODE, message: CALLBACK_REQUIRED_MESSAGE, status: order.status, orderId: String(order._id),
+      });
+    }
 
     let previousStatus;
     try {
@@ -610,9 +653,9 @@ export const updateOrderStatus = async (req, res) => {
       return res.status(409).json({ message: STATUS_CONFLICT_MESSAGE, status: current.status, order: current });
     }
 
-    recordAdminAction(req, { action: "Sipariş durumu değiştirildi", category: "order", target: String(order._id),
+    recordAdminAction(req, { action: unconfirmed ? UNCONFIRMED_ACTION : "Sipariş durumu değiştirildi", category: "order", target: String(order._id),
       targetName: orderTargetName(order),
-      changes: [{ label: "Durum", from: previousStatus, to: status }] });
+      changes: [{ label: "Durum", from: previousStatus, to: status }, ...(unconfirmed ? [unconfirmedChange] : [])] });
     pingOrderAlarm();
 
     res.json({ message: "Sipariş durumu başarıyla güncellendi!", order });
@@ -622,15 +665,18 @@ export const updateOrderStatus = async (req, res) => {
 };
 
 /**
- * Toplu durum değişikliği. Gövde: { orderIds (1–100), status, expectedStatus? }
+ * Toplu durum değişikliği. Gövde: { orderIds (1–100), status, expectedStatus?, force? }
  * Tekli güncellemeyle aynı yol (bildirim, görev + referral, kupon iadesi / İptal'den çıkışta yeniden kullanım,
- * soket, sipariş başına işlem kaydı).
- * Yanıt: { updated, skipped: [{ orderId, reason: 'missing'|'conflict'|'unchanged', status? }] }
+ * soket, sipariş başına işlem kaydı). Teyit bekleyen siparişler (force: true değilse) taşınmaz ve
+ * "callback" nedeniyle atlanır; HİÇBİR sipariş değişmediyse ve en az biri bu yüzden atlandıysa yanıt
+ * 409 { code: "CALLBACK_REQUIRED", updated: 0, skipped } olur.
+ * Yanıt: { updated, skipped: [{ orderId, reason: 'missing'|'conflict'|'unchanged'|'callback', status?, code? }] }
  */
 export const bulkUpdateOrderStatus = async (req, res) => {
   let updated = 0;
   try {
     const { orderIds, status, expectedStatus } = req.body || {};
+    const force = req.body?.force === true;
     if (
       !Array.isArray(orderIds) || orderIds.length < 1 || orderIds.length > 100 ||
       !orderIds.every((id) => typeof id === "string" && HEX24.test(id)) ||
@@ -667,6 +713,11 @@ export const bulkUpdateOrderStatus = async (req, res) => {
         skipped.push({ orderId: id, reason: "conflict", status: order.status });
         continue;
       }
+      const unconfirmed = callbackBlocksStatusChange(order, status);
+      if (unconfirmed && !force) {
+        skipped.push({ orderId: id, reason: "callback", code: CALLBACK_REQUIRED_CODE, status: order.status });
+        continue;
+      }
       let previousStatus;
       try {
         previousStatus = await applyOrderStatusChange(order, status, { actorId: req.user?._id, io });
@@ -679,13 +730,17 @@ export const bulkUpdateOrderStatus = async (req, res) => {
         continue;
       }
       updated += 1;
-      recordAdminAction(req, { action: "Sipariş durumu değiştirildi (toplu)", category: "order", target: String(order._id),
+      recordAdminAction(req, { action: `${unconfirmed ? UNCONFIRMED_ACTION : "Sipariş durumu değiştirildi"} (toplu)`, category: "order",
+        target: String(order._id),
         targetName: orderTargetName(order),
-        changes: [{ label: "Durum", from: previousStatus, to: status }] });
+        changes: [{ label: "Durum", from: previousStatus, to: status }, ...(unconfirmed ? [unconfirmedChange] : [])] });
     }
 
     if (updated) pingOrderAlarm();
     else req.auditRecorded = true; // hiçbir sipariş değişmedi
+    if (!updated && skipped.some((entry) => entry.reason === "callback")) {
+      return res.status(409).json({ code: CALLBACK_REQUIRED_CODE, message: CALLBACK_REQUIRED_MESSAGE, updated, skipped });
+    }
     return res.json({ updated, skipped });
   } catch (error) {
     console.error("Toplu sipariş durumu güncellenemedi:", error?.message);
@@ -1082,6 +1137,8 @@ export const cancelOrder = async (req, res) => {
         newStatus: order.status,
         message: cancelReason ? `Müşteri siparişi iptal etti: ${CANCEL_REASONS[cancelReason.code]}` : "Müşteri siparişi iptal etti",
       });
+      // Panel her ekranda kalıcı kırmızı uyarı gösterir; olay zil listesine de yazılır
+      notifyAdmins(req.app.get("io"), CUSTOMER_CANCEL_EVENT, customerCancelPayload(order, { cancelReason, actor: req.user }));
     } catch (socketError) {
       console.error("Socket.IO iptal bildirimi gönderilirken hata:", socketError);
     }
@@ -1429,6 +1486,94 @@ export const addProductToOrder = async (req, res) => {
     });
   } catch (error) {
     sendOrderError(res, error, "Siparişe ürün eklenirken hata:");
+  }
+};
+
+/**
+ * Eksik ürünü muadille değiştirme (Admin only). Gövde: { orderId, lineId? | productIndex?, productId }
+ * Tek kayıtta (sürüm denetimli): satır çıkar, muadil AYNI ADETLE ödeme adımındaki birim fiyattan eklenir
+ * (aynı ürün ve aynı birim fiyatta başka satır varsa onunla birleşir), fiyat farkı kuruş hassasiyetinde
+ * toplama yansır, işlem kaydına "Yerine" satırı yazılır. Yalnızca Hazırlanıyor siparişte; elle eklenen tutar satırı
+ * (isManual) değiştirilemez. Ayrı "çıkar" + "ekle" istekleri yerine tek uç: ikisinin arasında hata olursa sipariş eksik
+ * kalmaz, panel tek "Geri al" ve tek işlem kaydı gösterir.
+ * Yanıt: { success, order, removedProduct, addedProduct, quantity, priceDifference } · 409 durum uygun değilse / satır yoksa
+ */
+export const SUBSTITUTE_STATUS_MESSAGE = "Muadil yalnızca hazırlanan siparişte seçilebilir";
+export const SAME_PRODUCT_MESSAGE = "Muadil olarak aynı ürün seçildi";
+export const MANUAL_LINE_MESSAGE = "Elle eklenen tutar satırı muadille değiştirilemez";
+export const replaceOrderItem = async (req, res) => {
+  try {
+    const { orderId, productIndex, lineId, productId } = req.body || {};
+    if (!orderId || (productIndex === undefined && !hasValue(lineId)) || !hasValue(productId)) {
+      return res.status(400).json({ message: "Sipariş, ürün satırı ve muadil ürün gerekli" });
+    }
+    if (!isObjectIdString(orderId)) return res.status(400).json({ message: INVALID_ORDER_ID_MESSAGE });
+    if (!isObjectIdString(productId)) return res.status(400).json({ message: "Geçersiz ürün kimliği" });
+
+    const order = await Order.findById(orderId);
+    if (!order) return res.status(404).json({ message: "Sipariş bulunamadı!" });
+    if (order.status !== PREPARING_STATUS) {
+      return res.status(409).json({ message: SUBSTITUTE_STATUS_MESSAGE, status: order.status });
+    }
+
+    const found = findLineIndex(order, { lineId, productIndex });
+    if (found.message) return res.status(found.status).json({ message: found.message });
+    const line = order.products[found.index];
+    // "Özel Ekleme" (elle girilen tutar) katalog ürünü değildir: muadili olmaz
+    if (line.isManual) return res.status(400).json({ message: MANUAL_LINE_MESSAGE });
+    const quantity = Number(line.quantity);
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_LINE_QUANTITY) {
+      return res.status(400).json({ message: "Ürün satırının adedi geçersiz" });
+    }
+
+    // Muadil başka bir ürün olmalı: aynı ürün (fiyatı bu arada değişmiş olsa da) seçilirse satır yalnızca yeniden
+    // fiyatlanırdı; bu bir muadil değildir (katalog okunmadan reddedilir)
+    if (refId(line.product) === String(productId).toLowerCase()) {
+      return res.status(400).json({ message: SAME_PRODUCT_MESSAGE });
+    }
+    // Ödeme adımıyla aynı birim fiyat (haftalık fırsat / indirim / liste fiyatının en düşüğü); ürün yoksa 404
+    const { product, price, pricing } = await resolveEffectiveUnitPrice(productId);
+    const productKey = String(product._id);
+    const newUnit = toKurus(price);
+    // Fark kuruş üzerinden: (yeni birim − eski birim) × adet
+    const oldKurus = toKurus(line.price) * quantity;
+    const newKurus = newUnit * quantity;
+    const removedName = line.name || "Ürün";
+
+    const mergeIndex = order.products.findIndex((other, index) => index !== found.index && other?.product && !other.isManual
+      && refId(other.product) === productKey && toKurus(other.price) === newUnit);
+    if (mergeIndex !== -1) {
+      const target = order.products[mergeIndex];
+      const merged = (Number(target.quantity) || 0) + quantity;
+      if (merged > MAX_LINE_QUANTITY) {
+        return res.status(400).json({ message: `Bir satırda en fazla ${MAX_LINE_QUANTITY} adet olabilir` });
+      }
+      target.quantity = merged;
+      order.products.splice(found.index, 1);
+    } else {
+      // Muadil, çıkan satırın yerine (aynı sırada) girer
+      order.products.splice(found.index, 1, { product: product._id, name: product.name, quantity, price, ...(pricing || {}) });
+    }
+    const totals = applyTotalsDelta(order, (newKurus - oldKurus) / 100);
+    await saveOrderEdit(order);
+
+    recordItemEdit(req, order, "Siparişte ürün muadille değiştirildi", [
+      { label: "Yerine", from: `${removedName} ×${quantity} (${money(oldKurus / 100)})`, to: `${product.name} ×${quantity} (${money(newKurus / 100)})` },
+      totalChange(totals),
+    ]);
+    emitOrderUpdated(req, order._id, "items");
+
+    return res.json({
+      success: true,
+      message: `${removedName} yerine ${product.name} konuldu`,
+      order,
+      removedProduct: removedName,
+      addedProduct: product.name,
+      quantity,
+      priceDifference: (newKurus - oldKurus) / 100,
+    });
+  } catch (error) {
+    return sendOrderError(res, error, "Ürün muadille değiştirilirken hata:");
   }
 };
 

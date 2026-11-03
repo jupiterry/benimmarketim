@@ -1,10 +1,11 @@
 // Müşteri listesi satırı: geniş ekranda tablo satırı, mobilde kart (CSS ile dönüşür).
-// Sipariş özeti (orderCount / totalSpent) satırla birlikte sunucudan gelir (GET /users).
+// Sipariş özeti (orderCount / totalSpent), personelin iç işaretleri ve iç notu satırla birlikte sunucudan gelir (GET /users).
 import { memo } from "react";
-import { Eye, Key, Pencil, Trash2 } from "lucide-react";
+import { Eye, Key, Pencil, StickyNote, Trash2 } from "lucide-react";
 import { formatDateTime, money } from "../admin/ui";
 import { relativeTime } from "../../lib/customers";
-import { APP_STAGE_BADGES, Avatar, DeviceIcon, TagBadges, appStage, customerTags, deviceLabel, isInAppNow, lastSeenAt, orderInfoOf, registeredAt } from "./shared";
+import { staffFlagsOf } from "../../lib/staffFlags";
+import { APP_STAGE_BADGES, Avatar, DeviceIcon, StaffFlagBadges, TagBadges, appStage, customerTags, deviceLabel, isInAppNow, lastSeenAt, orderInfoOf, registeredAt } from "./shared";
 
 const CustomerRow = memo(function CustomerRow({ user, now, appSince, selected, cursor, onSelect, onOpen, onEdit, onResetPw, onDelete }) {
   const tags = customerTags(user, now);
@@ -14,6 +15,8 @@ const CustomerRow = memo(function CustomerRow({ user, now, appSince, selected, c
   const online = isInAppNow(user, now) || (seen && now - seen.getTime() < 5 * 60000);
   const stage = APP_STAGE_BADGES[appStage(user, appSince)];
   const name = user.name || "İsimsiz";
+  const hasFlags = staffFlagsOf(user.staffFlags).length > 0;
+  const note = typeof user.staffNote?.text === "string" ? user.staffNote.text.trim() : "";
   return (
     <div className="cus-row" data-selected={selected || undefined} data-cursor={cursor || undefined} data-id={user._id} role="row">
       <label className="cus-check" onClick={(e) => e.stopPropagation()}>
@@ -27,6 +30,17 @@ const CustomerRow = memo(function CustomerRow({ user, now, appSince, selected, c
             <TagBadges tags={tags} />
           </span>
           <span className="cus-person-sub ui-truncate">{user.phone ? `${user.phone} · ${user.email}` : user.email}</span>
+          {(hasFlags || note) && (
+            <span className="cus-person-flags">
+              <StaffFlagBadges flags={user.staffFlags} />
+              {note && (
+                <span className="cus-note-mark" title={`İç not: ${note.length > 200 ? `${note.slice(0, 199)}…` : note}`}>
+                  <StickyNote aria-hidden="true" />
+                  <span className="cus-sr">İç not var</span>
+                </span>
+              )}
+            </span>
+          )}
         </span>
       </button>
       <div className="cus-cell">

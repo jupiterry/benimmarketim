@@ -1,5 +1,6 @@
 // Siparişler ekranının yardımcıları: fiş / toplama listesi yazdırma, Excel'e (CSV)
 // aktarma, telefon biçimleme ve Türkçe uyumlu arama. Ağ isteği yapmaz, durum tutmaz.
+import { staffFlagsOf } from "./staffFlags";
 
 // ── Metin ve sayı ─────────────────────────────────────────────────────────────
 const ORDER_PAYMENT_LABELS = { cash: "Kapıda nakit", card: "Kapıda kart (POS)", bank_transfer: "Havale / EFT" };
@@ -72,11 +73,27 @@ export const orderZoneName = (order) => cleanText(order?.deliveryZone?.name || o
 /** Bölge kimliği (yurt siparişinde yurt anahtarı); yoksa boş */
 export const orderZoneId = (order) => cleanText(order?.deliveryZone?.id || order?.deliveryAddress?.zoneId)
   || (DORM_POINT_NAMES[order?.deliveryPoint] ? order.deliveryPoint : "");
-/** "Cumhuriyet" / "Cumhuriyet Mahallesi" / "Cumhuriyet Mah." → "Cumhuriyet Mah." (boşsa "") */
+// Mahalle eki: "Mahallesi", "Mahalle", "Mah.", "Mh." (Türkçe büyük/küçük harf duyarsız; "MAHALLESİ" de)
+const NEIGHBORHOOD_SUFFIX = /(^|\s+)(mahallesi|mahalle|mah\.?|mh\.?)$/;
+/** Mahalle adının sonundaki eki atar: "Cumhuriyet Mahallesi" → "Cumhuriyet" */
+const stripNeighborhood = (value) => {
+  const text = cleanText(value);
+  const lower = text.toLocaleLowerCase("tr-TR");
+  // Türkçe küçük harf uzunluğu değiştirmediyse ek konumu aynı metinde kesilir (yoksa basit /i ile)
+  if (lower.length !== text.length) return text.replace(/(^|\s+)(mahallesi|mahalle|mah\.?|mh\.?)$/i, "").trim();
+  const match = lower.match(NEIGHBORHOOD_SUFFIX);
+  return match ? text.slice(0, match.index).trim() : text;
+};
+/** "Cumhuriyet" / "Cumhuriyet Mahallesi" / "Cumhuriyet Mah." / "CUMHURİYET MAHALLESİ" → "Cumhuriyet Mah." (boşsa "") */
 export const neighborhoodLabel = (value) => {
-  const name = cleanText(value).replace(/\s+(mahallesi|mahalle|mah\.?)$/i, "").trim();
+  const name = stripNeighborhood(value);
   return name ? `${name} Mah.` : "";
 };
+/**
+ * Mahalle gruplama anahtarı: Türkçe küçük harf, aksansız, eki atılmış. "Cumhuriyet Mah.", "cumhuriyet mahallesi"
+ * ve "CUMHURİYET" aynı anahtarı verir; mahalle yoksa "".
+ */
+export const neighborhoodKey = (value) => normalizeSearch(stripNeighborhood(value));
 /**
  * Adres satırları (adresli siparişte; aksi halde null):
  * { street: "Cumhuriyet Mah. Atatürk Cd. No:5", neighborhood: "Cumhuriyet Mah.", building: "Gül Apt.",
@@ -202,6 +219,7 @@ const RECEIPT_CSS = `
           .order-no { font-size: 20px; font-weight: bold; margin-top: 2px; }
           .meta { font-size: 11px; }
           .flag { font-size: 11px; font-weight: bold; }
+          .flag.callback { margin-top: 2px; padding: 1px 4px; border: 1.5px solid #000; display: inline-block; }
           .point {
             margin: 5px 0 4px;
             padding: 3px 4px;
@@ -320,6 +338,16 @@ export const buildReceiptBody = (order) => {
   const flagHtml = firstOrder
     ? '<div class="flag">* İLK SİPARİŞ *</div>'
     : orderCount > 1 ? `<div class="meta">Müşterinin ${orderCount}. siparişi</div>` : "";
+  // Telefonla teyit bekleyen aktif sipariş: fiş hazırlık başında basılır, toplayan kişi aramadan yola çıkarmasın
+  // (teyit ilk sipariş olmayan müşteride de istenebilir; bu yüzden İLK SİPARİŞ bayrağından bağımsızdır)
+  const callbackHtml = order.needsCallback === true && !order.callbackConfirmedAt && (order.status === "Hazırlanıyor" || order.status === "Yolda")
+    ? '<div class="flag callback">TEYİT İÇİN ARA · yola çıkmadan önce</div>'
+    : "";
+  // Aynı müşterinin hâlâ hazırlanan diğer siparişleri (yazdıran ekran togetherWith: ["#CD34EF"] verir): poşetler birlikte gitsin
+  const together = (Array.isArray(order.togetherWith) ? order.togetherWith : []).map((code) => String(code || "").trim()).filter(Boolean);
+  const togetherHtml = together.length
+    ? `<div class="flag">BİRLİKTE GÖNDER: ${esc(together.slice(0, 4).join(", "))}${together.length > 4 ? " …" : ""}</div>`
+    : "";
   const noteHtml = order.note && String(order.note).trim()
     ? `<div class="note">NOT: ${esc(String(order.note).trim())}</div>`
     : "";
@@ -335,6 +363,8 @@ export const buildReceiptBody = (order) => {
                 <div class="order-no">#${esc(shortId)}</div>
                 <div class="meta">${esc(createdAt)}</div>
                 ${flagHtml}
+                ${callbackHtml}
+                ${togetherHtml}
               </div>
               <div class="point">${esc(deliveryInfo)}</div>
               ${addressHtml}
@@ -438,9 +468,57 @@ const orderLineKeys = (order) => {
   });
 };
 
+// ── Aynı müşterinin siparişleri (toplama listesi, kurye fişi, kurye mesajı) ──
+/**
+ * Müşteri anahtarı: zenginleştirilmiş siparişte order.customerKey (shared.js); yoksa gerçek kullanıcı kimliği,
+ * o da yoksa siparişe özel (silinmiş / anonim hesaplar birleşmez).
+ */
+export const customerKeyOf = (order) => {
+  if (order?.customerKey) return String(order.customerKey);
+  const id = order?.user?.id ?? order?.user?._id;
+  if (id && id !== "deleted" && !isDeletedAccount(order)) return `u:${id}`;
+  return `o:${order?.orderId ?? order?._id ?? ""}`;
+};
+/** Sırayı korur, aynı anahtarlı öğeleri ilk görüldükleri yere toplar: [a1, b1, a2] → [a1, a2, b1] */
+export const groupAdjacent = (list, keyOf) => {
+  const buckets = new Map();
+  for (const item of list || []) {
+    const key = keyOf(item);
+    if (buckets.has(key)) buckets.get(key).push(item);
+    else buckets.set(key, [item]);
+  }
+  return [...buckets.values()].flat();
+};
+const PAY_SHORT = { cash: "Nakit", card: "Kart", bank_transfer: "Havale" };
+/**
+ * Birden çok siparişin birleşik tutarı: "2 sipariş · Nakit ₺310,00" (hepsi aynı yöntemle) ya da
+ * "2 sipariş · ₺310,00 (Nakit ₺200,00 + Kart ₺110,00)".
+ */
+export const combinedAmountLabel = (orders) => {
+  const list = (orders || []).filter(Boolean);
+  const byMethod = new Map();
+  let totalKurus = 0;
+  for (const order of list) {
+    const kurus = Math.round((Number(order.totalAmount) || 0) * 100);
+    totalKurus += kurus;
+    const method = PAY_SHORT[order.paymentMethod] ? order.paymentMethod : "none";
+    byMethod.set(method, (byMethod.get(method) || 0) + kurus);
+  }
+  const total = formatMoney(totalKurus / 100);
+  const head = `${list.length} sipariş`;
+  if (byMethod.size === 1) {
+    const [method] = byMethod.keys();
+    return PAY_SHORT[method] ? `${head} · ${PAY_SHORT[method]} ${total}` : `${head} · ${total}`;
+  }
+  const parts = [...byMethod.entries()].map(([method, kurus]) => `${PAY_SHORT[method] || "Belirtilmemiş"} ${formatMoney(kurus / 100)}`);
+  return `${head} · ${total} (${parts.join(" + ")})`;
+};
+
 // Siparişlerdeki ürünleri adına göre toplar: kaç adet, kaç siparişte, hangi siparişlerde.
 // Ayrıca teslimat noktasına göre dağıtım özeti çıkarır. Her sipariş referansı o siparişteki
 // satır anahtarlarını (lineKeys) taşır; toplama işaretleri sipariş satırı bazında saklanır.
+// Aynı müşterinin bir noktadaki siparişleri yan yana gelir; grubun ilk kaydı birleşik tutarı taşır
+// (together: { count, label, customer }), gruptaki her kayıt grouped: true olur.
 export const buildPickingList = (orders) => {
   const items = new Map();
   const points = new Map();
@@ -486,8 +564,30 @@ export const buildPickingList = (orders) => {
       directions: address?.directions || "",
       deliveryFee: orderDeliveryFee(order),
       isAddress: Boolean(address),
+      customerKey: customerKeyOf(order),
+      totalAmount: Number(order.totalAmount) || 0,
     });
     point.total += Number(order.totalAmount) || 0;
+  }
+
+  // Aynı müşterinin siparişleri yan yana; birleşik tutar grubun ilk kaydında
+  for (const point of points.values()) {
+    const grouped = groupAdjacent(point.orders, (entry) => entry.customerKey);
+    const counts = new Map();
+    for (const entry of grouped) counts.set(entry.customerKey, (counts.get(entry.customerKey) || 0) + 1);
+    const seen = new Set();
+    point.orders = grouped.map((entry) => {
+      const size = counts.get(entry.customerKey) || 1;
+      if (size < 2) return { ...entry, grouped: false, together: null };
+      const first = !seen.has(entry.customerKey);
+      seen.add(entry.customerKey);
+      const members = grouped.filter((other) => other.customerKey === entry.customerKey);
+      return {
+        ...entry,
+        grouped: true,
+        together: first ? { count: size, customer: entry.customer, label: combinedAmountLabel(members) } : null,
+      };
+    });
   }
 
   const collator = new globalThis.Intl.Collator("tr-TR", { sensitivity: "base", numeric: true });
@@ -519,6 +619,8 @@ const PICKING_CSS = `
           .order { display: flex; justify-content: space-between; gap: 6px; font-size: 10px; margin: 2px 0; }
           .order span:last-child { white-space: nowrap; }
           .order-addr { font-size: 10px; font-weight: bold; margin: 0 0 3px; word-break: break-word; }
+          .order-group { font-size: 10px; font-weight: bold; margin: 4px 0 1px; padding-top: 2px; border-top: 1px dashed #000; word-break: break-word; }
+          .grouped { padding-left: 6px; border-left: 2px solid #000; }
         </style>
       `;
 
@@ -537,8 +639,8 @@ export const buildPickingDocument = (picking, { autoPrint = true } = {}) => {
   const pointsHtml = picking.points.map((point) => `
           <div class="point">
             <div class="point-head"><span>${esc(point.name)} (${point.orders.length})</span><span>${formatMoney(point.total)}</span></div>
-            ${point.orders.map((o) => `<div class="order"><span>#${esc(o.shortId)} ${esc(o.customer)}</span><span>${esc(formatPhoneTR(o.phone) || "-")}</span></div>${
-              o.address ? `<div class="order-addr">${esc(o.address)}${o.directions ? ` · ${esc(shortText(o.directions, 80))}` : ""}</div>` : ""}`).join("")}
+            ${point.orders.map((o) => `${o.together ? `<div class="order-group">AYNI MÜŞTERİ · ${esc(o.together.customer)} · ${esc(o.together.label)}</div>` : ""}<div class="order${o.grouped ? " grouped" : ""}"><span>#${esc(o.shortId)} ${esc(o.customer)}</span><span>${esc(formatPhoneTR(o.phone) || "-")}</span></div>${
+              o.address ? `<div class="order-addr${o.grouped ? " grouped" : ""}">${esc(o.address)}${o.directions ? ` · ${esc(shortText(o.directions, 80))}` : ""}</div>` : ""}`).join("")}
           </div>`).join("");
   return `
         <html lang="tr">
@@ -894,6 +996,8 @@ const REPORT_CSS = `
           .name { font-size: 12px; font-weight: bold; margin-top: 2px; word-break: break-word; }
           .phone { font-size: 16px; font-weight: bold; letter-spacing: 0.3px; margin-top: 1px; }
           .pay { display: flex; justify-content: space-between; gap: 6px; font-size: 12px; font-weight: bold; margin-top: 3px; }
+          .pay.together { margin-top: 4px; padding-top: 3px; border-top: 1.5px solid #000; font-size: 13px; }
+          .flags { font-size: 11px; font-weight: bold; margin-top: 3px; word-break: break-word; }
           .note { font-size: 10px; margin-top: 3px; padding-top: 2px; border-top: 1px dashed #000; word-break: break-word; }
           .addr { font-size: 12px; font-weight: bold; margin-top: 3px; word-break: break-word; }
           .addr .dir { font-size: 10px; font-weight: normal; margin-top: 1px; }
@@ -1032,9 +1136,39 @@ const RUN_PAY_LINE = {
   bank_transfer: "HAVALE (ödemeyi kontrol et)",
 };
 
+/** Durağın yeri: adresli siparişte tam adres, yurt siparişinde nokta adı (aynı müşteri + aynı yer = tek durak) */
+const stopPlaceKey = (order) => normalizeSearch(orderAddressLines(order)?.oneLine || orderPointName(order));
 /**
- * Kurye fişi: yoldaki / bir yurdun siparişleri tek listede (verilen sırayla; çağıran en eskiyi önce verir).
- * Her sipariş bir kutu: işaret kutusu, #KOD, nokta, ad, büyük telefon, tahsilat + tutar, kısa not.
+ * Kurye durakları: aynı müşterinin AYNI YERE giden siparişleri tek durak olur; ikinci sipariş ilkinin yanına gelir,
+ * sıra korunur. sort: true → nokta/bölge, mahalle ve sipariş zamanına göre (kurye mesajında rota sırası).
+ * → [{ key, orders, label }] (label: birden çok siparişli durakta birleşik tutar, "2 sipariş · Nakit ₺310,00")
+ */
+export const buildCourierStops = (orders, { sort = false } = {}) => {
+  let list = (Array.isArray(orders) ? orders : [orders]).filter(Boolean);
+  if (sort) {
+    const collator = new globalThis.Intl.Collator("tr-TR", { sensitivity: "base", numeric: true });
+    list = [...list].sort((a, b) => collator.compare(orderPointName(a), orderPointName(b))
+      || collator.compare(neighborhoodKey(a?.deliveryAddress?.neighborhood), neighborhoodKey(b?.deliveryAddress?.neighborhood))
+      || (createdTime(a) || 0) - (createdTime(b) || 0));
+  }
+  const stops = new Map();
+  for (const order of list) {
+    const key = `${customerKeyOf(order)}|${stopPlaceKey(order)}`;
+    if (stops.has(key)) stops.get(key).orders.push(order);
+    else stops.set(key, { key, orders: [order] });
+  }
+  return [...stops.values()].map((stop) => ({ ...stop, label: stop.orders.length > 1 ? combinedAmountLabel(stop.orders) : "" }));
+};
+
+/** Müşterinin personel işaretleri (yalnızca panel / kurye fişi): ["Siparişten önce ara", …] */
+const staffFlagLabels = (order) => staffFlagsOf(order?.user?.staffFlags).map((flag) => flag.label);
+const staffNoteOf = (order) => (typeof order?.user?.staffNote === "string" ? order.user.staffNote.trim() : "");
+
+/**
+ * Kurye fişi: yoldaki / bir yurdun siparişleri tek listede. Durak sırası kuryeye giden WhatsApp mesajıyla aynıdır:
+ * nokta / bölge, mahalle, sonra en eski sipariş önce (aynı mahalleye gidenler yan yana; yurtta en eskiden yeniye).
+ * Her durak bir kutu: işaret kutusu, #KOD, nokta, ad, personel işaretleri ve iç not, büyük telefon, tahsilat + tutar,
+ * kısa not. Aynı müşterinin aynı yere giden siparişleri tek kutuda, birleşik tutarla basılır.
  */
 export const buildRunSheetDocument = (orders, { title, autoPrint = true } = {}) => {
   const esc = escapeHtml;
@@ -1046,7 +1180,7 @@ export const buildRunSheetDocument = (orders, { title, autoPrint = true } = {}) 
   let transferCount = 0;
   let unknownCount = 0;
   let total = 0;
-  const stops = list.map((order) => {
+  const orderLines = (order, multi) => {
     const amount = Number(order.totalAmount) || 0;
     total += amount;
     const method = order.paymentMethod;
@@ -1054,29 +1188,44 @@ export const buildRunSheetDocument = (orders, { title, autoPrint = true } = {}) 
     else if (method === "card") cardCount += 1;
     else if (method === "bank_transfer") transferCount += 1;
     else unknownCount += 1;
-    const phone = formatPhoneTR(order.phone || order.user?.phone || "") || "Telefon yok";
     const note = shortText(order.note, 90);
     const tracking = shortText(order.deliveryTracking, 60);
-    const address = orderAddressLines(order);
+    const feeHtml = hasDeliveryFeeLine(order)
+      ? `<div class="fee">${esc(`Ürün ${money(orderProductTotal(order))} + teslimat ${orderDeliveryFee(order) > 0 ? money(orderDeliveryFee(order)) : "ücretsiz"}`)}</div>`
+      : "";
+    const code = multi ? `#${shortOrderId(order.orderId)} ` : "";
+    return `
+              <div class="pay"><span>${esc(`${code}${RUN_PAY_LINE[method] || "Ödeme belirtilmemiş"}`)}</span><span>${esc(money(amount))}</span></div>
+              ${feeHtml}
+              ${note ? `<div class="note">${multi ? `#${esc(shortOrderId(order.orderId))} ` : ""}NOT: ${esc(note)}</div>` : ""}
+              ${tracking ? `<div class="note">${esc(tracking)}</div>` : ""}`;
+  };
+  const stops = buildCourierStops(list, { sort: true }).map((stop) => {
+    const [first] = stop.orders;
+    const multi = stop.orders.length > 1;
+    const codes = stop.orders.map((order) => `#${shortOrderId(order.orderId)}`).join(" + ");
+    const phone = formatPhoneTR(first.phone || first.user?.phone || "") || "Telefon yok";
+    const address = orderAddressLines(first);
     const addressHtml = address ? `
               <div class="addr">
                 ${[address.street, address.building, address.unit].filter(Boolean).map((line) => `<div>${esc(line)}</div>`).join("")}
                 ${address.directions ? `<div class="dir">Tarif: ${esc(shortText(address.directions, 120))}</div>` : ""}
               </div>` : "";
-    const feeHtml = hasDeliveryFeeLine(order)
-      ? `<div class="fee">${esc(`Ürün ${money(orderProductTotal(order))} + teslimat ${orderDeliveryFee(order) > 0 ? money(orderDeliveryFee(order)) : "ücretsiz"}`)}</div>`
-      : "";
+    const flags = staffFlagLabels(first);
+    const staffNote = shortText(staffNoteOf(first), 160);
+    const callback = stop.orders.some((order) => order.needsCallback && !order.callbackConfirmedAt);
     return `
             <div class="stop">
-              <div class="stop-head"><span class="box"></span><span>#${esc(shortOrderId(order.orderId))}</span><span class="where">${esc(orderPointName(order))}</span></div>
-              <div class="name">${esc(printableCustomer(order, "Müşteri"))}</div>
-              ${order.needsCallback && !order.callbackConfirmedAt ? '<div class="note">TEYİT İÇİN ARA (ilk sipariş)</div>' : ""}
+              <div class="stop-head"><span class="box"></span><span>${esc(codes)}</span><span class="where">${esc(orderPointName(first))}</span></div>
+              <div class="name">${esc(printableCustomer(first, "Müşteri"))}</div>
+              ${multi ? `<div class="flags">AYNI MÜŞTERİ · ${stop.orders.length} SİPARİŞ TEK DURAK</div>` : ""}
+              ${flags.length ? `<div class="flags">DİKKAT: ${esc(flags.join(" · "))}</div>` : ""}
+              ${staffNote ? `<div class="note">İÇ NOT: ${esc(staffNote)}</div>` : ""}
+              ${callback ? '<div class="note">TEYİT İÇİN ARA (ilk sipariş)</div>' : ""}
               ${addressHtml}
               <div class="phone">${esc(phone)}</div>
-              <div class="pay"><span>${esc(RUN_PAY_LINE[method] || "Ödeme belirtilmemiş")}</span><span>${esc(money(amount))}</span></div>
-              ${feeHtml}
-              ${note ? `<div class="note">NOT: ${esc(note)}</div>` : ""}
-              ${tracking ? `<div class="note">${esc(tracking)}</div>` : ""}
+              ${stop.orders.map((order) => orderLines(order, multi)).join("")}
+              ${multi ? `<div class="pay together"><span>${esc(stop.label)}</span></div>` : ""}
             </div>`;
   }).join("");
   const summaryLine = [
@@ -1102,3 +1251,62 @@ export const buildRunSheetDocument = (orders, { title, autoPrint = true } = {}) 
 
 /** Kurye fişini yazdırır; açılır pencere engellendiyse false */
 export const printRunSheet = (orders, { title } = {}) => writePrintWindow(buildRunSheetDocument(orders, { title }));
+
+// ── Kuryeye WhatsApp mesajı ───────────────────────────────────────────────────
+const COURIER_PAY = { cash: "Nakit", card: "Kart (POS)", bank_transfer: "Havale / EFT (ödendi mi kontrol et)" };
+const mapsPinLink = (order) => {
+  const location = orderLocation(order);
+  return location ? `https://www.google.com/maps/search/?api=1&query=${location.lat},${location.lng}` : "";
+};
+
+/**
+ * Kuryeye gönderilen teslimat mesajı (düz metin): her durak için #kod, müşteri adı ve telefonu, tam adres
+ * (mahalle, sokak, bina no, bina adı, kat/daire), tarif, konum varsa harita bağlantısı, tahsil edilecek tutar ve
+ * ödeme yöntemi, müşteri notu. Duraklar nokta/bölge ve mahalleye göre sıralıdır; aynı müşterinin aynı adrese
+ * giden siparişleri tek duraktadır. Birden çok durakta sonda toplam nakit yazılır.
+ */
+export const buildCourierMessage = (orders, { courierName = "" } = {}) => {
+  const stops = buildCourierStops(orders, { sort: true });
+  const count = stops.reduce((sum, stop) => sum + stop.orders.length, 0);
+  const lines = [`Benim Marketim · ${count} sipariş${courierName ? ` · Kurye: ${cleanText(courierName)}` : ""}`];
+  let cashKurus = 0;
+  stops.forEach((stop, index) => {
+    const [first] = stop.orders;
+    const codes = stop.orders.map((order) => `#${shortOrderId(order.orderId)}`).join(" + ");
+    const phone = formatPhoneTR(first.phone || first.user?.phone || "") || "telefon yok";
+    lines.push("");
+    lines.push(`${stops.length > 1 ? `${index + 1}) ` : ""}${codes} · ${printableCustomer(first, "Müşteri")} · ${phone}`);
+    const address = orderAddressLines(first);
+    if (address) {
+      const full = [address.street, address.building, address.unit].filter(Boolean).join(", ");
+      lines.push(`Adres: ${full || address.oneLine}${address.zone ? ` (${address.zone})` : ""}`);
+      if (address.directions) lines.push(`Tarif: ${address.directions}`);
+    } else {
+      lines.push(`Teslimat: ${orderPointName(first)}`);
+    }
+    const pin = mapsPinLink(first);
+    if (pin) lines.push(`Konum: ${pin}`);
+    for (const order of stop.orders) {
+      const amount = Number(order.totalAmount) || 0;
+      if (order.paymentMethod === "cash") cashKurus += Math.round(amount * 100);
+      const prefix = stop.orders.length > 1 ? `#${shortOrderId(order.orderId)} ` : "";
+      lines.push(`${prefix}Tahsilat: ${COURIER_PAY[order.paymentMethod] || "Ödeme belirtilmemiş"} ${formatMoney(amount)}`);
+      const note = shortText(order.note, 160);
+      if (note) lines.push(`${prefix}Not: ${note}`);
+    }
+    if (stop.orders.length > 1) lines.push(`Toplam: ${stop.label}`);
+  });
+  if (stops.length > 1) {
+    lines.push("");
+    lines.push(`Toplam nakit: ${formatMoney(cashKurus / 100)}`);
+  }
+  return lines.join("\n");
+};
+
+/** Kuryenin numarasına wa.me bağlantısı (numara geçerli bir TR numarası değilse ya da sipariş yoksa null) */
+export const courierWhatsAppLink = (courier, orders) => {
+  const number = toWhatsAppNumber(courier?.phone);
+  const list = (Array.isArray(orders) ? orders : [orders]).filter(Boolean);
+  if (!number || !list.length) return null;
+  return `https://wa.me/${number}?text=${encodeURIComponent(buildCourierMessage(list, { courierName: courier?.name }))}`;
+};
