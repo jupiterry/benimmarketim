@@ -7,6 +7,7 @@ import { answerUserMessage } from "../services/ai/assistant.service.js";
 import { sendPushToUser } from "../services/push.service.js";
 import { notifyAdmins } from "../services/adminFeed.service.js";
 import { takeOverChat, takeOverFailureMessage } from "../services/chatTakeover.service.js";
+import { normalizeStaffFlags } from "../lib/staffFlags.js";
 
 // Yeni sohbet oluştur veya mevcut aktif sohbeti getir
 export const createChat = async (req, res) => {
@@ -406,8 +407,9 @@ export const deleteChat = async (req, res) => {
   }
 };
 
-// Yönetici paneli müşteri kartı: sohbetin sahibi, sipariş sayısı, son sipariş özeti ve
-// bu sohbete bağlı destek talebi. Salt okunur; mobil uygulamanın kullandığı uçlara dokunmaz.
+// Yönetici paneli müşteri kartı: sohbetin sahibi, sipariş sayısı, son sipariş özeti,
+// bu sohbete bağlı destek talebi ve personelin iç notu / işaretleri (yalnızca panel; select: false alanlar burada
+// açıkça seçilir). Salt okunur; mobil uygulamanın kullandığı uçlara dokunmaz.
 export const getChatContext = async (req, res) => {
   try {
     const { chatId } = req.params;
@@ -415,15 +417,26 @@ export const getChatContext = async (req, res) => {
     if (!chat) {
       return res.status(404).json({ message: "Sohbet bulunamadı!" });
     }
-    const [customer, orderCount, lastOrder, supportRequest] = await Promise.all([
-      User.findById(chat.user).select("name email phone avatar createdAt lastActive").lean(),
+    const [customerDoc, orderCount, lastOrder, supportRequest] = await Promise.all([
+      User.findById(chat.user).select("name email phone avatar createdAt lastActive staffNote staffFlags").populate("staffNote.updatedBy", "name").lean(),
       Order.countDocuments({ user: chat.user }),
       Order.findOne({ user: chat.user }).sort({ createdAt: -1 }).select("_id totalAmount status createdAt products deliveryPoint").lean(),
       SupportRequest.findOne({ conversation: chatId }).sort({ createdAt: -1 }).populate("assignedTo", "name").lean(),
     ]);
+    const { staffNote, staffFlags, ...customer } = customerDoc || {};
+    const noteText = typeof staffNote?.text === "string" ? staffNote.text.trim() : "";
+    const noteBy = staffNote?.updatedBy;
     res.json({
       success: true,
-      customer: customer || null,
+      customer: customerDoc ? customer : null,
+      staffFlags: normalizeStaffFlags(staffFlags),
+      staffNote: noteText
+        ? {
+            text: noteText,
+            updatedAt: staffNote.updatedAt || null,
+            updatedBy: noteBy?._id ? { _id: String(noteBy._id), name: noteBy.name || "" } : null,
+          }
+        : null,
       orderCount,
       lastOrder: lastOrder
         ? {

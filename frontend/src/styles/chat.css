@@ -1048,3 +1048,66 @@
     max-width: none;
   }
 }
+
+/* ══ Müşteri kartı: personelin iç notu ve işaretleri (yalnızca ekip görür) ══════════════════════ */
+.admin-layout .cht-staff {
+  padding: 10px 12px;
+  border: 1px dashed var(--ui-line-strong);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-2);
+}
+.admin-layout .cht-staff-private {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ui-text-3);
+}
+.admin-layout .cht-staff-private svg {
+  width: 11px;
+  height: 11px;
+}
+.admin-layout .cht-staff-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.admin-layout .cht-staff-flags .ui-badge {
+  white-space: normal;
+  line-height: 1.2;
+}
+.admin-layout .cht-staff-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-warn-bg);
+}
+.admin-layout .cht-staff-note > svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--ui-warn-ink);
+}
+.admin-layout .cht-staff-note > div {
+  min-width: 0;
+}
+.admin-layout .cht-staff-note p {
+  margin: 0;
+  font-size: var(--ui-fs-sm);
+  line-height: 1.45;
+  color: var(--ui-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.admin-layout .cht-staff-note span {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--ui-text-3);
+}

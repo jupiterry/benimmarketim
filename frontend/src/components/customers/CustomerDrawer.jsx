@@ -1,24 +1,37 @@
-// Müşteri profili çekmecesi: üstte kimlik ve iletişim, KPI'lar, sekmeler (Siparişler / Ürünler / Hesap).
-// Veriler GET /users/:id/profile ve GET /chat/list?userId= uç noktalarından gelir.
+// Müşteri profili çekmecesi: üstte kimlik ve iletişim, müşteri eylemleri, "Açık konular" şeridi, personelin iç notu
+// ve işaretleri, KPI'lar, sekmeler (Siparişler / Geçmiş / Ürünler / Hesap).
+// Veriler GET /users/:id/profile (zaman çizelgesi, açık konular, iç not dahil) ve GET /chat/list?userId= uçlarından gelir.
+// onCustomerAction(kind, user) verilirse "Kupon tanımla" (kind: "coupon") ve "Bildirim gönder" (kind: "push") düğmeleri
+// görünür; pencereyi çağıran ekran açar.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Bell, BellOff, Copy, Gift, Key, Mail, MessageCircle, Package, Phone, RefreshCw, Save, ShoppingBag, Smartphone, Ticket, Trash2, User as UserIcon, Users,
+  Bell, BellOff, BellRing, Copy, Gift, History, Key, Mail, MessageCircle, Package, Phone, RefreshCw, Save, ShoppingBag, Smartphone, Ticket, Trash2,
+  User as UserIcon, Users,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import axios from "../../lib/axios";
 import { cloudinaryImage } from "../../lib/image";
 import { useConfirm } from "../ConfirmModal";
-import { Drawer, EmptyState, Segmented, SkeletonCards, SkeletonRows, Tabs, formatDate, formatDateTime, money } from "../admin/ui";
+import { Drawer, EmptyState, HANDOFF, Segmented, SkeletonCards, SkeletonRows, Tabs, formatDate, formatDateTime, isTypingTarget, money, setHandoff } from "../admin/ui";
 import { relativeTime } from "../../lib/customers";
 import { Avatar, DeviceIcon, TagBadges, customerTags, deviceLabel, isAdmin, orderStatusTone, phoneDigits, platformLabel, registeredAt, whatsappLink } from "./shared";
+import Timeline, { OpenIssues } from "./Timeline";
+import StaffNotePanel from "./StaffNote";
 
 const TABS = [
   { value: "orders", label: "Siparişler", icon: ShoppingBag },
+  { value: "history", label: "Geçmiş", icon: History },
   { value: "products", label: "Ürünler", icon: Package },
   { value: "account", label: "Hesap", icon: UserIcon },
 ];
 const REFERRAL_STATUS = { pending: ["Bekliyor", "warn"], completed: ["İlk siparişini verdi", "info"], rewarded: ["Ödül verildi", "ok"] };
 const formOf = (user) => ({ name: user?.name || "", email: user?.email || "", phone: user?.phone || "" });
+const staffOf = (profile) => ({
+  note: profile?.staffNote?.text ? profile.staffNote : null,
+  flags: Array.isArray(profile?.staffFlags) ? profile.staffFlags : [],
+});
+/** Diğer ekrana geçiş: AdminPage "admin-navigate" olayını dinler */
+const navigate = (tab) => window.dispatchEvent(new CustomEvent("admin-navigate", { detail: tab }));
 
 const Stat = ({ label, value, sub }) => (
   <div className="ui-stat cus-stat">
@@ -256,18 +269,30 @@ const AccountTab = ({ user, profile, now, form, setForm, dirty, saving, onSave, 
 };
 
 // ── Çekmece ──────────────────────────────────────────────────────────
-const CustomerDrawer = ({ user, now, initialTab = "orders", focusPassword = false, onClose, onOpenChat, onSaved, onRoleChanged, onDelete }) => {
+const CustomerDrawer = ({ user, now, initialTab = "orders", focusPassword = false, onClose, onOpenChat, onSaved, onRoleChanged, onDelete, onCustomerAction }) => {
   const { confirm } = useConfirm();
   const [tab, setTab] = useState(initialTab);
   const [profile, setProfile] = useState(null);
+  const [profileVersion, setProfileVersion] = useState(0); // her yüklemede zaman çizelgesi baştan kurulur
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [chats, setChats] = useState([]);
+  const [staff, setStaff] = useState({ note: null, flags: [] });
+  const [noteDirty, setNoteDirty] = useState(false);
   const [form, setForm] = useState(() => formOf(user));
   const [saving, setSaving] = useState(false);
   const [roleBusy, setRoleBusy] = useState(false);
   const pwRef = useRef(null);
-  const dirty = useMemo(() => JSON.stringify(form) !== JSON.stringify(formOf(user)), [form, user]);
+  const mountedRef = useRef(true);
+  const staffSeqRef = useRef(0); // iç not / işaret kaydı sayacı: arka plandaki yenileme daha yeni kaydı ezmesin
+  const couponPendingRef = useRef(false); // "Kupon tanımla" penceresi açıldı; çekmeceye dönülünce profil tazelenir
+  const formDirty = useMemo(() => JSON.stringify(form) !== JSON.stringify(formOf(user)), [form, user]);
+  const dirty = formDirty || noteDirty;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -275,6 +300,8 @@ const CustomerDrawer = ({ user, now, initialTab = "orders", focusPassword = fals
     try {
       const res = await axios.get(`/users/${user._id}/profile`);
       setProfile(res.data.profile);
+      setStaff(staffOf(res.data.profile));
+      setProfileVersion((version) => version + 1);
     } catch (e) {
       setError(e.response?.data?.message || "Profil yüklenemedi");
     } finally {
@@ -290,10 +317,37 @@ const CustomerDrawer = ({ user, now, initialTab = "orders", focusPassword = fals
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setTab(initialTab); }, [initialTab, user._id]);
-  useEffect(() => { setForm(formOf(user)); }, [user]);
+  // Form yalnızca kayıtlı bilgiler değişince sıfırlanır (satır yenilemesi, ör. işaret kaydı, yazılan bilgiyi silmesin)
+  useEffect(() => { setForm(formOf({ name: user.name, email: user.email, phone: user.phone })); }, [user.name, user.email, user.phone]);
   useEffect(() => {
     if (focusPassword && tab === "account" && !loading) pwRef.current?.focus();
   }, [focusPassword, tab, loading]);
+
+  // Arka planda yeniden okuma (iskelet yok): yeni tanımlanan kupon "Geçmiş"e ve "Açık konular"a girer. Bu arada
+  // kaydedilen iç not / işaret yanıttan daha yeni olabileceği için o durumda ekrandaki hali korunur.
+  const refreshProfile = useCallback(async () => {
+    const seq = staffSeqRef.current;
+    try {
+      const res = await axios.get(`/users/${user._id}/profile`);
+      if (!mountedRef.current || !res.data?.profile) return;
+      setProfile(res.data.profile);
+      if (seq === staffSeqRef.current) setStaff(staffOf(res.data.profile));
+      setProfileVersion((version) => version + 1);
+    } catch {
+      // Sessiz: ekrandaki bilgiler kalır
+    }
+  }, [user._id]);
+  // Müşteri eylemi: pencereyi çağıran ekran (UsersTab) açar. Kupon penceresi kapanıp çekmeceye dönülünce (odak geri
+  // gelir ya da çekmeceye dokunulur) profil tazelenir.
+  const runCustomerAction = (kind) => {
+    if (kind === "coupon") couponPendingRef.current = true;
+    onCustomerAction?.(kind, user);
+  };
+  const afterCustomerAction = () => {
+    if (!couponPendingRef.current || loading || error || document.querySelector(".ui-modal-backdrop")) return;
+    couponPendingRef.current = false;
+    refreshProfile();
+  };
 
   const save = async () => {
     if (!form.name.trim() || !form.email.trim()) { toast.error("Ad ve e-posta boş olamaz"); return; }
@@ -333,13 +387,68 @@ const CustomerDrawer = ({ user, now, initialTab = "orders", focusPassword = fals
     }
   };
 
+  const unsavedText = noteDirty && formDirty
+    ? "İç notta ve bilgilerde kaydedilmemiş değişiklikler var."
+    : noteDirty ? "İç notta kaydedilmemiş değişiklik var." : "Bilgilerde kaydedilmemiş değişiklikler var.";
   const dirtyClose = useCallback(() => confirm({
     title: "Kaydedilmemiş değişiklik",
-    message: "Bilgilerde kaydedilmemiş değişiklikler var. Kapatılsın mı?",
+    message: `${unsavedText} Kapatılsın mı?`,
     confirmText: "Kapat",
     cancelText: "Geri dön",
     type: "warning",
-  }), [confirm]);
+  }), [confirm, unsavedText]);
+
+  // Bir metin alanında Esc: çekmece (Drawer gibi) kapanır, kaydedilmemiş değişiklik sorulur; olay arkadaki listeye
+  // ulaşmaz (listenin kısayolu metin alanındaki Esc'te müşteri aramasını temizliyor)
+  const onContentKeyDown = async (event) => {
+    if (event.key !== "Escape" || event.defaultPrevented || !isTypingTarget(event.target) || event.target.dataset.escClear) return;
+    event.stopPropagation();
+    event.preventDefault();
+    if (document.querySelector(".confirm-root, .ui-modal-backdrop")) return;
+    if (dirty && !(await dirtyClose())) return;
+    onClose?.();
+  };
+
+  // Başka ekrana geçerken kaydedilmemiş not / bilgi sessizce kaybolmasın
+  const confirmLeave = async () => {
+    if (!dirty) return true;
+    return confirm({
+      title: "Kaydedilmemiş değişiklik",
+      message: `${unsavedText} Yine de geçilsin mi?`,
+      confirmText: "Geç",
+      cancelText: "Geri dön",
+      type: "warning",
+    });
+  };
+  const openChat = async (chatId) => {
+    if (!chatId || !(await confirmLeave())) return;
+    if (onOpenChat) { onOpenChat(chatId); return; }
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", "chat");
+    url.searchParams.set("chatId", chatId);
+    window.history.replaceState({}, "", url);
+    navigate("chat");
+  };
+  /** Zaman çizelgesi / açık konu satırından ilgili kaydı açar: sipariş, sohbet ya da geri bildirimler */
+  const openRef = async (ref) => {
+    if (!ref?.id) return;
+    if (ref.kind === "chat") { await openChat(ref.id); return; }
+    if (ref.kind !== "order" && ref.kind !== "feedback") return;
+    if (!(await confirmLeave())) return;
+    if (ref.kind === "order") {
+      setHandoff(HANDOFF.order, ref.id);
+      navigate("orders");
+    } else {
+      navigate("feedback");
+    }
+  };
+
+  // İç not / işaret kaydı: çekmece hemen güncellenir, liste satırı (işaret rozetleri) yeniden okunur
+  const onStaffChange = useCallback(({ staffNote, staffFlags }) => {
+    staffSeqRef.current += 1;
+    setStaff({ note: staffNote?.text ? staffNote : null, flags: Array.isArray(staffFlags) ? staffFlags : [] });
+    onSaved?.({ _id: user._id, staffNote: staffNote?.text ? staffNote : null, staffFlags: Array.isArray(staffFlags) ? staffFlags : [] });
+  }, [onSaved, user._id]);
 
   const latestChat = chats[0];
   const joined = registeredAt(user);
@@ -359,51 +468,83 @@ const CustomerDrawer = ({ user, now, initialTab = "orders", focusPassword = fals
       tabs={<Tabs tabs={TABS.map((t) => ({ ...t, count: t.value === "orders" && stats ? stats.orderCount : undefined }))} value={tab} onChange={setTab} ariaLabel="Profil bölümleri" />}
       footer={(
         <>
-          <button type="button" className="ui-btn ui-btn--primary" disabled={!latestChat} title={latestChat ? "Son destek konuşmasını aç" : "Bu müşterinin destek konuşması yok"} onClick={() => latestChat && onOpenChat?.(latestChat._id)}>
+          <button type="button" className="ui-btn ui-btn--primary" disabled={!latestChat} title={latestChat ? "Son destek konuşmasını aç" : "Bu müşterinin destek konuşması yok"} onClick={() => latestChat && openChat(latestChat._id)}>
             <MessageCircle />Sohbeti aç{chats.length > 1 ? ` (${chats.length})` : ""}
           </button>
           <button type="button" className="ui-btn ui-btn--danger" onClick={() => onDelete?.(user)}><Trash2 />Sil</button>
         </>
       )}
     >
-      <div className="cus-profile-head">
-        <Avatar name={user.name} src={user.avatar} size="lg" />
-        <div className="cus-profile-id">
-          <div className="cus-profile-tags"><TagBadges tags={tags} max={3} />{tags.length === 0 && <span className="ui-muted ui-text-xs">Etiket yok</span>}</div>
-          <div className="cus-contact">
-            <a href={`mailto:${user.email}`}><Mail />{user.email}</a>
-            {user.phone && <a href={`tel:${phoneDigits(user.phone)}`}><Phone />{user.phone}</a>}
-            {wa && <a href={wa} target="_blank" rel="noopener noreferrer"><Smartphone />WhatsApp</a>}
+      {/* Kupon penceresinden çekmeceye dönüş (odak ya da dokunuş) ve metin alanındaki Esc burada yakalanır;
+          display: contents, düzeni etkilemez */}
+      <div className="cus-drawer-content" onFocusCapture={afterCustomerAction} onPointerDownCapture={afterCustomerAction} onKeyDown={onContentKeyDown}>
+        <div className="cus-profile-head">
+          <Avatar name={user.name} src={user.avatar} size="lg" />
+          <div className="cus-profile-id">
+            <div className="cus-profile-tags"><TagBadges tags={tags} max={3} />{tags.length === 0 && <span className="ui-muted ui-text-xs">Etiket yok</span>}</div>
+            <div className="cus-contact">
+              <a href={`mailto:${user.email}`}><Mail />{user.email}</a>
+              {user.phone && <a href={`tel:${phoneDigits(user.phone)}`}><Phone />{user.phone}</a>}
+              {wa && <a href={wa} target="_blank" rel="noopener noreferrer"><Smartphone />WhatsApp</a>}
+            </div>
           </div>
         </div>
-      </div>
 
-      {loading ? (
-        <>
-          <SkeletonCards count={4} height={64} />
-          <SkeletonRows rows={5} />
-        </>
-      ) : error ? (
-        <div className="ui-banner ui-banner--danger">
-          <span className="ui-grow">{error}</span>
-          <button type="button" className="ui-btn ui-btn--sm" onClick={load}><RefreshCw />Tekrar dene</button>
-        </div>
-      ) : (
-        <>
-          <div className="cus-profile-kpis">
-            <Stat label="Sipariş" value={stats.orderCount} sub={stats.cancelledCount ? `${stats.cancelledCount} iptal` : "iptal yok"} />
-            <Stat label="Toplam harcama" value={money(stats.totalSpent)} sub={stats.couponDiscount ? `${money(stats.couponDiscount)} kupon` : null} />
-            <Stat label="Ortalama sepet" value={money(stats.avgBasket)} />
-            <Stat label="Son sipariş" value={stats.lastOrderAt ? relativeTime(stats.lastOrderAt, now) : "—"} sub={stats.lastOrderAt ? formatDate(stats.lastOrderAt) : "Sipariş yok"} />
+        {onCustomerAction && (
+          <div className="cus-profile-actions" role="group" aria-label="Müşteri eylemleri">
+            <button type="button" className="ui-btn ui-btn--sm" onClick={() => runCustomerAction("coupon")}><Gift />Kupon tanımla</button>
+            <button type="button" className="ui-btn ui-btn--sm" onClick={() => runCustomerAction("push")}><BellRing />Bildirim gönder</button>
           </div>
-          {tab === "orders" && <OrdersTab profile={profile} now={now} />}
-          {tab === "products" && <ProductsTab profile={profile} now={now} />}
-          {tab === "account" && (
-            <AccountTab user={user} profile={profile} now={now} form={form} setForm={setForm} dirty={dirty} saving={saving} onSave={save}
-              onRole={changeRole} roleBusy={roleBusy} pwRef={pwRef} onDelete={() => onDelete?.(user)} />
-          )}
-        </>
-      )}
+        )}
+
+        {loading ? (
+          <>
+            <SkeletonCards count={4} height={64} />
+            <SkeletonRows rows={5} />
+          </>
+        ) : error ? (
+          <div className="ui-banner ui-banner--danger">
+            <span className="ui-grow">{error}</span>
+            <button type="button" className="ui-btn ui-btn--sm" onClick={load}><RefreshCw />Tekrar dene</button>
+          </div>
+        ) : (
+          <>
+            <OpenIssues issues={profile.openIssues} now={now} onOpen={openRef} />
+            <StaffNotePanel
+              userId={user._id}
+              note={staff.note}
+              flags={staff.flags}
+              deliveryFailures={profile.deliveryFailures}
+              onChange={onStaffChange}
+              onDirtyChange={setNoteDirty}
+            />
+            <div className="cus-profile-kpis">
+              <Stat label="Sipariş" value={stats.orderCount} sub={stats.cancelledCount ? `${stats.cancelledCount} iptal` : "iptal yok"} />
+              <Stat label="Toplam harcama" value={money(stats.totalSpent)} sub={stats.couponDiscount ? `${money(stats.couponDiscount)} kupon` : null} />
+              <Stat label="Ortalama sepet" value={money(stats.avgBasket)} />
+              <Stat label="Son sipariş" value={stats.lastOrderAt ? relativeTime(stats.lastOrderAt, now) : "—"} sub={stats.lastOrderAt ? formatDate(stats.lastOrderAt) : "Sipariş yok"} />
+            </div>
+            {tab === "orders" && <OrdersTab profile={profile} now={now} />}
+            {/* Geçmiş sekme değişince kapanmaz: yüklenen eski sayfalar ve süzgeç korunur */}
+            <div className="cus-tab-panel" hidden={tab !== "history"}>
+              <Timeline
+                key={profileVersion}
+                userId={user._id}
+                initialEvents={profile.timeline}
+                initialHasMore={profile.timelineHasMore}
+                initialNextBefore={profile.timelineNextBefore}
+                now={now}
+                onOpen={openRef}
+              />
+            </div>
+            {tab === "products" && <ProductsTab profile={profile} now={now} />}
+            {tab === "account" && (
+              <AccountTab user={user} profile={profile} now={now} form={form} setForm={setForm} dirty={formDirty} saving={saving} onSave={save}
+                onRole={changeRole} roleBusy={roleBusy} pwRef={pwRef} onDelete={() => onDelete?.(user)} />
+            )}
+          </>
+        )}
+      </div>
     </Drawer>
   );
 };
