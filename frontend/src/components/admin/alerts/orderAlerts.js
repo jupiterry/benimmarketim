@@ -136,7 +136,8 @@ const remember = (set, id) => {
 // ── Denetleyici ───────────────────────────────────────────────────────────
 /**
  * ui: { openOrder(id), preparingCount(n), newOrders(orders, source: "live"|"missed"), resolved(ids),
- *       cancelled(entry, { live }) }
+ *       cancelled(entry, { live }) (bu cihazda yeni iptal uyarısı), cancelBell(entry) (canlı iptal olayı, her sekmede),
+ *       offlineCheck() (canlı bağlantı yokken 30 sn'de bir ve "Şimdi dene"de: zil listesini tazele) }
  * Arayüz geri çağrıları denetleyiciyi bekletmez; hataları denetleyiciyi bozmaz.
  */
 export function createOrderAlerts(ui = {}) {
@@ -477,6 +478,9 @@ export function createOrderAlerts(ui = {}) {
     const entry = normalizeCancel(payload);
     if (!entry) return;
     feedHighWater = Math.max(feedHighWater, toMs(entry.at));
+    // Zil satırı her sekmede eklenir: aynı cihazdaki başka sekme uyarıyı önce eklediyse addCancels bu sekmede
+    // yeni uyarı saymaz (ses ve masaüstü bildirimi bir kez), ama bu sekmenin zil listesi de güncel kalmalı
+    callUi("cancelBell", entry);
     addCancels([entry], { live: true });
   };
   // Her bağlanışta siparişler kontrol edilir: istemci kopukluğu ancak sunucunun ping süresi dolunca (~45 sn) fark
@@ -535,9 +539,13 @@ export function createOrderAlerts(ui = {}) {
       set({ offline: true });
       lastOfflinePollAt = now;
       sync();
+      callUi("offlineCheck");
     } else if (state.offline && now - lastOfflinePollAt >= OFFLINE_POLL_MS) {
       lastOfflinePollAt = now;
       sync();
+      // Zil listesi de tazelenir: canlı bağlantı uzun süre kurulamazsa (ör. ağ websocket'i engelliyor) müşteri iptali
+      // ve destek talepleri yeniden bağlanmayı beklemeden görünür (iptaller ingestFeed ile kırmızı uyarıya düşer)
+      callUi("offlineCheck");
     } else if (now - lastSyncAt >= SAFETY_SYNC_MS) {
       sync();
     }
@@ -646,6 +654,7 @@ export function createOrderAlerts(ui = {}) {
     /** "Şimdi dene": canlı bağlantıyı beklemeden yeniden kurar ve siparişleri kontrol eder */
     retry: () => {
       socketService.reconnectNow();
+      callUi("offlineCheck");
       return sync({ fresh: true });
     },
     refreshAlarm: () => refreshAlarm(),

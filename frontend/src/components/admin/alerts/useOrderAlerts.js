@@ -61,17 +61,19 @@ const bellCancelItem = (entry) => ({
  *  - onOpenOrder(id): siparişin çekmecesini açar (HANDOFF + Siparişler sekmesi)
  *  - onPreparingCount(n): HTTP kontrolünden gelen bekleyen sipariş sayısı (rozet)
  *  - onBellItem(item): zil listesine satır ekler (kaçırılan sipariş, müşteri iptali)
+ *  - onOfflineCheck(): canlı bağlantı yokken (30 sn'de bir) zil listesini sunucudan yeniden yükler
  * Dönüş: { state, actions } — actions'ın kimliği sabittir.
  */
-export default function useOrderAlerts({ enabled = true, onOpenOrder, onPreparingCount, onBellItem } = {}) {
+export default function useOrderAlerts({ enabled = true, onOpenOrder, onPreparingCount, onBellItem, onOfflineCheck } = {}) {
   const handlersRef = useRef({});
-  handlersRef.current = { onOpenOrder, onPreparingCount, onBellItem };
+  handlersRef.current = { onOpenOrder, onPreparingCount, onBellItem, onOfflineCheck };
   const controllerRef = useRef(null);
   if (!controllerRef.current) {
     const handlers = handlersRef;
     const controller = createOrderAlerts({
       openOrder: (id) => handlers.current.onOpenOrder?.(id),
       preparingCount: (count) => handlers.current.onPreparingCount?.(count),
+      offlineCheck: () => handlers.current.onOfflineCheck?.(),
       newOrders: (orders, source) => {
         const missed = source === "missed";
         // Canlı siparişi zile AdminPage ekler; bağlantı kopukken gelenler burada eklenir
@@ -107,8 +109,9 @@ export default function useOrderAlerts({ enabled = true, onOpenOrder, onPreparin
       },
       // Sipariş onaylandı, ilerletildi, telefonda görüldü ya da iptal edildi: bildirim kartı ekranda kalmasın
       resolved: (ids) => ids.forEach((id) => toast.dismiss(`order-${id}`)),
-      cancelled: (entry, { live }) => {
-        if (live) handlers.current.onBellItem?.(bellCancelItem(entry));
+      // Canlı iptal olayı her sekmenin zil listesine yazılır (bağlantı kopukken kaçırılanlar zaten sunucu listesinde)
+      cancelBell: (entry) => handlers.current.onBellItem?.(bellCancelItem(entry)),
+      cancelled: (entry) => {
         // Sekme açıkken kırmızı uyarı ve ses yeterli; arka plandaysa masaüstü bildirimi de gider
         if (typeof document !== "undefined" && document.visibilityState === "hidden") {
           browserNotify(

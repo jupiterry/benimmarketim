@@ -217,6 +217,10 @@ export const previewSound = ({ sound, volume }) => {
   resumeContext();
   return start(soundUrl(sound), { volume, maxMs: ALERT_SOUND_MAX_MS, preview: true });
 };
+/** Deneme sesi çalarken kaydırıcı oynatılırsa düzey hemen değişir (yeniden "Dene"ye basmak gerekmez) */
+export const setPreviewVolume = (volume) => {
+  if (snapshot.previewing && player) player.volume = clampVolume(volume);
+};
 export const stopPreview = () => {
   if (!snapshot.previewing) return;
   playToken += 1;
@@ -225,10 +229,15 @@ export const stopPreview = () => {
   setState({ previewing: false });
 };
 
-/** "Ses kapalı · açmak için tıklayın": tıklama anında çağrılır, seçili sesten kısa bir parça çalar */
-export const unlockWithSound = ({ sound, volume }) => {
+/**
+ * "Ses kapalı · açmak için tıklayın": tıklama anında çağrılır, seçili sesten kısa bir parça çalar. Ses dosyası
+ * yüklenemezse (ör. internet yok) kilit sessiz parçayla açılır: yeni siparişte dosya yine yüklenemezse Web Audio bip
+ * çalar, uyarı da boşuna ekranda kalmaz.
+ */
+export const unlockWithSound = async ({ sound, volume }) => {
   resumeContext();
-  return start(soundUrl(sound), { volume, maxMs: 2500 });
+  const result = await start(soundUrl(sound), { volume, maxMs: 2500 });
+  return result === "error" ? start(silentWav(), { volume: 1 }) : result;
 };
 
 /**
