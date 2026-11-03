@@ -212,13 +212,17 @@ const count = (value) => (Number(value) || 0).toLocaleString("tr-TR");
 /**
  * Kampanyanın getirisi (GET /api/campaigns/performance): "34 adet · ₺1.020 ciro · ₺204 indirim".
  * performance: { state: "loading" } | { state: "ready", data } | { state: "error" }; hata olursa satır gizlenir.
+ * `measurable`: kampanya ürüne kayıtlı bir fiyatla uygulanmış mı (appliedPrice). Uygulanmamış kampanyada
+ * (planlıyken iptal, silinmiş ürün ya da fiyat kaydı tutulmadan önceki eski kampanya) satış ölçülemez;
+ * "satış olmadı" yazılmaz, satır gizlenir.
  */
-const PerformanceLine = ({ performance, status }) => {
+const PerformanceLine = ({ performance, status, measurable = true }) => {
   if (!performance || status === "upcoming") return null;
   if (performance.state === "loading") return <Skeleton width={150} height={10} className="prd-flash-perf-wait" />;
   const data = performance.state === "ready" ? performance.data : null;
   if (!data) return null;
   if (!(Number(data.units) > 0)) {
+    if (!measurable) return null;
     return (
       <span className="prd-flash-perf" data-empty="true">
         <TrendingUp aria-hidden="true" />{status === "active" ? "Henüz satış yok" : "Bu kampanyada satış olmadı"}
@@ -279,7 +283,8 @@ export const FlashSaleRow = ({ sale, now, onEnd, onDelete, onOpenProduct, showPr
             İptal: {formatDateTime(sale.cancelledAt)}{sale.cancelledBy ? ` · ${sale.cancelledBy}` : ""}
           </span>
         )}
-        <PerformanceLine performance={performance} status={status} />
+        <PerformanceLine performance={performance} status={status}
+          measurable={sale.appliedPrice !== null && sale.appliedPrice !== undefined} />
       </div>
       <div className="prd-flash-actions">
         {status === "active" && (

@@ -101,14 +101,19 @@ export const duration = (ms) => {
 };
 
 // ── Durum ─────────────────────────────────────────────────────────────────
+/** Kullanım sınırı dolmuş genel kupon: kaydı açık ama müşteri kullanamıyor (sunucudaki isExhaustedItem) */
+export const isExhausted = (item) => item?.type === "coupon" && item?.stats?.exhausted === true;
+
 /**
- * Öğenin şimdiki durumu (sayfa açık kalsa da güncel): upcoming | ending_today | live | ended.
+ * Öğenin şimdiki durumu (sayfa açık kalsa da güncel): upcoming | ending_today | live | exhausted | ended.
  * Sunucudaki campaignStatus ile aynı kural; tarihi olmayan öğe (vitrin, otomasyon) her zaman yayındadır.
+ * Sınırı dolmuş kupon "exhausted": yayında sayılmaz, listede ve takvimde gösterilmez (dikkat şeridinde yazar).
  */
 export const statusOf = (item, now) => {
   const start = toMs(item?.startsAt);
   const end = toMs(item?.endsAt);
   if (Number.isFinite(end) && end <= now) return "ended";
+  if (isExhausted(item)) return "exhausted";
   if (Number.isFinite(start) && start > now) return "upcoming";
   if (Number.isFinite(end) && end <= tonightCutoff(now)) return "ending_today";
   return "live";
@@ -164,7 +169,9 @@ export const itemSubtitle = (item) => {
       if (d.campaign || d.productCount > 1) return `${count(d.productCount)} ürün · ${pctRange(d.minDiscount, d.maxDiscount)} indirim`;
       const child = item.children?.[0];
       const parts = [`${pctRange(d.minDiscount, d.maxDiscount)} indirim`];
-      if (child && Number.isFinite(Number(child.listPrice)) && child.price !== null && child.price !== undefined) {
+      // Silinmiş üründe liste fiyatı yok (null): Number(null) 0 olur, "₺0 → ₺80" yazılmasın
+      const hasListPrice = child?.listPrice !== null && child?.listPrice !== undefined && Number(child.listPrice) > 0;
+      if (hasListPrice && child.price !== null && child.price !== undefined) {
         parts.push(`${money(child.listPrice)} → ${money(child.price)}`);
       }
       if (d.name) parts.push(d.name);
@@ -248,7 +255,7 @@ export const attentionMessage = (entry, now) => {
     case "product_unavailable":
       return `${REASON_TEXT[entry.reason] || "Ürün satışta değil."}${entry.campaign ? ` (${entry.campaign})` : ""}`;
     case "flash_not_applied":
-      return "Flaş indirim ürüne uygulanmadı; müşteri eski fiyatı görüyor. Birkaç dakikada düzelmezse kampanyayı yeniden kaydedin.";
+      return "Flaş indirim ürüne uygulanmadı; müşteri eski fiyatı görüyor. Birkaç dakikada düzelmezse kampanyayı bitirip yeniden başlatın.";
     case "weekly_ineffective":
       return `Haftalık fiyat (${money(entry.weeklyPrice)}) liste fiyatından (${money(entry.listPrice)}) düşük değil; müşteri liste fiyatını öder.`;
     case "ending_today":
@@ -305,11 +312,14 @@ export const targetLabel = (target) => {
 };
 
 // ── Takvim ────────────────────────────────────────────────────────────────
-/** Takvime girecek (tarihli, bitmemiş) öğeler: başlangıca göre */
+/** Takvime girecek (tarihli, bitmemiş, sınırı dolmamış) öğeler: başlangıca göre */
 export const calendarItems = (items, now) => items
   .filter((item) => Number.isFinite(toMs(item.endsAt)) || Number.isFinite(toMs(item.startsAt)))
   .filter((item) => item.type !== "banner" && item.type !== "automation" && item.type !== "free_delivery")
-  .filter((item) => statusOf(item, now) !== "ended")
+  .filter((item) => {
+    const status = statusOf(item, now);
+    return status !== "ended" && status !== "exhausted";
+  })
   .sort((a, b) => {
     const sa = toMs(a.startsAt);
     const sb = toMs(b.startsAt);

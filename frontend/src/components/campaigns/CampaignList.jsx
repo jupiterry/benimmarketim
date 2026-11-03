@@ -23,14 +23,26 @@ const StatsLine = ({ parts, stats, className = "cc-stats" }) => {
   );
 };
 
-const ChildRow = ({ child, type, now, onNavigate }) => {
-  const flags = [
-    child.missing && "Silinmiş",
-    !child.missing && child.isHidden && "Gizli",
-    !child.missing && child.isOutOfStock && "Stokta yok",
-  ].filter(Boolean);
+/**
+ * Ürün rozetleri: silinmiş / gizli / stokta yok, ürüne uygulanmamış flaş indirim, etkisiz haftalık fırsat.
+ * Tek ürünlü satırda başlık zaten "Silinmiş ürün" yazdığı için `missing: false` ile o rozet atlanır.
+ * @returns {Array<[label: string, tone: "danger" | "warn"]>}
+ */
+const productBadges = (child, type, now, { missing = true } = {}) => {
+  if (!child) return [];
   const notApplied = type === "flash" && child.applied === false && !child.missing &&
     statusOf(child, now) !== "upcoming" && now - toMs(child.startsAt) > NOT_APPLIED_GRACE_MS;
+  return [
+    missing && child.missing && ["Silinmiş", "danger"],
+    !child.missing && child.isHidden && ["Gizli", "danger"],
+    !child.missing && child.isOutOfStock && ["Stokta yok", "danger"],
+    notApplied && ["İndirim uygulanmadı", "danger"],
+    type === "weekly" && child.ineffective && !child.missing && ["Fırsat etkisiz", "warn"],
+  ].filter(Boolean);
+};
+
+const ChildRow = ({ child, type, now, onNavigate }) => {
+  const badges = productBadges(child, type, now);
   const hasPrice = child.price !== null && child.price !== undefined;
   const price = type === "flash"
     ? [pctText(child.discountPercentage), hasPrice ? (child.listPrice ? `${money(child.listPrice)} → ${money(child.price)}` : money(child.price)) : null]
@@ -47,9 +59,7 @@ const ChildRow = ({ child, type, now, onNavigate }) => {
         <span className="cc-child-body">
           <span className="cc-child-name">
             <span className="ui-truncate">{child.name}</span>
-            {flags.map((flag) => <span key={flag} className="ui-badge ui-badge--danger">{flag}</span>)}
-            {notApplied && <span className="ui-badge ui-badge--danger">İndirim uygulanmadı</span>}
-            {type === "weekly" && child.ineffective && !child.missing && <span className="ui-badge ui-badge--warn">Fırsat etkisiz</span>}
+            {badges.map(([label, tone]) => <span key={label} className={`ui-badge ui-badge--${tone}`}>{label}</span>)}
           </span>
           <span className="cc-child-sub">
             <span className="cc-child-price">{price.filter(Boolean).join(" · ")}</span>
@@ -75,6 +85,14 @@ const CampaignRow = ({ item, now, onNavigate }) => {
   const expandable = children.length > 1 || (item.type === "weekly" && children.length > 0);
   const listId = `cc-children-${item.id}`;
   const image = item.type === "banner" ? item.details?.image : null;
+  // Tek ürünlü kampanyada ürünün rozetleri satırda; açılan grupta sorunlu ürün sayısı (ayrıntı ürün satırlarında)
+  const rowBadges = (() => {
+    if (!expandable) return productBadges(children.length === 1 ? children[0] : null, item.type, now, { missing: false });
+    const flagged = children.map((child) => productBadges(child, item.type, now)).filter((list) => list.length);
+    if (!flagged.length) return [];
+    const tone = flagged.some((list) => list.some(([, t]) => t === "danger")) ? "danger" : "warn";
+    return [[`${count(flagged.length)} üründe sorun`, tone]];
+  })();
   return (
     <li className="cc-row" data-status={badge.status}>
       <div className="cc-row-line">
@@ -88,6 +106,7 @@ const CampaignRow = ({ item, now, onNavigate }) => {
             <span className="cc-row-meta">
               <span className={`ui-badge${badge.tone ? ` ui-badge--${badge.tone}` : ""}`} title={badge.title}>{badge.label}</span>
               <span className="cc-row-when" title={badge.title}>{badge.detail}</span>
+              {rowBadges.map(([label, tone]) => <span key={label} className={`ui-badge ui-badge--${tone}`}>{label}</span>)}
             </span>
           </span>
           <span className="cc-row-side">
@@ -139,9 +158,13 @@ const TypeSection = ({ type, items, now, onNavigate }) => {
   );
 };
 
+// Listede yayındakiler (ve sayfa açıkken biten, yenileyince çıkanlar) durur; planlılar takvimde, sınırı dolmuş
+// kuponlar dikkat şeridinde görünür
+const isListed = (status) => status !== "upcoming" && status !== "exhausted";
+
 const CampaignList = ({ groups, now, onNavigate, upcomingCount = 0, onShowCalendar }) => {
   const sections = TYPE_ORDER
-    .map((type) => ({ type, items: (groups?.[type] || []).filter((item) => statusOf(item, now) !== "upcoming") }))
+    .map((type) => ({ type, items: (groups?.[type] || []).filter((item) => isListed(statusOf(item, now))) }))
     .filter((section) => section.items.length);
 
   if (!sections.length) {

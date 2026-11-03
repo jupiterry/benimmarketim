@@ -549,6 +549,10 @@ test("toplu flaş indirim adı: 'Kampanya · Ürün' kampanya adını verir, tek
   assert.equal(flashCampaignName("Cips - Flash Sale", "Cips"), null);
   assert.equal(flashCampaignName("", "Cips"), null);
   assert.equal(flashCampaignName(" · Cips", "Cips"), null);
+  // Ürün adında " · " geçen tekil (varsayılan adlı) kampanya, ürün sonradan yeniden adlandırılmış olsa da kampanya değildir
+  assert.equal(flashCampaignName("Cips · Büyük - Flash Sale", "Cips · Büyük"), null);
+  assert.equal(flashCampaignName("Cips · Büyük - Flash Sale", "Cips Büyük"), null);
+  assert.equal(flashCampaignName("Gece · Cips · Büyük", "Cips · Büyük"), "Gece");
 });
 
 test("flaş öğeleri: aynı ad ve tarihli toplu kampanya tek öğe; tekil kampanya ürün çekmecesine açılır", () => {
@@ -850,11 +854,13 @@ const assertOverview = (body, { flashCalls, weeklyCalls }) => {
   assert.equal(body.groups.free_delivery.length, 1);
   assert.equal(body.freeDeliveryEverywhere, true);
 
-  // Sayılar: yayında 9 (flaş 1, haftalık 1, kupon 2, talep 1, görev 1, vitrin 1, otomasyon 1, ücretsiz teslimat 1)
+  // Sayılar: yayında 8 (flaş 1, haftalık 1, kupon 1, talep 1, görev 1, vitrin 1, otomasyon 1, ücretsiz teslimat 1);
+  // kullanım sınırı dolmuş DOLU kuponu groups.coupon'da döner ama yayında sayılmaz
   assert.deepEqual(body.counts, {
-    live: 9, endingToday: 2, upcoming: 2,
-    byType: { flash: 1, weekly: 1, coupon: 2, coupon_request: 1, mission: 1, banner: 1, automation: 1, free_delivery: 1 },
+    live: 8, endingToday: 2, upcoming: 2,
+    byType: { flash: 1, weekly: 1, coupon: 1, coupon_request: 1, mission: 1, banner: 1, automation: 1, free_delivery: 1 },
   });
+  assert.equal(body.groups.coupon.length, 2);
 
   // Dikkat: stoksuz ürün, bugün biten kampanya, flaş + haftalık çakışması, bugün biten kupon, dolu kupon
   assert.deepEqual(body.attention.map((item) => item.kind), [

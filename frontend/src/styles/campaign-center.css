@@ -793,6 +793,12 @@
   .admin-layout .cc-updated {
     flex: 1 1 100%;
   }
+  /* Hata/boş durum düğmeleri, yenileme uyarısındaki "Tekrar dene" ve listenin altındaki takvim bağlantısı */
+  .admin-layout .ui-page.cc .ui-empty-action .ui-btn,
+  .admin-layout .ui-page.cc .cc-banner .ui-btn,
+  .admin-layout .cc-list-foot {
+    min-height: 44px;
+  }
   .admin-layout .cc-panel-head .ui-tabs > button {
     height: 44px;
   }
@@ -871,6 +877,15 @@
 }
 .admin-layout .prd-flash-perf-wait {
   margin: 3px 0;
+}
+/* Koyu tema: products.css yayındaki satıra açık sarı karışımlı zemin verir; koyu temada bu gri-bej zemin üzerinde
+   soluk metin (getiri satırı, tarih) ve turuncu oran okunmuyordu. Zemin ve oran rengi koyu tema belirteçlerinden. */
+.admin-layout[data-theme="dark"] .prd-flash-row[data-status="active"] {
+  border-color: color-mix(in srgb, var(--ui-warn) 55%, var(--ui-line));
+  background: var(--ui-warn-bg);
+}
+.admin-layout[data-theme="dark"] .prd-flash-pct {
+  color: var(--ui-warn-ink);
 }
 .admin-layout .prd-flash-more {
   width: 100%;

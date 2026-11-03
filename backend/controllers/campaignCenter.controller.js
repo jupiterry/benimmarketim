@@ -10,6 +10,8 @@
 //   - status "ending_today": iş günü (İstanbul 04:00–04:00) bitmeden biter; akşam bakıldığında gece 01:00'de
 //     biten kampanya da "bu gece biter" sayılır (siparişler gece yarısından sonra da sürer).
 //   - handoff.key, paneldeki HANDOFF anahtarının adıdır ("product" → ürün çekmecesini açar).
+//   - Kullanım sınırı dolmuş kupon (stats.exhausted) groups.coupon'da döner ama counts'ta yayında sayılmaz
+//     (panel onu "Şimdi yayında" listesinde değil, dikkat gerektirenlerde gösterir).
 //   - Bir bölüm yüklenemezse diğerleri yine döner; yüklenemeyenler `partial`, sınıra takılanlar `capped` listesinde.
 import FlashSale from "../models/flashSale.model.js";
 import WeeklyProduct from "../models/weeklyProduct.model.js";
@@ -55,6 +57,7 @@ const HEX24 = /^[0-9a-f]{24}$/i;
 const IDS_MAX_LENGTH = PERFORMANCE_MAX_IDS * 30;
 const PRODUCT_FIELDS = "name price isHidden isOutOfStock image thumbnail";
 const BULK_SEPARATOR = " · ";
+const DEFAULT_FLASH_SUFFIX = " - Flash Sale";
 const STATUS_RANK = { ending_today: 0, live: 1, upcoming: 2 };
 const SEVERITY_RANK = { danger: 0, warn: 1, info: 2 };
 
@@ -110,6 +113,10 @@ export const campaignStatus = (startsAt, endsAt, now = new Date()) => {
   return "live";
 };
 const isLiveStatus = (status) => status === "live" || status === "ending_today";
+/** Kullanım sınırı dolmuş kupon: kaydı açık ama müşteri kullanamıyor (yayında sayılmaz) */
+export const isExhaustedItem = (item) => item?.type === "coupon" && item.stats?.exhausted === true;
+/** Sayılarda yayında (ya da bugün biten) kabul edilen öğe */
+const countsAsLive = (item) => isLiveStatus(item.status) && !isExhaustedItem(item);
 
 const productTarget = (productId) =>
   (productId ? { tab: "products", handoff: { key: "product", value: productId } } : { tab: "products" });
@@ -160,13 +167,17 @@ const discountRange = (children) => {
   return pcts.length ? { minDiscount: Math.min(...pcts), maxDiscount: Math.max(...pcts) } : { minDiscount: 0, maxDiscount: 0 };
 };
 
+/** Adı verilmemiş kampanyanın varsayılan adı "<ürün> - Flash Sale" (tekil ve adsız toplu oluşturma) */
+const isDefaultFlashName = (name) => text(name).endsWith(DEFAULT_FLASH_SUFFIX);
+
 /**
  * Toplu oluşturulan flaş indirimin adı "Kampanya adı · Ürün adı" biçimindedir (flashSale.controller
- * createBulkFlashSales). Kampanya adını döndürür; tekil kampanyada null.
+ * createBulkFlashSales). Kampanya adını döndürür; tekil kampanyada null. Varsayılan adlı kampanya, ürün adında
+ * " · " geçse de ("Cips · Büyük - Flash Sale") kampanya sayılmaz.
  */
 export const flashCampaignName = (name, productName) => {
   const full = text(name);
-  if (!full) return null;
+  if (!full || isDefaultFlashName(full)) return null;
   if (productName) {
     const suffix = `${BULK_SEPARATOR}${productName}`;
     if (full.endsWith(suffix) && full.length > suffix.length) return full.slice(0, -suffix.length).trim() || null;
@@ -205,9 +216,10 @@ export const buildFlashItems = (sales, accs = new Map(), now = new Date()) => {
     };
     const campaign = flashCampaignName(sale.name, product?.name);
     if (!campaign) {
-      // Tekil kampanyaya elle verilmiş ad (varsayılan "<ürün> - Flash Sale" değilse) ayrıntıda gösterilir
+      // Tekil kampanyaya elle verilmiş ad (varsayılan "<ürün> - Flash Sale" değilse; ürün sonradan yeniden
+      // adlandırılmış olabilir) ayrıntıda gösterilir
       const saleName = text(sale.name);
-      const customName = saleName && saleName !== `${product?.name || ""} - Flash Sale` ? saleName : null;
+      const customName = saleName && !isDefaultFlashName(saleName) ? saleName : null;
       singles.push({ child, accs: acc ? [acc] : [], customName });
       continue;
     }
@@ -443,7 +455,7 @@ const unavailableReason = (child) =>
  *  - flash_not_applied (danger): başlama saati geçtiği hâlde indirim ürüne uygulanmamış (müşteri eski fiyatı görür)
  *  - weekly_ineffective (warn): yayındaki haftalık fırsatın fiyatı liste fiyatından düşük değil (müşteri liste fiyatını öder)
  *  - ending_today (warn): bu iş günü (gece dahil) biten kampanya
- *  - coupon_ending (warn): bugün biten genel kupon
+ *  - coupon_ending (warn): bugün biten genel kupon (kullanım sınırı dolmuşsa yerine coupon_exhausted yazılır)
  *  - flash_weekly_overlap: ürün aynı anda flaş indirimde ve haftalık fırsatta; effective: müşterinin ödediği
  *    fiyat (weekly → flaş indirim müşteriye yansımıyor, warn · flash → haftalık fiyat flaş bitene kadar geçmez, info)
  *  - coupon_exhausted (info): kullanım sınırı dolmuş ama açık kupon
@@ -511,9 +523,10 @@ export const buildCampaignAttention = ({ flash = [], weekly = [], coupons = [], 
   for (const [productId, flashEntry] of liveFlash) {
     const weeklyEntry = liveWeekly.get(productId);
     if (!weeklyEntry) continue;
+    // Fiyatı olmayan kayıt (null) çakışma sayılmaz: Number(null) 0 olur ve "₺0 haftalık fiyat" yazılırdı
+    if (!finite(flashEntry.child.price) || !finite(weeklyEntry.child.weeklyPrice)) continue;
     const flashPriceValue = Number(flashEntry.child.price);
     const weeklyPrice = Number(weeklyEntry.child.weeklyPrice);
-    if (!Number.isFinite(flashPriceValue) || !Number.isFinite(weeklyPrice)) continue;
     const effective = weeklyPrice <= flashPriceValue ? "weekly" : "flash";
     const ends = [timeOf(flashEntry.item.endsAt), timeOf(weeklyEntry.item.endsAt)].filter(Number.isFinite);
     list.push({
@@ -531,7 +544,8 @@ export const buildCampaignAttention = ({ flash = [], weekly = [], coupons = [], 
   }
 
   for (const coupon of coupons) {
-    if (coupon.status === "ending_today") {
+    // Sınırı dolmuş kupon zaten kullanılamıyor: "bugün bitiyor" uyarısı yerine yalnızca "sınır doldu" yazılır
+    if (coupon.status === "ending_today" && !coupon.stats?.exhausted) {
       list.push({ id: `coupon-ending:${coupon.id}`, kind: "coupon_ending", severity: "warn", type: "coupon", title: coupon.title, at: coupon.endsAt, target: coupon.target });
     }
     if (coupon.stats?.exhausted) {
@@ -716,10 +730,10 @@ export const buildCampaignOverview = async (now = new Date()) => {
 
   const all = CAMPAIGN_TYPES.flatMap((type) => groups[type]);
   const counts = {
-    live: all.filter((item) => isLiveStatus(item.status)).length,
-    endingToday: all.filter((item) => item.status === "ending_today").length,
+    live: all.filter(countsAsLive).length,
+    endingToday: all.filter((item) => item.status === "ending_today" && countsAsLive(item)).length,
     upcoming: all.filter((item) => item.status === "upcoming").length,
-    byType: Object.fromEntries(CAMPAIGN_TYPES.map((type) => [type, groups[type].filter((item) => isLiveStatus(item.status)).length])),
+    byType: Object.fromEntries(CAMPAIGN_TYPES.map((type) => [type, groups[type].filter(countsAsLive).length])),
   };
   const attention = buildCampaignAttention({
     flash: groups.flash,
