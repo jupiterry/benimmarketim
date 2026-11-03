@@ -119,6 +119,13 @@ const fromTrInput = (value, { end = false } = {}) => {
   const ms = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5])) - TR_OFFSET;
   return end && m[5] === "59" ? ms + MINUTE - 1 : ms;
 };
+/**
+ * Takvim alanının anı. Alan `exact` anının gösterimiyle aynıysa (kayıtlı değer değiştirilmedi ya da "Bitişi …
+ * yap" ile kondu) tam an korunur: alan dakika gösterir, ":59" kuralı 18:59:00'ı 18:59:59'a kaydırıp planlı
+ * fırsatla sahte çakışma yaratırdı.
+ */
+const inputMs = (value, exact, opts) =>
+  (value && Number.isFinite(exact) && toTrInput(exact) === value ? exact : fromTrInput(value, opts));
 
 const TR_WEEKDAY = new Intl.DateTimeFormat("tr-TR", { timeZone: "Europe/Istanbul", weekday: "short" });
 /** "Bugün" · "Pzt" (bir hafta içinde; gece yarısı için "yarın"dan açık) · "9 Kas" */
@@ -386,13 +393,13 @@ const FILTERS = [
   { id: "expired", label: "Bitti" },
 ];
 const EMPTY_TEXT = {
-  current: "Yayında, planlı ya da durdurulmuş fırsat yok.",
+  current: "Yayında, planlı ya da durdurulmuş fırsat yok. Geçen haftanın fırsatlarını kopyalayabilir ya da yeni fırsat ekleyebilirsiniz.",
   live: "Yayında fırsat yok. Durdurulan bir fırsatı açın ya da yeni ekleyin.",
   planned: "Planlı fırsat yok. Fırsat eklerken başlangıç seçin ya da geçen haftayı kopyalayın.",
   ending: "7 gün içinde bitecek fırsat yok.",
   paused: "Durdurulmuş fırsat yok.",
-  expired: "Biten fırsat yok.",
 };
+const HISTORY_DAYS_DEFAULT = 90; // sunucu son 90 günde bitenleri gönderir (historyDays)
 const PERF_MAX_IDS = 100;
 const COPY_MAX = 100; // sunucu tek istekte en fazla 100 fırsat kopyalar
 
@@ -487,17 +494,17 @@ const ROUNDING_OPTIONS = [
 ];
 const QUICK_PCT = [10, 15, 20, 25, 30, 40, 50];
 
-/** Başlangıç seçeneğinin anı (seçenekler çekmece/pencere açıldığı ana göre sabittir) */
-const startOptionMs = (mode, base, custom) => {
+/** Başlangıç seçeneğinin anı (seçenekler çekmece/pencere açıldığı ana göre sabittir); exact: kayıtlı tam an */
+const startOptionMs = (mode, base, custom, exact = NaN) => {
   if (mode === "tomorrow") return tomorrowStart(base);
   if (mode === "monday") return nextMondayStart(base);
-  if (mode === "custom") return fromTrInput(custom);
+  if (mode === "custom") return inputMs(custom, exact);
   return base;
 };
-/** Bitiş seçeneğinin anı (null: süresiz, NaN: seçilmedi/geçersiz) */
-const endOptionMs = (mode, startMs, custom) => {
+/** Bitiş seçeneğinin anı (null: süresiz, NaN: seçilmedi/geçersiz); exact: kayıtlı tam an */
+const endOptionMs = (mode, startMs, custom, exact = NaN) => {
   if (mode === "none") return null;
-  if (mode === "custom") return custom ? fromTrInput(custom, { end: true }) : NaN;
+  if (mode === "custom") return custom ? inputMs(custom, exact, { end: true }) : NaN;
   if (!Number.isFinite(startMs)) return NaN;
   if (mode === "week") return endOfTrWeek(startMs);
   return endAfterDays(startMs, Number(mode));
@@ -536,6 +543,9 @@ const WeeklyForm = ({ mode, item, items, now, onClose, onSaved, onGhost }) => {
   const [startCustom, setStartCustom] = useState(plannedItem ? toTrInput(item.startDate) : "");
   const [endMode, setEndMode] = useState(editing && item.endDate ? "custom" : "none");
   const [endCustom, setEndCustom] = useState(editing ? toTrInput(item.endDate) : "");
+  // Kayıtlı (ya da "Bitişi … yap" ile konan) tam anlar: alan değiştirilmedikçe saniyesiyle aynen gönderilir
+  const [startExact] = useState(plannedItem ? msOf(item.startDate) : NaN);
+  const [endExact, setEndExact] = useState(editing ? msOf(item.endDate) : NaN);
   const [order, setOrder] = useState(editing ? String(item.order ?? 0) : "");
   const [isActive, setIsActive] = useState(editing ? item.isActive !== false : true);
   const [endLive, setEndLive] = useState(false);
@@ -591,16 +601,23 @@ const WeeklyForm = ({ mode, item, items, now, onClose, onSaved, onGhost }) => {
   const pctNum = num(pct);
 
   // ── Tarihler ──
-  const startMs = canPlan ? startOptionMs(startMode, openedAt, startCustom) : NaN;
+  const startMs = canPlan ? startOptionMs(startMode, openedAt, startCustom, startExact) : NaN;
   const planning = canPlan && startMode !== "now" && Number.isFinite(startMs) && startMs > now;
   const effectiveStart = planning ? startMs : now;
   const endBase = canPlan && startMode !== "now" && Number.isFinite(startMs) ? startMs : openedAt;
-  const endMs = endOptionMs(endMode, endBase, endCustom);
+  const endMs = endOptionMs(endMode, endBase, endCustom, endExact);
   const endValid = endMs === null || Number.isFinite(endMs);
 
+  // Fiyat: düzenlemede değişmeyen fiyat engel değildir (sunucu da yalnızca değişen fiyatı denetler). Mağaza fiyatı
+  // sonradan fırsat fiyatının altına indiyse kayıt (bitiş, sıra, durdurma) yine yapılabilir; uyarı gösterilir.
+  const priceUnchanged = editing && priceNum > 0 && toKurus(priceNum) === toKurus(item.weeklyPrice);
+  const notBelowList = Boolean(basePrice) && priceNum > 0 && toKurus(priceNum) >= toKurus(basePrice);
   const priceError = !price ? null
     : !(priceNum > 0) ? "Geçerli bir fiyat girin"
-      : basePrice && toKurus(priceNum) >= toKurus(basePrice) ? "Fırsat fiyatı mağaza fiyatından düşük olmalı" : null;
+      : notBelowList && !priceUnchanged ? "Fırsat fiyatı mağaza fiyatından düşük olmalı" : null;
+  const priceWarning = !priceError && notBelowList
+    ? "Mağaza fiyatı artık fırsat fiyatına eşit ya da daha düşük; fırsat indirim sağlamıyor. Fiyatı düşürün ya da fırsatı durdurun."
+    : null;
   const startError = !canPlan || startMode !== "custom" ? null
     : !startCustom || !Number.isFinite(startMs) ? "Başlangıç tarihi ve saatini seçin"
       : startMs <= now ? "Başlangıç geçmişte kaldı. Hemen başlatmak için Şimdi'yi seçin." : null;
@@ -670,6 +687,7 @@ const WeeklyForm = ({ mode, item, items, now, onClose, onSaved, onGhost }) => {
   const setEndTo = (ms) => {
     touch();
     setEndMode("custom");
+    setEndExact(ms);
     setEndCustom(toTrInput(ms));
   };
 
@@ -866,6 +884,8 @@ const WeeklyForm = ({ mode, item, items, now, onClose, onSaved, onGhost }) => {
           </div>
           {priceError ? (
             <p className="wky-calc-result" data-tone="danger" role="alert" style={{ marginTop: 8 }}>{priceError}</p>
+          ) : priceWarning ? (
+            <p className="wky-calc-result" data-tone="warn" role="status" style={{ marginTop: 8 }}>{priceWarning}</p>
           ) : product && priceNum > 0 ? (
             <p className="wky-calc-result" style={{ marginTop: 8 }}>
               <span>{money(basePrice)} <ArrowRight className="wky-price-arrow" aria-hidden="true" /> <span className="ui-num">{money(priceNum)}</span></span>
@@ -1050,7 +1070,7 @@ const WeeklyForm = ({ mode, item, items, now, onClose, onSaved, onGhost }) => {
           </>
         )}
 
-        {product && priceNum > 0 && !priceError && (
+        {product && priceNum > 0 && !priceError && !priceWarning && (
           <div className="wky-card-preview">
             <PhoneCard product={product} price={priceNum} pct={effectivePct} />
             <p>
@@ -1090,7 +1110,10 @@ const CopyDialog = ({ items, ids, now, onClose, onDone }) => {
   const liveDeals = useMemo(() => items.filter((wp) => statusOf(wp, now) === "live"), [items, now]);
   const lastWeekDeals = useMemo(() => latestPerProduct(items.filter((wp) => wasLiveDuring(wp, lastWeek.from, lastWeek.to))), [items, lastWeek]);
   const [source, setSource] = useState(() => (fromSelection ? "selected" : liveDeals.length || !lastWeekDeals.length ? "live" : "lastWeek"));
-  const [startMode, setStartMode] = useState("monday");
+  // Pazartesi raf boşsa (geçen haftanın fırsatları Pazar 23:59'da bitti) kopya hemen başlar ve bu Pazar biter:
+  // o gün "Pazartesi 00:00" gelecek haftayı gösterir, raf bütün hafta boş kalırdı. Diğer günler: gelecek Pazartesi.
+  const mondayGap = trWeekday(openedAt) === 1 && liveDeals.length === 0;
+  const [startMode, setStartMode] = useState(mondayGap ? "now" : "monday");
   const [startCustom, setStartCustom] = useState(() => toTrInput(nextMondayStart(openedAt)));
   const [endMode, setEndMode] = useState("week");
   const [endCustom, setEndCustom] = useState(() => toTrInput(endOfTrWeek(nextMondayStart(openedAt))));
@@ -1100,6 +1123,9 @@ const CopyDialog = ({ items, ids, now, onClose, onDone }) => {
   const [overrides, setOverrides] = useState(() => new Map());
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
+  const doneRef = useRef(null);
+  // Sonuç görünümünde kopyalama düğmesi kaybolur: odak "Tamam"a taşınır (klavyeyle kapatılabilsin)
+  useEffect(() => { if (result) doneRef.current?.focus({ preventScroll: true }); }, [result]);
 
   // Odak pencereye taşınır, kapanınca açan öğeye döner; Esc kapatır (kaydederken değil)
   const busyRef = useRef(busy);
@@ -1260,7 +1286,7 @@ const CopyDialog = ({ items, ids, now, onClose, onDone }) => {
               </ul>
             </div>
             <div className="ui-modal-footer">
-              <button type="button" className="ui-btn ui-btn--primary" onClick={onClose}>Tamam</button>
+              <button ref={doneRef} type="button" className="ui-btn ui-btn--primary" onClick={onClose}>Tamam</button>
             </div>
           </>
         ) : (
@@ -1303,6 +1329,11 @@ const CopyDialog = ({ items, ids, now, onClose, onDone }) => {
                   <p className="wky-copy-range">
                     <CalendarClock aria-hidden="true" />
                     {immediate ? `Hemen yayına girer · bitiş ${formatDateTime(endMs)}` : `${rangeText(startMs, endMs)} · ${atLabel(startMs, now)} kendiliğinden yayına girer`}
+                  </p>
+                )}
+                {mondayGap && startMode === "now" && (
+                  <p className="ui-hint wky-copy-datehint">
+                    {"Bugün Pazartesi ve rafta fırsat yok; kopyalar hemen başlar. Gelecek hafta için \"Pazartesi 00:00\" seçeneğine geçin."}
                   </p>
                 )}
               </section>
@@ -1468,7 +1499,7 @@ const DealRow = ({
           {product?.price > wp.weeklyPrice && <span className="wky-saving">{money(product.price - wp.weeklyPrice)} tasarruf</span>}
           {product?.price > 0 && toKurus(wp.weeklyPrice) >= toKurus(product.price) && <span className="ui-badge ui-badge--warn"><AlertTriangle />Mağaza fiyatından düşük değil</span>}
           {product?.isOutOfStock && <span className="ui-badge ui-badge--warn">Stokta yok</span>}
-          {product?.isHidden && <span className="ui-badge">Gizli ürün</span>}
+          {product?.isHidden && <span className="ui-badge" title="Ürün gizli olduğu için müşteri bu fırsatı görmez">Gizli ürün</span>}
         </span>
         {perfItem && (
           <span
@@ -1535,6 +1566,7 @@ const WeeklyProductsTab = () => {
   const { confirm } = useConfirm();
   // Durumlar sunucu saatine göre: bilgisayarın saati yanlışsa "Planlı" fırsat erken "Yayında" görünmesin
   const [clockSkew, setClockSkew] = useState(0);
+  const [historyDays, setHistoryDays] = useState(HISTORY_DAYS_DEFAULT);
   const now = useNow(30000) + clockSkew;
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1564,6 +1596,8 @@ const WeeklyProductsTab = () => {
       if (seq !== loadSeq.current) return;
       const serverTime = Date.parse(response.data?.serverTime);
       if (Number.isFinite(serverTime)) setClockSkew(serverTime - Date.now());
+      const days = Number(response.data?.historyDays);
+      if (Number.isFinite(days) && days > 0) setHistoryDays(days);
       setItems((response.data?.weeklyProducts || []).filter((wp) => !pendingRemoval.current.has(wp._id)));
       setError(null);
     } catch (e) {
@@ -1645,7 +1679,11 @@ const WeeklyProductsTab = () => {
     if (filter === "expired") return list.sort((a, b) => (msOf(b.endDate) || 0) - (msOf(a.endDate) || 0) || shelf(a, b));
     return list.sort(shelf);
   }, [items, filter, query, now]);
-  const live = useMemo(() => items.filter((wp) => statusOf(wp, now) === "live" && wp.product).sort(byShelfOrder(now)), [items, now]);
+  // Müşterinin rafta gördükleri: gizli ürünün fırsatı uygulamaya hiç gönderilmez (önizleme ve sıra numarası almaz)
+  const live = useMemo(
+    () => items.filter((wp) => statusOf(wp, now) === "live" && wp.product && wp.product.isHidden !== true).sort(byShelfOrder(now)),
+    [items, now],
+  );
   const livePosition = useMemo(() => new Map(live.map((wp, i) => [wp._id, i + 1])), [live]);
   const canReorder = filter === "current" && !query.trim() && rows.length > 1 && !reordering;
   const filtered = filter !== "current" || Boolean(query.trim());
@@ -1693,12 +1731,15 @@ const WeeklyProductsTab = () => {
     const item = perf.items[wp._id];
     return validPerf(item) ? item : null;
   };
+  // Uç nokta fırsatın tüm dönemini verir: bu Pazartesi'den önce başlamış (ör. süresiz) bir fırsatın rakamı önceki
+  // haftaları da içerir; KPI bunu "önceki haftalar dahil" diye belirtir.
   const weekPerf = useMemo(() => {
     if (perf.failed) return null;
     let revenue = 0;
     let units = 0;
     let known = 0;
     let inferred = false;
+    let spansEarlier = false;
     for (const wp of weekDeals) {
       const item = perf.items[wp._id];
       if (!validPerf(item)) continue;
@@ -1706,9 +1747,11 @@ const WeeklyProductsTab = () => {
       revenue += Number(item.revenue) || 0;
       units += Number(item.units) || 0;
       if (Number(item.inferredLines) > 0) inferred = true;
+      const from = Number.isFinite(msOf(item.from)) ? msOf(item.from) : msOf(wp.startDate ?? wp.createdAt);
+      if (Number.isFinite(from) && from < weekStart && Number(item.units) > 0) spansEarlier = true;
     }
-    return known ? { revenue, units, inferred, deals: known } : null;
-  }, [perf, weekDeals]);
+    return known ? { revenue, units, inferred, spansEarlier, deals: known } : null;
+  }, [perf, weekDeals, weekStart]);
 
   // Seçim yalnızca görünen satırlarda kalır (görmediğiniz fırsat kopyalanmaz)
   useEffect(() => {
@@ -1989,7 +2032,14 @@ const WeeklyProductsTab = () => {
             label="Bu haftaki fırsat cirosu"
             value={wholeMoney(weekPerf.revenue)}
             tone="ok"
-            note={`${weekPerf.units.toLocaleString("tr-TR")} adet · ${weekPerf.deals} fırsat${weekPerf.inferred ? " · tahmini" : ""}`}
+            className="wky-kpi-perf"
+            note={(
+              <>
+                <span>{`${weekPerf.units.toLocaleString("tr-TR")} adet · ${weekPerf.deals} fırsat`}</span>
+                {weekPerf.inferred && <span>tahmini</span>}
+                {weekPerf.spansEarlier && <span title="Bu Pazartesi'den önce başlamış fırsatların rakamı başlangıçlarından bu yana">önceki haftalar dahil</span>}
+              </>
+            )}
           />
         )}
       </KpiGrid>
@@ -2069,10 +2119,11 @@ const WeeklyProductsTab = () => {
                 {rows.length === 0 ? (
                   <EmptyState
                     compact
-                    icon={Search}
-                    title="Sonuç yok"
-                    description={query ? `"${query}" ile eşleşen fırsat yok.` : EMPTY_TEXT[filter]}
-                    action={filter === "planned" && !query ? (
+                    icon={query ? Search : Sparkles}
+                    title={query ? "Sonuç yok" : filter === "current" ? "Güncel fırsat yok" : "Bu görünümde fırsat yok"}
+                    description={query ? `"${query}" ile eşleşen fırsat yok.`
+                      : filter === "expired" ? `Son ${historyDays} günde biten fırsat yok.` : EMPTY_TEXT[filter]}
+                    action={(filter === "planned" || filter === "current") && !query ? (
                       <button type="button" className="ui-btn ui-btn--sm ui-btn--primary" onClick={() => openCopy(null)}><CopyPlus />Geçen haftayı kopyala</button>
                     ) : filtered ? (
                       <button type="button" className="ui-btn ui-btn--sm" onClick={resetFilters}>Filtreleri temizle</button>
@@ -2116,7 +2167,11 @@ const WeeklyProductsTab = () => {
                   </DragDropContext>
                 )}
                 <div className="wky-foot">
-                  <p>{rows.length === items.length ? `${items.length} fırsat` : `${rows.length} / ${items.length} fırsat`}{reordering ? " · sıra kaydediliyor…" : canReorder ? " · tutamacı sürükleyerek sıralayın" : ""}</p>
+                  <p>
+                    {rows.length === items.length ? `${items.length} fırsat` : `${rows.length} / ${items.length} fırsat`}
+                    {reordering ? " · sıra kaydediliyor…" : canReorder ? " · tutamacı sürükleyerek sıralayın" : ""}
+                    {filter === "expired" ? ` · son ${historyDays} günde bitenler` : ""}
+                  </p>
                   <p className="wky-foot-hint">İpucu: <kbd>/</kbd> ara · <kbd>j</kbd> <kbd>k</kbd> gez · <kbd>x</kbd> seç · <kbd>↵</kbd> düzenle · <kbd>n</kbd> yeni · <kbd>?</kbd> yardım</p>
                 </div>
               </section>

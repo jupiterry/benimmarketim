@@ -29,7 +29,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_AHEAD_MS = 366 * DAY_MS; // başlangıç en fazla bir yıl sonra, aralık en fazla bir yıl
 const MAX_PRICE = 1_000_000;
 const MAX_ORDER = 1_000_000;
-const ADMIN_PRODUCT_SELECT = "name price image thumbnail category description isOutOfStock isHidden isDiscounted discountedPrice";
+// Panel listesi: her hafta yeni kayıt oluştuğu için biten fırsatlar yalnızca bu kadar geriye gösterilir
+// (yayında, planlı, durdurulmuş ve süresiz kayıtların hepsi döner). Ürün açıklaması panelde kullanılmaz.
+export const WEEKLY_ADMIN_HISTORY_DAYS = 90;
+const ADMIN_PRODUCT_SELECT = "name price image thumbnail category isOutOfStock isHidden isDiscounted discountedPrice";
 const PUBLIC_PRODUCT_SELECT = "name price image thumbnail category description isOutOfStock isDiscounted discountedPrice";
 const INVALID = Symbol("invalid");
 const NOW = Symbol("now");
@@ -40,6 +43,12 @@ const isPast = (value, now = new Date()) => {
   if (value === null || value === undefined || value === "") return false;
   const date = new Date(value);
   return !Number.isNaN(date.getTime()) && date <= now;
+};
+/** İki tarih aynı an mı? (boş ya da geçersizse hayır) */
+const sameInstant = (a, b) => {
+  if (a === null || a === undefined || b === null || b === undefined) return false;
+  const ta = new Date(a).getTime();
+  return !Number.isNaN(ta) && ta === new Date(b).getTime();
 };
 
 const TR_WHEN = new Intl.DateTimeFormat("tr-TR", { timeZone: "Europe/Istanbul", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -175,12 +184,18 @@ export const getWeeklyProducts = async (req, res) => {
 };
 
 /**
- * Admin için tüm haftalık ürünleri getir (yayında, planlı, durdurulmuş, biten). Her kayıtta güncel yüzde,
- * fiyat belirlendiğindeki yüzde (startDiscountPercentage) ve planlı bayrağı; serverTime panelin saat farkı için.
+ * Admin için haftalık fırsatlar: yayında, planlı, durdurulmuş ve süresiz olanların hepsi; bitenlerden son
+ * WEEKLY_ADMIN_HISTORY_DAYS gün içinde bitenler. Her kayıtta güncel yüzde, fiyat belirlendiğindeki yüzde
+ * (startDiscountPercentage) ve planlı bayrağı; serverTime panelin saat farkı için, historyDays geçmiş sınırı.
  */
 export const getAllWeeklyProducts = async (req, res) => {
   try {
-    const weeklyProducts = await WeeklyProduct.find()
+    const now = new Date();
+    const cutoff = new Date(now.getTime() - WEEKLY_ADMIN_HISTORY_DAYS * DAY_MS);
+    const weeklyProducts = await WeeklyProduct.find({
+      // endDate: null eksik alanı da kapsar (eski kayıtlar)
+      $or: [{ isActive: true }, { scheduled: true }, { endDate: null }, { endDate: { $gte: cutoff } }],
+    })
       .populate({ path: "product", select: ADMIN_PRODUCT_SELECT })
       .sort({ order: 1, createdAt: -1 })
       .lean();
@@ -188,7 +203,8 @@ export const getAllWeeklyProducts = async (req, res) => {
     res.json({
       success: true,
       weeklyProducts: (weeklyProducts || []).map(serializeWeeklyDeal),
-      serverTime: new Date().toISOString(),
+      serverTime: now.toISOString(),
+      historyDays: WEEKLY_ADMIN_HISTORY_DAYS,
     });
   } catch (error) {
     console.error("Tüm haftalık ürünler alınırken hata:", error.message);
@@ -355,7 +371,12 @@ export const updateWeeklyProduct = (req, res) => runWeeklyWrite(async () => {
     const wasPlanned = weeklyProduct.scheduled === true;
 
     if (startInput !== undefined && !wasPlanned) {
-      return fail(res, 400, "Yayındaki ya da biten fırsatın başlangıcı değiştirilemez. Yeni dönem için fırsatı kopyalayın.");
+      // Panel planlı fırsatı düzenlerken dakikalık iş onu yayına almış olabilir: "şimdi başlat", geçmiş ya da
+      // kayıtlı başlangıçla aynı an zaten karşılanmıştır; başlangıç yok sayılır, diğer değişiklikler uygulanır.
+      const startMet = startInput === NOW || startInput <= now || sameInstant(startInput, weeklyProduct.startDate);
+      if (!(weeklyProduct.isActive === true && startMet)) {
+        return fail(res, 400, "Yayındaki ya da biten fırsatın başlangıcı değiştirilemez. Yeni dönem için fırsatı kopyalayın.");
+      }
     }
     if (wasPlanned && body.isActive === true) return fail(res, 400, PLANNED_TOGGLE_MESSAGE);
 
@@ -663,6 +684,7 @@ export const copyWeeklyProducts = (req, res) => runWeeklyWrite(async () => {
 
     const skipped = [];
     const createdIds = [];
+    const createdDocs = []; // { doc, product }: son okuma başarısız olursa yanıt bunlardan kurulur
     const createdNames = [];
     const endedLive = [];
     const seenProducts = new Set();
@@ -708,6 +730,7 @@ export const copyWeeklyProducts = (req, res) => runWeeklyWrite(async () => {
           scheduled: planned,
         });
         createdIds.push(created._id);
+        createdDocs.push({ doc: created, product });
         createdNames.push(`${name}: ${money(next.price)}`);
         if (ended) {
           endedLive.push({ ...ended, name });
@@ -722,10 +745,6 @@ export const copyWeeklyProducts = (req, res) => runWeeklyWrite(async () => {
     }
 
     if (closedStale || endedLive.length || (!planned && createdIds.length)) invalidateWeeklyPriceCache();
-    const created = createdIds.length
-      ? (await WeeklyProduct.find({ _id: { $in: createdIds } }).populate({ path: "product", select: ADMIN_PRODUCT_SELECT }).sort({ order: 1, createdAt: -1 }).lean() || [])
-        .map(serializeWeeklyDeal)
-      : [];
 
     // Hiçbiri oluşturulmasa da işlem kaydı yazılır (genel kayıt yerine sayılarla)
     recordAdminAction(req, {
@@ -744,6 +763,21 @@ export const copyWeeklyProducts = (req, res) => runWeeklyWrite(async () => {
       ].filter(Boolean),
     });
     if (createdIds.length || endedLive.length || closedStale) emitUpdated(req);
+
+    // Oluşturulanlar panel biçiminde döner. Bu son okuma başarısız olursa fırsatlar yine de oluşmuştur: 500
+    // yerine eldeki ürün bilgisiyle dönülür (panel ardından listeyi yeniler).
+    let created = [];
+    if (createdDocs.length) {
+      try {
+        created = ((await WeeklyProduct.find({ _id: { $in: createdIds } })
+          .populate({ path: "product", select: ADMIN_PRODUCT_SELECT })
+          .sort({ order: 1, createdAt: -1 })
+          .lean()) || []).map(serializeWeeklyDeal);
+      } catch (error) {
+        console.error("Kopyalanan haftalık fırsatlar okunamadı:", error.message);
+        created = createdDocs.map(({ doc, product }) => serializeWeeklyDeal({ ...(doc?.toObject ? doc.toObject() : doc), product }));
+      }
+    }
 
     res.status(createdIds.length ? 201 : 200).json({ success: true, created, skipped });
   } catch (error) {
