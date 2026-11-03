@@ -899,3 +899,18 @@
     padding-left: var(--ui-s1);
   }
 }
+
+/* ── Teyit bekleyen kartın iki düğmesi ("Önce ara" + "Arandı, teyit edildi") ── */
+/* Geniş kartta yan sütun dikeydir: düğmeler alt alta, sütun genişliği tek düğmeninki kadar kalır (kart sıkışmaz) */
+.admin-layout .so-q-side > .so-cb-step {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+}
+/* Dar şeritte (yan sütun satır olur) yan yana, sığmazsa alta sarar */
+@container so-q-lane (max-width: 479px) {
+  .admin-layout .so-q-side > .so-cb-step {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}

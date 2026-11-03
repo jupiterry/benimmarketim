@@ -752,8 +752,13 @@ function createOrdersController({ confirm }) {
       if (fails.length > 2) toast.error(`${fails.length} siparişin durumu güncellenemedi`);
       else fails.forEach((id) => toast.error(statusFailMessage({ orderId: id })));
       // Sunucu teyit bekleyen siparişi taşımadı (başka cihazdan / eski veriyle gelen istek)
-      if (callbacks.length > 1) toast.error(`${callbacks.length} sipariş telefonla teyit beklediği için yola çıkarılmadı`);
-      else callbacks.forEach((id) => toast.error(`${orderCode(id)} telefonla teyit beklediği için yola çıkarılmadı`));
+      const verb = (list) => {
+        const targets = new Set(list.map((c) => c.to));
+        if (targets.size > 1) return "ilerletilmedi";
+        return targets.has("Teslim Edildi") ? "teslim edilmedi" : "yola çıkarılmadı";
+      };
+      if (callbacks.length > 1) toast.error(`${callbacks.length} sipariş telefonla teyit beklediği için ${verb(callbacks)}`);
+      else callbacks.forEach((c) => toast.error(`${orderCode(c.id)} telefonla teyit beklediği için ${verb([c])}`));
       conflicts = [];
       fails = [];
       callbacks = [];
@@ -762,7 +767,7 @@ function createOrdersController({ confirm }) {
     return {
       conflict: (id, status) => { conflicts.push({ id, status }); later(); },
       fail: (id) => { fails.push(id); later(); },
-      callback: (id) => { callbacks.push(id); later(); },
+      callback: (id, to) => { callbacks.push({ id, to }); later(); },
     };
   })();
 
@@ -966,8 +971,8 @@ function createOrdersController({ confirm }) {
       notices.fail(id);
     }
     for (const id of result.callback || []) {
+      notices.callback(id, entries.get(id)?.to);
       dropEntry(id, entries.get(id), true);
-      notices.callback(id);
       refetch.push(id);
     }
     (result.missing || []).forEach((id) => removeLocal(id));
