@@ -131,3 +131,29 @@ test("feedback without a comment: the product names the app stored as text are n
   const [written] = buildTimelineEvents({ feedbacks: [{ ...feedback, message: "Süt bozuk geldi" }] }, { userId: USER_ID, now: NOW });
   assert.match(written.detail, /^“Süt bozuk geldi” · Sorunlu ürün/);
 });
+
+test("open issues: within a colour the waiting customer comes first; coupons ending soonest come first", () => {
+  const NOW = Date.parse("2026-11-02T18:00:00Z");
+  const HOUR = 60 * 60 * 1000;
+  const issues = buildOpenIssues({
+    orders: [
+      { _id: "6ac8bc000000000000000001", status: "Hazırlanıyor", totalAmount: 120, needsCallback: true, callbackConfirmedAt: null, createdAt: new Date(NOW - 3 * HOUR) },
+    ],
+    supportRequests: [
+      { _id: "5e0000000000000000000001", conversation: "c4a700000000000000000001", status: "in_progress", reason: "İade", createdAt: new Date(NOW - HOUR) },
+      { _id: "5e0000000000000000000002", conversation: "c4a700000000000000000002", status: "waiting", reason: "Siparişim gelmedi", createdAt: new Date(NOW - 5 * HOUR) },
+    ],
+    feedbacks: [{ _id: "fb0000000000000000000001", kind: "quick", thumb: "down", status: "Yeni", createdAt: new Date(NOW - 10 * 60 * 1000) }],
+    coupons: [
+      { _id: "c00000000000000000000001", code: "TELAFI1A2B3C", discountType: "fixed", discountAmount: 50, isActive: true, expirationDate: new Date(NOW + 2 * 24 * HOUR), usedBy: [] },
+      { _id: "c00000000000000000000002", code: "TELAFI4D5E6F", discountType: "fixed", discountAmount: 30, isActive: true, expirationDate: new Date(NOW + 5 * HOUR), usedBy: [] },
+    ],
+  }, { userId: USER_ID, now: NOW });
+  assert.deepEqual(issues.map((issue) => issue.type), [
+    "open_support", "unanswered_feedback", // kırmızı: temsilci bekleyen müşteri, sonra yanıtsız düşük puan (daha yeni olsa da)
+    "pending_callback", "open_support", "expiring_coupon", "expiring_coupon", // sarı: teyit araması önce, kupon en son
+    "active_order",
+  ]);
+  const coupons = issues.filter((issue) => issue.type === "expiring_coupon");
+  assert.deepEqual(coupons.map((issue) => issue.ref.id), ["c00000000000000000000002", "c00000000000000000000001"], "önce bitecek kupon üstte");
+});

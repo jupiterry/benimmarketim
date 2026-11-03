@@ -824,10 +824,18 @@ export const deliveryFailureSummary = (orders = [], now = Date.now()) => {
 };
 
 const ISSUE_TONE_RANK = { danger: 3, warn: 2, info: 1 };
+// Aynı renkte önce bekletilen müşteri (teyit araması, temsilci), sonra tekrarlayan sorun, en son hatırlatma
+const ISSUE_TYPE_RANK = { pending_callback: 7, open_support: 6, delivery_failures: 4, unanswered_feedback: 3, expiring_coupon: 2, active_order: 1 };
+const compareIssues = (a, b) =>
+  ((ISSUE_TONE_RANK[b.tone] || 0) - (ISSUE_TONE_RANK[a.tone] || 0))
+  || ((ISSUE_TYPE_RANK[b.type] || 0) - (ISSUE_TYPE_RANK[a.type] || 0))
+  // Kuponda "at" bitiş zamanıdır: önce bitecek olan üstte; diğerlerinde en yeni üstte
+  || (a.type === "expiring_coupon" ? (a.at ?? 0) - (b.at ?? 0) : (b.at ?? 0) - (a.at ?? 0));
 /**
  * Çekmecenin üstündeki "Açık konular": aktif sipariş, teyit bekleyen ilk sipariş, açık destek talebi, yanıtsız düşük
  * puan, 3 gün içinde biten kullanılmamış kişisel kupon, son 30 günde tekrarlayan "teslim edilemedi".
- * Dönüş: [{ id, type, tone, title, detail, at (ISO | null), ref | null }] (önce kırmızı, sonra sarı, sonra mavi)
+ * Dönüş: [{ id, type, tone, title, detail, at (ISO | null), ref | null }] (önce kırmızı, sonra sarı, sonra mavi; aynı
+ * renkte müşteriyi bekleten konu önce, hatırlatmalar sonra)
  */
 export const buildOpenIssues = (
   { orders = [], supportRequests = [], feedbacks = [], coupons = [] } = {},
@@ -893,7 +901,7 @@ export const buildOpenIssues = (
     });
   }
   return issues
-    .sort((a, b) => ((ISSUE_TONE_RANK[b.tone] || 0) - (ISSUE_TONE_RANK[a.tone] || 0)) || ((b.at ?? 0) - (a.at ?? 0)))
+    .sort(compareIssues)
     .slice(0, OPEN_ISSUE_LIMIT)
     .map((issue, index) => ({ ...issue, id: `${issue.type}:${issue.ref?.id || index}`, at: isoOf(issue.at) }));
 };
