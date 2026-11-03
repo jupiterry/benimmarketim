@@ -1,8 +1,13 @@
 // "Adrese teslimat" anahtarı (Kapalı / Pilot / Herkese açık) ve "Her yerde ücretsiz teslimat" kampanyası.
-import { useRef } from "react";
-import { AlertTriangle, Gift, Loader2, Lock, RefreshCw, Rocket, ToggleLeft, ToggleRight, Users } from "lucide-react";
-import { Skeleton } from "../admin/ui";
+// Altta aynı kartta "Yayına hazırlık" listesi ve "Pilot karnesi" (GET /delivery/admin/readiness) durur;
+// engelleyici madde varsa "Herkese açık" seçeneğinde engel sayısı görünür. Kampanya bölümü (dz-campaign) ve anahtarı
+// (dz-campaign-switch) listedeki "Düzelt" bağlantısının hedefidir.
+import { useMemo, useRef } from "react";
+import { AlertTriangle, Gift, Loader2, Lock, RefreshCw, Rocket, ToggleLeft, ToggleRight, Users, XCircle } from "lucide-react";
+import { Skeleton, useNow } from "../admin/ui";
 import PilotPicker from "./PilotPicker";
+import PilotReport from "./PilotReport";
+import ReadinessChecklist from "./ReadinessChecklist";
 import { MODES, num } from "./shared";
 
 const MODE_INFO = {
@@ -29,8 +34,15 @@ const MODE_INFO = {
 const RolloutCard = ({
   settings, loading, error, busy, openZones, pilotBusyId,
   onRetry, onChangeMode, onToggleCampaign, onAddPilot, onRemovePilot,
+  readiness, readinessLoading, readinessError, onRetryReadiness, onFix, confirmLeave,
 }) => {
   const groupRef = useRef(null);
+  const now = useNow(60000);
+  // Pilot çiplerinde kullanıcı başına adres siparişleri (karne okunamadıysa çipte iletişim bilgisi kalır)
+  const pilotStats = useMemo(
+    () => (readiness?.pilot ? new Map(readiness.pilot.users.map((row) => [row.userId, row])) : null),
+    [readiness],
+  );
   if (loading && !settings) {
     return (
       <section className="ui-panel dz-rollout" aria-busy="true" aria-label="Adrese teslimat">
@@ -51,6 +63,7 @@ const RolloutCard = ({
   const mode = settings.addressOrdering;
   const info = MODE_INFO[mode] || MODE_INFO.off;
   const campaign = settings.freeDeliveryEverywhere;
+  const blockers = readiness?.counts?.block || 0;
 
   // Ok tuşlarıyla seçenekler arasında gezinme (radiogroup)
   const onGroupKey = (e) => {
@@ -64,7 +77,7 @@ const RolloutCard = ({
   };
 
   return (
-    <section className="ui-panel dz-rollout" aria-label="Adrese teslimat ve kampanya">
+    <section className="ui-panel dz-rollout dz-rollout--ready" aria-label="Adrese teslimat, kampanya ve yayına hazırlık">
       <div className="dz-rollout-main">
         <div className="dz-rollout-head">
           <h2 className="dz-h2" id="dz-mode-label">Adrese teslimat</h2>
@@ -86,6 +99,9 @@ const RolloutCard = ({
                 <span className="dz-mode-text">
                   <strong>{mi.title}</strong>
                   <span>{mi.text}</span>
+                  {m.value === "public" && !checked && blockers > 0 && (
+                    <span className="dz-mode-flag"><XCircle aria-hidden="true" />Hazırlık listesinde {num(blockers)} engel var</span>
+                  )}
                 </span>
               </button>
             );
@@ -98,20 +114,20 @@ const RolloutCard = ({
           <p className="dz-inline-warn" role="status"><AlertTriangle aria-hidden="true" />Pilot açık ama listede kimse yok. Aşağıdan kullanıcı ekleyin.</p>
         )}
         <PilotPicker pilotUsers={settings.pilotUsers} busyId={pilotBusyId}
-          onAdd={onAddPilot} onRemove={onRemovePilot} disabled={busy === "mode"} />
+          onAdd={onAddPilot} onRemove={onRemovePilot} disabled={busy === "mode"} stats={pilotStats} now={now} />
         {mode !== "pilot" && settings.pilotUsers.length > 0 && (
           <p className="ui-hint dz-pilot-note">Pilot listesi yalnızca “Pilot” seçiliyken kullanılır{mode === "public" ? "; şu an herkes sipariş verebiliyor" : ""}.</p>
         )}
       </div>
 
-      <div className="dz-rollout-side" data-on={campaign || undefined}>
+      <div className="dz-rollout-side" id="dz-campaign" data-on={campaign || undefined}>
         <div className="dz-campaign">
           <span className="dz-campaign-icon"><Gift aria-hidden="true" /></span>
           <div className="dz-campaign-text">
             <h2 className="dz-h2" id="dz-campaign-label">Her yerde ücretsiz teslimat</h2>
             <p className="ui-hint">Kampanya dönemleri için: açıkken tüm bölgelerde teslimat ücreti alınmaz. Bölge ücretleri silinmez; kapatınca geri gelir.</p>
           </div>
-          <button type="button" className="ui-icon-btn ui-switch dz-campaign-switch" role="switch" aria-checked={campaign} data-on={campaign}
+          <button type="button" id="dz-campaign-switch" className="ui-icon-btn ui-switch dz-campaign-switch" role="switch" aria-checked={campaign} data-on={campaign}
             aria-labelledby="dz-campaign-label" disabled={Boolean(busy)} onClick={onToggleCampaign}>
             {busy === "campaign" ? <Loader2 className="ui-spin" /> : campaign ? <ToggleRight /> : <ToggleLeft />}
           </button>
@@ -119,6 +135,13 @@ const RolloutCard = ({
         <p className="dz-campaign-state" data-on={campaign || undefined}>
           {campaign ? <>Kampanya <strong>açık</strong> · {num(openZones)} açık bölgede ücretsiz</> : "Kampanya kapalı · bölge ücretleri geçerli"}
         </p>
+      </div>
+
+      <div className="dz-ready-wrap">
+        <ReadinessChecklist readiness={readiness} loading={readinessLoading} error={readinessError}
+          onRetry={onRetryReadiness} onFix={onFix} />
+        <PilotReport pilot={readiness?.pilot || null} pilotError={readiness?.pilotError || readinessError}
+          mode={mode} loading={readinessLoading} now={now} confirmLeave={confirmLeave} />
       </div>
     </section>
   );

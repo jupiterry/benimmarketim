@@ -1,13 +1,27 @@
 // Pilot kullanıcı seçici: müşterileri sunucuda arar (GET /users/search; ad, e-posta, telefon — Türkçe duyarsız);
 // seçilenler çip olarak görünür. Tüm müşteri listesi indirilmez; yalnızca yazılan sorgu için en fazla 8 sonuç gelir.
+// stats (pilot karnesinden, kullanıcı kimliği → adres siparişleri) verilirse çipte iletişim bilgisinin altında
+// "3 sipariş · son: dün · 1 teslim edilemedi" satırı da görünür.
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Loader2, Search, UserPlus, X } from "lucide-react";
 import axios from "../../lib/axios";
-import { initials, useDebounced } from "../admin/ui";
+import { initials, timeAgo, useDebounced } from "../admin/ui";
+import { num } from "./shared";
 
 const MAX_RESULTS = 8;
 
-const PilotPicker = ({ pilotUsers, busyId, onAdd, onRemove, disabled }) => {
+/** Çipteki pilot sonucu satırı: kullanıcının adrese teslimat siparişleri */
+const ChipStats = ({ stat, now }) => {
+  if (!stat?.orders) return <span className="dz-sub dz-pilot-stat ui-truncate">Henüz adres siparişi yok</span>;
+  return (
+    <span className="dz-sub dz-pilot-stat ui-truncate">
+      {num(stat.orders)} sipariş{stat.lastAt ? ` · son: ${timeAgo(stat.lastAt, now)}` : ""}
+      {stat.failed > 0 && <span className="dz-pilot-failed"> · {num(stat.failed)} teslim edilemedi</span>}
+    </span>
+  );
+};
+
+const PilotPicker = ({ pilotUsers, busyId, onAdd, onRemove, disabled, stats = null, now = Date.now() }) => {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -56,14 +70,14 @@ const PilotPicker = ({ pilotUsers, busyId, onAdd, onRemove, disabled }) => {
   const showList = open && query.trim().length > 0;
 
   return (
-    <div className="dz-pilot">
+    <div className="dz-pilot" id="dz-pilot">
       <div className="dz-pilot-head">
         <span className="dz-pilot-title" id={`${listId}-label`}>Pilot kullanıcılar <span className="ui-count">{pilotUsers.length}</span></span>
       </div>
       <div className="dz-combo">
         <label className="ui-search dz-combo-search">
           {searching ? <Loader2 className="ui-spin" /> : <Search />}
-          <input ref={inputRef} type="search" className="ui-field" placeholder="Müşteri ara: ad, e-posta ya da telefon" value={query}
+          <input ref={inputRef} id="dz-pilot-search" type="search" className="ui-field" placeholder="Müşteri ara: ad, e-posta ya da telefon" value={query}
             role="combobox" aria-expanded={showList} aria-controls={listId} aria-autocomplete="list" aria-labelledby={`${listId}-label`}
             aria-activedescendant={showList && results[active] ? `${listId}-${results[active]._id}` : undefined}
             disabled={disabled} data-esc-clear="1"
@@ -92,11 +106,13 @@ const PilotPicker = ({ pilotUsers, busyId, onAdd, onRemove, disabled }) => {
       {pilotUsers.length > 0 ? (
         <ul className="dz-pilot-list" aria-label="Pilot kullanıcılar">
           {pilotUsers.map((u) => (
-            <li key={u._id} className="dz-pilot-chip">
+            <li key={u._id} className="dz-pilot-chip" data-stats={stats ? "true" : undefined}
+              data-failed={stats?.get(String(u._id))?.failed > 0 || undefined}>
               <span className="ui-avatar dz-avatar" aria-hidden="true">{initials(u.name)}</span>
               <span className="dz-pilot-text">
                 <span className="ui-truncate">{u.name || "İsimsiz müşteri"}</span>
                 <span className="dz-sub ui-truncate">{u.phone || u.email || ""}</span>
+                {stats && <ChipStats stat={stats.get(String(u._id))} now={now} />}
               </span>
               <button type="button" className="ui-icon-btn ui-icon-btn--sm" onClick={() => onRemove(u)} disabled={disabled || busyId === String(u._id)}
                 aria-label={`${u.name || "Kullanıcı"} pilottan çıkar`} title="Pilottan çıkar">

@@ -155,6 +155,8 @@ const settingsSchema = new mongoose.Schema(
     delivery: {
       addressOrdering: { type: String, enum: ["off", "pilot", "public"], default: "off" },
       pilotUserIds: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], default: [] },
+      // Adrese teslimatın ilk kez açıldığı an (Kapalı → Pilot/Herkese açık); pilot karnesinin başlangıcı. Sonra değişmez.
+      pilotStartedAt: { type: Date, default: null },
       freeDeliveryEverywhere: { type: Boolean, default: false },
       // Kuryeler (sipariş ataması ve kurye bazında gün sonu). Telefon yalnızca yönetici uç noktalarında görünür.
       couriers: {
