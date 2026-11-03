@@ -40,6 +40,8 @@ import {
   KbdHint, LiveRegion, LoadErrorPanel, LoadOlderButton, OrdersSkeleton, StaleBanner, StatePanel, useOrdersNow,
 } from "./atoms";
 
+// Ekran bir cihazda ilk açılırken "görüldü" sayılmayacak kadar yeni siparişler (sipariş uyarısının çalma süresi)
+const FIRST_SEED_RECENT_MS = 30 * 60 * 1000;
 const PREP = "Hazırlanıyor";
 const ROAD = "Yolda";
 const DONE_LANE = "done";
@@ -925,7 +927,11 @@ export default function OrdersScreen() {
     const current = seenStore.read();
     if (current === null) {
       const at = Date.now();
-      const initial = new Set(windowOrders.filter((o) => isUnseenCandidate(o, at)).map((o) => o.orderId));
+      // Son 30 dk'daki siparişler "görüldü" sayılmaz: sipariş uyarısı hâlâ çalıyor olabilir ve ekranın bu cihazda
+      // ilk açılışı, kimsenin açmadığı yeni siparişi susturmamalı ("Yeni" rozeti de kalır)
+      const initial = new Set(windowOrders
+        .filter((o) => isUnseenCandidate(o, at) && at - (Number(o.createdMs) || 0) > FIRST_SEED_RECENT_MS)
+        .map((o) => o.orderId));
       seenStore.write(initial);
       setSeen(initial);
       return;

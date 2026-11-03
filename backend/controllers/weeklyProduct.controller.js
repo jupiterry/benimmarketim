@@ -133,7 +133,7 @@ const loadAdminDeal = async (id) => {
  */
 const endRunningDeal = async (deal, { planned, start, now }) => {
   const at = planned ? start : now;
-  const update = planned ? { endDate: at } : { endDate: at, isActive: false };
+  const update = planned ? { endDate: at } : { endDate: at, isActive: false, stoppedAt: at };
   const result = await WeeklyProduct.updateOne({ _id: deal._id, isActive: true }, { $set: update });
   const changed = Number(result?.modifiedCount ?? result?.nModified ?? 0) > 0;
   return changed ? { deal, from: deal.endDate ?? null, to: at } : null;
@@ -143,7 +143,10 @@ const endRunningDeal = async (deal, { planned, start, now }) => {
 const restoreRunningDeal = async (ended, { planned }) => {
   if (!ended) return;
   try {
-    await WeeklyProduct.updateOne({ _id: ended.deal._id }, { $set: { endDate: ended.from, ...(planned ? {} : { isActive: true }) } });
+    const update = planned
+      ? { $set: { endDate: ended.from } }
+      : { $set: { endDate: ended.from, isActive: true }, $unset: { stoppedAt: 1 } };
+    await WeeklyProduct.updateOne({ _id: ended.deal._id }, update);
   } catch (error) {
     console.error(`Haftalık fırsat ${ended.deal._id} eski hâline döndürülemedi:`, error.message);
   }
@@ -459,13 +462,20 @@ export const updateWeeklyProduct = (req, res) => runWeeklyWrite(async () => {
       if (goLiveNow) {
         weeklyProduct.isActive = true;
         weeklyProduct.scheduled = false;
+        weeklyProduct.stoppedAt = null;
       }
     } else if (body.isActive !== undefined) {
+      // Durdurma anı ayrıca saklanır (ölçüm ve "geçen hafta" hesabı); yeniden açılınca silinir
+      if (weeklyProduct.isActive === true && body.isActive === false) weeklyProduct.stoppedAt = now;
+      if (body.isActive === true) weeklyProduct.stoppedAt = null;
       weeklyProduct.isActive = body.isActive;
     }
+    // Yalnızca sıra değiştiyse (sürükle-bırak) güncellenme zamanı kaydırılmaz
+    const orderOnly = order !== undefined && weeklyPrice === undefined && endInput === undefined
+      && startInput === undefined && body.isActive === undefined && !acknowledge;
 
     try {
-      await weeklyProduct.save();
+      await weeklyProduct.save(orderOnly ? { timestamps: false } : undefined);
     } catch (error) {
       await restoreRunningDeal(endedLive, { planned: wasPlanned && !goLiveNow });
       if (endedLive) invalidateWeeklyPriceCache();
@@ -577,6 +587,8 @@ export const toggleWeeklyProductStatus = (req, res) => runWeeklyWrite(async () =
     }
 
     weeklyProduct.isActive = !weeklyProduct.isActive;
+    // Durdurma anı ayrıca saklanır (ölçüm ve "geçen hafta" hesabı); yeniden açılınca silinir
+    weeklyProduct.stoppedAt = weeklyProduct.isActive ? null : new Date();
     try {
       await weeklyProduct.save();
     } catch (error) {

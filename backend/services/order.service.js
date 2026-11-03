@@ -53,9 +53,11 @@ export async function buildOrderProducts(cartProducts, { checkAvailability = tru
   // dolmuş fırsat uygulanmaz — productPricing.activeWeeklyFilter)
   const weeklyProducts = await WeeklyProduct.find({ ...activeWeeklyFilter(now), product: { $in: productIds } }).lean();
   const weeklyPriceMap = new Map();
+  const weeklyDealIdMap = new Map(); // ürün → fırsat kimliği (satıra yazılır: getiri doğru fırsata sayılır)
   for (const wp of weeklyProducts) {
     if (wp.product && isWeeklyDealLive(wp, now)) {
       weeklyPriceMap.set(wp.product.toString(), wp.weeklyPrice);
+      if (wp._id) weeklyDealIdMap.set(wp.product.toString(), wp._id);
     }
   }
 
@@ -106,6 +108,7 @@ export async function buildOrderProducts(cartProducts, { checkAvailability = tru
       originalPrice: roundMoney(Number(product.price) || 0),
       priceSource: flash ? "flash" : priceSource,
       ...(flash ? { flashDiscountPercentage: flash.discountPercentage, ...(flash._id ? { flashSaleId: flash._id } : {}) } : {}),
+      ...(priceSource === "weekly" && weeklyDealIdMap.has(product._id.toString()) ? { weeklyDealId: weeklyDealIdMap.get(product._id.toString()) } : {}),
       isWeeklyDiscount: priceSource === "weekly",
       isProductDiscount: priceSource === "discount",
       category: product.category,

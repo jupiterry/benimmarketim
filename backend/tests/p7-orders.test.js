@@ -150,6 +150,8 @@ test("callback rule: only an unconfirmed callback order leaving Hazırlanıyor f
   assert.equal(callbackBlocksStatusChange(pending, "Teslim Edildi"), true);
   assert.equal(callbackBlocksStatusChange(pending, "İptal Edildi"), false, "iptal her zaman serbest");
   assert.equal(callbackBlocksStatusChange({ ...pending, status: "Yolda" }, "Teslim Edildi"), false, "yola çıkmış sipariş teslim edilebilir");
+  assert.equal(callbackBlocksStatusChange({ ...pending, status: "İptal Edildi" }, "Yolda"), true, "iptal edilmiş teyitsiz sipariş de teyitsiz yola çıkamaz");
+  assert.equal(callbackBlocksStatusChange({ ...pending, status: "İptal Edildi" }, "Hazırlanıyor"), false, "iptalden hazırlığa dönmek serbest");
   assert.equal(callbackBlocksStatusChange({ ...pending, callbackConfirmedAt: new Date() }, "Yolda"), false);
   assert.equal(callbackBlocksStatusChange({ ...pending, needsCallback: false }, "Yolda"), false);
   assert.equal(callbackBlocksStatusChange({ status: "Hazırlanıyor" }, "Yolda"), false, "eski siparişte alan yok");

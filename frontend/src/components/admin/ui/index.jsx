@@ -17,6 +17,11 @@ export const isTypingTarget = (el) =>
   );
 /** Açık bir çekmece/pencere varsa (liste kısayolları o sırada durur) */
 export const hasOpenLayer = () => Boolean(document.querySelector(".ui-drawer-backdrop, .ui-modal-backdrop, .confirm-root, .command-palette-backdrop"));
+/** Enter'ı kendisi işleyen denetimler: odak bunlardaysa liste kısayolu araya girmez (düğme çalışır, satır açılmaz) */
+const ACTIVATABLE = 'button, a[href], summary, [role="button"], [role="menuitem"], [role="option"], [role="switch"], [role="tab"], [role="checkbox"], input[type="checkbox"], input[type="radio"], input[type="range"], input[type="button"], input[type="submit"]';
+/** Okları kendisi işleyen denetimler (ses düzeyi kaydırıcısı, menüler, seçim listeleri) */
+const ARROW_OWNERS = 'input[type="range"], [role="slider"], [role="menu"], [role="menuitem"], [role="listbox"], [role="option"], [role="tablist"], [role="radiogroup"]';
+const closestOf = (target, selector) => (target instanceof Element ? target.closest(selector) : null);
 
 const TRY = new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 2 });
 export const money = (value) => TRY.format(Number(value) || 0);
@@ -353,6 +358,10 @@ export const useListShortcuts = (handlers, { enabled = true } = {}) => {
       if (isTypingTarget(e.target) || hasOpenLayer()) return;
       if (e.key === "?") { e.preventDefault(); setHelpOpen((v) => !v); return; }
       if (e.key === "/" && h.search) { e.preventDefault(); h.search(e); return; }
+      // Odak bir düğme ya da kaydırıcıdaysa tarayıcının davranışı geçerli: Enter düğmeyi çalıştırır (ör. uyarı
+      // şeridindeki "Gördüm"), oklar kaydırıcıyı oynatır; liste satırı açılmaz, imleç kaymaz
+      if ((e.key === "ArrowDown" || e.key === "ArrowUp") && closestOf(e.target, ARROW_OWNERS)) return;
+      if (e.key === "Enter" && closestOf(e.target, ACTIVATABLE)) return;
       if ((e.key === "j" || e.key === "ArrowDown") && h.move) { e.preventDefault(); h.move(1); return; }
       if ((e.key === "k" || e.key === "ArrowUp") && h.move) { e.preventDefault(); h.move(-1); return; }
       if (e.key === "Enter" && h.open) { e.preventDefault(); h.open(e); return; }

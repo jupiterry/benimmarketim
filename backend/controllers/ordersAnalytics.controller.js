@@ -587,11 +587,13 @@ export const CALLBACK_REQUIRED_CODE = "CALLBACK_REQUIRED";
 export const CALLBACK_REQUIRED_MESSAGE =
   "İlk sipariş henüz telefonla teyit edilmedi. Müşteriyi arayıp “Arandı, teyit edildi” deyin ya da yine de yola çıkarmayı seçin.";
 const CALLBACK_GUARDED_TARGETS = ["Yolda", "Teslim Edildi"];
-/** Bu durum değişikliği teyit gerektiriyor mu (yalnızca Hazırlanıyor'dan ileri, teyitsiz siparişte) */
+// İptal edilmiş teyitsiz ilk sipariş de (ör. müşteriye ulaşılamadığı için iptal edildi) teyitsiz yola çıkarılamaz
+const CALLBACK_GUARDED_FROM = [PREPARING_STATUS, "İptal Edildi"];
+/** Bu durum değişikliği teyit gerektiriyor mu (Hazırlanıyor ya da İptal Edildi'den yola/teslime, teyitsiz siparişte) */
 export const callbackBlocksStatusChange = (order, nextStatus) =>
   order?.needsCallback === true &&
   !order?.callbackConfirmedAt &&
-  order?.status === PREPARING_STATUS &&
+  CALLBACK_GUARDED_FROM.includes(order?.status) &&
   CALLBACK_GUARDED_TARGETS.includes(nextStatus);
 const UNCONFIRMED_ACTION = "Sipariş teyitsiz yola çıkarıldı";
 const unconfirmedChange = { label: "Telefon teyidi", from: "Bekliyor", to: "Teyitsiz yola çıkarıldı" };

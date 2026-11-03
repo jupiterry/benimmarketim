@@ -349,7 +349,7 @@ const UsersTab = ({ onOpenChat }) => {
   };
   const reminder = REMINDERS[appPeriod] || REMINDERS.month;
   const openReminder = () => openForFilter("push", { title: reminder.title, body: reminder.body, route: "home" });
-  // Çekmecedeki "Kupon tanımla" / "Bildirim gönder" (CustomerDrawer → onCustomerAction(kind, user))
+  // Çekmecedeki "Kupon ver" / "Bildirim gönder" (CustomerDrawer → onCustomerAction(kind, user))
   const onCustomerAction = useCallback((kind, user) => {
     const person = user?._id ? user : open?.user;
     if (!person?._id) return;

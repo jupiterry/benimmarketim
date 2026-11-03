@@ -275,11 +275,12 @@ export const zoneFilterOptions = (orders, { include = [] } = {}) => {
 export const needsCallbackPending = (order) =>
   order?.needsCallback === true && !order?.callbackConfirmedAt && isActiveStatus(order?.status);
 /**
- * Teyit kuralı (sunucu: callbackBlocksStatusChange ile aynı): teyit bekleyen sipariş Hazırlanıyor'dan Yolda /
- * Teslim Edildi'ye ancak "Arandım, teyit et" ya da "Yine de yola çıkar" ile geçer; iptal ve geri alma serbest.
+ * Teyit kuralı (sunucu: callbackBlocksStatusChange ile aynı): teyit bekleyen sipariş Hazırlanıyor'dan ya da
+ * İptal Edildi'den Yolda / Teslim Edildi'ye ancak "Arandım, teyit et" ya da "Yine de yola çıkar" ile geçer;
+ * iptal ve geri alma serbest.
  */
 export const callbackBlocks = (order, to = "Yolda") =>
-  order?.status === "Hazırlanıyor" && order?.needsCallback === true && !order?.callbackConfirmedAt
+  (order?.status === "Hazırlanıyor" || order?.status === "İptal Edildi") && order?.needsCallback === true && !order?.callbackConfirmedAt
   && (to === "Yolda" || to === "Teslim Edildi");
 /** "Teslim edilemedi" nedenleri (sunucu: backend/lib/feedbackOptions.js DELIVERY_OUTCOMES ile aynı) */
 export const DELIVERY_OUTCOMES = [

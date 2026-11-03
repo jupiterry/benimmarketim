@@ -511,7 +511,8 @@ export const AdvanceStep = memo(function AdvanceStep({
   order, actions, courier, variant = "soft", size = "md", block = false, compact = false, className = "",
 }) {
   if (!order) return null;
-  if (!order.pending && callbackBlocks(order)) {
+  // "Önce ara" yalnızca hazırlanan siparişte; iptal edilmiş siparişin kartında gösterilmez (geçiş yine korunur)
+  if (!order.pending && order.status === "Hazırlanıyor" && callbackBlocks(order)) {
     return <CallbackStep order={order} onConfirm={actions?.confirmCallback} size={size} block={block} compact={compact} className={className} />;
   }
   const split = courierSplitProps(order, courier, actions);

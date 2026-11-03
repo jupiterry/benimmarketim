@@ -158,7 +158,12 @@ const AdminPage = () => {
   const { state: alerts, actions: alertActions } = useOrderAlerts({
     enabled: user?.role === "admin",
     onOpenOrder: openOrder,
-    onPreparingCount: (count) => setAdminBadges((prev) => (prev.orders === count ? prev : { ...prev, orders: count })),
+    // Siparişler ekranı açıkken rozetin kaynağı ekranın kendi canlı sayısıdır (geri alma penceresindeki sipariş
+    // dahil); sunucunun henüz işlenmemiş sayısı rozeti bir önceki değere döndürmesin
+    onPreparingCount: (count) => {
+      if (activeTabRef.current === "orders") return;
+      setAdminBadges((prev) => (prev.orders === count ? prev : { ...prev, orders: count }));
+    },
     onBellItem: (item) => pushNotification(withTime(item)),
     onOfflineCheck: () => loadFeedRef.current?.(),
   });
@@ -189,6 +194,7 @@ const AdminPage = () => {
       users: "Müşteriler",
       "account-cleanup": "Pasif hesap temizliği",
       "delivery-zones": "Teslimat bölgeleri",
+      campaigns: "Kampanya merkezi",
       coupons: "Kuponlar",
       referrals: "Davet sistemi",
       feedback: "Geri Bildirimler",

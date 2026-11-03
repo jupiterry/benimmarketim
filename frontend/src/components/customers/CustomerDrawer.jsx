@@ -1,7 +1,7 @@
 // Müşteri profili çekmecesi: üstte kimlik ve iletişim, müşteri eylemleri, "Açık konular" şeridi, personelin iç notu
 // ve işaretleri, KPI'lar, sekmeler (Siparişler / Geçmiş / Ürünler / Hesap).
 // Veriler GET /users/:id/profile (zaman çizelgesi, açık konular, iç not dahil) ve GET /chat/list?userId= uçlarından gelir.
-// onCustomerAction(kind, user) verilirse "Kupon tanımla" (kind: "coupon") ve "Bildirim gönder" (kind: "push") düğmeleri
+// onCustomerAction(kind, user) verilirse "Kupon ver" (kind: "coupon") ve "Bildirim gönder" (kind: "push") düğmeleri
 // görünür; pencereyi çağıran ekran açar.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -285,7 +285,7 @@ const CustomerDrawer = ({ user, now, initialTab = "orders", focusPassword = fals
   const pwRef = useRef(null);
   const mountedRef = useRef(true);
   const staffSeqRef = useRef(0); // iç not / işaret kaydı sayacı: arka plandaki yenileme daha yeni kaydı ezmesin
-  const couponPendingRef = useRef(false); // "Kupon tanımla" penceresi açıldı; çekmeceye dönülünce profil tazelenir
+  const couponPendingRef = useRef(false); // "Kupon ver" penceresi açıldı; çekmeceye dönülünce profil tazelenir
   const formDirty = useMemo(() => JSON.stringify(form) !== JSON.stringify(formOf(user)), [form, user]);
   const dirty = formDirty || noteDirty;
 
@@ -492,7 +492,7 @@ const CustomerDrawer = ({ user, now, initialTab = "orders", focusPassword = fals
 
         {onCustomerAction && (
           <div className="cus-profile-actions" role="group" aria-label="Müşteri eylemleri">
-            <button type="button" className="ui-btn ui-btn--sm" onClick={() => runCustomerAction("coupon")}><Gift />Kupon tanımla</button>
+            <button type="button" className="ui-btn ui-btn--sm" onClick={() => runCustomerAction("coupon")}><Ticket />Kupon ver</button>
             <button type="button" className="ui-btn ui-btn--sm" onClick={() => runCustomerAction("push")}><BellRing />Bildirim gönder</button>
           </div>
         )}

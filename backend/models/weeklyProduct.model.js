@@ -40,6 +40,12 @@ const weeklyProductSchema = new mongoose.Schema(
     },
     // Fırsat fiyatı belirlendiğindeki ürün liste fiyatı. Liste fiyatı sonradan değişirse panel uyarı
     // gösterir. Eski kayıtlarda yoktur (null).
+    // Elle durdurulduğu an (bitişinden önce yayından kalktıysa). Ölçüm ve "geçen hafta" hesabı bunu kullanır;
+    // sıralama gibi sonraki düzenlemeler updatedAt'i değiştirse de durma anı kaymaz. Yeniden açılınca silinir.
+    stoppedAt: {
+      type: Date,
+      default: null,
+    },
     listPriceAtStart: {
       type: Number,
       default: null,

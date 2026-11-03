@@ -42,8 +42,9 @@ const LINE_FIELDS = [
   "products.priceSource",
   "products.flashSaleId",
   "products.flashDiscountPercentage",
+  "products.weeklyDealId",
 ].join(" ");
-const WEEKLY_FIELDS = "product weeklyPrice startDate endDate isActive scheduled createdAt updatedAt";
+const WEEKLY_FIELDS = "product weeklyPrice startDate endDate isActive scheduled stoppedAt createdAt updatedAt";
 
 // ── Zaman (İstanbul, UTC+3, yaz saati yok) ───────────────────────────────
 /** İstanbul saatiyle günün başlangıcı */
@@ -108,13 +109,14 @@ export const flashSaleWindow = (sale, now = new Date()) => {
 
 /**
  * Haftalık fırsatın ölçüm aralığı: [startDate, endDate ya da şimdi). Elle durdurulmuş fırsat (isActive: false,
- * planlı değil) son güncellendiği anda bitmiş sayılır; bitiş tarihi boş ya da ileride olabilir.
+ * planlı değil) durdurulduğu anda (stoppedAt) bitmiş sayılır; bu alan olmayan eski kayıtlarda son güncellenme
+ * anı kullanılır. Bitiş tarihi boş ya da ileride olabilir.
  * Planlı fırsat (scheduled: true) başlangıcı gelmeden boş aralık döner.
  */
 export const weeklyDealWindow = (deal, now = new Date()) => {
   const from = validDate(deal?.startDate) || validDate(deal?.createdAt);
   if (!from) return null;
-  const stopped = deal.isActive === false && deal.scheduled !== true ? validDate(deal.updatedAt) : null;
+  const stopped = deal.isActive === false && deal.scheduled !== true ? (validDate(deal.stoppedAt) || validDate(deal.updatedAt)) : null;
   return clampWindow(from, earliest([validDate(deal.endDate), stopped]), now);
 };
 
@@ -378,7 +380,10 @@ export const collectWeeklyPerformance = async (ids, { now = new Date() } = {}) =
     for (const line of linesOf(order)) {
       if (line.priceSource && line.priceSource !== "weekly") continue;
       const productId = refId(line.product);
-      const deal = pickWeeklyDeal(dealsByProduct.get(productId), time);
+      // Sipariş satırı fırsatın kimliğini taşıyorsa doğrudan o fırsata yazılır (durdurulup yeniden açılan
+      // fırsatlarda zaman aralığı yanıltabilir); kimliksiz eski satırlarda aralık kuralı kullanılır
+      const lineDealId = line.priceSource === "weekly" ? refId(line.weeklyDealId) : null;
+      const deal = lineDealId ? { id: lineDealId } : pickWeeklyDeal(dealsByProduct.get(productId), time);
       const acc = deal ? accs.get(deal.id) : null;
       if (!acc) continue;
       if (line.priceSource === "weekly") {

@@ -35,6 +35,8 @@ const orderSchema = new mongoose.Schema(
         priceSource: { type: String, enum: ["list", "discount", "flash", "weekly"], default: undefined },
         flashSaleId: { type: mongoose.Schema.Types.ObjectId, ref: "FlashSale", default: undefined },
         flashDiscountPercentage: { type: Number, min: 0, max: 100, default: undefined },
+        // Haftalık fırsat fiyatıyla alındıysa fırsatın kimliği (kampanya getirisi doğru fırsata sayılır)
+        weeklyDealId: { type: mongoose.Schema.Types.ObjectId, ref: "WeeklyProduct", default: undefined },
         // Ürünün sepete eklendiği yer (ölçüm için, isteğe bağlı): home_deals, home_foryou, flash...
         source: {
           type: String,

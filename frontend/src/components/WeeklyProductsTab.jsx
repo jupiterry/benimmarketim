@@ -264,7 +264,10 @@ const endsSoon = (wp, now) => {
   const end = msOf(wp.endDate);
   return Number.isFinite(end) && end - now < 7 * DAY;
 };
-/** Fırsat [from, to) aralığında bir an yayında mıydı? (Durdurulanın kapanma anı ≈ updatedAt) */
+/**
+ * Fırsat [from, to) aralığında bir an yayında mıydı? Durdurulan fırsatın kapanma anı stoppedAt'tir; bu alanı
+ * olmayan eski kayıtlarda son güncellenme anı (updatedAt) kullanılır.
+ */
 const wasLiveDuring = (wp, from, to) => {
   if (wp.scheduled) return false;
   const start = msOf(wp.startDate ?? wp.createdAt);
@@ -273,8 +276,9 @@ const wasLiveDuring = (wp, from, to) => {
   if (Number.isFinite(start) && start >= to) return false;
   if (end <= from) return false;
   if (wp.isActive) return true;
-  const updated = msOf(wp.updatedAt);
-  return Math.min(end, Number.isFinite(updated) ? updated : end) > from;
+  const stopped = msOf(wp.stoppedAt);
+  const closedAt = Number.isFinite(stopped) ? stopped : msOf(wp.updatedAt);
+  return Math.min(end, Number.isFinite(closedAt) ? closedAt : end) > from;
 };
 /** Aynı ürünün birden çok kaydından en son başlayanı */
 const latestPerProduct = (list) => {
