@@ -825,15 +825,23 @@ export const compareAppVersions = (a, b) => {
 
 const ETA_TOKEN = /(\d+(?:\.\d+)?)(?:\s*(?:-|–|—|ile|ila)\s*(\d+(?:\.\d+)?))?\s*(dakika|dak|dk|min|saat|sa)[a-zçğıöşü.]*/g;
 const ETA_HOURS_MINUTES = /(\d+(?:\.\d+)?)\s*(?:saat|sa)\.?\s*(?:ve\s*)?(\d+)\s*(?:dakika|dak|dk)/g;
+// Yazıyla süre: "yarım saat", "bir saat", "bir buçuk saat" (sayıya çevrilip aynı kuralla okunur)
+const ETA_WORD_NUMBERS = { yarım: 0.5, bir: 1, iki: 2, üç: 3 };
+const ETA_WORD_HALF = /(^|[^a-zçğıöşü\d.])(\d+|bir|iki|üç)\s*buçuk/g;
+const ETA_WORD = /(^|[^a-zçğıöşü\d])(yarım|bir|iki|üç)(?=\s*(?:saat|sa|dakika|dak|dk))/g;
 
 /**
  * Bölgenin tahmini süre metninden söz verilen EN GEÇ süre (dakika): "30-60 dk" → 60, "45 dakikada" → 45,
- * "1-2 saat" → 120, "1,5 saat" → 90, "1 saat 30 dk" → 90, birimsiz "30-60" → 60. Okunamazsa null.
+ * "1-2 saat" → 120, "1,5 saat" → 90, "1 saat 30 dk" → 90, "yarım saat" → 30, "bir buçuk saat" → 90,
+ * birimsiz "30-60" → 60. Okunamazsa null.
  */
 export const parseEtaMaxMinutes = (text) => {
   let value = String(text ?? "").toLocaleLowerCase("tr").replace(/,/g, ".").replace(/\s+/g, " ").trim();
   if (!value) return null;
-  value = value.replace(ETA_HOURS_MINUTES, (_, hours, minutes) => `${Number(hours) * 60 + Number(minutes)} dk`);
+  value = value
+    .replace(ETA_WORD_HALF, (_, before, number) => `${before}${(ETA_WORD_NUMBERS[number] ?? Number(number)) + 0.5}`)
+    .replace(ETA_WORD, (_, before, word) => `${before}${ETA_WORD_NUMBERS[word]}`)
+    .replace(ETA_HOURS_MINUTES, (_, hours, minutes) => `${Number(hours) * 60 + Number(minutes)} dk`);
   let max = null;
   for (const match of value.matchAll(ETA_TOKEN)) {
     const upper = Number(match[2] ?? match[1]);

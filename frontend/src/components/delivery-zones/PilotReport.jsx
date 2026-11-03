@@ -170,7 +170,7 @@ const PilotReport = ({ pilot, pilotError, mode, loading, now }) => {
                 tone={pilot.onTime.rate === null ? undefined : pilot.onTime.rate >= pilot.onTime.target ? "ok" : "warn"}
                 note={pilot.onTime.rate !== null
                   ? `söz verilen sürede ${num(pilot.onTime.within)}/${num(pilot.onTime.measured)} · hedef ≥ %${num(pilot.onTime.target)}`
-                  : pilot.deliveryMinutes.count ? "Tahmini süre dakikaya çevrilemiyor" : "Henüz teslim yok"} />
+                  : pilot.deliveryMinutes.count ? "Bölgenin tahmini süresi yazılı değil ya da dakikaya çevrilemiyor" : "Henüz teslim yok"} />
               <KpiCard icon={MapPinOff} label="Adres bulunamadı" value={percentText(pilot.addressNotFound.rate)}
                 tone={pilot.addressNotFound.rate === null ? undefined : pilot.addressNotFound.rate < pilot.addressNotFound.target ? "ok" : "danger"}
                 note={pilot.addressNotFound.attempts

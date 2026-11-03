@@ -101,6 +101,9 @@ test("tahmini süre metni: en geç dakika okunur, okunamayan metin null", () => 
     ["1-2 saat", 120], ["1,5 saat", 90], ["1 saat 30 dk", 90], ["1 saat ve 30 dakika", 90], ["2 sa", 120],
     ["30 ila 60 dk", 60], ["30 dk - 1 saat", 60], ["en geç 1 saat", 60], ["10 min", 10],
     ["30-60", 60], ["45", 45],
+    // Yazıyla süre
+    ["yarım saat", 30], ["Yarım saatte kapında", 30], ["YARIM SAAT", 30], ["bir saat içinde", 60], ["bir buçuk saat", 90],
+    ["1 buçuk saat", 90], ["iki saat", 120], ["30 dk ile bir saat", 60], ["birkaç saat", null],
     ["hızlı", null], ["", null], [null, null], [undefined, null], ["0 dk", null], ["48 saat", null], ["2 gün", null],
   ];
   for (const [text, expected] of cases) assert.equal(parseEtaMaxMinutes(text), expected, String(text));
