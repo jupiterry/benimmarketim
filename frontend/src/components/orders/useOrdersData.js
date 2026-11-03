@@ -247,7 +247,7 @@ function createOrdersController({ confirm }) {
   //  bu eylemde seçildi (kuryesiz seçimi dahil; geri alma bildirimindeki "Kurye: Ali · Değiştir" bunlardan)
   const stacks = new Map();
   const removedLines = new Map(); // orderId → Map<lineKey, {name, timer, toastId, committing, prior}>
-  const replacedLines = new Map(); // orderId → Map<lineKey, {product, price, listPrice, qty, oldName, oldProductId, markOut, timer, toastId, committing}>
+  const replacedLines = new Map(); // orderId → Map<lineKey, {product, price, listPrice, qty, oldName, oldProductId, markOut, timer, toastId, committing, prior}>
   const removedOrders = new Map(); // orderId → {timer, toastId, committing}
   let batch = null; // açık geri alma penceresi {id, toastId, items: Map<orderId, entry>, openedAt, timer}
   let undoExtras = null; // (items: [{orderId, entry}]) → { suffix?, actions? } | null — geri alma bildirimine ek (ekran verir)
@@ -1312,16 +1312,32 @@ function createOrdersController({ confirm }) {
   };
 
   // ── Eksik ürünü muadille değiştirme (tek istek, tek "Geri al") ──
-  const logReplaced = (id, lk, entry, amount) => setLog(id, (list) => [
-    ...list.filter((c) => !(c.type === "replaced" && c.lineKey === lk)),
-    {
-      type: "replaced", name: entry.product.name, from: entry.oldName, qty: entry.qty, amount,
-      productId: entry.oldProductId, newProductId: entry.product._id, lineKey: lk, at: Date.now(),
-    },
-  ]);
-  const unlogReplaced = (id, lk) => setLog(id, (list) => {
-    const next = list.filter((c) => !(c.type === "replaced" && c.lineKey === lk));
-    return next.length === list.length ? list : next;
+  /**
+   * Günlüğe "yerine" kaydı. Muadil de yoksa ve satır yeniden değiştirilirse (aynı satır ya da kayıttan sonra yeni
+   * kimlikle gelen satır) zincir tek kayıtta kalır: müşterinin asıl istediği ürün ve toplam fark korunur
+   * ("Kakaolu Süt kalmamıştı, yerine Y koyduk"); asıl ürüne geri dönülürse kayıt düşer. Önceki kayıt döner (geri alma için).
+   */
+  const logReplaced = (id, lk, entry, amount) => {
+    let prior = null;
+    setLog(id, (list) => {
+      prior = list.find((c) => c.type === "replaced"
+        && (c.lineKey === lk || (entry.oldProductId && String(c.newProductId) === String(entry.oldProductId)))) || null;
+      const rest = prior ? list.filter((c) => c !== prior) : list;
+      const fromProduct = prior ? prior.productId : entry.oldProductId;
+      if (fromProduct && String(fromProduct) === String(entry.product._id)) return rest;
+      return [...rest, {
+        type: "replaced", name: entry.product.name, from: prior ? prior.from : entry.oldName, qty: entry.qty,
+        amount: round2((prior ? Number(prior.amount) || 0 : 0) + amount),
+        productId: fromProduct, newProductId: entry.product._id, lineKey: lk, at: Date.now(),
+      }];
+    });
+    return prior;
+  };
+  /** Kaydı geri alır; bu değişiklikten önceki zincir kaydı (prior) varsa yerine konur */
+  const unlogReplaced = (id, lk, prior = null) => setLog(id, (list) => {
+    const rest = list.filter((c) => !(c.type === "replaced" && c.lineKey === lk));
+    if (prior && !rest.includes(prior)) return [...rest, prior];
+    return rest.length === list.length ? list : rest;
   });
   const dropReplace = (id, lk) => {
     const map = replacedLines.get(id);
@@ -1339,7 +1355,7 @@ function createOrdersController({ confirm }) {
     const task = async () => {
       const line = lineAt(id, lk);
       if (!line) {
-        unlogReplaced(id, lk);
+        unlogReplaced(id, lk, entry.prior);
         toast.error("Ürün satırı bu arada değişmiş; muadil eklenmedi");
         return;
       }
@@ -1347,7 +1363,7 @@ function createOrdersController({ confirm }) {
         await http("put", "/orders-analytics/replace-item", { orderId: id, ...lineRef(line), productId: entry.product._id }, mode !== "normal");
         ok = true;
       } catch (error) {
-        unlogReplaced(id, lk);
+        unlogReplaced(id, lk, entry.prior);
         toast.error(errorMessage(error, "Muadil eklenemedi"));
       }
     };
@@ -1366,7 +1382,7 @@ function createOrdersController({ confirm }) {
     clearTimeout(entry.timer);
     dropToast(entry.toastId);
     dropReplace(id, lk);
-    unlogReplaced(id, lk);
+    unlogReplaced(id, lk, entry.prior);
     unlock(id, { refetch: false });
     emit(true);
   };
@@ -1414,8 +1430,9 @@ function createOrdersController({ confirm }) {
       toastId: `orders-replace-${++uid}`,
       timer: null,
       committing: false,
+      prior: null,
     };
-    logReplaced(id, lk, entry, ((kurus(price) - kurus(fresh.product.price)) * qty) / 100);
+    entry.prior = logReplaced(id, lk, entry, ((kurus(price) - kurus(fresh.product.price)) * qty) / 100);
     if (!replacedLines.has(id)) replacedLines.set(id, new Map());
     replacedLines.get(id).set(lk, entry);
     toast(() => createElement(UndoToast, { message: `${entry.oldName} yerine ${entry.product.name}`, onUndo: () => undoReplace(id, lk) }), {

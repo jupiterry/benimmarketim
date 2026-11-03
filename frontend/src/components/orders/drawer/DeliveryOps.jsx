@@ -38,7 +38,8 @@ export function CallbackPanel({ order, disabled = false, onConfirm }) {
     setBusy(true);
     const ok = await onConfirm?.(order);
     setBusy(false);
-    if (ok) toast.success(`${orderCode(order)} teyit edildi`);
+    // Ekran da aynı bildirimi verir: aynı kimlikle tek bildirim olarak birleşir
+    if (ok) toast.success(`${orderCode(order)} teyit edildi`, { id: `so-callback-${order.orderId}` });
   };
   return (
     <section className="so-ops-callback" aria-label="İlk sipariş telefon teyidi" role="alert">
