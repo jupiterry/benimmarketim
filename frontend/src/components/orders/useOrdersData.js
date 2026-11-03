@@ -247,7 +247,8 @@ function createOrdersController({ confirm }) {
   //  bu eylemde seçildi (kuryesiz seçimi dahil; geri alma bildirimindeki "Kurye: Ali · Değiştir" bunlardan)
   const stacks = new Map();
   const removedLines = new Map(); // orderId → Map<lineKey, {name, timer, toastId, committing, prior}>
-  const replacedLines = new Map(); // orderId → Map<lineKey, {product, price, listPrice, qty, oldName, oldProductId, markOut, timer, toastId, committing, prior}>
+  // orderId → Map<lineKey, {product, price, listPrice, qty, oldName, oldProductId, oldPrice, estimate, markOut, timer, toastId, committing, prior}>
+  const replacedLines = new Map();
   const removedOrders = new Map(); // orderId → {timer, toastId, committing}
   let batch = null; // açık geri alma penceresi {id, toastId, items: Map<orderId, entry>, openedAt, timer}
   let undoExtras = null; // (items: [{orderId, entry}]) → { suffix?, actions? } | null — geri alma bildirimine ek (ekran verir)
@@ -1350,6 +1351,19 @@ function createOrdersController({ confirm }) {
     map.delete(lk);
     if (!map.size) replacedLines.delete(id);
   };
+  /**
+   * Sunucunun kaydettiği fiyat farkı panelin tahmininden farklıysa (katalog panelde eski kalmış olabilir: haftalık fırsat
+   * bitmiş, indirim değişmiş) günlükteki "yerine" kaydı düzeltilir; müşteriye giden "(+₺…)" kaydedilen tutarı söyler.
+   */
+  const correctReplacedAmount = (id, lk, delta) => setLog(id, (list) => {
+    let changed = false;
+    const next = list.map((c) => {
+      if (c.type !== "replaced" || c.lineKey !== lk) return c;
+      changed = true;
+      return { ...c, amount: round2((Number(c.amount) || 0) + delta) };
+    });
+    return changed ? next : list;
+  });
   const commitReplace = (id, lk, mode = "normal") => {
     const entry = replacedLines.get(id)?.get(lk);
     if (!entry || entry.committing) return;
@@ -1357,6 +1371,7 @@ function createOrdersController({ confirm }) {
     clearTimeout(entry.timer);
     dropToast(entry.toastId);
     let ok = false;
+    let serverDiff = null; // sunucunun kuruş hassasiyetindeki fiyat farkı (adet × birim fark)
     const task = async () => {
       const line = lineAt(id, lk);
       if (!line) {
@@ -1365,16 +1380,25 @@ function createOrdersController({ confirm }) {
         return;
       }
       try {
-        await http("put", "/orders-analytics/replace-item", { orderId: id, ...lineRef(line), productId: entry.product._id }, mode !== "normal");
+        const res = await http("put", "/orders-analytics/replace-item", { orderId: id, ...lineRef(line), productId: entry.product._id }, mode !== "normal");
         ok = true;
+        const diff = Number(res?.data?.priceDifference);
+        if (res?.data?.priceDifference !== null && res?.data?.priceDifference !== undefined && Number.isFinite(diff)) serverDiff = diff;
       } catch (error) {
         unlogReplaced(id, lk, entry.prior);
         toast.error(errorMessage(error, "Muadil eklenemedi"));
       }
     };
     Promise.resolve(schedule([id], task, mode)).catch(() => {}).finally(() => {
-      // Başarıda değişiklik tabana yazılır (tazeleme gelene kadar eski satır geri görünmez), sonra sunucudan tazelenir
-      if (ok) patchBase(id, (order) => withReplacements(order, new Map([[lk, entry]]), { pending: false }));
+      // Başarıda değişiklik tabana yazılır (tazeleme gelene kadar eski satır geri görünmez), sonra sunucudan tazelenir.
+      // Birim fiyat ve günlükteki fark sunucunun kaydettiği farka göre (tahminden farklıysa) düzeltilir.
+      let saved = entry;
+      if (ok && serverDiff !== null && kurus(serverDiff) !== kurus(entry.estimate)) {
+        const unitKurus = kurus(entry.oldPrice) + Math.round(kurus(serverDiff) / entry.qty);
+        saved = { ...entry, price: Math.max(0, unitKurus) / 100 };
+        correctReplacedAmount(id, lk, (kurus(serverDiff) - kurus(entry.estimate)) / 100);
+      }
+      if (ok) patchBase(id, (order) => withReplacements(order, new Map([[lk, saved]]), { pending: false }));
       dropReplace(id, lk);
       emit(true);
       unlock(id).catch(() => {});
@@ -1414,11 +1438,12 @@ function createOrdersController({ confirm }) {
       toast.error("Elle eklenen tutar satırı muadille değiştirilemez");
       return false;
     }
-    const price = unitPrice(product);
-    if (String(line.product.productId || "") === String(product._id) && kurus(line.product.price) === kurus(price)) {
+    // Muadil başka bir ürün olmalı (sunucu da reddeder): aynı ürün yalnızca satırı yeniden fiyatlardı
+    if (String(line.product.productId || "") === String(product._id)) {
       toast.error("Muadil olarak aynı ürün seçildi");
       return false;
     }
+    const price = unitPrice(product);
     const key = `${id}|${lk}`;
     if (qtySessions.has(key)) commitQty(key);
     lock(id);
@@ -1431,13 +1456,16 @@ function createOrdersController({ confirm }) {
       qty,
       oldName: fresh.product.name || "Ürün",
       oldProductId: fresh.product.productId ? String(fresh.product.productId) : null,
+      oldPrice: Number(fresh.product.price) || 0,
+      // Panelin tahmini fark (adet × birim fark); kayıttan sonra sunucunun farkıyla karşılaştırılır
+      estimate: ((kurus(price) - kurus(fresh.product.price)) * qty) / 100,
       markOut: Boolean(markOut),
       toastId: `orders-replace-${++uid}`,
       timer: null,
       committing: false,
       prior: null,
     };
-    entry.prior = logReplaced(id, lk, entry, ((kurus(price) - kurus(fresh.product.price)) * qty) / 100);
+    entry.prior = logReplaced(id, lk, entry, entry.estimate);
     if (!replacedLines.has(id)) replacedLines.set(id, new Map());
     replacedLines.get(id).set(lk, entry);
     toast(() => createElement(UndoToast, { message: `${entry.oldName} yerine ${entry.product.name}`, onUndo: () => undoReplace(id, lk) }), {

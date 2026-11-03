@@ -403,7 +403,7 @@ export default function OrderDrawer({
     if (missing) setMode("detail");
   }, [missing]);
   // Ekleme görünümünden dönünce odak "Ekle" düğmesine; muadil görünümünden dönünce değişiklik yapıldıysa hazır mesaja
-  // ("WhatsApp ile bildir"), yapılmadıysa satırın menüsüne (sipariş değişiminde değil)
+  // ("WhatsApp ile bildir"; telefon yoksa "Mesajı kopyala"), yapılmadıysa satırın menüsüne (sipariş değişiminde değil)
   useEffect(() => {
     const prev = modeRef.current;
     modeRef.current = mode;
@@ -414,8 +414,9 @@ export default function OrderDrawer({
       requestAnimationFrame(() => {
         const root = heroRef.current?.closest(".ui-drawer");
         const key = back?.lineKey ? String(back.lineKey).replace(/["\\]/g, "") : "";
-        const target = (back?.replaced && root?.querySelector(".so-d-changes-msg"))
-          || (key && root?.querySelector(`[data-line-key="${key}"] .so-d-line-menu`))
+        // Kaydedilmeyi bekleyen muadil satırının menüsü devre dışıdır (odak alamaz): o zaman başlığa dönülür, <body>'ye düşmez
+        const target = (back?.replaced && root?.querySelector(".so-d-changes-msg, .so-d-changes-copy"))
+          || (key && root?.querySelector(`[data-line-key="${key}"] .so-d-line-menu:not(:disabled)`))
           || heroRef.current;
         target?.focus({ preventScroll: false });
       });
@@ -741,7 +742,7 @@ export default function OrderDrawer({
                       <Phone aria-hidden="true" />Ara
                     </a>
                   )}
-                  <button type="button" className="ui-btn ui-btn--sm ui-btn--ghost" onClick={copyChangeText} title="Hazır mesajı kopyala (SMS ya da başka bir uygulama için)">
+                  <button type="button" className="ui-btn ui-btn--sm ui-btn--ghost so-d-changes-copy" onClick={copyChangeText} title="Hazır mesajı kopyala (SMS ya da başka bir uygulama için)">
                     <Copy aria-hidden="true" />Mesajı kopyala
                   </button>
                   {removedProducts.map((c) => {

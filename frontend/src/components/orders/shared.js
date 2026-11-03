@@ -1117,8 +1117,8 @@ export const neighborhoodGroups = (orders, parentKey = "zone") => {
 };
 /**
  * Bölgeye göre gruplar (boş gruplar atlanır): önce iki yurt (bugünkü sıra), sonra diğer bölgeler adlarına göre,
- * en sonda "Diğer". Adrese teslim siparişi olan grup (Devrek) mahalle alt gruplarına ayrılır (subgroups); o grubun
- * orders dizisi alt grupların ekrandaki sırasıyla dizilir (j/k gösterilenle aynı sırada gezer).
+ * en sonda "Diğer". Mahallesi yazılı adresli siparişi olan grup (Devrek) mahalle alt gruplarına ayrılır (subgroups); o
+ * grubun orders dizisi alt grupların ekrandaki sırasıyla dizilir (j/k gösterilenle aynı sırada gezer).
  * → [{ key, label, short, zone (yurt dışı bölge mi), orders, summary, subgroups: null | [{ key, label, orders, summary }] }]
  */
 export const pointGroups = (orders) => {
@@ -1137,7 +1137,10 @@ export const pointGroups = (orders) => {
   const other = { ...POINT_GROUPS.find((g) => g.key === "other"), orders: buckets.get("other") };
   return [...dorms, ...zoneGroups, other].filter((g) => g.orders.length)
     .map((g) => {
-      const subgroups = g.orders.some(isAddressOrder) ? neighborhoodGroups(g.orders, g.key) : null;
+      // Yalnızca mahallesi yazılı adresli siparişi olan grup bölünür (Devrek'te mahalle zorunludur); mahalle bilgisi
+      // olmayan bölgede (ör. mahalle türündeki bölge) tek bir "Mahalle yok" alt grubu gösterilmez
+      const split = g.orders.some((o) => isAddressOrder(o) && neighborhoodKey(o?.deliveryAddress?.neighborhood));
+      const subgroups = split ? neighborhoodGroups(g.orders, g.key) : null;
       return {
         ...g,
         orders: subgroups ? subgroups.flatMap((s) => s.orders) : g.orders,

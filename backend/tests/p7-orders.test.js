@@ -398,6 +398,14 @@ test("replace-item: validation, missing order, status and same-product guards", 
   const same = await run({ orderId: ORDER(7), lineId: LINE(1), productId: PRODUCT(1) });
   assert.equal(same.statusCode, 400);
   assert.equal(same.body.message, SAME_PRODUCT_MESSAGE);
+  // Aynı ürünün fiyatı bu arada değişmiş olsa da muadil sayılmaz: satır yeniden fiyatlanmaz, katalog okunmaz
+  const sameReads = [];
+  t.mock.method(Product, "find", () => { sameReads.push(1); return chain([{ _id: new mongoose.Types.ObjectId(PRODUCT(1)), name: "Kakaolu Süt", price: 14 }]); });
+  const repriced = await run({ orderId: ORDER(7), lineId: LINE(1), productId: PRODUCT(1).toUpperCase() });
+  assert.equal(repriced.statusCode, 400);
+  assert.equal(repriced.body.message, SAME_PRODUCT_MESSAGE);
+  assert.equal(sameReads.length, 0);
+  assert.deepEqual(order.products.map((p) => [p.name, p.price]), [["Kakaolu Süt", 11.1], ["Ekmek", 24.5]]);
   mockCatalog(t, []);
   assert.equal((await run({ orderId: ORDER(7), lineId: LINE(1), productId: PRODUCT(31) })).statusCode, 404, "muadil ürün yok");
   assert.equal(order.saves.length, 0);

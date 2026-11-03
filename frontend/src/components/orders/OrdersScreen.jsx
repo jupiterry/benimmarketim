@@ -63,6 +63,8 @@ const announceSeen = (ids) => {
 };
 
 const oldestFirst = (orders) => [...(orders || [])].sort((a, b) => a.createdMs - b.createdMs);
+/** Toplanacak (iptal edilmemiş) sipariş sayısı */
+const countPickable = (orders) => (orders || []).reduce((n, o) => n + (o.status === CANCELLED ? 0 : 1), 0);
 const completedMs = (order) => completedAt(order)?.getTime() ?? 0;
 const sumTotal = (orders) => orders.reduce((s, o) => s + (Number(o.totalAmount) || 0), 0);
 /** Gruplama açıkken ekrandaki sıra (Kız, Erkek, diğer bölgeler, Diğer bölümleri) — j/k gösterilenle aynı sırada gezer */
@@ -172,9 +174,13 @@ export default function OrdersScreen() {
   const siblings = useMemo(() => (ready ? buildActiveSiblings(data.orders) : EMPTY_SIBLINGS), [ready, data.orders]);
   const siblingsRef = useRef(siblings);
   siblingsRef.current = siblings;
-  /** Fişe "BİRLİKTE GÖNDER: #CD34EF" yazılsın diye aynı müşterinin diğer aktif siparişlerinin kodları eklenir */
+  /**
+   * Fişe "BİRLİKTE GÖNDER: #CD34EF" yazılsın diye aynı müşterinin hâlâ hazırlanan diğer siparişlerinin kodları eklenir
+   * (yola çıkmış sipariş aynı poşete konamaz; yalnızca hazırlanan siparişin fişinde yazılır)
+   */
   const receiptOrder = (order) => {
-    const others = siblingsRef.current.get(order?.orderId) || [];
+    if (order?.status !== PREP) return order;
+    const others = (siblingsRef.current.get(order.orderId) || []).filter((o) => o.status === PREP);
     return others.length ? { ...order, togetherWith: others.map((o) => orderCode(o)) } : order;
   };
 
@@ -364,11 +370,12 @@ export default function OrdersScreen() {
     if (pickingScope === "custom") return customOrders;
     return preparingOrders;
   }, [pickingScope, selectedOrders, customOrders, preparingOrders]);
+  // Sayılar listeyle aynı: iptal edilen siparişler toplanmaz (listede yoktur), sayıya da girmez
   const pickingScopes = useMemo(() => [
     { value: "preparing", label: "Hazırlanıyor", count: preparingOrders.length },
-    selectedOrders.length > 0 && { value: "selected", label: "Seçili", count: selectedOrders.length },
-    picking.custom && { value: "custom", label: picking.custom.label, count: customOrders.length },
-  ].filter(Boolean), [preparingOrders.length, selectedOrders.length, picking.custom, customOrders.length]);
+    selectedOrders.length > 0 && { value: "selected", label: "Seçili", count: countPickable(selectedOrders) },
+    picking.custom && { value: "custom", label: picking.custom.label, count: countPickable(customOrders) },
+  ].filter(Boolean), [preparingOrders.length, selectedOrders, picking.custom, customOrders]);
   // Toplanacaklar: iptal edilenler listeden çıkar (açık listedeyken iptal edilenler ayrıca üstü çizili gösterilir)
   const pickingActive = useMemo(() => pickingOrders.filter((o) => o.status !== CANCELLED), [pickingOrders]);
 

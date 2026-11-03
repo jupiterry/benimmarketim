@@ -343,7 +343,7 @@ export const buildReceiptBody = (order) => {
   const callbackHtml = order.needsCallback === true && !order.callbackConfirmedAt && (order.status === "Hazırlanıyor" || order.status === "Yolda")
     ? '<div class="flag callback">TEYİT İÇİN ARA · yola çıkmadan önce</div>'
     : "";
-  // Aynı müşterinin diğer aktif siparişleri (yazdıran ekran togetherWith: ["#CD34EF"] verir): poşetler birlikte gitsin
+  // Aynı müşterinin hâlâ hazırlanan diğer siparişleri (yazdıran ekran togetherWith: ["#CD34EF"] verir): poşetler birlikte gitsin
   const together = (Array.isArray(order.togetherWith) ? order.togetherWith : []).map((code) => String(code || "").trim()).filter(Boolean);
   const togetherHtml = together.length
     ? `<div class="flag">BİRLİKTE GÖNDER: ${esc(together.slice(0, 4).join(", "))}${together.length > 4 ? " …" : ""}</div>`

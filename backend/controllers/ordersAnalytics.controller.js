@@ -1521,13 +1521,15 @@ export const replaceOrderItem = async (req, res) => {
       return res.status(400).json({ message: "Ürün satırının adedi geçersiz" });
     }
 
+    // Muadil başka bir ürün olmalı: aynı ürün (fiyatı bu arada değişmiş olsa da) seçilirse satır yalnızca yeniden
+    // fiyatlanırdı; bu bir muadil değildir (katalog okunmadan reddedilir)
+    if (refId(line.product) === String(productId).toLowerCase()) {
+      return res.status(400).json({ message: SAME_PRODUCT_MESSAGE });
+    }
     // Ödeme adımıyla aynı birim fiyat (haftalık fırsat / indirim / liste fiyatının en düşüğü); ürün yoksa 404
     const { product, price, pricing } = await resolveEffectiveUnitPrice(productId);
     const productKey = String(product._id);
     const newUnit = toKurus(price);
-    if (refId(line.product) === productKey && toKurus(line.price) === newUnit) {
-      return res.status(400).json({ message: SAME_PRODUCT_MESSAGE });
-    }
     // Fark kuruş üzerinden: (yeni birim − eski birim) × adet
     const oldKurus = toKurus(line.price) * quantity;
     const newKurus = newUnit * quantity;
