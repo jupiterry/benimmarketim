@@ -868,3 +868,49 @@
       ".     side side";
   }
 }
+
+/* ── Mahalle alt grupları (Devrek): "Cumhuriyet Mah. · 3 sipariş · Nakit ₺520" ── */
+.admin-layout .so-q-subs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s3);
+  min-width: 0;
+}
+.admin-layout .so-q-sub {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-s2);
+  min-width: 0;
+  padding-left: var(--ui-s2);
+  border-left: 2px solid color-mix(in srgb, var(--ui-info) 30%, var(--ui-line));
+}
+.admin-layout .so-q-sub-head {
+  padding-left: 2px;
+}
+.admin-layout .so-q-sub-title {
+  font-size: var(--ui-fs-sm);
+  font-weight: 650;
+}
+.admin-layout .so-q-sub-title > svg {
+  color: var(--ui-info);
+}
+@media (max-width: 760px) {
+  .admin-layout .so-q-sub {
+    padding-left: var(--ui-s1);
+  }
+}
+
+/* ── Teyit bekleyen kartın iki düğmesi ("Önce ara" + "Arandı, teyit edildi") ── */
+/* Geniş kartta yan sütun dikeydir: düğmeler alt alta, sütun genişliği tek düğmeninki kadar kalır (kart sıkışmaz) */
+.admin-layout .so-q-side > .so-cb-step {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+}
+/* Dar şeritte (yan sütun satır olur) yan yana, sığmazsa alta sarar */
+@container so-q-lane (max-width: 479px) {
+  .admin-layout .so-q-side > .so-cb-step {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}

@@ -351,7 +351,8 @@ test("buildOrderSearchFilter: regex characters are escaped and unsearchable text
 test("populate keeps deleted accounts: the transform returns a placeholder with the REAL user id", () => {
   const config = userPopulate();
   assert.equal(config.path, "user");
-  assert.equal(config.select, "name email avatar");
+  // Personelin iç işaretleri ve notu (select: false) yönetici listesi için açıkça seçilir
+  assert.equal(config.select, "name email avatar staffFlags staffNote");
   const id = new mongoose.Types.ObjectId(USER(5));
   assert.deepEqual(config.transform(null, id), { _id: id, deleted: true });
   const doc = { _id: id, name: "Ayşe" };
@@ -384,7 +385,9 @@ test("groupOrdersByUser: deleted accounts stay separate customers; lineId, produ
   ]);
   const byId = (id) => groups.find((group) => group.user.id === id);
   const a = byId(String(deletedA));
-  assert.deepEqual(a.user, { id: String(deletedA), name: "Silinmiş hesap", email: null, avatar: null, phone: "05550000000", address: "", deleted: true });
+  assert.deepEqual(a.user, {
+    id: String(deletedA), name: "Silinmiş hesap", email: null, avatar: null, phone: "05550000000", address: "", staffFlags: [], staffNote: null, deleted: true,
+  });
   assert.equal(a.orders.length, 2, "aynı silinmiş hesabın siparişleri birlikte");
   assert.ok(a.orders.every((order) => order.userDeleted === true));
   assert.equal(byId(String(deletedB)).orders.length, 1, "farklı silinmiş hesaplar birleşmez");

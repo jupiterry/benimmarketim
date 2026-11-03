@@ -7,13 +7,14 @@ import {
 } from "lucide-react";
 import { formatDate, formatTime, money, readPref, writePref } from "../admin/ui";
 import {
-  deliveryFeeLabel, getStatusTime, hasDeliveryFeeLine, isAddressOrder, normalizeSearch, onlyDigits, orderAddressLines, orderDeliveryFee,
-  orderMapsLink, orderProductTotal, orderZoneId, orderZoneName, shortOrderId, toWhatsAppNumber,
+  combinedAmountLabel, deliveryFeeLabel, getStatusTime, hasDeliveryFeeLine, isAddressOrder, neighborhoodKey, neighborhoodLabel, normalizeSearch,
+  onlyDigits, orderAddressLines, orderDeliveryFee, orderMapsLink, orderProductTotal, orderZoneId, orderZoneName, shortOrderId, toWhatsAppNumber,
 } from "../../lib/orderTools";
 
 // Teslimat yardımcıları (lib/orderTools) ekranın tek kaynağından da dışa aktarılır
 export {
-  deliveryFeeLabel, hasDeliveryFeeLine, isAddressOrder, orderAddressLines, orderDeliveryFee, orderMapsLink, orderProductTotal, orderZoneName,
+  combinedAmountLabel, deliveryFeeLabel, hasDeliveryFeeLine, isAddressOrder, neighborhoodKey, orderAddressLines, orderDeliveryFee, orderMapsLink,
+  orderProductTotal, orderZoneName,
 };
 
 // ── Zaman sabitleri ───────────────────────────────────────────────────────
@@ -273,6 +274,13 @@ export const zoneFilterOptions = (orders, { include = [] } = {}) => {
 /** Teyit için aranmayı bekliyor mu (yalnızca aktif siparişte; iptal / teslim edilende rozet çıkmaz) */
 export const needsCallbackPending = (order) =>
   order?.needsCallback === true && !order?.callbackConfirmedAt && isActiveStatus(order?.status);
+/**
+ * Teyit kuralı (sunucu: callbackBlocksStatusChange ile aynı): teyit bekleyen sipariş Hazırlanıyor'dan Yolda /
+ * Teslim Edildi'ye ancak "Arandım, teyit et" ya da "Yine de yola çıkar" ile geçer; iptal ve geri alma serbest.
+ */
+export const callbackBlocks = (order, to = "Yolda") =>
+  order?.status === "Hazırlanıyor" && order?.needsCallback === true && !order?.callbackConfirmedAt
+  && (to === "Yolda" || to === "Teslim Edildi");
 /** "Teslim edilemedi" nedenleri (sunucu: backend/lib/feedbackOptions.js DELIVERY_OUTCOMES ile aynı) */
 export const DELIVERY_OUTCOMES = [
   { value: "adres_bulunamadi", label: "Adres bulunamadı" },
@@ -429,6 +437,21 @@ export const customerName = (order) =>
 /** Müşteriye yazılan metinlerdeki ilk ad; silinmiş hesapta "" (selamlamada ad kullanılmaz) */
 export const customerFirstName = (order) =>
   (isDeletedCustomer(order) ? "" : String(order?.user?.name || "").trim().split(/\s+/)[0] || "");
+/**
+ * Özel ada Türkçe ilgi eki (ünlü uyumu): "Ayşe’nin", "Mehmet’in", "Ufuk’un", "Gül’ün", "Can’ın".
+ * Ad boşsa "" döner (çağıran "Bu müşterinin" gibi bir karşılık kullanır).
+ */
+export const possessiveName = (name) => {
+  const text = String(name ?? "").trim();
+  if (!text) return "";
+  const lower = text.toLocaleLowerCase("tr-TR");
+  const vowels = lower.match(/[aeıioöuü]/g);
+  const last = vowels ? vowels[vowels.length - 1] : "e";
+  const vowel = "aı".includes(last) ? "ı" : "ei".includes(last) ? "i" : "ou".includes(last) ? "u" : "ü";
+  return `${text}’${/[aeıioöuü]$/.test(lower) ? "n" : ""}${vowel}n`;
+};
+/** "Ayşe’nin" ya da (ad yoksa / silinmiş hesapta) "Bu müşterinin" */
+export const customerPossessive = (order) => possessiveName(customerFirstName(order)) || "Bu müşterinin";
 export const customerPhone = (order) => String(order?.phone || order?.user?.phone || "").trim();
 /** Müşteri gruplama anahtarı: gerçek kullanıcı kimliği, yoksa e-posta, o da yoksa siparişe özel */
 export const customerKey = (order) => {
@@ -846,9 +869,11 @@ const quoteStatus = (s) => `“${statusUi(s).label}”`;
 /**
  * C5 onayları. `orders` yalnızca durumu GERÇEKTEN değişecek siparişlerdir (to'dan farklı olanlar).
  * Öncelik: iptal (danger) > geri yön (warning) > 10'dan fazla (warning); gerekmiyorsa null.
+ * bulkConfirmed: ileri yöndeki toplu işlem başka bir pencerede (ör. kurye seçimi) zaten onaylandı → "10'dan fazla"
+ * onayı sorulmaz (iptal ve geri yön onayları her zaman sorulur).
  * → { title, message, confirmText, cancelText, type } (useConfirm'e olduğu gibi verilir)
  */
-export const buildStatusConfirm = (orders, to) => {
+export const buildStatusConfirm = (orders, to, { bulkConfirmed = false } = {}) => {
   const list = (orders || []).filter(Boolean);
   if (!list.length) return null;
   const single = list.length === 1 ? list[0] : null;
@@ -885,7 +910,7 @@ export const buildStatusConfirm = (orders, to) => {
       confirmText: "Evet, geri al", cancelText: "Vazgeç", type: "warning",
     };
   }
-  if (list.length > 10) {
+  if (list.length > 10 && !bulkConfirmed) {
     return {
       title: "Toplu durum değişikliği",
       message: `${list.length} siparişin durumu ${quoteStatus(to)} olarak güncellenecek. Müşterilere bildirim gönderilir.`,
@@ -1062,9 +1087,39 @@ export const activeByPoint = (orders) => {
   }
   return [...map.values()].sort((a, b) => (b.prep + b.road) - (a.prep + a.road) || a.name.localeCompare(b.name, "tr"));
 };
+export const NO_NEIGHBORHOOD_LABEL = "Mahalle yok";
+/** Türkçe baş harf düzeni: "CUMHURİYET" / "cumhuriyet" → "Cumhuriyet", "ırmak" → "Irmak", "istiklal" → "İstiklal" */
+const turkishTitle = (text) => String(text ?? "")
+  .toLocaleLowerCase("tr-TR")
+  .replace(/(^|[\s-])(\S)/gu, (match, sep, char) => `${sep}${char.toLocaleUpperCase("tr-TR")}`);
+/**
+ * Adrese teslim siparişleri mahalle alt gruplarına böler. Anahtar: Türkçe küçük harfe çevrilmiş, "Mah." /
+ * "Mahallesi" eki atılmış mahalle adı (aynı mahallenin farklı yazımları birleşir). Başlık, yazımdan bağımsız olarak
+ * baş harf düzeninde ("CUMHURİYET MAH" → "Cumhuriyet Mah."). Sıra: en çok siparişi olan önce, eşitlikte ada göre;
+ * mahallesi olmayanlar en sonda "Mahalle yok". Grup içi sıra korunur (aciliyet).
+ * → [{ key, label, orders, summary }]
+ */
+export const neighborhoodGroups = (orders, parentKey = "zone") => {
+  const map = new Map();
+  for (const o of orders || []) {
+    const raw = o?.deliveryAddress?.neighborhood;
+    const key = isAddressOrder(o) ? neighborhoodKey(raw) : "";
+    const id = key || "none";
+    if (!map.has(id)) {
+      const label = key ? neighborhoodLabel(turkishTitle(String(raw ?? "").replace(/\s+/g, " ").trim())) : NO_NEIGHBORHOOD_LABEL;
+      map.set(id, { key: `${parentKey}::${id}`, named: Boolean(key), label, orders: [] });
+    }
+    map.get(id).orders.push(o);
+  }
+  return [...map.values()]
+    .sort((a, b) => Number(b.named) - Number(a.named) || b.orders.length - a.orders.length || a.label.localeCompare(b.label, "tr"))
+    .map((group) => ({ key: group.key, label: group.label, orders: group.orders, summary: summarizeOrders(group.orders) }));
+};
 /**
  * Bölgeye göre gruplar (boş gruplar atlanır): önce iki yurt (bugünkü sıra), sonra diğer bölgeler adlarına göre,
- * en sonda "Diğer". → [{ key, label, short, zone (yurt dışı bölge mi), orders, summary }]
+ * en sonda "Diğer". Mahallesi yazılı adresli siparişi olan grup (Devrek) mahalle alt gruplarına ayrılır (subgroups); o
+ * grubun orders dizisi alt grupların ekrandaki sırasıyla dizilir (j/k gösterilenle aynı sırada gezer).
+ * → [{ key, label, short, zone (yurt dışı bölge mi), orders, summary, subgroups: null | [{ key, label, orders, summary }] }]
  */
 export const pointGroups = (orders) => {
   const buckets = new Map(POINT_GROUPS.map((g) => [g.key, []]));
@@ -1081,7 +1136,39 @@ export const pointGroups = (orders) => {
   const dorms = POINT_GROUPS.filter((g) => g.key !== "other").map((g) => ({ ...g, orders: buckets.get(g.key) }));
   const other = { ...POINT_GROUPS.find((g) => g.key === "other"), orders: buckets.get("other") };
   return [...dorms, ...zoneGroups, other].filter((g) => g.orders.length)
-    .map((g) => ({ ...g, summary: summarizeOrders(g.orders) }));
+    .map((g) => {
+      // Yalnızca mahallesi yazılı adresli siparişi olan grup bölünür (Devrek'te mahalle zorunludur); mahalle bilgisi
+      // olmayan bölgede (ör. mahalle türündeki bölge) tek bir "Mahalle yok" alt grubu gösterilmez
+      const split = g.orders.some((o) => isAddressOrder(o) && neighborhoodKey(o?.deliveryAddress?.neighborhood));
+      const subgroups = split ? neighborhoodGroups(g.orders, g.key) : null;
+      return {
+        ...g,
+        orders: subgroups ? subgroups.flatMap((s) => s.orders) : g.orders,
+        subgroups,
+        summary: summarizeOrders(g.orders),
+      };
+    });
+};
+/**
+ * Aynı müşterinin diğer AKTİF siparişleri: orderId → Order[] (en eski önce). Yalnızca en az iki aktif siparişi olan
+ * müşteriler; kimliksiz (anonim) siparişler birleşmez. Hesabı silinmiş müşterinin kendi siparişleri aynı kişiye ait
+ * olduğu için birleşir, farklı silinmiş hesaplar birbirine karışmaz (anahtar gerçek kullanıcı kimliğidir).
+ */
+export const buildActiveSiblings = (orders) => {
+  const byCustomer = new Map();
+  for (const o of orders || []) {
+    if (!o || !isActiveStatus(o.status) || !o.customerKey || String(o.customerKey).startsWith("o:")) continue;
+    const list = byCustomer.get(o.customerKey);
+    if (list) list.push(o);
+    else byCustomer.set(o.customerKey, [o]);
+  }
+  const out = new Map();
+  for (const list of byCustomer.values()) {
+    if (list.length < 2) continue;
+    const sorted = [...list].sort((a, b) => a.createdMs - b.createdMs || (a.orderId < b.orderId ? -1 : 1));
+    for (const o of sorted) out.set(o.orderId, sorted.filter((other) => other.orderId !== o.orderId));
+  }
+  return out;
 };
 /** customerKey → Order[] (en yeni önce; girdi createdMs azalan sıradaysa sıra korunur) */
 export const buildCustomerIndex = (orders) => {
@@ -1302,10 +1389,26 @@ const changeText = (c) => {
   if (c.type === "removed") return `${c.name} çıkarıldı`;
   if (c.type === "added") return `${c.name} eklendi`;
   if (c.type === "qty") return `${c.name} ${c.from}→${c.to} adet`;
+  if (c.type === "replaced") return `${c.from} yerine ${c.name}`;
   return c.name;
 };
-/** "Ülker Çikolata çıkarıldı, Su 1→3 adet" */
+/** "Ülker Çikolata çıkarıldı, Su 1→3 adet, Kakaolu Süt yerine Pınar Kakaolu Süt" */
 export const describeChanges = (changes) => (changes || []).map(changeText).join(", ");
+/** "+₺2,50" / "−₺1,00" / "₺0,00" */
+export const signedMoney = (value) => {
+  const n = round2(value);
+  if (n === 0) return money(0);
+  return `${n > 0 ? "+" : "−"}${money(Math.abs(n))}`;
+};
+/**
+ * Muadil cümlesi (müşteriye, sen dili): "Kakaolu Süt kalmamıştı, yerine Pınar Kakaolu Süt koyduk (+₺2,50)".
+ * Birden çok adette "yerine 2 adet …"; fiyat farkı satırın toplam farkıdır (adet × birim fark).
+ */
+export const replacementText = (c) => {
+  const qty = Number(c?.qty) > 1 ? `${Number(c.qty)} adet ` : "";
+  const diff = round2(c?.amount);
+  return `${c?.from || "Ürün"} kalmamıştı, yerine ${qty}${c?.name || "muadilini"} koyduk (${diff === 0 ? "aynı fiyat" : signedMoney(diff)})`;
+};
 /**
  * Hazır mesajlar. build(order, ctx) metni döndürür; enabled(order, ctx) false ise menüde pasif.
  * ctx: { changes?: Array<{ type:'removed'|'qty'|'added', name, from?, to?, amount }> }
@@ -1335,6 +1438,18 @@ export const WHATSAPP_TEMPLATES = [
     id: "changed", label: "Sipariş değişti", hint: "Bu oturumdaki ürün değişikliklerini yazar",
     enabled: (o, ctx) => Boolean(ctx?.changes?.length),
     build: (o, ctx) => `${greeting(o)} ${orderCode(o)} numaralı siparişinde değişiklik yaptık: ${describeChanges(ctx?.changes) || "ürünler güncellendi"}. Yeni tutar: ${money(o?.totalAmount)}. Bir sorun olursa bu mesaja yazabilirsin.`,
+  },
+  {
+    id: "substitute", label: "Muadil bildirimi", hint: "Eksik ürünün yerine konan muadili ve fiyat farkını yazar",
+    enabled: (o, ctx) => Boolean(ctx?.changes?.some((c) => c.type === "replaced")),
+    build: (o, ctx) => {
+      const changes = ctx?.changes || [];
+      const replaced = changes.filter((c) => c.type === "replaced");
+      const others = changes.filter((c) => c.type !== "replaced");
+      const main = replaced.length ? replaced.map(replacementText).join("; ") : "bazı ürünleri değiştirdik";
+      const extra = others.length ? ` Ayrıca: ${describeChanges(others)}.` : "";
+      return `${greeting(o)} ${orderCode(o)} numaralı siparişin için ${main}.${extra} Yeni tutar: ${money(o?.totalAmount)}. İstemezsen yaz, çıkaralım.`;
+    },
   },
   {
     id: "unreachable", label: "Ulaşamadık",

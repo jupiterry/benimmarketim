@@ -216,6 +216,8 @@ export default function ListView({
   const picked = ui?.picked || EMPTY_MAP;
   const unseenIds = ui?.unseenIds || EMPTY_SET;
   const freshIds = ui?.freshIds || EMPTY_SET;
+  const siblings = ui?.siblings || EMPTY_MAP;
+  const courier = ui?.courier || null;
 
   // ── Boş durum ──
   if (!orders.length) {
@@ -289,6 +291,8 @@ export default function ListView({
           actions={actions}
           dated={!dayGroups}
           mobile={isMobile}
+          siblings={siblings.get(id)}
+          courier={courier}
         />
       </Fragment>
     );

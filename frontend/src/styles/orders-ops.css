@@ -355,3 +355,14 @@
     min-height: 40px;
   }
 }
+
+/* ── Kuryeye WhatsApp (çekmece: Kurye ve teslimat) ─────────────────── */
+.admin-layout .so-ops-wa {
+  align-self: flex-start;
+  margin-top: var(--ui-s2);
+}
+@media (max-width: 760px) {
+  .admin-layout .so-ops-wa {
+    min-height: 40px;
+  }
+}

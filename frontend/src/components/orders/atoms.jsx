@@ -5,16 +5,18 @@
 import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import {
-  AlertCircle, AlertTriangle, Bike, Check, ChevronDown, History, Home, ListChecks, Loader2, MapPin, MoreHorizontal, PackageCheck,
-  PackageX, PhoneCall, Printer, RefreshCw, RotateCcw, Sparkles, StickyNote, Timer, UserX, Wallet, Zap,
+  AlertCircle, AlertTriangle, Bike, Check, ChevronDown, Flag, History, Home, Layers, ListChecks, Loader2, MapPin, MoreHorizontal, PackageCheck,
+  PackageX, PhoneCall, Printer, RefreshCw, RotateCcw, Sparkles, StickyNote, Timer, UserMinus, UserX, Wallet, Zap,
 } from "lucide-react";
 import {
   EmptyState, Skeleton, SkeletonCards, SkeletonRows, formatDate, formatDateTime, formatTime, initials, money,
 } from "../admin/ui";
+import { formatPhoneTR } from "../../lib/orderTools";
+import { staffFlagsOf } from "../../lib/staffFlags";
 import {
-  CLICK_GUARD_MS, KBD_HINT, NOW_TICK_MS, PAYMENT, customerName, durationMinutes, faceTone, formatMinutes, getSla,
-  isDeletedCustomer, nextAction, orderCode, orderCodeTitle, paymentKey, paymentLong, pointKey, pointLabel, shortWhen, statusUi,
-  isAddressOrder, orderAddressLines, needsCallbackPending, courierName, deliveryOutcomeLabel,
+  CLICK_GUARD_MS, KBD_HINT, NOW_TICK_MS, PAYMENT, customerName, customerPhone, durationMinutes, faceTone, formatMinutes, getSla,
+  isDeletedCustomer, nextAction, orderCode, orderCodeTitle, paymentKey, paymentLong, pointKey, pointLabel, shortWhen, statusUi, telHref,
+  isAddressOrder, orderAddressLines, needsCallbackPending, courierName, deliveryOutcomeLabel, callbackBlocks,
 } from "./shared";
 import "../../styles/orders.css";
 
@@ -229,6 +231,41 @@ export const CallbackBadge = ({ order, className = "" }) => {
     </span>
   );
 };
+/**
+ * Personelin müşteri hakkındaki iç işaretleri ("Önce ara", "Zor adres"…; tam ad title'da). full: tam etiket
+ * (çekmece). İşaret yoksa null. Yalnızca panelde görünür; müşteriye hiçbir yerde gitmez.
+ */
+export const StaffFlagChips = ({ order, user: userProp, full = false, className = "" }) => {
+  const flags = staffFlagsOf((userProp || order?.user)?.staffFlags);
+  if (!flags.length) return null;
+  return flags.map((flag) => (
+    <span key={flag.key} className={`so-chip so-staff ${className}`} data-tone={flag.tone} data-flag={flag.key}
+      title={`Personel işareti: ${flag.label}`}>
+      <Flag aria-hidden="true" />
+      <span className="so-chip-text">{full ? flag.label : flag.short}</span>
+      {!full && <span className="so-sr"> (personel işareti: {flag.label})</span>}
+    </span>
+  ));
+};
+/**
+ * Aynı müşterinin diğer aktif siparişleri: "+1 aktif sipariş (#CD34EF)" / "+2 aktif sipariş". Tıklayınca ilk (en eski)
+ * diğer siparişi açar. Kartın açma düğmesinin İÇİNE konmamalıdır (iç içe düğme olur); liste yoksa null.
+ */
+export const SiblingChip = ({ siblings, onOpen, className = "" }) => {
+  const list = Array.isArray(siblings) ? siblings.filter(Boolean) : [];
+  if (!list.length) return null;
+  const [first] = list;
+  const codes = list.map((o) => orderCode(o)).join(", ");
+  const text = list.length === 1 ? `+1 aktif sipariş (${orderCode(first)})` : `+${list.length} aktif sipariş`;
+  return (
+    <button type="button" className={`so-chip so-sib ${className}`} data-tone="info"
+      onClick={(e) => { e.stopPropagation(); onOpen?.(first); }}
+      aria-label={`Aynı müşterinin ${list.length} aktif siparişi daha var: ${codes}. ${orderCode(first)} siparişini aç`}
+      title={`Aynı müşterinin diğer aktif siparişleri: ${codes} · ${orderCode(first)} açılır`}>
+      <Layers aria-hidden="true" /><span className="so-chip-text">{text}</span>
+    </button>
+  );
+};
 /** Atanan kurye adı; atanmamışsa null */
 export const CourierChip = ({ order, className = "" }) => {
   const name = courierName(order);
@@ -301,9 +338,12 @@ export const SelectCheck = ({ checked, indeterminate = false, onChange, label, d
  * Bir değişiklikten sonra 400 ms tıklama almaz (çift tıklama iki adım ilerletmesin / hemen geri almasın);
  * çift tıklamanın ikinci tıklaması (event.detail > 1) süre ne olursa olsun yok sayılır.
  * Odaktaki düğme değişiklikle kalkarsa ("Teslim et" → yalnızca "Geri al") odak diğer düğmeye geçer, <body>'ye düşmez.
+ * Bölünmüş düğme (kuryeyle yola çıkar): label ("Ali ile yola çıkar"), ariaLabel ve menu (ok kısmındaki seçenekler,
+ * MenuButton items) verilir; ana kısım onAdvance'ı çağırır.
  */
 export const NextStepButton = memo(function NextStepButton({
   order, onAdvance, onUndo, variant = "soft", size = "md", block = false, kbd, disabled = false, className = "",
+  label, ariaLabel, menu, menuLabel = "Diğer seçenekler",
 }) {
   const next = nextAction(order?.status);
   const pending = order?.pending || null;
@@ -349,16 +389,32 @@ export const NextStepButton = memo(function NextStepButton({
     onUndo?.(order);
   };
   const NextIcon = next?.icon;
+  const text = label || next?.label || "";
+  const split = Boolean(next && Array.isArray(menu) && menu.some((item) => item && item.type !== "label" && item.type !== "divider"));
   return (
-    <span className={`so-next-wrap ${className}`} data-block={block ? "true" : undefined} data-size={size}>
+    <span className={`so-next-wrap ${className}`} data-block={block ? "true" : undefined} data-size={size} data-split={split ? "true" : undefined}>
       {next && (
         <button ref={nextRef} type="button" className="so-next" data-variant={variant} data-kind={next.kind} data-size={size} disabled={disabled}
-          onClick={advance} aria-label={`${code} siparişini ${next.label.toLocaleLowerCase("tr-TR")}`}
-          title={kbd ? `${next.label} (${kbd})` : next.label}>
+          data-split={split ? "true" : undefined}
+          onClick={advance} aria-label={ariaLabel || `${code} siparişini ${next.label.toLocaleLowerCase("tr-TR")}`}
+          title={kbd ? `${text} (${kbd})` : text}>
           <NextIcon aria-hidden="true" />
-          <span className="so-next-label">{next.label}</span>
+          <span className="so-next-label">{text}</span>
           {kbd && <kbd className="ui-kbd so-next-kbd" aria-hidden="true">{kbd}</kbd>}
         </button>
+      )}
+      {split && (
+        <MenuButton
+          iconOnly
+          icon={ChevronDown}
+          label={menuLabel}
+          menuLabel={menuLabel}
+          items={menu}
+          align="end"
+          disabled={disabled}
+          className="so-next-caret"
+          buttonProps={{ "aria-label": `${code}: ${menuLabel}`, "data-variant": variant, "data-kind": next.kind, "data-size": size }}
+        />
       )}
       {pending && (
         <button ref={undoRef} type="button" className="so-next-undo" data-alone={next ? undefined : "true"} data-size={size} onClick={undo}
@@ -367,6 +423,101 @@ export const NextStepButton = memo(function NextStepButton({
         </button>
       )}
     </span>
+  );
+});
+
+/**
+ * Teyit bekleyen (ilk sipariş) Hazırlanıyor siparişinin birincil eylemi: "Önce ara" (tel: bağlantısı) ve
+ * "Arandı, teyit edildi". Teyit kaydedilince kart kendiliğinden "Yola çıkar"a döner; odak düğmedeyse kartın yeni adım
+ * düğmesine geçer (<body>'ye düşmez). compact: dar yerlerde "Teyit edildi" (tam ad aria-label'da).
+ */
+export const CallbackStep = memo(function CallbackStep({ order, onConfirm, size = "md", block = false, compact = false, className = "" }) {
+  const [busy, setBusy] = useState(false);
+  const aliveRef = useRef(true);
+  useEffect(() => () => { aliveRef.current = false; }, []);
+  if (!order) return null;
+  const tel = telHref(order);
+  const phone = formatPhoneTR(customerPhone(order)) || customerPhone(order);
+  const code = orderCode(order);
+  const confirm = async (e) => {
+    e.stopPropagation();
+    if (busy || e.detail > 1) return;
+    const button = e.currentTarget;
+    const item = button.closest('[data-nav="1"]');
+    const hadFocus = document.activeElement === button;
+    setBusy(true);
+    const ok = await onConfirm?.(order);
+    if (aliveRef.current) setBusy(false);
+    if (!ok || !hadFocus || typeof window === "undefined") return;
+    window.requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (active && active !== document.body && active.isConnected) return;
+      (item?.isConnected ? item : null)?.querySelector(".so-next, .so-open")?.focus({ preventScroll: true });
+    });
+  };
+  return (
+    <span className={`so-next-wrap so-cb-step ${className}`} data-block={block ? "true" : undefined} data-size={size}>
+      {tel ? (
+        <a className="so-next" data-variant="soft" data-kind="call" data-size={size} href={tel} onClick={(e) => e.stopPropagation()}
+          aria-label={`${code}: önce müşteriyi arayın, ${phone}`} title={`Teyit için önce müşteriyi arayın: ${phone}`}>
+          <PhoneCall aria-hidden="true" /><span className="so-next-label">Önce ara</span>
+        </a>
+      ) : (
+        <button type="button" className="so-next" data-variant="soft" data-kind="call" data-size={size} disabled title="Telefon numarası yok">
+          <PhoneCall aria-hidden="true" /><span className="so-next-label">Önce ara</span>
+        </button>
+      )}
+      <button type="button" className="so-next-alt" data-size={size} onClick={confirm} disabled={busy} aria-busy={busy || undefined}
+        aria-label={`${code}: arandı, teyit edildi`} title="Müşteriyle konuşup siparişi teyit ettiyseniz işaretleyin">
+        {busy ? <Loader2 className="ui-spin" aria-hidden="true" /> : <Check aria-hidden="true" />}
+        <span className="so-next-label">{compact ? "Teyit edildi" : "Arandı, teyit edildi"}</span>
+      </button>
+    </span>
+  );
+});
+
+/**
+ * Kuryesi olmayan Hazırlanıyor siparişinde (en az iki aktif kurye varken) bölünmüş "Yola çıkar" düğmesinin özellikleri:
+ * ana kısım son kullanılan kuryeyle ("Ali ile yola çıkar"; son kurye yoksa "Yola çıkar" ve kurye sorulur), ok kısmı
+ * diğer kuryeler ve "Kuryesiz yola çıkar". Tek aktif kuryede bölünmez (yola çıkarken kendiliğinden atanır); null döner.
+ * courier: { active: [{ _id, name, phone }], lastId } · actions.advance(order, { courier })
+ */
+export const courierSplitProps = (order, courier, actions) => {
+  if (!order || order.pending || order.status !== "Hazırlanıyor" || order.courier?.id) return null;
+  const active = courier?.active || [];
+  if (active.length < 2) return null;
+  const last = active.find((c) => c._id === courier.lastId) || null;
+  const code = orderCode(order);
+  return {
+    label: last ? `${last.name} ile yola çıkar` : "Yola çıkar",
+    ariaLabel: last ? `${code} siparişini ${last.name} ile yola çıkar` : `${code} siparişini yola çıkar (kurye sorulur)`,
+    onAdvance: last ? (target) => actions?.advance?.(target, { courier: last }) : undefined,
+    menu: [
+      { type: "label", label: "Kuryeyle yola çıkar" },
+      ...active.filter((c) => c._id !== last?._id).map((c) => ({
+        id: `courier-${c._id}`, label: `${c.name} ile yola çıkar`, icon: Bike, onSelect: () => actions?.advance?.(order, { courier: c }),
+      })),
+      { type: "divider" },
+      { id: "courier-none", label: "Kuryesiz yola çıkar", icon: UserMinus, onSelect: () => actions?.advance?.(order, { courier: null }) },
+    ],
+  };
+};
+
+/**
+ * Kartın / satırın birincil eylemi: teyit bekleyen Hazırlanıyor siparişinde "Önce ara" + "Arandı, teyit edildi";
+ * kuryesi olmayan Hazırlanıyor siparişinde (2+ aktif kurye) bölünmüş "Ali ile yola çıkar ▾"; aksi halde sonraki adım.
+ */
+export const AdvanceStep = memo(function AdvanceStep({
+  order, actions, courier, variant = "soft", size = "md", block = false, compact = false, className = "",
+}) {
+  if (!order) return null;
+  if (!order.pending && callbackBlocks(order)) {
+    return <CallbackStep order={order} onConfirm={actions?.confirmCallback} size={size} block={block} compact={compact} className={className} />;
+  }
+  const split = courierSplitProps(order, courier, actions);
+  return (
+    <NextStepButton order={order} onAdvance={split?.onAdvance || actions?.advance} onUndo={actions?.undo} variant={variant} size={size}
+      block={block} className={className} label={split?.label} ariaLabel={split?.ariaLabel} menu={split?.menu} menuLabel="Kurye seçenekleri" />
   );
 });
 
@@ -417,12 +568,13 @@ export const useStepGuard = (actions, rootRef) => {
   const lastStepRef = useRef(0);
   return useMemo(() => {
     if (!actions) return actions;
-    const guarded = (name) => (order) => {
+    // Ek bağımsız değişkenler (ör. advance(order, { courier })) olduğu gibi iletilir
+    const guarded = (name) => (order, ...rest) => {
       const now = Date.now();
       if (now - lastStepRef.current < CLICK_GUARD_MS) return Promise.resolve(false);
       lastStepRef.current = now;
       const restore = keepStepFocus(rootRef?.current, order?.orderId);
-      const result = Promise.resolve(actionsRef.current?.[name]?.(order));
+      const result = Promise.resolve(actionsRef.current?.[name]?.(order, ...rest));
       result.then(restore, () => {});
       return result;
     };
@@ -665,11 +817,30 @@ export const LoadOlderButton = ({ hasOlder, loading = false, onLoad, windowStart
 /**
  * Geri alma bildiriminin gövdesi (react-hot-toast içinde; admin-system.css ui-undo sınıfları).
  * useOrdersData.js JSX içeremediği için: toast(() => createElement(UndoToast, { message, onUndo }), { id, duration })
+ * actions: "Geri al"dan önce ek düğmeler [{ id, label, icon?, title?, onClick }] (ör. "Değiştir", "WhatsApp").
  */
-export const UndoToast = ({ message, onUndo, undoLabel = "Geri al" }) => (
-  <span className="ui-undo">
+export const UndoToast = ({ message, onUndo, undoLabel = "Geri al", actions }) => (
+  <span className="ui-undo so-undo">
     <span className="ui-undo-text">{message}</span>
-    <button type="button" className="ui-undo-btn" onClick={onUndo}><RotateCcw aria-hidden="true" />{undoLabel}</button>
+    <span className="so-undo-actions">
+      {(actions || []).filter(Boolean).map((action) => {
+        const Icon = action.icon;
+        return (
+          <button key={action.id || action.label} type="button" className="ui-undo-btn so-undo-extra" onClick={action.onClick} title={action.title}>
+            {Icon && <Icon aria-hidden="true" />}{action.label}
+          </button>
+        );
+      })}
+      <button type="button" className="ui-undo-btn" onClick={onUndo}><RotateCcw aria-hidden="true" />{undoLabel}</button>
+    </span>
+  </span>
+);
+/** Kısa bilgi bildirimi + tek eylem ("2 sipariş teyit beklediği için yola çıkarılmadı · Göster") */
+export const NoticeToast = ({ message, actionLabel, onAction }) => (
+  <span className="ui-undo so-undo so-notice">
+    <AlertTriangle className="so-notice-icon" aria-hidden="true" />
+    <span className="ui-undo-text">{message}</span>
+    {onAction && actionLabel && <button type="button" className="ui-undo-btn" onClick={onAction}>{actionLabel}</button>}
   </span>
 );
 /** Sayfa altındaki kısayol ipucu (masaüstü; dokunmatik/mobilde gizli) */

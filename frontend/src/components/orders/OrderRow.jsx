@@ -7,8 +7,8 @@ import { memo } from "react";
 import { Archive } from "lucide-react";
 import { formatTime, money } from "../admin/ui";
 import {
-  CallbackBadge, CourierChip, CustomerFace, FlashChip, NextStepButton, NoteChip, OrderCode, OutcomeChip, PaymentChip, PickProgress, PointChip,
-  PrintedMark, SelectCheck, SlaChip, StatusBadge, TrustBadges, UnseenBadge,
+  AdvanceStep, CallbackBadge, CourierChip, CustomerFace, FlashChip, NoteChip, OrderCode, OutcomeChip, PaymentChip, PickProgress, PointChip,
+  PrintedMark, SelectCheck, SiblingChip, SlaChip, StaffFlagChips, StatusBadge, TrustBadges, UnseenBadge,
 } from "./atoms";
 import { customerName, getSla, nextAction, orderAriaLabel, orderCode, shortWhen, statusUi } from "./shared";
 import "../../styles/orders-list.css";
@@ -31,7 +31,7 @@ const Delivery = ({ order, className }) => (
  */
 function OrderRow({
   order, now, active = false, cursor = false, selected = false, fresh = false, unseen = false, printedAt, picked,
-  selecting = false, archived = false, actions, dated = false, mobile = false,
+  selecting = false, archived = false, actions, dated = false, mobile = false, siblings, courier,
 }) {
   if (!order) return null;
   const id = order.orderId;
@@ -74,6 +74,7 @@ function OrderRow({
           <span className="so-l-name">
             <span className="so-l-name-text">{customerName(order)}</span>
             <CallbackBadge order={order} />
+            <StaffFlagChips order={order} />
             <OutcomeChip order={order} />
             <TrustBadges order={order} />
             {unseen && <UnseenBadge />}
@@ -100,6 +101,8 @@ function OrderRow({
         <span className="so-l-state">
           <StatusBadge status={order.status} />
           <SlaChip order={order} now={now} done />
+          {/* Açma düğmesinin dışında (iç içe düğme olmasın): aynı müşterinin diğer aktif siparişi */}
+          <SiblingChip siblings={siblings} onOpen={actions?.open} />
         </span>
       </div>
 
@@ -110,13 +113,14 @@ function OrderRow({
 
       {showNext && (
         <div className="so-l-act">
-          <NextStepButton
+          <AdvanceStep
             order={order}
-            onAdvance={actions?.advance}
-            onUndo={actions?.undo}
+            actions={actions}
+            courier={courier}
             variant="soft"
             size={mobile ? "md" : "sm"}
             block={mobile}
+            compact={!mobile}
           />
         </div>
       )}

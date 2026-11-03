@@ -91,6 +91,8 @@ const BoardColumn = ({ column, ui, actions, now, dayNow, dragFrom, dragDisabled,
                     isDragging={dragSnapshot.isDragging}
                     dragDisabled={dragDisabled}
                     selecting={Boolean(ui?.selecting)}
+                    siblings={ui?.siblings?.get(order.orderId)}
+                    courier={ui?.courier || null}
                   />
                 )}
               </Draggable>
@@ -203,7 +205,8 @@ export default function BoardView({
       provided.announce(`${code} bir sütuna bırakılmadı; yerinde kaldı.`);
       return;
     }
-    const needsConfirm = Boolean(buildStatusConfirm([order], to));
+    // Onay penceresi ya da ilerletme sorusu (teyit, aynı müşteri, kurye) açılacak mı
+    const needsConfirm = Boolean(buildStatusConfirm([order], to)) || Boolean(latest.current.actions?.needsPrompt?.(order, to));
     provided.announce(
       needsConfirm
         ? `${code} ${columnName(to)} sütununa bırakıldı; onayınız bekleniyor.`
