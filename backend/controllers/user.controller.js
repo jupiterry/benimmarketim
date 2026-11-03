@@ -498,6 +498,9 @@ const feedbackComment = (feedback) => {
   const message = String(feedback.message || "").trim();
   if (!message || DEFAULT_FEEDBACK_TEXTS.has(message) || /^Tavsiye puanı: \d+\/10$/.test(message)) return "";
   if (feedback.kind === "abandon" && message === ABANDON_REASONS[feedback.reason]) return "";
+  // Yorumsuz hızlı geri bildirimde metin, sorunlu ürün adlarından oluşur; "Sorunlu ürün" ayrıntısında zaten yazar
+  const items = Array.isArray(feedback.problemItems) ? feedback.problemItems : [];
+  if (items.length && message === items.map((item) => item?.name).join(", ")) return "";
   return message;
 };
 const problemItemsText = (feedback) => {

@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 
 import User from "../models/user.model.js";
 import AdminAudit from "../models/adminAudit.model.js";
-import { mergeStaffFlags, parseStaffNoteBody, updateStaffNote } from "../controllers/user.controller.js";
+import { buildOpenIssues, buildTimelineEvents, mergeStaffFlags, parseStaffNoteBody, updateStaffNote } from "../controllers/user.controller.js";
 
 const USER_ID = "507f191e810c19729de8a001";
 const ADMIN = { _id: "507f191e810c19729de860ea", role: "admin", name: "Deniz Yönetici" };
@@ -115,4 +115,19 @@ test("staff note body: baseFlags is validated like flags; an oversized note is r
   assert.match(res.body.message, /500 karakter/);
   assert.equal(touched, false, "veritabanına gidilmez");
   assert.ok(Date.now() - started < 500, "büyük gövde karakter karakter işlenmez");
+});
+
+test("feedback without a comment: the product names the app stored as text are not repeated as a quote", () => {
+  const NOW = Date.parse("2026-11-02T18:00:00Z");
+  const feedback = {
+    _id: "fb0000000000000000000001", kind: "quick", thumb: "down", status: "Yeni", createdAt: new Date(NOW - 60 * 60 * 1000),
+    message: "Süt, Ekmek", problemItems: [{ name: "Süt", issue: "bozuk" }, { name: "Ekmek", issue: "eksik" }],
+  };
+  const [event] = buildTimelineEvents({ feedbacks: [feedback] }, { userId: USER_ID, now: NOW });
+  assert.equal(event.detail, "Sorunlu ürün: Süt (bozuk / ezik), Ekmek (eksik geldi) · Yanıt bekliyor");
+  const [issue] = buildOpenIssues({ feedbacks: [feedback] }, { userId: USER_ID, now: NOW });
+  assert.equal(issue.detail, "Memnun kalmadı");
+  // Müşterinin yazdığı yorum yine alıntılanır
+  const [written] = buildTimelineEvents({ feedbacks: [{ ...feedback, message: "Süt bozuk geldi" }] }, { userId: USER_ID, now: NOW });
+  assert.match(written.detail, /^“Süt bozuk geldi” · Sorunlu ürün/);
 });
