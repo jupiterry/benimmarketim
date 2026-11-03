@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
-import { X, Zap, Square, Ban, Trash2, Package, RefreshCw, AlertTriangle } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { X, Zap, Square, Ban, Trash2, Package, RefreshCw, AlertTriangle, TrendingUp } from "lucide-react";
 import {
   DURATIONS, flashStatus, formatDateTime, localInputToIso, money, remaining, roundMoney, toLocalInput
 } from "./productUtils";
 import { cloudinaryImage } from "../../lib/image";
+import axios from "../../lib/axios";
+import { Skeleton, compactMoney } from "../admin/ui";
+import "../../styles/campaign-center.css";
 
 const QUICK_PCTS = [10, 15, 20, 25, 30, 40];
 
@@ -204,13 +207,49 @@ export const FlashBadge = ({ entry, now }) => {
 
 const STATUS_LABEL = { active: "Yayında", upcoming: "Planlandı", ended: "Bitti" };
 const STATUS_TONE = { active: "ok", upcoming: "info", ended: "" };
+const count = (value) => (Number(value) || 0).toLocaleString("tr-TR");
+
+/**
+ * Kampanyanın getirisi (GET /api/campaigns/performance): "34 adet · ₺1.020 ciro · ₺204 indirim".
+ * performance: { state: "loading" } | { state: "ready", data } | { state: "error" }; hata olursa satır gizlenir.
+ * `measurable`: kampanya ürüne kayıtlı bir fiyatla uygulanmış mı (appliedPrice). Uygulanmamış kampanyada
+ * (planlıyken iptal, silinmiş ürün ya da fiyat kaydı tutulmadan önceki eski kampanya) satış ölçülemez;
+ * "satış olmadı" yazılmaz, satır gizlenir.
+ */
+const PerformanceLine = ({ performance, status, measurable = true }) => {
+  if (!performance || status === "upcoming") return null;
+  if (performance.state === "loading") return <Skeleton width={150} height={10} className="prd-flash-perf-wait" />;
+  const data = performance.state === "ready" ? performance.data : null;
+  if (!data) return null;
+  if (!(Number(data.units) > 0)) {
+    if (!measurable) return null;
+    return (
+      <span className="prd-flash-perf" data-empty="true">
+        <TrendingUp aria-hidden="true" />{status === "active" ? "Henüz satış yok" : "Bu kampanyada satış olmadı"}
+      </span>
+    );
+  }
+  return (
+    <span className="prd-flash-perf" title={`${count(data.orders)} siparişte · ciro kupon öncesi satır tutarı, indirim liste fiyatına göre`}>
+      <TrendingUp aria-hidden="true" />
+      <span>{count(data.units)} adet</span>
+      <span>{compactMoney(data.revenue)} ciro</span>
+      <span>{compactMoney(data.discount)} indirim</span>
+      {Number(data.inferredLines) > 0 && (
+        <span className="cc-estimate" title={`${count(data.inferredLines)} satır, fiyat bilgisi kaydedilmeden önceki siparişlerden fiyatına göre eşleştirildi.`}>
+          tahmini
+        </span>
+      )}
+    </span>
+  );
+};
 
 /**
  * Tek kampanya satırı (çekmecede ve yöneticide ortak).
  * Yayında → "Bitir", planlı → "İptal et" (ikisi de onay ister, ürün eski fiyatına hemen döner);
- * biten/iptal edilen kayıt → yalnızca "Kaydı sil".
+ * biten/iptal edilen kayıt → yalnızca "Kaydı sil". `performance` verilirse (yönetici) getiri satırı gösterilir.
  */
-export const FlashSaleRow = ({ sale, now, onEnd, onDelete, onOpenProduct, showProduct = true, busy }) => {
+export const FlashSaleRow = ({ sale, now, onEnd, onDelete, onOpenProduct, showProduct = true, busy, performance }) => {
   const status = flashStatus(sale, now);
   const cancelled = status === "ended" && Boolean(sale.cancelledAt);
   const product = typeof sale.product === "object" ? sale.product : null;
@@ -244,6 +283,8 @@ export const FlashSaleRow = ({ sale, now, onEnd, onDelete, onOpenProduct, showPr
             İptal: {formatDateTime(sale.cancelledAt)}{sale.cancelledBy ? ` · ${sale.cancelledBy}` : ""}
           </span>
         )}
+        <PerformanceLine performance={performance} status={status}
+          measurable={sale.appliedPrice !== null && sale.appliedPrice !== undefined} />
       </div>
       <div className="prd-flash-actions">
         {status === "active" && (
@@ -267,6 +308,52 @@ export const FlashSaleRow = ({ sale, now, onEnd, onDelete, onOpenProduct, showPr
   );
 };
 
+// Yöneticide bir seferde gösterilen satır; "Daha fazla göster" bir sayfa ekler. Getiri yalnızca görünen
+// satırlar için ve tek istekte alınır (sunucu sınırı: istek başına 100 kampanya).
+const MANAGER_PAGE = 50;
+const PERFORMANCE_BATCH = 100;
+
+/**
+ * Görünen kampanyaların getirisi: GET /campaigns/performance?type=flash&ids=… Kampanya listesi yenilenince
+ * (sales değişince) ya da kampanyanın durumu değişince (başladı, bitti) yeniden ölçülür; hata sessizdir.
+ * @returns {(sale) => { state: "loading" | "ready" | "error", data? } | undefined}
+ */
+const useFlashPerformance = (sales, visible, now) => {
+  const [entries, setEntries] = useState({});
+  const requested = useRef(new Set());
+  const generation = useRef(0);
+
+  useEffect(() => {
+    generation.current += 1;
+    requested.current = new Set();
+    setEntries({});
+  }, [sales]);
+  useEffect(() => () => { generation.current += 1; }, []);
+
+  const keyOf = (sale) => `${sale._id}|${flashStatus(sale, now)}`;
+  const keys = visible.filter((sale) => sale?._id && flashStatus(sale, now) !== "upcoming").map(keyOf).join(",");
+  useEffect(() => {
+    const missing = (keys ? keys.split(",") : []).filter((key) => !requested.current.has(key));
+    if (!missing.length) return;
+    const gen = generation.current;
+    for (const key of missing) requested.current.add(key);
+    setEntries((prev) => ({ ...prev, ...Object.fromEntries(missing.map((key) => [key, { state: "loading" }])) }));
+    for (let i = 0; i < missing.length; i += PERFORMANCE_BATCH) {
+      const chunk = missing.slice(i, i + PERFORMANCE_BATCH);
+      const ids = [...new Set(chunk.map((key) => key.split("|")[0]))];
+      const settle = (pick) => {
+        if (gen !== generation.current) return;
+        setEntries((prev) => ({ ...prev, ...Object.fromEntries(chunk.map((key) => [key, pick(key.split("|")[0])])) }));
+      };
+      axios.get("/campaigns/performance", { params: { type: "flash", ids: ids.join(",") } })
+        .then(({ data }) => settle((id) => (data?.items?.[id] ? { state: "ready", data: data.items[id] } : { state: "error" })))
+        .catch(() => settle(() => ({ state: "error" })));
+    }
+  }, [keys, sales]);
+
+  return (sale) => entries[keyOf(sale)];
+};
+
 /** Tüm kampanyaları durumlarına göre listeleyen çekmece */
 export const FlashSaleManager = ({ sales, loading, now, clockSkew = 0, busyId, onClose, onEnd, onDelete, onOpenProduct, onRefresh }) => {
   const groups = useMemo(() => {
@@ -278,6 +365,7 @@ export const FlashSaleManager = ({ sales, loading, now, clockSkew = 0, busyId, o
     return g;
   }, [sales, now]);
   const [tab, setTab] = useState(() => (groups.active.length ? "active" : groups.upcoming.length ? "upcoming" : "active"));
+  const [limit, setLimit] = useState(MANAGER_PAGE);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -288,6 +376,8 @@ export const FlashSaleManager = ({ sales, loading, now, clockSkew = 0, busyId, o
   }, [onClose]);
 
   const list = groups[tab];
+  const visible = list.slice(0, limit);
+  const performanceOf = useFlashPerformance(sales, visible, now);
   return (
     <div className="ui-drawer-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <aside className="ui-drawer prd-drawer" role="dialog" aria-modal="true" aria-label="Flash sale kampanyaları">
@@ -306,7 +396,7 @@ export const FlashSaleManager = ({ sales, loading, now, clockSkew = 0, busyId, o
         <div className="ui-drawer-tabs">
           <div className="ui-segmented">
             {[["active", "Yayında"], ["upcoming", "Planlı"], ["ended", "Biten"]].map(([key, label]) => (
-              <button key={key} type="button" aria-pressed={tab === key} onClick={() => setTab(key)}>
+              <button key={key} type="button" aria-pressed={tab === key} onClick={() => { setTab(key); setLimit(MANAGER_PAGE); }}>
                 {label}<span className="ui-count">{groups[key].length}</span>
               </button>
             ))}
@@ -329,12 +419,19 @@ export const FlashSaleManager = ({ sales, loading, now, clockSkew = 0, busyId, o
               <span className="ui-muted">Ürün satırındaki ⚡ düğmesiyle ya da toplu seçimle kampanya başlatabilirsiniz.</span>
             </div>
           ) : (
-            <ul className="prd-flash-list">
-              {list.map((sale) => (
-                <FlashSaleRow key={sale._id} sale={sale} now={now} busy={busyId === sale._id}
-                  onEnd={onEnd} onDelete={onDelete} onOpenProduct={onOpenProduct} />
-              ))}
-            </ul>
+            <>
+              <ul className="prd-flash-list">
+                {visible.map((sale) => (
+                  <FlashSaleRow key={sale._id} sale={sale} now={now} busy={busyId === sale._id}
+                    onEnd={onEnd} onDelete={onDelete} onOpenProduct={onOpenProduct} performance={performanceOf(sale)} />
+                ))}
+              </ul>
+              {list.length > visible.length && (
+                <button type="button" className="ui-btn prd-flash-more" onClick={() => setLimit((value) => value + MANAGER_PAGE)}>
+                  Daha fazla göster ({count(list.length - visible.length)} kampanya daha)
+                </button>
+              )}
+            </>
           )}
         </div>
       </aside>
