@@ -258,16 +258,24 @@ export default function AdminSidebar({
           { id: "dashboard", label: "Özet", icon: LayoutDashboard },
           { id: "orders", label: "Siparişler", icon: ShoppingBag },
           { id: "products", label: "Ürünler", icon: Package },
-        ].map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => select(id)}
-            aria-current={activeTab === id ? "page" : undefined}
-          >
-            <Icon size={19} strokeWidth={1.8} />
-            <span>{label}</span>
-          </button>
-        ))}
+        ].map(({ id, label, icon: Icon }) => {
+          // Telefonda bekleyen sipariş sayısı alt çubukta da görünür
+          const count = id === "orders" ? orderCount : 0;
+          return (
+            <button
+              key={id}
+              onClick={() => select(id)}
+              aria-current={activeTab === id ? "page" : undefined}
+              aria-label={count > 0 ? `${label}, ${count} bekleyen` : undefined}
+            >
+              <span className="app-tabbar-icon">
+                <Icon size={19} strokeWidth={1.8} />
+                {count > 0 && <b className="app-tabbar-count">{Math.min(99, count)}</b>}
+              </span>
+              <span>{label}</span>
+            </button>
+          );
+        })}
         <button
           onClick={() =>
             document.dispatchEvent(new CustomEvent("toggleMobileMenu"))

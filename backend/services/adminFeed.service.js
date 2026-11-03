@@ -1,16 +1,49 @@
-// Yönetici bildirimleri (zil): yeni sipariş, destek talebi, müşteri mesajı, uygulama açılışı.
+// Yönetici bildirimleri (zil): yeni sipariş, destek talebi, müşteri mesajı, uygulama açılışı, müşteri iptali.
 // Önceden yalnızca o an açık olan tarayıcıya canlı gelip o tarayıcının hafızasında tutuluyordu;
 // başka bilgisayarda ya da aynı hesapla başka cihazda görünmüyordu. Artık her olay sunucuda da saklanır,
 // panel açılınca buradan okunur. "Temizle" yöneticinin hesabına işlenir (aynı hesap tüm cihazlarda aynı listeyi görür).
 import mongoose from "mongoose";
+import { CANCEL_REASONS } from "../lib/feedbackOptions.js";
+import { roundMoney } from "./productPricing.js";
 
 export const FEED_COLLECTION = "admin_notifications";
 export const READS_COLLECTION = "admin_notification_reads";
 export const FEED_LIMIT = 30;
 export const APP_OPEN_LIMIT = 10; // uygulama açılışları sık gelir; sipariş ve mesajları listeden itmesin
 const RETENTION_SECONDS = 14 * 24 * 3600;
+/** Müşteri siparişini uygulamadan iptal etti (panel her ekranda kırmızı uyarı gösterir; zile de yazılır) */
+export const CUSTOMER_CANCEL_EVENT = "orderCancelledByCustomer";
+export const CUSTOMER_CANCEL_TITLE = "Müşteri siparişi iptal etti";
+const HEX24 = /^[0-9a-f]{24}$/i;
 
 const text = (value, max = 120) => String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
+const validDate = (value, fallback) => {
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? date : fallback;
+};
+const orderCode = (orderId) => `#${String(orderId).slice(-6).toUpperCase()}`;
+
+/**
+ * Müşteri iptali olayının yükü (canlı olay ve zil kaydı). Müşteri adı yalnızca iptal eden siparişin sahibiyse
+ * yazılır (yönetici başkasının siparişini bu uçtan iptal ederse ad boş kalır).
+ * → { orderId, code, customerName, reason, reasonCode, note, totalAmount, deliveryPointName, at }
+ */
+export const customerCancelPayload = (order, { cancelReason = null, actor = null } = {}, now = new Date()) => {
+  const orderId = String(order?._id ?? "");
+  const isOwner = Boolean(actor?._id && order?.user && String(actor._id) === String(order.user?._id ?? order.user));
+  const reasonCode = cancelReason?.code && CANCEL_REASONS[cancelReason.code] ? cancelReason.code : null;
+  return {
+    orderId,
+    code: orderCode(orderId),
+    customerName: isOwner ? text(actor.name, 80) : "",
+    reason: reasonCode ? CANCEL_REASONS[reasonCode] : "",
+    reasonCode,
+    note: reasonCode ? text(cancelReason.note, 300) : "",
+    totalAmount: roundMoney(order?.totalAmount),
+    deliveryPointName: text(order?.deliveryPointName, 80),
+    at: now.toISOString(),
+  };
+};
 
 /** Socket olayından zil kaydı (saf fonksiyon). Tanınmayan olay → null. Anahtarlar panelin kullandıklarıyla aynıdır. */
 export const feedItemFromEvent = (event, data, now = new Date()) => {
@@ -67,6 +100,24 @@ export const feedItemFromEvent = (event, data, now = new Date()) => {
       at: data.at ? new Date(data.at) : now,
     };
   }
+  if (event === CUSTOMER_CANCEL_EVENT) {
+    const orderId = String(data.orderId ?? "");
+    if (!HEX24.test(orderId)) return null;
+    const code = text(data.code, 12) || orderCode(orderId);
+    const customerName = text(data.customerName, 80);
+    const reason = text(data.reason, 80);
+    const note = text(data.note, 300);
+    const reasonText = reason ? `Neden: ${reason}` : "Neden belirtilmedi";
+    return {
+      key: `cancel-${orderId}`,
+      kind: "cancel",
+      title: CUSTOMER_CANCEL_TITLE,
+      detail: text([code, customerName, note ? `${reasonText} · “${text(note, 80)}”` : reasonText].filter(Boolean).join(" · "), 200),
+      orderId,
+      cancel: { code, customerName, reason, note, totalAmount: roundMoney(data.totalAmount) },
+      at: validDate(data.at, now),
+    };
+  }
   return null;
 };
 
@@ -80,7 +131,7 @@ export const capFeed = (items, { limit = FEED_LIMIT, appOpenLimit = APP_OPEN_LIM
 };
 
 // Panelin beklediği biçim (id = anahtar)
-export const toClientItem = ({ key, kind, title, detail, chatId, userId, order, at }) => ({
+export const toClientItem = ({ key, kind, title, detail, chatId, userId, order, orderId, cancel, at }) => ({
   id: key,
   kind: kind === "order" ? undefined : kind,
   title,
@@ -88,6 +139,8 @@ export const toClientItem = ({ key, kind, title, detail, chatId, userId, order, 
   ...(chatId ? { chatId } : {}),
   ...(userId ? { userId } : {}),
   ...(order ? { order } : {}),
+  ...(orderId ? { orderId } : {}),
+  ...(cancel ? { cancel } : {}),
   at: new Date(at).toISOString(),
 });
 

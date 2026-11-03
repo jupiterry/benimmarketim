@@ -2090,3 +2090,735 @@ body:has(.admin-layout) .confirm-root[data-type="danger"] .confirm-ok:hover {
   color: var(--ui-danger);
 }
 
+/* ══ Sipariş kaçırmamak için (components/admin/alerts) ════════════════
+   Başlık altındaki uyarı şeritleri, zil panelindeki ses ayarları, alarm telefonları çipi, yeni sipariş bildirimi.
+   Yalnızca --ui-* belirteçleri: açık ve koyu temada aynı kurallar çalışır. */
+.app-alerts-sentinel {
+  height: 0;
+}
+.app-alerts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 1560px;
+  margin: 0 auto;
+  padding: 12px 24px 0;
+}
+/* Sayfa kaydırılınca ekranın üstüne sabitlenir (App sarmalayıcısı position: sticky'yi kapatır) */
+.app-alerts[data-floating] {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: var(--app-side);
+  z-index: 45;
+  max-width: none;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 8px 24px;
+  border-bottom: 1px solid var(--ui-line);
+  background: var(--ui-bg);
+  box-shadow: var(--ui-shadow-pop);
+}
+.app-alert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px 8px 12px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font: inherit;
+  font-size: var(--ui-fs-sm);
+  line-height: 1.4;
+  text-align: left;
+}
+.app-alert p {
+  margin: 0;
+}
+.app-alert-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.app-alert-text,
+.app-alert-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.app-alert-text strong {
+  font-weight: 650;
+}
+.app-alert-sub,
+.app-alert-meta {
+  display: block;
+  margin-top: 1px;
+  font-size: var(--ui-fs-xs);
+  opacity: 0.85;
+}
+.app-alert-actions {
+  display: flex;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  gap: 6px;
+}
+.app-alert-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color var(--ui-ease), border-color var(--ui-ease);
+}
+.app-alert-btn svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+.app-alert-btn:hover {
+  border-color: var(--ui-text-3);
+  background: var(--ui-surface-2);
+}
+.app-alert-btn--solid {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand);
+  color: #fff;
+}
+.app-alert-btn--solid:hover {
+  border-color: var(--ui-brand-strong);
+  background: var(--ui-brand-strong);
+}
+.app-alert-link {
+  min-height: 32px;
+  padding: 0 4px;
+  color: inherit;
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.app-alert-link--inline {
+  min-height: 0;
+  padding: 0;
+  font-size: inherit;
+}
+/* Tonlar */
+.app-alert--danger {
+  border-color: color-mix(in srgb, var(--ui-danger) 40%, transparent);
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+}
+.app-alert--danger .app-alert-btn--solid {
+  border-color: var(--ui-danger);
+  background: var(--ui-danger);
+}
+.app-alert--danger .app-alert-btn--solid:hover {
+  border-color: var(--ui-danger);
+  background: var(--ui-danger);
+  filter: brightness(0.92);
+}
+.app-alert--warn {
+  border-color: color-mix(in srgb, var(--ui-warn) 45%, transparent);
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+.app-alert--ring {
+  border-color: color-mix(in srgb, var(--ui-brand) 40%, transparent);
+  background: var(--ui-brand-soft);
+}
+.app-alert--ring .app-alert-icon,
+.app-alert--ring .app-alert-text strong {
+  color: var(--ui-brand-ink);
+}
+/* Müşteri iptali: birden çok iptal aynı şeritte alt alta */
+.app-alert--cancel {
+  align-items: flex-start;
+}
+.app-alert--cancel > .app-alert-icon {
+  margin-top: 2px;
+}
+.app-alert-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.app-alert-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 40vh;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.app-alert-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 6px 0;
+  border-top: 1px solid color-mix(in srgb, var(--ui-danger) 22%, transparent);
+}
+.app-alert-list li:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.app-alert-list .app-alert-text {
+  flex: 1 1 260px;
+}
+/* "Ses kapalı · açmak için tıklayın": şeridin tamamı düğme */
+.app-alert--sound {
+  cursor: pointer;
+  transition: border-color var(--ui-ease);
+}
+.app-alert--sound:hover {
+  border-color: var(--ui-warn);
+}
+.app-alert--sound .app-alert-icon {
+  animation: app-status-blink 1.4s ease-in-out infinite;
+}
+.app-alert-bell {
+  transform-origin: 50% 10%;
+  animation: app-alert-bell 2.4s ease-in-out infinite;
+}
+@keyframes app-alert-bell {
+  0%,
+  70%,
+  100% {
+    transform: rotate(0deg);
+  }
+  75% {
+    transform: rotate(14deg);
+  }
+  80% {
+    transform: rotate(-12deg);
+  }
+  85% {
+    transform: rotate(8deg);
+  }
+  90% {
+    transform: rotate(-6deg);
+  }
+  95% {
+    transform: rotate(3deg);
+  }
+}
+/* "Telefonları yönet" ile gelinen Genel bakış kartı kısa süre vurgulanır */
+.admin-layout [data-alert-flash] {
+  animation: app-alert-flash 2.4s ease-out;
+}
+@keyframes app-alert-flash {
+  0%,
+  40% {
+    box-shadow: 0 0 0 3px var(--ui-brand);
+  }
+  100% {
+    box-shadow: 0 0 0 3px transparent;
+  }
+}
+
+/* Başlık: alarm telefonları ve kapalı ses çipleri */
+.app-alarm-anchor {
+  display: flex;
+  margin: 0 6px 0 -2px;
+}
+.app-alarm-chip[data-tone="ok"] {
+  border-color: transparent;
+  background: var(--ui-ok-bg);
+  color: var(--ui-ok-ink);
+}
+.app-alarm-chip[data-tone="danger"] {
+  border-color: transparent;
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+  animation: app-status-blink 1.4s ease-in-out infinite;
+}
+.app-alarm-chip[data-tone="ok"] b,
+.app-alarm-chip[data-tone="danger"] b {
+  color: inherit;
+}
+.app-pop--alarm {
+  width: min(340px, calc(100vw - 24px));
+}
+.app-alarm-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+  line-height: 1.5;
+}
+.app-alarm-body p {
+  margin: 0;
+}
+.app-alarm-warn {
+  padding: 8px 10px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-danger-bg);
+  color: var(--ui-danger-ink);
+  font-weight: 600;
+}
+.app-alarm-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.app-alarm-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--ui-line);
+}
+.app-alarm-list li:last-child {
+  border-bottom: 0;
+}
+.app-alarm-list strong {
+  overflow: hidden;
+  color: var(--ui-text);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-alarm-list small {
+  grid-column: 2;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
+.app-alarm-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ui-line-strong);
+}
+.app-alarm-list li[data-online="true"] .app-alarm-dot {
+  background: var(--ui-ok);
+}
+.app-alarm-note {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
+.app-pop--alarm .app-pop-foot button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Zil paneli: ses ayarları düğmesi, iptal satırları; hesap menüsünde durum notu */
+.app-pop-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.app-sound-toggle[data-active] {
+  background: var(--ui-surface-3);
+  color: var(--ui-text);
+}
+.app-sound-toggle[data-muted] {
+  color: var(--ui-warn-ink);
+}
+.app-notice[data-kind="cancel"] > svg {
+  color: var(--ui-danger);
+}
+.app-notice .app-notice-detail {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.app-pop-menu-hint {
+  margin-left: auto;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
+
+/* Ses ayarları (zil panelinin üstünde) */
+.app-sound {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--ui-line);
+  background: var(--ui-surface-2);
+}
+.app-sound-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px;
+}
+.app-sound-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+}
+.app-sound-label svg {
+  width: 15px;
+  height: 15px;
+  color: var(--ui-text-3);
+}
+.app-switch {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 2px;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+}
+.app-switch-track {
+  position: relative;
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--ui-line-strong);
+  transition: background-color var(--ui-ease);
+}
+.app-switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.3);
+  transition: transform var(--ui-ease);
+}
+.app-switch[aria-checked="true"] .app-switch-track {
+  background: var(--ui-brand);
+}
+.app-switch[aria-checked="true"] .app-switch-thumb {
+  transform: translateX(14px);
+}
+.app-switch-text {
+  min-width: 38px;
+  text-align: left;
+}
+.app-sound-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+}
+.app-sound-field b {
+  color: var(--ui-text);
+}
+.app-sound-pick {
+  display: flex;
+  gap: 6px;
+}
+.app-sound-pick select {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+}
+.app-sound-test {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.app-sound-test svg {
+  width: 14px;
+  height: 14px;
+}
+.app-sound-test:hover {
+  background: var(--ui-surface-3);
+}
+.app-sound-test[aria-pressed="true"] {
+  border-color: var(--ui-brand);
+  color: var(--ui-brand-ink);
+}
+.app-sound-field input[type="range"] {
+  width: 100%;
+  height: 24px;
+  margin: 0;
+}
+.app-sound-intervals {
+  display: flex;
+  gap: 4px;
+  margin-top: -4px;
+}
+.app-sound-intervals button {
+  flex: 1 1 0;
+  height: 30px;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+}
+.app-sound-intervals button[aria-pressed="true"] {
+  border-color: var(--ui-brand);
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand-ink);
+}
+.app-sound-note {
+  margin: 0;
+  color: var(--ui-text-3);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.app-sound-warn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+  font-size: var(--ui-fs-xs);
+  font-weight: 650;
+  text-align: left;
+}
+.app-sound-warn svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+.app-sound-state {
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+}
+.app-sound-state[data-tone="ok"] {
+  color: var(--ui-ok-ink);
+}
+
+/* Yeni sipariş bildirimi: saat ve iki eylem */
+.admin-toast-time {
+  flex-shrink: 0;
+  color: var(--ui-text-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.admin-toast-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.admin-toast-secondary {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--ui-line-strong);
+  border-radius: 6px;
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+.admin-toast-secondary:hover {
+  background: var(--ui-surface-3);
+}
+
+/* Telefon alt çubuğu: bekleyen sipariş sayısı */
+.app-tabbar-icon {
+  position: relative;
+  display: inline-flex;
+}
+.app-tabbar-count {
+  position: absolute;
+  top: -6px;
+  right: -12px;
+  min-width: 12px;
+  height: 14px;
+  padding: 0 3px;
+  border: 2px solid var(--ui-surface);
+  border-radius: 9px;
+  box-sizing: content-box;
+  background: var(--ui-danger);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+}
+
+/* Orta genişlikte başlık dolu: çip "Alarm: 2/2" olarak kısalır (tam metin ipucunda) */
+@media (max-width: 1499px) {
+  .app-alarm-chip b + span {
+    display: none;
+  }
+}
+@media (max-width: 1023px) {
+  .app-alerts {
+    padding: 12px 16px 0;
+  }
+  .app-alerts[data-floating] {
+    padding: 8px 16px;
+  }
+}
+/* Dokunmatik ekran: en az 40 px dokunma alanı, iOS yakınlaştırmasın diye 16 px yazı */
+@media (pointer: coarse), (max-width: 760px) {
+  .app-sound-pick select {
+    height: 40px;
+    font-size: 16px;
+  }
+  .app-sound-test,
+  .app-sound-intervals button,
+  .app-switch,
+  .app-sound-warn {
+    min-height: 40px;
+  }
+  .app-sound-test,
+  .app-sound-intervals button {
+    height: 40px;
+  }
+  .app-sound-field input[type="range"] {
+    height: 40px;
+  }
+  .admin-toast-action,
+  .admin-toast-secondary {
+    height: 40px;
+  }
+}
+@media (max-width: 760px) {
+  .app-alerts {
+    padding: 8px 12px 0;
+  }
+  .app-alerts[data-floating] {
+    padding: 6px 8px;
+  }
+  .app-alert {
+    flex-wrap: wrap;
+    padding: 10px;
+  }
+  .app-alert-actions {
+    width: 100%;
+  }
+  .app-alert-btn {
+    flex: 1 1 0;
+    min-height: 40px;
+  }
+  .app-alert-link {
+    min-height: 40px;
+  }
+  /* Satır içi bağlantı: satır yüksekliğini bozmadan en az 40 px dokunma alanı */
+  .app-alert-link--inline {
+    display: inline-block;
+    margin: -11px 0;
+    padding: 11px 4px;
+  }
+  .app-alarm-chip[data-tone="ok"] {
+    display: none;
+  }
+  .app-alarm-anchor {
+    margin: 0 2px 0 -2px;
+  }
+  /* Başlık dar ekranda taşmayı kesiyor (overflow: hidden): açılır paneller ekrana sabitlenir ki görünsün */
+  .app-pop {
+    position: fixed;
+    top: calc(var(--app-top) + 6px);
+    right: 8px;
+    left: 8px;
+    width: auto;
+    max-height: calc(100vh - var(--app-top) - 84px);
+    max-height: calc(100dvh - var(--app-top) - 84px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .app-pop .app-pop-list {
+    max-height: none;
+  }
+  .app-notice,
+  .app-pop--menu > button,
+  .app-pop--menu > a,
+  .app-pop-foot button {
+    min-height: 44px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-alert-bell,
+  .app-alert--sound .app-alert-icon,
+  .app-alarm-chip[data-tone="danger"],
+  .admin-layout [data-alert-flash] {
+    animation: none;
+  }
+}
+@media print {
+  .app-alerts-slot {
+    display: none !important;
+  }
+}
+/* Zil paneli ses ayarlarıyla birlikte uzar: kısa ekranda (dizüstü) alt kısmı ekran dışında kalmasın, panel kendi
+   içinde kaysın. Telefonda (≤760 px) panel zaten ekrana sabitlenip alt çubuğun üstünde kayıyor. */
+@media (min-width: 761px) {
+  .app-pop--bell {
+    max-height: calc(100vh - var(--app-top) - 16px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+/* Telefon başlığı dar: yeni çipler (alarm, ses kapalı) zil, arama ve hesap düğmesini sağdan taşırıp kırpmasın.
+   Ses kapalıyken telefonda çip yerine zil simgesi üstü çizili görünür. */
+.app-bell-muted {
+  display: none;
+}
+@media (max-width: 760px) {
+  .app-mute-chip,
+  .app-bell-icon {
+    display: none;
+  }
+  .app-bell-muted {
+    display: block;
+  }
+  /* Bağlıyken yeşil "Canlı" simgesi gizlenir; kopunca kırmızı simge, 30 sn sonra da kırmızı şerit görünür */
+  .app-status-conn[data-on="true"] {
+    display: none;
+  }
+  /* Yer yetmezse önce sayfa adı tamamen daralır, sonra durum çipleri sağdan kırpılır; düğmeler hep görünür kalır.
+     İç boşluk odak çerçevesinin (2 px + 2 px aralık) kırpılmaması için; eksi kenar boşluğu yerleşimi değiştirmez. */
+  .app-top-title {
+    flex-basis: 0;
+  }
+  .app-status {
+    min-width: 0;
+    margin: -4px -2px -4px -4px;
+    padding: 4px;
+    overflow: hidden;
+  }
+}
