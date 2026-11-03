@@ -74,7 +74,6 @@ export const paymentLabel = (order) => {
 };
 
 const money = (value) => Math.round((Number(value) || 0) * 100) / 100;
-const ACTIVE_STATUSES = ["Hazırlanıyor", "Yolda"];
 const isoOrNull = (value) => {
   const date = value ? new Date(value) : null;
   return date && !Number.isNaN(date.getTime()) ? date.toISOString() : null;
@@ -151,10 +150,11 @@ export const toAlarmOrder = (order, customerName = "") => {
     fullAddress: alarmFullAddress(details) || address,
     directions: details?.directions || "",
     mapsUrl: details?.location ? `https://www.google.com/maps/search/?api=1&query=${details.location.lat},${details.location.lng}` : null,
-    // İlk sipariş telefon teyidi: callbackPending true iken sipariş telefondan ilerletilemez
+    // İlk sipariş telefon teyidi: callbackPending true iken (teyitsiz, Hazırlanıyor) sipariş telefondan ilerletilemez;
+    // panelde "yine de" yola çıkarılmış teyitsiz sipariş needsCallback + callbackConfirmedAt: null olarak görünür
     needsCallback,
     callbackConfirmedAt,
-    callbackPending: needsCallback && !callbackConfirmedAt && ACTIVE_STATUSES.includes(order.status),
+    callbackPending: needsCallback && !callbackConfirmedAt && order.status === PENDING_STATUS,
   };
 };
 

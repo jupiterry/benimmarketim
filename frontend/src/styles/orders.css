@@ -924,6 +924,23 @@
   min-height: 44px;
   font-size: var(--ui-fs-sm);
 }
+/* Telefonda / dokunmatikte: ok kısmı ve "Arandı, teyit edildi" en az 40 px (blok kartta 44 px) dokunma alanı */
+@media (max-width: 760px), (pointer: coarse) {
+  .admin-layout .so-next-wrap > .so-next-caret.ui-icon-btn {
+    width: 40px;
+    min-height: 40px;
+  }
+  .admin-layout .so-next-wrap > .so-next-alt,
+  .admin-layout .so-cb-step > a.so-next {
+    min-height: 40px;
+  }
+}
+@media (max-width: 760px) {
+  .admin-layout .so-next-wrap[data-block="true"] > .so-next-caret.ui-icon-btn,
+  .admin-layout .so-next-wrap[data-block="true"] > .so-next-alt {
+    min-height: 44px;
+  }
+}
 
 /* ── Personel işaretleri ve aynı müşterinin diğer siparişi ───────── */
 .admin-layout .so-chip.so-staff {

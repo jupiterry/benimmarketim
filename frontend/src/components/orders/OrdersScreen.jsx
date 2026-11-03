@@ -172,6 +172,11 @@ export default function OrdersScreen() {
   const siblings = useMemo(() => (ready ? buildActiveSiblings(data.orders) : EMPTY_SIBLINGS), [ready, data.orders]);
   const siblingsRef = useRef(siblings);
   siblingsRef.current = siblings;
+  /** Fişe "BİRLİKTE GÖNDER: #CD34EF" yazılsın diye aynı müşterinin diğer aktif siparişlerinin kodları eklenir */
+  const receiptOrder = (order) => {
+    const others = siblingsRef.current.get(order?.orderId) || [];
+    return others.length ? { ...order, togetherWith: others.map((o) => orderCode(o)) } : order;
+  };
 
   // "Görüldü": "Yeni" işareti kalkar (bu cihaz) ve p1 sözleşmesi için admin-order-seen olayı gönderilir
   const markSeen = useCallback((ids) => {
@@ -598,7 +603,7 @@ export default function OrdersScreen() {
       if (!order) return false;
       let ok = false;
       try {
-        ok = printReceipts([order]);
+        ok = printReceipts([receiptOrder(order)]);
       } catch (e) {
         console.error("Fiş yazdırılamadı:", e);
         toast.error("Yazdırma sırasında hata oluştu");
@@ -617,7 +622,7 @@ export default function OrdersScreen() {
       if (!list.length) return false;
       let ok = false;
       try {
-        ok = printReceipts(list);
+        ok = printReceipts(list.map(receiptOrder));
       } catch (e) {
         console.error("Toplu yazdırma hatası:", e);
         toast.error("Yazdırma sırasında hata oluştu");
@@ -802,8 +807,8 @@ export default function OrdersScreen() {
     const target = { name: known?.name || courier.name || "Kurye", phone: known?.phone || courier.phone || "" };
     const link = courierWhatsAppLink(target, list);
     if (link) {
-      const opened = window.open(link, "_blank", "noopener,noreferrer");
-      if (!opened) toast.error("WhatsApp açılamadı. Tarayıcıda bu site için açılır pencerelere izin verin.", { id: "so-wa-blocked" });
+      // "noopener" ile window.open her zaman null döner (pencere açılsa da); bu yüzden dönüş değeri denetlenmez
+      window.open(link, "_blank", "noopener,noreferrer");
       return;
     }
     const ok = await copyText(buildCourierMessage(list, { courierName: target.name }));
@@ -838,7 +843,9 @@ export default function OrdersScreen() {
       const courier = picked === "none" ? null : active.find((c) => c._id === picked) || null;
       if (picked !== "none" && !courier) return;
       if (!data.setPendingCourier(ids, courier)) {
-        toast("Değişiklik kaydedildi; kuryeyi sipariş detayından değiştirin", { id: "so-courier-late" });
+        // Seçim sürerken değişiklik geri alındıysa söylenecek bir şey yok; kaydedildiyse (yola çıktı) detaydan değişir
+        const onRoad = ids.some((id) => ordersByIdRef.current.get(id)?.status === ROAD);
+        if (onRoad) toast("Sipariş yola çıktı; kuryeyi sipariş detayındaki Kurye alanından değiştirin", { id: "so-courier-late" });
         return;
       }
       if (courier) flow.rememberCourier(courier);
@@ -858,7 +865,7 @@ export default function OrdersScreen() {
     const actionsList = [
       { id: "courier-change", label: "Değiştir", icon: Bike, title: "Kuryeyi değiştir", onClick: () => changePendingCourier(ids) },
       courier && {
-        id: "courier-wa", label: "WhatsApp", icon: MessageCircle, title: "WhatsApp ile kuryeye gönder",
+        id: "courier-wa", label: "WhatsApp ile gönder", icon: MessageCircle, title: `WhatsApp ile kuryeye (${courier.name}) gönder`,
         onClick: () => sendToCourier(courier, ids.map((id) => ordersByIdRef.current.get(id)).filter(Boolean)),
       },
     ];

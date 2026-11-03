@@ -1088,10 +1088,15 @@ export const activeByPoint = (orders) => {
   return [...map.values()].sort((a, b) => (b.prep + b.road) - (a.prep + a.road) || a.name.localeCompare(b.name, "tr"));
 };
 export const NO_NEIGHBORHOOD_LABEL = "Mahalle yok";
+/** Türkçe baş harf düzeni: "CUMHURİYET" / "cumhuriyet" → "Cumhuriyet", "ırmak" → "Irmak", "istiklal" → "İstiklal" */
+const turkishTitle = (text) => String(text ?? "")
+  .toLocaleLowerCase("tr-TR")
+  .replace(/(^|[\s-])(\S)/gu, (match, sep, char) => `${sep}${char.toLocaleUpperCase("tr-TR")}`);
 /**
  * Adrese teslim siparişleri mahalle alt gruplarına böler. Anahtar: Türkçe küçük harfe çevrilmiş, "Mah." /
- * "Mahallesi" eki atılmış mahalle adı (aynı mahallenin farklı yazımları birleşir). Sıra: en çok siparişi olan önce,
- * eşitlikte ada göre; mahallesi olmayanlar en sonda "Mahalle yok". Grup içi sıra korunur (aciliyet).
+ * "Mahallesi" eki atılmış mahalle adı (aynı mahallenin farklı yazımları birleşir). Başlık, yazımdan bağımsız olarak
+ * baş harf düzeninde ("CUMHURİYET MAH" → "Cumhuriyet Mah."). Sıra: en çok siparişi olan önce, eşitlikte ada göre;
+ * mahallesi olmayanlar en sonda "Mahalle yok". Grup içi sıra korunur (aciliyet).
  * → [{ key, label, orders, summary }]
  */
 export const neighborhoodGroups = (orders, parentKey = "zone") => {
@@ -1101,7 +1106,8 @@ export const neighborhoodGroups = (orders, parentKey = "zone") => {
     const key = isAddressOrder(o) ? neighborhoodKey(raw) : "";
     const id = key || "none";
     if (!map.has(id)) {
-      map.set(id, { key: `${parentKey}::${id}`, named: Boolean(key), label: key ? neighborhoodLabel(raw) : NO_NEIGHBORHOOD_LABEL, orders: [] });
+      const label = key ? neighborhoodLabel(turkishTitle(String(raw ?? "").replace(/\s+/g, " ").trim())) : NO_NEIGHBORHOOD_LABEL;
+      map.set(id, { key: `${parentKey}::${id}`, named: Boolean(key), label, orders: [] });
     }
     map.get(id).orders.push(o);
   }

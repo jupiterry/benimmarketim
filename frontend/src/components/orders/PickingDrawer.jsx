@@ -74,8 +74,8 @@ const CancelledNotice = ({ order, pickedKeys, onDismiss }) => {
           <strong>{code} · {customerName(order)}</strong>
           <span>İptal edildi · ürünleri rafa geri koyun{pickedCount ? ` (${pickedCount} satır toplanmıştı)` : ""}</span>
         </span>
-        <button type="button" className="ui-btn ui-btn--sm so-t-cancel-ok" onClick={() => onDismiss?.(order.orderId)}
-          aria-label={`${code} iptal uyarısını kapat`}>
+        <button type="button" className="ui-btn ui-btn--sm so-t-cancel-ok" onClick={(e) => onDismiss?.(order.orderId, e.currentTarget)}
+          aria-label={`${code} iptal uyarısını kapat (ürünler rafa kondu)`}>
           Tamam
         </button>
       </div>
@@ -103,6 +103,21 @@ export default function PickingDrawer({
   useDrawerFocus(bodyRef, FOCUS_ORDER);
 
   const keysOf = (orderId) => new Set(pickedMap.get(orderId)?.keys || []);
+  // "Tamam" denince uyarı kalkar; odak <body>'ye düşmesin: sıradaki uyarının düğmesine, yoksa ilk toplama kutusuna
+  const dismissCancelled = (orderId, button) => {
+    const buttons = [...(bodyRef.current?.querySelectorAll(".so-t-cancel-ok") || [])];
+    const index = buttons.indexOf(button);
+    const neighbour = index >= 0 ? buttons[index + 1] || buttons[index - 1] || null : null;
+    const hadFocus = Boolean(button) && document.activeElement === button;
+    onDismissCancelled?.(orderId);
+    if (!hadFocus) return;
+    requestAnimationFrame(() => {
+      const target = (neighbour?.isConnected ? neighbour : null)
+        || bodyRef.current?.querySelector("input[type=checkbox], button")
+        || bodyRef.current?.closest(".ui-drawer")?.querySelector(".ui-drawer-head button");
+      target?.focus({ preventScroll: true });
+    });
+  };
 
   // Her ürün için: tüm siparişlerdeki satırları işaretli mi, bir kısmı mı
   const rows = picking.items.map((item) => {
@@ -196,7 +211,7 @@ export default function PickingDrawer({
         {cancelled.length > 0 && (
           <section className="so-t-cancelled" aria-label="Toplama listesindeyken iptal edilen siparişler">
             {cancelled.map(({ order }) => (
-              <CancelledNotice key={order.orderId} order={order} pickedKeys={pickedMap.get(order.orderId)?.keys} onDismiss={onDismissCancelled} />
+              <CancelledNotice key={order.orderId} order={order} pickedKeys={pickedMap.get(order.orderId)?.keys} onDismiss={dismissCancelled} />
             ))}
           </section>
         )}

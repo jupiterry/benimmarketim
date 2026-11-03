@@ -1488,11 +1488,14 @@ export const addProductToOrder = async (req, res) => {
  * Eksik ürünü muadille değiştirme (Admin only). Gövde: { orderId, lineId? | productIndex?, productId }
  * Tek kayıtta (sürüm denetimli): satır çıkar, muadil AYNI ADETLE ödeme adımındaki birim fiyattan eklenir
  * (aynı ürün ve aynı birim fiyatta başka satır varsa onunla birleşir), fiyat farkı kuruş hassasiyetinde
- * toplama yansır, işlem kaydına "Yerine" satırı yazılır. Yalnızca Hazırlanıyor siparişte.
- * Ayrı "çıkar" + "ekle" istekleri yerine tek uç: ikisinin arasında hata olursa sipariş eksik kalmaz.
+ * toplama yansır, işlem kaydına "Yerine" satırı yazılır. Yalnızca Hazırlanıyor siparişte; elle eklenen tutar satırı
+ * (isManual) değiştirilemez. Ayrı "çıkar" + "ekle" istekleri yerine tek uç: ikisinin arasında hata olursa sipariş eksik
+ * kalmaz, panel tek "Geri al" ve tek işlem kaydı gösterir.
+ * Yanıt: { success, order, removedProduct, addedProduct, quantity, priceDifference } · 409 durum uygun değilse / satır yoksa
  */
 export const SUBSTITUTE_STATUS_MESSAGE = "Muadil yalnızca hazırlanan siparişte seçilebilir";
 export const SAME_PRODUCT_MESSAGE = "Muadil olarak aynı ürün seçildi";
+export const MANUAL_LINE_MESSAGE = "Elle eklenen tutar satırı muadille değiştirilemez";
 export const replaceOrderItem = async (req, res) => {
   try {
     const { orderId, productIndex, lineId, productId } = req.body || {};
@@ -1511,6 +1514,8 @@ export const replaceOrderItem = async (req, res) => {
     const found = findLineIndex(order, { lineId, productIndex });
     if (found.message) return res.status(found.status).json({ message: found.message });
     const line = order.products[found.index];
+    // "Özel Ekleme" (elle girilen tutar) katalog ürünü değildir: muadili olmaz
+    if (line.isManual) return res.status(400).json({ message: MANUAL_LINE_MESSAGE });
     const quantity = Number(line.quantity);
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_LINE_QUANTITY) {
       return res.status(400).json({ message: "Ürün satırının adedi geçersiz" });

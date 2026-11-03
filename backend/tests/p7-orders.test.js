@@ -15,6 +15,7 @@ import AdminAudit from "../models/adminAudit.model.js";
 import FlashSale from "../models/flashSale.model.js";
 import {
   CALLBACK_REQUIRED_CODE,
+  MANUAL_LINE_MESSAGE,
   SAME_PRODUCT_MESSAGE,
   SUBSTITUTE_STATUS_MESSAGE,
   USER_POPULATE_FIELDS,
@@ -335,6 +336,9 @@ test("alarm summary: additive address details, full address, maps link and callb
   assert.deepEqual([legacy.needsCallback, legacy.callbackConfirmedAt, legacy.callbackPending], [false, null, false]);
   const delivered = toAlarmOrder({ ...base, status: "Teslim Edildi", needsCallback: true });
   assert.equal(delivered.callbackPending, false, "teslim edilmiş siparişte teyit beklenmez");
+  // Panelde "yine de" yola çıkarılmış teyitsiz sipariş telefondan teslim edilebilir: callbackPending yalnızca Hazırlanıyor'da
+  const forced = toAlarmOrder({ ...base, status: "Yolda", needsCallback: true, callbackConfirmedAt: null });
+  assert.deepEqual([forced.needsCallback, forced.callbackConfirmedAt, forced.callbackPending], [true, null, false]);
 
   // Konumsuz, kat/daire bilgisi eksik adres
   const details = alarmAddressDetails({ deliveryAddress: { neighborhood: "Yeni", street: "Okul Sk.", buildingNo: "", floor: "", apartment: "3", location: { lat: null, lng: null } } });
@@ -397,6 +401,17 @@ test("replace-item: validation, missing order, status and same-product guards", 
   mockCatalog(t, []);
   assert.equal((await run({ orderId: ORDER(7), lineId: LINE(1), productId: PRODUCT(31) })).statusCode, 404, "muadil ürün yok");
   assert.equal(order.saves.length, 0);
+
+  // Elle eklenen tutar ("Özel Ekleme") katalog ürünü değildir: muadili olmaz, katalog hiç okunmaz
+  const manual = itemDoc({ products: [line(1, "Kakaolu Süt", 3, 11.1), line(2, "Poşet", 1, 2, { isManual: true })] });
+  t.mock.method(Order, "findById", async () => manual);
+  const catalogReads = [];
+  t.mock.method(Product, "find", () => { catalogReads.push(1); return chain([pinar()]); });
+  const refused = await run({ orderId: ORDER(7), lineId: LINE(2), productId: PRODUCT(30) });
+  assert.equal(refused.statusCode, 400);
+  assert.equal(refused.body.message, MANUAL_LINE_MESSAGE);
+  assert.equal(catalogReads.length, 0);
+  assert.equal(manual.saves.length, 0);
 });
 
 test("replace-item: one save swaps the line in place with the same quantity; totals change by the kuruş-exact difference", async (t) => {

@@ -105,8 +105,10 @@ function ItemLine({ product, editable, disabled: disabledProp, pickable, picked,
                 items={[
                   {
                     id: "substitute", label: "Muadille değiştir", icon: Replace,
-                    description: product.lineId ? "Aynı kategoriden öneri; aynı adet" : "Eski satır: çıkarıp muadilini ekleyin",
-                    disabled: !product.lineId, onSelect: () => onSubstitute?.(product.lineKey),
+                    description: product.isManual
+                      ? "Elle eklenen tutarın muadili olmaz"
+                      : product.lineId ? "Aynı kategoriden öneri; aynı adet" : "Eski satır: çıkarıp muadilini ekleyin",
+                    disabled: !product.lineId || Boolean(product.isManual), onSelect: () => onSubstitute?.(product.lineKey),
                   },
                   {
                     id: "remove", label: "Çıkar", icon: Trash2, danger: true, disabled: single,

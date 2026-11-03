@@ -7,8 +7,9 @@
 //  (d) Kuryeyle yola çıkarma: kuryesi olmayan sipariş tek aktif kuryeye kendiliğinden, birden çok kuryede son
 //      kullanılana (ya da seçilene) atanır; grup / toplu yola çıkarmada kurye bir kez sorulur.
 // Durum değişikliğinin kendisi (5 sn geri alma, kuyruk, sunucu) useOrdersData'dadır; burada yalnızca sorular sorulur ve
-// sipariş başına force / kurye bilgisi (meta) hazırlanır. Sorular sırasında sipariş başka yerde değişmişse yalnızca hâlâ
-// aynı durumda olanlar taşınır.
+// sipariş başına force / kurye bilgisi (meta) hazırlanır. Soru gerekmiyorsa hiç beklemeden (aynı görev içinde)
+// uygulanır: Pano'da bırakılan kart geri sıçramaz. Sorular sırasında sipariş başka yerde değişmişse yalnızca hâlâ aynı
+// durumda olanlar taşınır.
 import { createElement, useMemo, useRef } from "react";
 import toast from "react-hot-toast";
 import { Bike, Check, Layers, Truck, UserMinus } from "lucide-react";
@@ -23,6 +24,7 @@ const PREP = "Hazırlanıyor";
 const ROAD = "Yolda";
 const DONE = "Teslim Edildi";
 const CANCELLED = Symbol("cancelled");
+const OBJECT_ID = /^[0-9a-f]{24}$/i;
 export const LAST_COURIER_KEY = "admin-order-last-courier";
 
 const uniqueOrders = (orders) => {
@@ -36,6 +38,8 @@ const uniqueOrders = (orders) => {
   }
   return out;
 };
+/** Söz ya da düz değer: soru gerekmeyen yol hiç beklemesin diye yalnızca gerçekten söz ise beklenir */
+const isThenable = (value) => Boolean(value) && typeof value.then === "function";
 
 // ── Soru metinleri ─────────────────────────────────────────────────────────
 const siblingSpec = (order, siblings) => {
@@ -107,7 +111,7 @@ const courierSpec = (needCount, totalCount, active, lastId) => {
  */
 export default function useAdvanceFlow({ data, couriers, ask, onSeen, onShowCallbacks, siblingsOf }) {
   const [lastPref, setLastPref] = usePref(LAST_COURIER_KEY, null);
-  const lastCourierId = typeof lastPref === "string" && /^[0-9a-f]{24}$/i.test(lastPref) ? lastPref : null;
+  const lastCourierId = typeof lastPref === "string" && OBJECT_ID.test(lastPref) ? lastPref : null;
   const ref = useRef(null);
   ref.current = { data, couriers, ask, onSeen, onShowCallbacks, siblingsOf, lastCourierId, setLastPref };
 
@@ -116,7 +120,8 @@ export default function useAdvanceFlow({ data, couriers, ask, onSeen, onShowCall
     const activeCouriers = () => (ref.current.couriers?.status === "ready" ? ref.current.couriers.active || [] : []);
     const lastCourier = () => activeCouriers().find((c) => c._id === ref.current.lastCourierId) || null;
     const rememberCourier = (courier) => {
-      if (courier?._id && courier._id !== ref.current.lastCourierId) ref.current.setLastPref(courier._id);
+      const id = String(courier?._id ?? courier?.id ?? "");
+      if (OBJECT_ID.test(id) && id !== ref.current.lastCourierId) ref.current.setLastPref(id);
     };
     const seen = (orders) => ref.current.onSeen?.(orders.map((o) => o.orderId));
     /** Aynı müşterinin hâlâ hazırlanan (bekleyen değişikliği olmayan) diğer siparişleri */
@@ -125,33 +130,40 @@ export default function useAdvanceFlow({ data, couriers, ask, onSeen, onShowCall
       .filter((o) => o && o.orderId !== order.orderId && o.status === PREP && !o.pending);
 
     /**
-     * Kurye planı: null (kurye işlemi yok) · CANCELLED · { courier (null = kuryesiz), ids, asked }
-     * preset: bölünmüş düğmeden seçilen kurye (null = kuryesiz); single: tek eylem (son kullanılan kurye sorulmadan)
+     * Kurye planı (eşzamanlı): null (kurye işlemi yok) · { courier (null = kuryesiz), ids, asked } · { spec, ids }
+     * (sorulması gerekiyor; askCourier ile çözülür). preset: bölünmüş düğmeden seçilen kurye (null = kuryesiz,
+     * undefined = seçilmedi); single: tek eylem (son kullanılan kurye sorulmadan kullanılır)
      */
-    const planCourier = async (orders, { preset, single }) => {
+    const planCourier = (orders, { preset, single }) => {
       const needs = orders.filter((o) => o.status === PREP && !o.courier?.id);
       const active = activeCouriers();
       if (!needs.length || !active.length) return null;
       const ids = needs.map((o) => o.orderId);
       if (preset === null) return { courier: null, ids, asked: true };
-      if (preset && active.some((c) => c._id === preset._id)) return { courier: preset, ids, asked: true };
+      if (preset?._id) {
+        const chosen = active.find((c) => c._id === preset._id);
+        if (chosen) return { courier: chosen, ids, asked: true };
+      }
       if (active.length === 1) return { courier: active[0], ids, asked: false };
       if (single) {
         const last = lastCourier();
         if (last) return { courier: last, ids, asked: false };
       }
-      const choice = await ref.current.ask(courierSpec(needs.length, orders.length, active, ref.current.lastCourierId));
+      return { spec: courierSpec(needs.length, orders.length, active, ref.current.lastCourierId), ids };
+    };
+    const askCourier = async (plan) => {
+      const choice = await ref.current.ask(plan.spec);
       if (!choice) return CANCELLED;
-      if (choice === "none") return { courier: null, ids, asked: true };
+      if (choice === "none") return { courier: null, ids: plan.ids, asked: true };
       const chosen = activeCouriers().find((c) => c._id === choice);
-      return chosen ? { courier: chosen, ids, asked: true } : CANCELLED;
+      return chosen ? { courier: chosen, ids: plan.ids, asked: true } : CANCELLED;
     };
     const metaFor = (orders, plan, force = new Set(), to = ROAD) => {
       const meta = new Map();
       for (const o of orders) {
         const entry = {};
         if (force.has(o.orderId) && callbackBlocks(o, to)) entry.force = true;
-        if (plan?.ids.includes(o.orderId)) {
+        if (plan?.ids?.includes(o.orderId)) {
           entry.courierSet = true;
           if (plan.courier) entry.courier = plan.courier;
         }
@@ -177,81 +189,113 @@ export default function useAdvanceFlow({ data, couriers, ask, onSeen, onShowCall
       }), { id: "so-callback-skipped", duration: 8000 });
     };
 
-    /** Tek sipariş (kart düğmesi, "e", Pano'da taşıma, çekmece menüsü). opts.courier: bölünmüş düğmeden seçilen kurye */
-    const runSingle = async (order, to, { courier: preset, source = "card" } = {}) => {
-      const { data: d } = ref.current;
+    /** Uygular; görüldü işareti ve son kurye kaydı başarıdan sonra */
+    const apply = (orders, to, { source, meta, bulkConfirmed, plan }) => {
+      const result = ref.current.data.changeStatus(orders, to, { source, meta, bulkConfirmed });
+      return Promise.resolve(result).then((ok) => {
+        if (!ok) return false;
+        if (plan?.courier && plan.asked) rememberCourier(plan.courier);
+        seen(orders);
+        return true;
+      });
+    };
+
+    /**
+     * Tek sipariş (kart düğmesi, "e", Pano'da taşıma, çekmece menüsü). opts.courier: bölünmüş düğmeden seçilen kurye
+     * (null = kuryesiz). Soru gerekmiyorsa await yoktur: kaplama çağrıyla aynı görevde uygulanır.
+     */
+    const runSingle = (order, to, { courier: preset, source = "card" } = {}) => {
       const start = latest(order?.orderId) || order;
-      if (!start?.orderId) return false;
+      if (!start?.orderId) return Promise.resolve(false);
       const leavingPrep = start.status === PREP && !start.pending && (to === ROAD || to === DONE);
-      if (!leavingPrep) {
-        const ok = await d.changeStatus(start, to, { source });
-        if (ok) seen([start]);
-        return ok;
-      }
-      let set = [start];
-      if (to === ROAD) {
-        const siblings = prepSiblings(start);
-        if (siblings.length) {
-          const choice = await ref.current.ask(siblingSpec(start, siblings));
-          if (!choice) return false;
-          if (choice === "together") set = [start, ...siblings];
+      if (!leavingPrep) return apply([start], to, { source });
+
+      // Sırayla sorulur; bir soru gerekmezse o adım beklemeden geçilir
+      const state = { set: [start], force: new Set(), plan: null };
+      const steps = [
+        // (c) aynı müşterinin hazırlanan diğer siparişleri
+        () => {
+          if (to !== ROAD) return null;
+          const siblings = prepSiblings(start);
+          if (!siblings.length) return null;
+          return ref.current.ask(siblingSpec(start, siblings)).then((choice) => {
+            if (!choice) return CANCELLED;
+            if (choice === "together") state.set = [start, ...siblings];
+            return null;
+          });
+        },
+        // (a) ilk sipariş teyidi
+        () => {
+          const blocked = state.set.map((o) => latest(o.orderId) || o).filter((o) => callbackBlocks(o, to));
+          if (!blocked.length) return null;
+          return ref.current.ask(callbackSpec(blocked, to)).then(async (choice) => {
+            if (!choice) return CANCELLED;
+            if (choice === "force") {
+              blocked.forEach((o) => state.force.add(o.orderId));
+              return null;
+            }
+            const results = await Promise.all(blocked.map((o) => ref.current.data.confirmCallback(o)));
+            return results.every(Boolean) ? null : CANCELLED; // hata bildirimi veri katmanında
+          });
+        },
+        // (d) kurye
+        () => {
+          if (to !== ROAD) return null;
+          const plan = planCourier(state.set.map((o) => latest(o.orderId) || o), { preset, single: true });
+          if (!plan?.spec) {
+            state.plan = plan;
+            return null;
+          }
+          return askCourier(plan).then((resolved) => {
+            if (resolved === CANCELLED) return CANCELLED;
+            state.plan = resolved;
+            return null;
+          });
+        },
+      ];
+      const finish = () => {
+        // Sorular sırasında başka yerde değişen sipariş taşınmaz
+        const fresh = state.set.map((o) => latest(o.orderId)).filter((o) => o && o.status === PREP && !o.pending);
+        if (!fresh.some((o) => o.orderId === start.orderId)) {
+          toast.error(`${orderCode(start)} bu arada değişti; değişiklik uygulanmadı`);
+          return Promise.resolve(false);
         }
-      }
-      const force = new Set();
-      const blocked = set.map((o) => latest(o.orderId) || o).filter((o) => callbackBlocks(o, to));
-      if (blocked.length) {
-        const choice = await ref.current.ask(callbackSpec(blocked, to));
-        if (!choice) return false;
-        if (choice === "confirm") {
-          const results = await Promise.all(blocked.map((o) => ref.current.data.confirmCallback(o)));
-          if (results.some((ok) => !ok)) return false; // hata bildirimi veri katmanında
-        } else {
-          blocked.forEach((o) => force.add(o.orderId));
+        return apply(fresh, to, { source, meta: metaFor(fresh, state.plan, state.force, to), bulkConfirmed: true, plan: state.plan });
+      };
+      const run = (index) => {
+        for (let i = index; i < steps.length; i += 1) {
+          const outcome = steps[i]();
+          if (isThenable(outcome)) {
+            return outcome.then((value) => (value === CANCELLED ? false : run(i + 1)), () => false);
+          }
+          if (outcome === CANCELLED) return Promise.resolve(false);
         }
-      }
-      let plan = null;
-      if (to === ROAD) {
-        plan = await planCourier(set.map((o) => latest(o.orderId) || o), { preset, single: true });
-        if (plan === CANCELLED) return false;
-      }
-      // Sorular sırasında başka yerde değişen sipariş taşınmaz
-      const fresh = set.map((o) => latest(o.orderId)).filter((o) => o && o.status === PREP && !o.pending);
-      if (!fresh.some((o) => o.orderId === start.orderId)) {
-        toast.error(`${orderCode(start)} bu arada değişti; değişiklik uygulanmadı`);
-        return false;
-      }
-      const ok = await ref.current.data.changeStatus(fresh, to, { source, meta: metaFor(fresh, plan, force, to), bulkConfirmed: true });
-      if (!ok) return false;
-      if (plan?.courier && plan.asked) rememberCourier(plan.courier);
-      seen(fresh);
-      return true;
+        return finish();
+      };
+      return run(0);
     };
 
     /**
      * Grup / toplu: hepsi aynı hedefe. Teyit bekleyenler atlanır (bildirimle); yola çıkarmada kuryesi olmayanlar için
      * kurye bir kez sorulur (tek aktif kuryede sorulmadan atanır).
      */
-    const runMany = async (orders, to, { source = "bulk" } = {}) => {
+    const runMany = (orders, to, { source = "bulk" } = {}) => {
       const start = uniqueOrders(orders).map((o) => latest(o.orderId) || o).filter((o) => o.status !== to);
-      if (!start.length) return false;
+      if (!start.length) return Promise.resolve(false);
       const blocked = start.filter((o) => !o.pending && callbackBlocks(o, to));
       const rest = start.filter((o) => !blocked.includes(o));
       if (blocked.length) notifySkipped(blocked, to);
-      if (!rest.length) return false;
-      let plan = null;
-      if (to === ROAD) {
-        plan = await planCourier(rest.filter((o) => !o.pending), { single: false });
-        if (plan === CANCELLED) return false;
-      }
+      if (!rest.length) return Promise.resolve(false);
       const expected = new Map(rest.map((o) => [o.orderId, o.status]));
-      const fresh = rest.map((o) => latest(o.orderId))
-        .filter((o) => o && o.status === expected.get(o.orderId) && !callbackBlocks(o, to));
-      if (!fresh.length) return false;
-      const ok = await ref.current.data.changeStatus(fresh, to, { source, meta: metaFor(fresh, plan), bulkConfirmed: Boolean(plan?.asked) });
-      if (!ok) return false;
-      if (plan?.courier && plan.asked) rememberCourier(plan.courier);
-      seen(fresh);
-      return true;
+      const finish = (plan) => {
+        const fresh = rest.map((o) => latest(o.orderId))
+          .filter((o) => o && o.status === expected.get(o.orderId) && !callbackBlocks(o, to));
+        if (!fresh.length) return Promise.resolve(false);
+        return apply(fresh, to, { source, meta: metaFor(fresh, plan), bulkConfirmed: Boolean(plan?.asked), plan });
+      };
+      const plan = to === ROAD ? planCourier(rest.filter((o) => !o.pending), { single: false }) : null;
+      if (!plan?.spec) return finish(plan);
+      return askCourier(plan).then((resolved) => (resolved === CANCELLED ? false : finish(resolved)), () => false);
     };
 
     return {
@@ -281,14 +325,14 @@ export default function useAdvanceFlow({ data, couriers, ask, onSeen, onShowCall
       },
       /** Toplu çubuk: seçililerin hepsi verilen duruma */
       setStatusMany: (orders, to) => runMany(orders, to, { source: "bulk" }),
-      /** Pano bırakma duyurusu için: bu taşıma bir soru açacak mı */
+      /** Pano bırakma duyurusu için: bu taşıma bir soru açacak mı (runSingle ile aynı kurallar) */
       needsPrompt: (order, to) => {
         const current = latest(order?.orderId) || order;
         if (!current || current.status !== PREP || current.pending || !(to === ROAD || to === DONE)) return false;
         if (callbackBlocks(current, to)) return true;
         if (to !== ROAD) return false;
         if (prepSiblings(current).length) return true;
-        return !current.courier?.id && activeCouriers().length > 1 && !lastCourier();
+        return Boolean(planCourier([current], { single: true })?.spec);
       },
       rememberCourier,
     };

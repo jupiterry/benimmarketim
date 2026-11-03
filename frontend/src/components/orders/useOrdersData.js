@@ -46,6 +46,15 @@ const kurus = (n) => Math.round((Number(n) || 0) * 100);
 const iso = (ms) => new Date(ms).toISOString();
 const errorMessage = (error, fallback) => error?.response?.data?.message || fallback;
 const idOf = (value) => String((value && typeof value === "object" ? value.orderId : value) ?? "").trim();
+/**
+ * Durumla birlikte atanacak kurye { id, name, phone } ya da null. Kurye listesi (useCouriers) _id, siparişteki kayıt
+ * ve bekleyen kayıt id taşır; ikisi de kabul edilir. Geçerli bir kimlik yoksa null (kuryesiz).
+ */
+const courierValue = (courier) => {
+  const id = String(courier?._id ?? courier?.id ?? "").trim();
+  if (!OBJECT_ID.test(id)) return null;
+  return { id, name: String(courier.name || "").trim(), phone: String(courier.phone || "").trim() };
+};
 
 /** enrichOrders ile birebir aynı satır anahtarları (aynı ad+fiyat tekrarında "#2", "#3") */
 const lineKeysOf = (products) => {
@@ -1084,9 +1093,7 @@ function createOrdersController({ confirm }) {
       if (raw && !(toMs(raw.createdAt) < windowMs && !isActiveStatus(raw.status))) keepInWindow.add(id);
       const from = currentStatus(id);
       const extra = meta?.get?.(id) || null;
-      const courier = to === ROAD && extra?.courier?.id
-        ? { id: String(extra.courier.id), name: String(extra.courier.name || ""), phone: String(extra.courier.phone || "") }
-        : null;
+      const courier = to === ROAD ? courierValue(extra?.courier) : null;
       const entry = {
         token: ++tokenSeq, from, to, expected: from, at: now, state: "pending", cancelled: false,
         force: extra?.force === true, courier, courierSet: to === ROAD && extra?.courierSet === true,
@@ -1129,9 +1136,7 @@ function createOrdersController({ confirm }) {
    */
   const setPendingCourier = (ids, courier) => {
     if (!batch) return 0;
-    const value = courier?._id || courier?.id
-      ? { id: String(courier._id ?? courier.id), name: String(courier.name || ""), phone: String(courier.phone || "") }
-      : null;
+    const value = courierValue(courier);
     let changed = 0;
     for (const id of ids || []) {
       const entry = batch.items.get(idOf(id));
@@ -1384,6 +1389,10 @@ function createOrdersController({ confirm }) {
       toast.error("Bu eski siparişte satır değiştirilemiyor; ürünü çıkarıp muadilini ekleyin");
       return false;
     }
+    if (line.product.isManual) {
+      toast.error("Elle eklenen tutar satırı muadille değiştirilemez");
+      return false;
+    }
     const price = unitPrice(product);
     if (String(line.product.productId || "") === String(product._id) && kurus(line.product.price) === kurus(price)) {
       toast.error("Muadil olarak aynı ürün seçildi");
@@ -1494,11 +1503,24 @@ function createOrdersController({ confirm }) {
     return ok;
   };
 
-  /** courier: { _id, name } ya da null (atamayı kaldır) */
+  /**
+   * courier: { _id, name } ya da null (atamayı kaldır). Elle yapılan atama, aynı siparişin geri alma penceresindeki
+   * "kuryeyle yola çıkar" seçiminin önüne geçer: bekleyen kayıt artık kurye göndermez (yoksa 5 sn sonra eski seçim
+   * sunucuda bu atamanın üzerine yazılırdı).
+   */
   const assignCourier = async (orders, courier) => {
     const ids = [...new Set((Array.isArray(orders) ? orders : [orders]).map(idOf))]
       .filter((id) => base.orders.has(id) && !removedOrders.has(id));
     if (!ids.length) return false;
+    let detached = false;
+    for (const id of ids) {
+      const entry = pendingEntry(id);
+      if (!entry?.courierSet) continue;
+      entry.courierSet = false;
+      entry.courier = null;
+      detached = true;
+    }
+    if (detached) syncBatchToast();
     ids.forEach(lock);
     let ok = false;
     try {
@@ -1645,9 +1667,10 @@ function createOrdersController({ confirm }) {
   // ── Bekleyen her şeyi gönder (ekrandan ayrılma / sayfa kapanışı) ──
   const flushAll = (mode) => {
     for (const key of [...qtySessions.keys()]) commitQty(key, mode);
+    // Muadil yalnızca Hazırlanıyor siparişte kaydedilir: durum değişikliğinden ÖNCE kuyruğa girer
+    for (const [id, map] of [...replacedLines]) for (const lk of [...map.keys()]) commitReplace(id, lk, mode);
     commitBatch(mode);
     for (const [id, map] of [...removedLines]) for (const lk of [...map.keys()]) commitRemove(id, lk, mode);
-    for (const [id, map] of [...replacedLines]) for (const lk of [...map.keys()]) commitReplace(id, lk, mode);
     for (const id of [...removedOrders.keys()]) commitDelete(id, mode);
   };
 

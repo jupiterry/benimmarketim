@@ -219,6 +219,7 @@ const RECEIPT_CSS = `
           .order-no { font-size: 20px; font-weight: bold; margin-top: 2px; }
           .meta { font-size: 11px; }
           .flag { font-size: 11px; font-weight: bold; }
+          .flag.callback { margin-top: 2px; padding: 1px 4px; border: 1.5px solid #000; display: inline-block; }
           .point {
             margin: 5px 0 4px;
             padding: 3px 4px;
@@ -337,6 +338,16 @@ export const buildReceiptBody = (order) => {
   const flagHtml = firstOrder
     ? '<div class="flag">* İLK SİPARİŞ *</div>'
     : orderCount > 1 ? `<div class="meta">Müşterinin ${orderCount}. siparişi</div>` : "";
+  // Telefonla teyit bekleyen aktif sipariş: fiş hazırlık başında basılır, toplayan kişi aramadan yola çıkarmasın
+  // (teyit ilk sipariş olmayan müşteride de istenebilir; bu yüzden İLK SİPARİŞ bayrağından bağımsızdır)
+  const callbackHtml = order.needsCallback === true && !order.callbackConfirmedAt && (order.status === "Hazırlanıyor" || order.status === "Yolda")
+    ? '<div class="flag callback">TEYİT İÇİN ARA · yola çıkmadan önce</div>'
+    : "";
+  // Aynı müşterinin diğer aktif siparişleri (yazdıran ekran togetherWith: ["#CD34EF"] verir): poşetler birlikte gitsin
+  const together = (Array.isArray(order.togetherWith) ? order.togetherWith : []).map((code) => String(code || "").trim()).filter(Boolean);
+  const togetherHtml = together.length
+    ? `<div class="flag">BİRLİKTE GÖNDER: ${esc(together.slice(0, 4).join(", "))}${together.length > 4 ? " …" : ""}</div>`
+    : "";
   const noteHtml = order.note && String(order.note).trim()
     ? `<div class="note">NOT: ${esc(String(order.note).trim())}</div>`
     : "";
@@ -352,6 +363,8 @@ export const buildReceiptBody = (order) => {
                 <div class="order-no">#${esc(shortId)}</div>
                 <div class="meta">${esc(createdAt)}</div>
                 ${flagHtml}
+                ${callbackHtml}
+                ${togetherHtml}
               </div>
               <div class="point">${esc(deliveryInfo)}</div>
               ${addressHtml}
@@ -1152,7 +1165,8 @@ const staffFlagLabels = (order) => staffFlagsOf(order?.user?.staffFlags).map((fl
 const staffNoteOf = (order) => (typeof order?.user?.staffNote === "string" ? order.user.staffNote.trim() : "");
 
 /**
- * Kurye fişi: yoldaki / bir yurdun siparişleri tek listede (verilen sırayla; çağıran en eskiyi önce verir).
+ * Kurye fişi: yoldaki / bir yurdun siparişleri tek listede. Durak sırası kuryeye giden WhatsApp mesajıyla aynıdır:
+ * nokta / bölge, mahalle, sonra en eski sipariş önce (aynı mahalleye gidenler yan yana; yurtta en eskiden yeniye).
  * Her durak bir kutu: işaret kutusu, #KOD, nokta, ad, personel işaretleri ve iç not, büyük telefon, tahsilat + tutar,
  * kısa not. Aynı müşterinin aynı yere giden siparişleri tek kutuda, birleşik tutarla basılır.
  */
@@ -1186,7 +1200,7 @@ export const buildRunSheetDocument = (orders, { title, autoPrint = true } = {}) 
               ${note ? `<div class="note">${multi ? `#${esc(shortOrderId(order.orderId))} ` : ""}NOT: ${esc(note)}</div>` : ""}
               ${tracking ? `<div class="note">${esc(tracking)}</div>` : ""}`;
   };
-  const stops = buildCourierStops(list).map((stop) => {
+  const stops = buildCourierStops(list, { sort: true }).map((stop) => {
     const [first] = stop.orders;
     const multi = stop.orders.length > 1;
     const codes = stop.orders.map((order) => `#${shortOrderId(order.orderId)}`).join(" + ");
