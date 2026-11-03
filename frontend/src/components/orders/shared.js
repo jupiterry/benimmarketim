@@ -1148,7 +1148,8 @@ export const pointGroups = (orders) => {
 };
 /**
  * Aynı müşterinin diğer AKTİF siparişleri: orderId → Order[] (en eski önce). Yalnızca en az iki aktif siparişi olan
- * gerçek müşteriler (silinmiş / anonim hesaplar birleşmez).
+ * müşteriler; kimliksiz (anonim) siparişler birleşmez. Hesabı silinmiş müşterinin kendi siparişleri aynı kişiye ait
+ * olduğu için birleşir, farklı silinmiş hesaplar birbirine karışmaz (anahtar gerçek kullanıcı kimliğidir).
  */
 export const buildActiveSiblings = (orders) => {
   const byCustomer = new Map();
