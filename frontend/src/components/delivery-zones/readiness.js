@@ -75,6 +75,8 @@ export const normalizePilot = (p = {}) => ({
     deliveryRated: count(p.feedback?.deliveryRated),
     averageDeliveryRating: numOrNull(p.feedback?.averageDeliveryRating),
     low: count(p.feedback?.low),
+    // Bu puan ve altı düşük sayılır (sunucu: LOW_RATING); eski yanıtta yoksa 3
+    lowThreshold: count(p.feedback?.lowThreshold) || 3,
   },
   neighborhoods: list(p.neighborhoods)
     .map((row) => ({ name: text(row?.name), orders: count(row?.orders), delivered: count(row?.delivered), cancelled: count(row?.cancelled) }))
@@ -157,9 +159,11 @@ const TARGETS = {
       callback: ["dz-devrek-callback"],
     },
   },
-  area: { card: "dz-devrek-area", focus: { default: ["dz-area-fetch"] } },
+  // candidates: seçili sınır önerilenden büyükse aday listesindeki ilk (önerilen) sınır
+  area: { card: "dz-devrek-area", focus: { default: ["dz-area-fetch"], candidates: ["dz-area-cands", "dz-area-fetch"] } },
   couriers: { card: "dz-couriers", focus: { default: ["dz-courier-add"] } },
   pilot: { card: "dz-pilot", focus: { default: ["dz-pilot-search"] } },
+  campaign: { card: "dz-campaign", focus: { default: ["dz-campaign-switch"] } },
 };
 const FOCUSABLE = "button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href]";
 const flashTimers = new WeakMap();

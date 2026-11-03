@@ -861,8 +861,17 @@ export const quantile = (sortedValues, q) => {
 
 // ── Pilot karnesi: tek $facet sorgusu ──
 
-/** Pilot karnesinin siparişleri: adrese teslimat siparişleri ve Devrek bölgesi siparişleri */
-export const pilotOrderMatch = () => ({ $or: [{ deliveryType: "address" }, { "deliveryZone.id": DEVREK_ZONE_ID }] });
+/**
+ * Pilot karnesinin siparişleri: adrese teslimat siparişleri ve Devrek bölgesi siparişleri. since (kayıtlı pilot
+ * başlangıcı) verilirse yalnızca o andan sonra verilenler (öncesindeki deneme siparişleri karneye girmez;
+ * createdAt dizini aralığı daraltır).
+ */
+export const pilotOrderMatch = (since = null) => {
+  const match = { $or: [{ deliveryType: "address" }, { "deliveryZone.id": DEVREK_ZONE_ID }] };
+  const start = toDateOrNull(since);
+  if (start) match.createdAt = { $gte: start };
+  return match;
+};
 
 const statusIs = (status) => ({ $eq: ["$status", status] });
 const countIf = (condition) => ({ $sum: { $cond: [condition, 1, 0] } });
@@ -879,11 +888,13 @@ const lastStatusAt = (status) => ({
 });
 
 /**
- * Pilot karnesi için Order.aggregate hattı (tek $facet). Sayılar tüm adres siparişleri üzerinden kesindir;
- * teslim süresi en yeni `durationSample` teslimattan, sorunlu siparişler en yeni 5 iptalden hesaplanır.
- * @param {{ pilotUserIds?: mongoose.Types.ObjectId[], feedbackCollection?: string, durationSample?: number }} options
+ * Pilot karnesi için Order.aggregate hattı (tek $facet). Sayılar pilot başlangıcından (since; yoksa ilk adres
+ * siparişinden) bu yana tüm adres siparişleri üzerinden kesindir; teslim süresi en yeni `durationSample`
+ * teslimattan, sorunlu siparişler en yeni 5 iptalden hesaplanır.
+ * @param {{ pilotUserIds?: mongoose.Types.ObjectId[], feedbackCollection?: string, durationSample?: number,
+ *   since?: Date|null }} options - since: settings.delivery.pilotStartedAt
  */
-export const buildPilotReportPipeline = ({ pilotUserIds = [], feedbackCollection = "feedbacks", durationSample = PILOT_DURATION_SAMPLE } = {}) => {
+export const buildPilotReportPipeline = ({ pilotUserIds = [], feedbackCollection = "feedbacks", durationSample = PILOT_DURATION_SAMPLE, since = null } = {}) => {
   const facet = {
     totals: [{
       $group: {
@@ -987,7 +998,21 @@ export const buildPilotReportPipeline = ({ pilotUserIds = [], feedbackCollection
       } },
     ];
   }
-  return [{ $match: pilotOrderMatch() }, { $facet: facet }];
+  return [{ $match: pilotOrderMatch(since) }, { $facet: facet }];
+};
+
+const HOOD_SUFFIX = /\s+(mahallesi|mahalle|mah\.?)$/;
+/**
+ * Karnedeki mahalle adı: neighborhoodLabel gibi ("Cumhuriyet Mahallesi" → "Cumhuriyet Mah.") ama ek Türkçe
+ * küçük harfe çevrilerek aranır; büyük harfle yazılan "CUMHURİYET MAHALLESİ" de aynı mahalleye düşer.
+ */
+const pilotHoodName = (value) => {
+  const text = cleanText(value ?? "");
+  const lower = text.toLocaleLowerCase("tr");
+  if (lower.length !== text.length) return neighborhoodLabel(text);
+  const match = HOOD_SUFFIX.exec(lower);
+  const base = (match ? text.slice(0, match.index) : text).trim();
+  return base ? `${base} Mah.` : "";
 };
 
 const problemView = (row) => {
@@ -1004,7 +1029,7 @@ const problemView = (row) => {
     kind: outcome ? "failed" : "cancelled",
     reason,
     note,
-    neighborhood: neighborhoodLabel(row?.neighborhood),
+    neighborhood: pilotHoodName(row?.neighborhood),
     zoneName: String(row?.zoneName || ""),
     createdAt: toDateOrNull(row?.createdAt),
     at: toDateOrNull(outcome?.at) || toDateOrNull(row?.cancelledAt) || toDateOrNull(row?.updatedAt) || toDateOrNull(row?.createdAt),
@@ -1062,10 +1087,10 @@ export const summarizePilotReport = (facet = {}, { zones = [], pilotStartedAt = 
   const addressNotFound = reasonCounts.get("adres_bulunamadi") || 0;
   const attempts = delivered + failedTotal;
 
-  // Mahalleler: aynı mahallenin farklı yazımları birleşir ("Cumhuriyet" = "Cumhuriyet Mahallesi")
+  // Mahalleler: aynı mahallenin farklı yazımları birleşir ("Cumhuriyet" = "Cumhuriyet Mahallesi" = "CUMHURİYET MAH.")
   const hoods = new Map();
   for (const row of facet?.neighborhoods || []) {
-    const name = neighborhoodLabel(row?._id);
+    const name = pilotHoodName(row?._id);
     if (!name) continue;
     const key = name.toLocaleLowerCase("tr");
     const entry = hoods.get(key) || { name, orders: 0, delivered: 0, cancelled: 0, best: 0 };
@@ -1088,15 +1113,14 @@ export const summarizePilotReport = (facet = {}, { zones = [], pilotStartedAt = 
   const rated = toCount(feedback.rated);
   const deliveryRated = toCount(feedback.deliveryRated);
 
+  // Başlangıç: kayıtlı pilot başlangıcı (sorgu da bu andan sonrasını sayar); yoksa ilk adres siparişi
   const configuredStart = toDateOrNull(pilotStartedAt);
   const firstOrderAt = toDateOrNull(totals.firstAt);
-  const startedAt = configuredStart && firstOrderAt
-    ? (configuredStart <= firstOrderAt ? configuredStart : firstOrderAt)
-    : configuredStart || firstOrderAt || null;
+  const startedAt = configuredStart || firstOrderAt || null;
 
   return {
     startedAt,
-    startedAtSource: !startedAt ? null : configuredStart && startedAt.getTime() === configuredStart.getTime() ? "settings" : "firstOrder",
+    startedAtSource: configuredStart ? "settings" : firstOrderAt ? "firstOrder" : null,
     lastOrderAt: toDateOrNull(totals.lastAt),
     orders,
     delivered,
@@ -1138,6 +1162,8 @@ export const summarizePilotReport = (facet = {}, { zones = [], pilotStartedAt = 
       deliveryRated,
       averageDeliveryRating: deliveryRated ? round1((Number(feedback.deliveryRatingSum) || 0) / deliveryRated) : null,
       low: toCount(feedback.low),
+      // Bu puan ve altı (ürün ya da teslimat) ya da 👎 düşük sayılır (panel notu buradan yazılır)
+      lowThreshold: LOW_RATING,
     },
     neighborhoods,
     neighborhoodCount: hoods.size,
@@ -1168,8 +1194,8 @@ const hasPhone = (courier) => String(courier?.phone || "").replace(/\D/g, "").le
 
 /**
  * Devrek'i herkese açmadan önceki kontrol listesi. Her madde: { id, status: ok|warn|block, title, detail, fix }.
- * fix.target ekrandaki kartı (zone-devrek, area, couriers, pilot), fix.tab başka bir sekmeyi (settings + section)
- * gösterir; fix.focus kart içindeki alanı, fix.hint yapılacak işi söyler.
+ * fix.target ekrandaki kartı (zone-devrek, area, couriers, pilot, campaign), fix.tab başka bir sekmeyi
+ * (settings + section) gösterir; fix.focus kart içindeki alanı, fix.hint yapılacak işi söyler.
  * @param {{ settings: object, zones: object[], couriers: object[], pilotUserCount: number, pilot: object|null,
  *   orderingOpen: boolean|null }} input - pilot: summarizePilotReport sonucu (okunamadıysa null)
  */
@@ -1197,7 +1223,12 @@ export const buildReadinessChecks = ({ settings, zones = [], couriers = [], pilo
     const smallest = smallestAreaCandidate(devrek.areaCandidates);
     const isSmallest = !smallest || (smallest.osmType === area.osmType && Number(smallest.osmId) === Number(area.osmId));
     if (!isSmallest && Number(area.areaKm2) > Number(smallest.areaKm2)) {
-      add("area", "warn", "Teslimat alanı", `Seçili sınır (${km2Text(area.areaKm2)}) önerilen merkez sınırından (${km2Text(smallest.areaKm2)}) büyük; köyler de alana girebilir.`, areaFix);
+      // Yeniden yüklemek seçili sınırı korur: düzeltme aday listesinden önerilen sınırı seçmektir
+      add("area", "warn", "Teslimat alanı", `Seçili sınır (${km2Text(area.areaKm2)}) önerilen merkez sınırından (${km2Text(smallest.areaKm2)}) büyük; köyler de alana girebilir.`, {
+        target: "area",
+        focus: "candidates",
+        hint: "Genel Devrek kartındaki “Teslimat alanı” bölümünde “Merkez sınırı · önerilen” sınırı seçin.",
+      });
     } else {
       const name = String(area.displayName || "").split(",")[0].trim() || "Devrek";
       const loaded = area.fetchedAt ? `${dateTextTr(area.fetchedAt)} tarihinde yüklendi` : "";
@@ -1212,12 +1243,16 @@ export const buildReadinessChecks = ({ settings, zones = [], couriers = [], pilo
   const zoneMinimum = finiteOrNull(devrek?.minimumOrderAmount);
   const minimum = resolveMinimumOrderAmount(devrek, settings);
   const minimumText = zoneMinimum === null
-    ? `Minimum sepet girilmedi; genel minimum (${minimum > 0 ? tlText(minimum) : "yok"}) geçerli.`
+    ? (minimum > 0 ? `Minimum sepet girilmedi; genel minimum (${tlText(minimum)}) geçerli.` : "Minimum sepet girilmedi; genel ayarda da minimum yok.")
     : zoneMinimum > 0 ? `Minimum sepet ${tlText(zoneMinimum)}.` : "Minimum sepet yok.";
   const feeText = fee > 0 ? `${tlText(fee)}${threshold !== null ? ` · ${tlText(threshold)} üstü ücretsiz` : " · ücretsiz eşiği yok"}` : "Ücretsiz";
   if (!devrek) add("pricing", "warn", "Ücret ve minimum sepet", "Genel Devrek bölgesi okunamadı.", pricingFix);
   else if (settings?.delivery?.freeDeliveryEverywhere === true) {
-    add("pricing", "warn", "Ücret ve minimum sepet", `“Her yerde ücretsiz teslimat” açık; Devrek'te şu an ücret alınmıyor (bölge ücreti: ${feeText}). ${minimumText}`, pricingFix);
+    // Ücreti alınmayan sebep kampanya: "Düzelt" kampanya anahtarına götürür
+    add("pricing", "warn", "Ücret ve minimum sepet", `“Her yerde ücretsiz teslimat” açık; Devrek'te şu an ücret alınmıyor (bölge ücreti: ${feeText}). ${minimumText}`, {
+      target: "campaign",
+      hint: "Kampanya bilerek açıksa sorun yok. Bitirmek için “Her yerde ücretsiz teslimat” anahtarını kapatın.",
+    });
   } else if (fee === 0) {
     add("pricing", "warn", "Ücret ve minimum sepet", `Devrek'te teslimat ücretsiz olacak. Bilerek seçtiyseniz sorun yok. ${minimumText}`, pricingFix);
   } else if (threshold !== null && threshold <= minimum) {
@@ -1293,7 +1328,11 @@ export const buildReadinessChecks = ({ settings, zones = [], couriers = [], pilo
   } else if (mode === "pilot") {
     add("pilot", "warn", "Pilot", `${usersText} var; henüz adres siparişi yok. Herkese açmadan önce gerçek bir siparişle deneyin.`, pilotFix);
   } else {
-    add("pilot", "warn", "Pilot", "Pilot başlamadı. Kendi hesabınızı ve birkaç güvendiğiniz müşteriyi ekleyip “Pilot”u seçin; gerçek bir siparişle deneyin.", pilotFix);
+    // Kapalı: daha önce açılıp kapatıldıysa (kayıtlı başlangıç var) "başlamadı" denmez
+    const lead = toDateOrNull(pilot?.startedAt) ? "Pilot açılmıştı ama adres siparişi gelmedi." : "Pilot başlamadı.";
+    add("pilot", "warn", "Pilot", users
+      ? `${lead} Listede ${usersText} hazır; “Pilot”u seçip gerçek bir siparişle deneyin.`
+      : `${lead} Kendi hesabınızı ve birkaç güvendiğiniz müşteriyi ekleyip “Pilot”u seçin; gerçek bir siparişle deneyin.`, pilotFix);
   }
 
   return checks;

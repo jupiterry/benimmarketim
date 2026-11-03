@@ -642,18 +642,19 @@ const countPilotUsers = async (ids) => {
 /** Karne sorgusunun üst süresi: yavaş sorgu veritabanını uzun süre meşgul etmesin (liste yine döner) */
 export const PILOT_REPORT_MAX_MS = 15000;
 
-/** Pilot karnesi: adres siparişleri üzerinde tek $facet sorgusu (bkz. buildPilotReportPipeline) */
+/**
+ * Pilot karnesi: adres siparişleri üzerinde tek $facet sorgusu (bkz. buildPilotReportPipeline). Kayıtlı pilot
+ * başlangıcı varsa yalnızca o andan sonraki siparişler sayılır; yoksa ilk adres siparişinden bu yana.
+ */
 export const loadPilotReport = async ({ settings, zones, pilotUserIds = pilotObjectIds(settings) }) => {
+  const pilotStartedAt = settings?.delivery?.pilotStartedAt || null;
   const [facet] = await Order.aggregate(buildPilotReportPipeline({
     pilotUserIds,
     feedbackCollection: Feedback.collection.name,
     durationSample: PILOT_DURATION_SAMPLE,
+    since: pilotStartedAt,
   }), { maxTimeMS: PILOT_REPORT_MAX_MS });
-  return summarizePilotReport(facet || {}, {
-    zones,
-    pilotStartedAt: settings?.delivery?.pilotStartedAt || null,
-    durationSample: PILOT_DURATION_SAMPLE,
-  });
+  return summarizePilotReport(facet || {}, { zones, pilotStartedAt, durationSample: PILOT_DURATION_SAMPLE });
 };
 
 /**

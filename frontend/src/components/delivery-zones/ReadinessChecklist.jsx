@@ -22,17 +22,19 @@ const ReadinessChecklist = ({ readiness, loading, error, onRetry, onFix }) => {
   return (
     <section className="dz-ready" aria-labelledby={`${bodyId}-title`} aria-busy={loading || undefined}>
       <div className="dz-sec-head">
-        <button type="button" className="dz-sec-toggle" aria-expanded={open} aria-controls={bodyId} onClick={() => setOpen(!open)}>
-          <span className="dz-sec-icon" data-state={state}><ClipboardCheck aria-hidden="true" /></span>
-          <span className="dz-sec-titles">
-            <span className="dz-sec-title" id={`${bodyId}-title`}>Yayına hazırlık</span>
-            <span className="dz-sec-sub">
-              {readiness ? `${counts.ok}/${total} madde hazır${counts.block ? ` · ${counts.block} engel` : ""}${counts.warn ? ` · ${counts.warn} uyarı` : ""}`
-                : loading ? "Denetleniyor…" : "Liste yüklenemedi"}
+        <h3 className="dz-sec-h">
+          <button type="button" className="dz-sec-toggle" aria-expanded={open} aria-controls={bodyId} onClick={() => setOpen(!open)}>
+            <span className="dz-sec-icon" data-state={state}><ClipboardCheck aria-hidden="true" /></span>
+            <span className="dz-sec-titles">
+              <span className="dz-sec-title" id={`${bodyId}-title`}>Yayına hazırlık</span>
+              <span className="dz-sec-sub">
+                {readiness ? `${counts.ok}/${total} madde hazır${counts.block ? ` · ${counts.block} engel` : ""}${counts.warn ? ` · ${counts.warn} uyarı` : ""}`
+                  : loading ? "Denetleniyor…" : "Liste yüklenemedi"}
+              </span>
             </span>
-          </span>
-          <ChevronDown className="dz-sec-chevron" aria-hidden="true" />
-        </button>
+            <ChevronDown className="dz-sec-chevron" aria-hidden="true" />
+          </button>
+        </h3>
         <button type="button" className="ui-icon-btn ui-icon-btn--sm dz-sec-refresh" onClick={onRetry} disabled={loading}
           aria-label="Hazırlık listesini yenile" title={readiness?.generatedAt ? `Son denetim ${formatTime(readiness.generatedAt)} · yenile` : "Yenile"}>
           {loading ? <Loader2 className="ui-spin" /> : <RefreshCw />}
@@ -54,7 +56,10 @@ const ReadinessChecklist = ({ readiness, loading, error, onRetry, onFix }) => {
           )
         ) : (
           <>
-            <p className="dz-ready-hint">{"Devrek'i herkese açmadan önce bu maddeleri kontrol edin. Liste her değişiklikten sonra kendiliğinden yenilenir."}</p>
+            <p className="dz-ready-hint">
+              {"Devrek'i herkese açmadan önce bu maddeleri kontrol edin. Liste her değişiklikten sonra kendiliğinden yenilenir."}
+              {readiness.generatedAt && <> Son denetim: <span className="ui-num">{formatTime(readiness.generatedAt)}</span>.</>}
+            </p>
             {total > 0 && (
               <div className="dz-ready-bar" aria-hidden="true">
                 {counts.ok > 0 && <span data-s="ok" style={{ flexGrow: counts.ok }} />}

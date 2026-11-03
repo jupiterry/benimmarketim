@@ -35,9 +35,13 @@ const normalizeSettings = (data = {}, previous = null) => ({
   pilotUsers: Array.isArray(data.pilotUsers) ? data.pilotUsers : previous?.pilotUsers || [],
 });
 
-/** "Herkese aç" onayında engelleyici maddeler (onay penceresinin metni <p> içinde: yalnızca satır içi öğeler) */
-const BlockerMessage = ({ blockers, warnings }) => (
+/**
+ * "Herkese aç" onayında engelleyici maddeler (onay penceresinin metni <p> içinde: yalnızca satır içi öğeler).
+ * stale: liste az önce yenilenemedi, gösterilen durum son başarılı denetimden.
+ */
+const BlockerMessage = ({ blockers, warnings, stale }) => (
   <>
+    {stale && <span className="dz-confirm-lead">Liste şu an yenilenemedi; aşağıdaki durum son denetimden.</span>}
     <span className="dz-confirm-lead">Yayına hazırlık listesinde şu {blockers.length === 1 ? "madde" : `${blockers.length} madde`} kırmızı:</span>
     {blockers.map((check) => (
       <span key={check.id} className="dz-confirm-item"><strong>{check.title}:</strong> {check.detail}</span>
@@ -201,6 +205,7 @@ const DeliveryZonesTab = () => {
     const fresh = await loadReadiness();
     setBusy("");
     const latest = fresh || readinessRef.current;
+    const stale = !fresh && Boolean(latest);
     const opening = `Güncel uygulamayı kullanan tüm müşteriler ${num(totals.open)} açık bölgeye sipariş verebilecek${devrek?.enabled ? "; Devrek'te adres ve haritada konum girerek" : ""}. Yurt siparişleri bugünkü gibi sürer.`;
     if (!latest) {
       return confirm({
@@ -214,14 +219,18 @@ const DeliveryZonesTab = () => {
     if (blockers.length) {
       return confirm({
         title: blockers.length === 1 ? "Herkese açmadan önce 1 eksik var" : `Herkese açmadan önce ${blockers.length} eksik var`,
-        message: <BlockerMessage blockers={blockers} warnings={latest.counts.warn} />,
+        message: <BlockerMessage blockers={blockers} warnings={latest.counts.warn} stale={stale} />,
         confirmText: "Yine de herkese aç",
         type: "danger",
       });
     }
+    const warnings = latest.counts.warn;
+    const listState = stale
+      ? `Liste şu an yenilenemedi. Son denetimde ${warnings ? `${warnings} uyarı vardı, kırmızı madde yoktu.` : "tüm maddeler hazırdı."}`
+      : `Hazırlık listesinde ${warnings ? `${warnings} uyarı var; kırmızı madde yok.` : "tüm maddeler hazır."}`;
     return confirm({
       title: "Adrese teslimat herkese açılsın mı?",
-      message: `${opening}${latest.counts.warn ? ` Hazırlık listesinde ${latest.counts.warn} uyarı var; kırmızı madde yok.` : " Hazırlık listesindeki tüm maddeler hazır."}`,
+      message: `${opening} ${listState}`,
       confirmText: "Herkese aç",
       type: "warning",
     });

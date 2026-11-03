@@ -11,9 +11,12 @@ import { minutesText, num1, openOrder, openOrdersPreset, percentText, shareOf } 
 
 const LOW_SAMPLE = 10;
 
-const emptyText = (mode) => (mode === "off"
-  ? "Pilot henüz başlamadı. Pilotu açıp kendi hesabınızla gerçek bir sipariş verin; sonuçlar burada görünür."
-  : "Henüz adrese teslimat siparişi yok. İlk sipariş geldiğinde sonuçlar burada görünür.");
+const emptyText = (mode, startedAt) => {
+  if (mode !== "off") return "Henüz adrese teslimat siparişi yok. İlk sipariş geldiğinde sonuçlar burada görünür.";
+  return startedAt
+    ? "Adrese teslimat şu an kapalı ve pilot başladığından beri adres siparişi gelmedi. Pilotu yeniden açıp gerçek bir siparişle deneyin."
+    : "Pilot henüz başlamadı. Pilotu açıp kendi hesabınızla gerçek bir sipariş verin; sonuçlar burada görünür.";
+};
 
 const Facts = ({ pilot, now }) => {
   const { callbacks, failed, neighborhoods, zones } = pilot;
@@ -128,14 +131,16 @@ const PilotReport = ({ pilot, pilotError, mode, loading, now }) => {
   return (
     <section className="dz-karne" aria-labelledby={`${bodyId}-title`} aria-busy={loading || undefined}>
       <div className="dz-sec-head">
-        <button type="button" className="dz-sec-toggle" aria-expanded={open} aria-controls={bodyId} onClick={() => setOpen(!open)}>
-          <span className="dz-sec-icon" data-state="info"><Gauge aria-hidden="true" /></span>
-          <span className="dz-sec-titles">
-            <span className="dz-sec-title" id={`${bodyId}-title`}>Pilot karnesi</span>
-            <span className="dz-sec-sub">{sub}</span>
-          </span>
-          <ChevronDown className="dz-sec-chevron" aria-hidden="true" />
-        </button>
+        <h3 className="dz-sec-h">
+          <button type="button" className="dz-sec-toggle" aria-expanded={open} aria-controls={bodyId} onClick={() => setOpen(!open)}>
+            <span className="dz-sec-icon" data-state="info"><Gauge aria-hidden="true" /></span>
+            <span className="dz-sec-titles">
+              <span className="dz-sec-title" id={`${bodyId}-title`}>Pilot karnesi</span>
+              <span className="dz-sec-sub">{sub}</span>
+            </span>
+            <ChevronDown className="dz-sec-chevron" aria-hidden="true" />
+          </button>
+        </h3>
       </div>
 
       <div id={bodyId} className="dz-sec-body" hidden={!open}>
@@ -148,7 +153,7 @@ const PilotReport = ({ pilot, pilotError, mode, loading, now }) => {
             <p className="dz-inline-warn" role="alert"><AlertTriangle aria-hidden="true" />{pilotError || "Pilot sonuçları şu an hesaplanamadı. Biraz sonra yenileyin."}</p>
           )
         ) : !hasData ? (
-          <p className="dz-karne-empty">{emptyText(mode)}</p>
+          <p className="dz-karne-empty">{emptyText(mode, pilot.startedAt)}</p>
         ) : (
           <>
             <p className="dz-ready-hint">Pilot başlangıcından bu yana tüm adrese teslimat siparişleri. Hedefler Devrek teslimat planındaki pilot bitiş ölçütleridir.</p>
@@ -194,7 +199,7 @@ const PilotReport = ({ pilot, pilotError, mode, loading, now }) => {
               <Facts pilot={pilot} now={now} />
               <Problems problems={pilot.problems} now={now} />
             </div>
-            <p className="dz-karne-note">Düşük puan: 3 yıldız ve altı (ürün ya da teslimat) veya 👎. Söz verilen süre, bölgenin şu anki tahmini süresinin üst sınırıdır.</p>
+            <p className="dz-karne-note">Düşük puan: {num(pilot.feedback.lowThreshold)} yıldız ve altı (ürün ya da teslimat) veya 👎. Söz verilen süre, bölgenin şu anki tahmini süresinin üst sınırıdır.</p>
           </>
         )}
       </div>

@@ -1106,12 +1106,21 @@
   border: 0;
 }
 
-/* Bölüm başlığı: açılır/kapanır düğme + (listede) yenile */
+/* Bölüm başlığı: açılır/kapanır düğme + (listede) yenile. Düğme bir h3 içinde (başlıkla gezinme için) */
 .admin-layout .dz-sec-head {
   display: flex;
   align-items: center;
   gap: var(--ui-s2);
   min-width: 0;
+}
+.admin-layout .dz-sec-h {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
 }
 .admin-layout .dz-sec-toggle {
   display: flex;
@@ -1536,7 +1545,8 @@
 .admin-layout .dz-card,
 .admin-layout .dz-area,
 .admin-layout .dz-couriers,
-.admin-layout .dz-pilot {
+.admin-layout .dz-pilot,
+.admin-layout .dz-rollout-side {
   scroll-margin-top: calc(var(--app-top, 52px) + 16px);
 }
 @keyframes dz-flash {

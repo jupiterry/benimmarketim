@@ -132,6 +132,12 @@ test("yüzdelik: ortanca ve p90 doğrusal ara değerle; boş dizi null", () => {
 
 test("pilot karnesi hattı: adres + Devrek siparişleri, tek $facet; pilot kullanıcıları yalnızca varsa", () => {
   assert.deepEqual(pilotOrderMatch(), { $or: [{ deliveryType: "address" }, { "deliveryZone.id": "devrek" }] });
+  // Kayıtlı pilot başlangıcı: yalnızca o andan sonraki siparişler (öncesindeki deneme siparişleri sayılmaz)
+  const start = at("2026-11-02T18:30:00Z");
+  assert.deepEqual(pilotOrderMatch(start), { $or: [{ deliveryType: "address" }, { "deliveryZone.id": "devrek" }], createdAt: { $gte: start } });
+  assert.deepEqual(pilotOrderMatch("2026-11-02T18:30:00.000Z").createdAt, { $gte: start }, "metin tarih de okunur");
+  for (const empty of [null, undefined, "", "bozuk"]) assert.equal("createdAt" in pilotOrderMatch(empty), false, String(empty));
+  assert.deepEqual(buildPilotReportPipeline({ since: start })[0], { $match: pilotOrderMatch(start) });
   const plainPipeline = buildPilotReportPipeline();
   assert.equal(plainPipeline.length, 2);
   assert.deepEqual(plainPipeline[0], { $match: pilotOrderMatch() });
@@ -171,6 +177,9 @@ const facetFixture = () => ({
     { _id: "cumhuriyet mahallesi", orders: 2, delivered: 2, cancelled: 0 },
     { _id: "Fatih Mah.", orders: 3, delivered: 2, cancelled: 0 },
     { _id: "   ", orders: 9, delivered: 0, cancelled: 0 },
+    // Türkçe büyük harf: "İ" ile yazılan ek de tanınır, aynı mahalleye düşer
+    { _id: "CUMHURİYET MAHALLESİ", orders: 1, delivered: 0, cancelled: 1 },
+    { _id: "FATİH MAH", orders: 1, delivered: 1, cancelled: 0 },
   ],
   durations: [
     { zoneId: "devrek", createdAt: created, deliveredAt: new Date(created.getTime() + 30 * MIN) },
@@ -222,12 +231,12 @@ test("pilot karnesi özeti: sayılar, süreler, söz verilen süre, adres buluna
   // Adres bulunamadı: 1 / (8 teslim + 2 teslim edilemedi)
   assert.deepEqual(report.addressNotFound, { count: 1, attempts: 10, rate: 10, target: 3 });
 
-  assert.deepEqual(report.feedback, { responses: 6, rated: 4, averageRating: 4.3, deliveryRated: 3, averageDeliveryRating: 4.7, low: 2 });
+  assert.deepEqual(report.feedback, { responses: 6, rated: 4, averageRating: 4.3, deliveryRated: 3, averageDeliveryRating: 4.7, low: 2, lowThreshold: 3 });
 
-  // Mahalle yazımları birleşir, boş mahalle atlanır
+  // Mahalle yazımları (büyük harfli Türkçe ek dahil) birleşir, en çok kullanılan yazım görünür; boş mahalle atlanır
   assert.deepEqual(report.neighborhoods, [
-    { name: "Cumhuriyet Mah.", orders: 6, delivered: 5, cancelled: 1 },
-    { name: "Fatih Mah.", orders: 3, delivered: 2, cancelled: 0 },
+    { name: "Cumhuriyet Mah.", orders: 7, delivered: 5, cancelled: 2 },
+    { name: "Fatih Mah.", orders: 4, delivered: 3, cancelled: 0 },
   ]);
   assert.equal(report.neighborhoodCount, 2);
   assert.deepEqual(report.zones, [{ id: "devrek", name: "Devrek", orders: 11 }, { id: "girlsDorm", name: "Kız KYK Yurdu", orders: 1 }]);
@@ -247,9 +256,19 @@ test("pilot karnesi özeti: sayılar, süreler, söz verilen süre, adres buluna
   assert.equal(silent.at.toISOString(), "2026-10-30T19:30:00.000Z", "iptal kaydı yoksa son güncelleme");
 
   assert.deepEqual(report.users, [{ userId: USER(1), orders: 3, delivered: 2, failed: 1, lastAt: at("2026-11-01T19:00:00Z") }]);
-  assert.equal(report.startedAt.toISOString(), "2026-10-29T15:00:00.000Z", "kayıtlı başlangıçtan önce sipariş varsa ilk sipariş");
-  assert.equal(report.startedAtSource, "firstOrder");
+  // Kayıtlı başlangıç esas alınır (sorgu da yalnızca o andan sonrasını sayar)
+  assert.equal(report.startedAt.toISOString(), "2026-10-30T09:00:00.000Z");
+  assert.equal(report.startedAtSource, "settings");
   assert.equal(report.lastOrderAt.toISOString(), "2026-11-01T20:00:00.000Z");
+
+  // Kayıtlı başlangıç yoksa (pilot bu sürümden önce açıldıysa) ilk adres siparişi
+  const legacy = summarizePilotReport(facetFixture(), { zones, pilotStartedAt: null });
+  assert.equal(legacy.startedAt.toISOString(), "2026-10-29T15:00:00.000Z");
+  assert.equal(legacy.startedAtSource, "firstOrder");
+
+  // Büyük harfle yazılmış mahalle sorunlu siparişte de düzgün kısaltılır
+  const [shouted] = summarizePilotReport({ problems: [{ _id: ORDER(9), neighborhood: "  KARŞIYAKA   MAHALLESİ " }] }).problems;
+  assert.equal(shouted.neighborhood, "KARŞIYAKA Mah.");
 });
 
 test("pilot karnesi özeti: veri yokken sayılar 0, oranlar ve ortalamalar null; başlangıç kayıttan", () => {
@@ -261,7 +280,7 @@ test("pilot karnesi özeti: veri yokken sayılar 0, oranlar ve ortalamalar null;
   assert.deepEqual(empty.deliveryMinutes, { median: null, p90: null, count: 0, capped: false });
   assert.deepEqual(empty.onTime, { measured: 0, within: 0, rate: null, target: 90 });
   assert.deepEqual(empty.addressNotFound, { count: 0, attempts: 0, rate: null, target: 3 });
-  assert.deepEqual(empty.feedback, { responses: 0, rated: 0, averageRating: null, deliveryRated: 0, averageDeliveryRating: null, low: 0 });
+  assert.deepEqual(empty.feedback, { responses: 0, rated: 0, averageRating: null, deliveryRated: 0, averageDeliveryRating: null, low: 0, lowThreshold: 3 });
   assert.deepEqual(empty.failed, { total: 0, byReason: [] });
   assert.deepEqual([empty.neighborhoods, empty.problems, empty.users, empty.zones], [[], [], [], []]);
   assert.equal(empty.startedAt.toISOString(), "2026-11-01T09:00:00.000Z");
@@ -343,6 +362,9 @@ test("hazırlık listesi: ücret uyarıları (kampanya, eşik ≤ minimum), kapa
   })));
   assert.equal(campaign.pricing.status, "warn");
   assert.match(campaign.pricing.detail, /^“Her yerde ücretsiz teslimat” açık; Devrek'te şu an ücret alınmıyor \(bölge ücreti: 40 TL · 500 TL üstü ücretsiz\)/);
+  // Ücreti alınmayan sebep kampanya: "Düzelt" bölge ücretine değil kampanya anahtarına götürür
+  assert.equal(campaign.pricing.fix.target, "campaign");
+  assert.match(campaign.pricing.fix.hint, /anahtarını kapatın/);
 
   const lowThreshold = byId(buildReadinessChecks(readyInput({ zones: [{ ...READY_DEVREK(), freeDeliveryThreshold: 150, minimumOrderAmount: null }] })));
   assert.equal(lowThreshold.pricing.status, "warn");
@@ -351,6 +373,14 @@ test("hazırlık listesi: ücret uyarıları (kampanya, eşik ≤ minimum), kapa
   const noMinimum = byId(buildReadinessChecks(readyInput({ zones: [{ ...READY_DEVREK(), freeDeliveryThreshold: null, minimumOrderAmount: 0 }] })));
   assert.equal(noMinimum.pricing.status, "ok");
   assert.equal(noMinimum.pricing.detail, "40 TL · ücretsiz eşiği yok. Minimum sepet yok.");
+
+  // Bölge minimumu boş, genel minimum 0: "genel minimum (yok)" gibi bozuk cümle kurulmaz
+  const generalZero = byId(buildReadinessChecks(readyInput({
+    settings: settingsFor({ minimumOrderAmount: 0 }),
+    zones: [{ ...READY_DEVREK(), freeDeliveryThreshold: null, minimumOrderAmount: null }],
+  })));
+  assert.equal(generalZero.pricing.status, "ok");
+  assert.equal(generalZero.pricing.detail, "40 TL · ücretsiz eşiği yok. Minimum sepet girilmedi; genel ayarda da minimum yok.");
 
   const closed = byId(buildReadinessChecks(readyInput({ zones: [{ ...READY_DEVREK(), enabled: false, closedReason: "Kurye yetersizliği" }] })));
   assert.equal(closed.devrek_open.status, "block");
@@ -361,6 +391,9 @@ test("hazırlık listesi: ücret uyarıları (kampanya, eşik ≤ minimum), kapa
   const wideArea = byId(buildReadinessChecks(readyInput({ zones: [wide] })));
   assert.equal(wideArea.area.status, "warn");
   assert.equal(wideArea.area.detail, "Seçili sınır (~980 km²) önerilen merkez sınırından (~5,6 km²) büyük; köyler de alana girebilir.");
+  // Yeniden yüklemek seçili sınırı korur: "Düzelt" aday listesine (önerilen sınır) götürür
+  assert.deepEqual([wideArea.area.fix.target, wideArea.area.fix.focus], ["area", "candidates"]);
+  assert.match(wideArea.area.fix.hint, /Merkez sınırı · önerilen/);
 
   const missing = byId(buildReadinessChecks(readyInput({ zones: DORMS() })));
   assert.equal(missing.devrek_open.status, "block");
@@ -411,6 +444,12 @@ test("hazırlık listesi: pilot maddesi moda, kullanıcıya ve gerçek siparişe
   assert.equal(pilotCheck("pilot", 3, null).status, "warn", "karne okunamadı");
   assert.match(pilotCheck("pilot", 3, null).detail, /^3 pilot kullanıcı\. Pilot sonuçları şu an okunamadı/);
   assert.equal(pilotCheck("off", 0, { orders: 0, delivered: 0 }).status, "warn");
+  assert.match(pilotCheck("off", 0, { orders: 0, delivered: 0 }).detail, /^Pilot başlamadı\. Kendi hesabınızı/);
+  // Kapalıyken listede pilot kullanıcı varsa yeniden "ekleyin" denmez; daha önce açıldıysa "başlamadı" denmez
+  assert.equal(pilotCheck("off", 2, { orders: 0, delivered: 0 }).detail, "Pilot başlamadı. Listede 2 pilot kullanıcı hazır; “Pilot”u seçip gerçek bir siparişle deneyin.");
+  const reopened = pilotCheck("off", 2, { orders: 0, delivered: 0, startedAt: at("2026-11-01T09:00:00Z") });
+  assert.equal(reopened.status, "warn");
+  assert.equal(reopened.detail, "Pilot açılmıştı ama adres siparişi gelmedi. Listede 2 pilot kullanıcı hazır; “Pilot”u seçip gerçek bir siparişle deneyin.");
   assert.equal(pilotCheck("off", 0, { orders: 5, delivered: 4 }).detail, "Pilotta 4 adres siparişi teslim edildi.");
   assert.equal(pilotCheck("off", 0, { orders: 5, delivered: 4 }).status, "ok");
   assert.equal(pilotCheck("public", 0, { orders: 50, delivered: 40 }).detail, "Herkese açık; 40 adres siparişi teslim edildi.");
@@ -453,12 +492,14 @@ test("GET /admin/readiness: liste + karne tek yanıtta; pilot kimlikleri tekil O
   assert.ok(res.body.checks.every((check) => ["ok", "warn", "block"].includes(check.status)));
   assert.equal(byId(res.body.checks).pilot.detail, "1 pilot kullanıcı · 8 adres siparişi teslim edildi.");
 
-  // Karne: güncel bölgelerin süresiyle hesaplanır, başlangıç ilk siparişe çekilir
+  // Karne: güncel bölgelerin süresiyle hesaplanır; başlangıç kayıtlı pilot başlangıcı
   assert.equal(res.body.pilot.orders, 12);
   assert.equal(res.body.pilot.onTime.rate, 75);
-  assert.equal(res.body.pilot.startedAt.toISOString(), "2026-10-29T15:00:00.000Z");
+  assert.equal(res.body.pilot.startedAt.toISOString(), "2026-10-30T09:00:00.000Z");
+  assert.equal(res.body.pilot.startedAtSource, "settings");
 
   assert.equal(pipelines.length, 1, "tek sorgu");
+  assert.deepEqual(pipelines[0][0].$match.createdAt, { $gte: at("2026-10-30T09:00:00Z") }, "yalnızca pilot başlangıcından sonraki siparişler");
   assert.deepEqual(options[0], { maxTimeMS: 15000 }, "yavaş sorgu sınırlı");
   const ids = pipelines[0][1].$facet.users[0].$match.user.$in;
   assert.deepEqual(ids.map(String), [USER(1)], "tekrarlı kimlik ayıklanır");
@@ -469,7 +510,7 @@ test("GET /admin/readiness: liste + karne tek yanıtta; pilot kimlikleri tekil O
 
 test("GET /admin/readiness: karne hesaplanamazsa liste yine döner (pilot: null), engel varsa ready: false", async (t) => {
   const settings = settingsFor({ appVersion: { minimumVersion: "4.0.3", forceUpdate: true }, delivery: { addressOrdering: "off", couriers: [] } });
-  const { counts } = mockScreen(t, { settings, aggregateError: new Error("bağlantı koptu") });
+  const { counts, pipelines } = mockScreen(t, { settings, aggregateError: new Error("bağlantı koptu") });
   const errors = [];
   t.mock.method(console, "error", (...args) => { errors.push(args.join(" ")); });
   const res = response();
@@ -484,6 +525,7 @@ test("GET /admin/readiness: karne hesaplanamazsa liste yine döner (pilot: null)
   assert.equal(c.app_version.status, "block");
   assert.equal(c.pilot.status, "warn");
   assert.equal(counts.length, 0, "pilot listesi boşken kullanıcı sayılmaz");
+  assert.equal("createdAt" in pipelines[0][0].$match, false, "kayıtlı başlangıç yoksa tarih süzgeci yok (ilk adres siparişinden bu yana)");
   assert.ok(errors.some((line) => line.includes("Pilot karnesi hesaplanamadı")));
 });
 

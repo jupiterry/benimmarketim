@@ -1,6 +1,7 @@
 // "Adrese teslimat" anahtarı (Kapalı / Pilot / Herkese açık) ve "Her yerde ücretsiz teslimat" kampanyası.
 // Altta aynı kartta "Yayına hazırlık" listesi ve "Pilot karnesi" (GET /delivery/admin/readiness) durur;
-// engelleyici madde varsa "Herkese açık" seçeneğinde engel sayısı görünür.
+// engelleyici madde varsa "Herkese açık" seçeneğinde engel sayısı görünür. Kampanya bölümü (dz-campaign) ve anahtarı
+// (dz-campaign-switch) listedeki "Düzelt" bağlantısının hedefidir.
 import { useMemo, useRef } from "react";
 import { AlertTriangle, Gift, Loader2, Lock, RefreshCw, Rocket, ToggleLeft, ToggleRight, Users, XCircle } from "lucide-react";
 import { Skeleton, useNow } from "../admin/ui";
@@ -119,14 +120,14 @@ const RolloutCard = ({
         )}
       </div>
 
-      <div className="dz-rollout-side" data-on={campaign || undefined}>
+      <div className="dz-rollout-side" id="dz-campaign" data-on={campaign || undefined}>
         <div className="dz-campaign">
           <span className="dz-campaign-icon"><Gift aria-hidden="true" /></span>
           <div className="dz-campaign-text">
             <h2 className="dz-h2" id="dz-campaign-label">Her yerde ücretsiz teslimat</h2>
             <p className="ui-hint">Kampanya dönemleri için: açıkken tüm bölgelerde teslimat ücreti alınmaz. Bölge ücretleri silinmez; kapatınca geri gelir.</p>
           </div>
-          <button type="button" className="ui-icon-btn ui-switch dz-campaign-switch" role="switch" aria-checked={campaign} data-on={campaign}
+          <button type="button" id="dz-campaign-switch" className="ui-icon-btn ui-switch dz-campaign-switch" role="switch" aria-checked={campaign} data-on={campaign}
             aria-labelledby="dz-campaign-label" disabled={Boolean(busy)} onClick={onToggleCampaign}>
             {busy === "campaign" ? <Loader2 className="ui-spin" /> : campaign ? <ToggleRight /> : <ToggleLeft />}
           </button>

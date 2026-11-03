@@ -3,8 +3,8 @@
 // - "Sınırı OpenStreetMap'ten yükle/güncelle": POST /delivery/admin/zones/devrek/area/fetch (en küçük aday = merkez seçilir).
 // - Aday listesi (radyo): PUT /delivery/admin/zones/devrek/area { osmType, osmId }.
 // - "Sınırı kaldır": DELETE /delivery/admin/zones/devrek/area.
-// Her işlem sunucuda işlem kaydına yazılır. Bölüm (dz-devrek-area) ve yükleme düğmesi (dz-area-fetch)
-// "Yayına hazırlık" listesindeki "Düzelt" bağlantısının hedefidir.
+// Her işlem sunucuda işlem kaydına yazılır. Bölüm (dz-devrek-area), yükleme düğmesi (dz-area-fetch) ve aday
+// listesi (dz-area-cands; ilk aday önerilen merkez sınırı) "Yayına hazırlık" listesindeki "Düzelt" bağlantısının hedefidir.
 import { useId, useState } from "react";
 import toast from "react-hot-toast";
 import { AlertTriangle, CheckCircle2, DownloadCloud, ExternalLink, Loader2, MapPinned, Trash2 } from "lucide-react";
@@ -134,7 +134,7 @@ const DevrekAreaSection = ({ zone, onAreaChange }) => {
       </div>
 
       {candidates.length > 0 && (
-        <fieldset className="dz-area-cands" disabled={Boolean(busy)}>
+        <fieldset className="dz-area-cands" id="dz-area-cands" disabled={Boolean(busy)}>
           <legend className="ui-label">Bulunan sınırlar <span className="ui-muted">({candidates.length})</span></legend>
           <p className="ui-hint dz-area-cands-hint">
             En küçük alan Devrek merkezinin (belediye) sınırıdır ve önerilir. Daha büyük olan ilçe sınırı köyleri de kapsar.
