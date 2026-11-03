@@ -586,6 +586,15 @@ test("pilot başlangıcı: Kapalı → Pilot'ta bir kez yazılır; sonraki geçi
   await put({ addressOrdering: "public" });
   assert.ok(fresh.delivery.pilotStartedAt instanceof Date);
   assert.equal(JSON.stringify(fresh.toJSON()).includes("pilotStartedAt"), false);
+
+  // Bu sürümden önce açılmış pilot (başlangıç kaydı yok): Pilot → Herkese açık sonradan başlangıç yazmaz,
+  // yoksa karne o güne kadarki gerçek pilot siparişlerini dışarıda bırakırdı (ilk adres siparişi esas kalır)
+  const legacy = settingsFor({ delivery: { addressOrdering: "pilot" } });
+  legacy.save = async () => legacy;
+  t.mock.method(Settings, "getSettings", async () => legacy);
+  await put({ addressOrdering: "public" });
+  assert.equal(legacy.delivery.addressOrdering, "public");
+  assert.equal(legacy.delivery.pilotStartedAt, null);
 });
 
 // ── Rota ────────────────────────────────────────────────────────────────────
