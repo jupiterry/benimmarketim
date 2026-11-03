@@ -32,11 +32,10 @@ export default function AlarmPhonesChip({ alarm, open, onToggle, onClose, onMana
   const inHours = isWithinOrderHours(settings, now);
   const unknown = alarm.error && devices.length === 0;
   const tone = unknown ? "" : alarmTone({ paired, connected, inHours });
-  const summary = unknown
-    ? "Durum alınamadı"
-    : paired === 0
-      ? "Eşlenmiş telefon yok"
-      : `${paired} telefon eşli · ${connected === paired ? "hepsi bağlı" : connected === 0 ? "hiçbiri bağlı değil" : `${connected} telefon bağlı`}`;
+  const connectionText = paired === 1
+    ? (connected ? "bağlı" : "bağlı değil")
+    : connected === paired ? "hepsi bağlı" : connected === 0 ? "hiçbiri bağlı değil" : `${connected} telefon bağlı`;
+  const summary = unknown ? "Durum alınamadı" : paired === 0 ? "Eşlenmiş telefon yok" : `${paired} telefon eşli · ${connectionText}`;
   const title = unknown
     ? "Alarm telefonlarının durumu alınamadı"
     : paired === 0

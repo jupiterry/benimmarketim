@@ -77,12 +77,15 @@ export default function AdminHeader({
       document.removeEventListener("keydown", key);
     };
   }, [panel]);
-  // Ses ayarlarını açma isteği (uyarı şeridi, "Sessiz" çipi)
+  // Ses ayarlarını açma isteği (uyarı şeridindeki "Ses ayarları"). Başlık sayfayla birlikte kayar: sayfa aşağıdaysa
+  // önce başlık görünür yapılır, yoksa panel ekran dışında açılır (telefonda da üstteki sabit uyarıların altında kalır)
   useEffect(() => {
     const open = () => {
       setSoundOpen(true);
       setFocusSound(true);
       setPanel("notifications");
+      const header = root.current;
+      if (header && header.getBoundingClientRect().top < 0) header.scrollIntoView({ block: "start" });
     };
     window.addEventListener(SOUND_SETTINGS_EVENT, open);
     return () => window.removeEventListener(SOUND_SETTINGS_EVENT, open);

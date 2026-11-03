@@ -124,6 +124,8 @@ const AdminPage = () => {
     activeTabRef.current = activeTab;
   }, [activeTab]);
   const handledOrderIdsRef = useRef(new Set());
+  // Zil listesini sunucudan yeniden yükler (aşağıdaki socket etkisi atar; canlı bağlantı yokken uyarılar kullanır)
+  const loadFeedRef = useRef(null);
 
   // Stores
   const { fetchAllProducts, products } = useProductStore();
@@ -158,6 +160,7 @@ const AdminPage = () => {
     onOpenOrder: openOrder,
     onPreparingCount: (count) => setAdminBadges((prev) => (prev.orders === count ? prev : { ...prev, orders: count })),
     onBellItem: (item) => pushNotification(withTime(item)),
+    onOfflineCheck: () => loadFeedRef.current?.(),
   });
   const alertSoundPrefs = useAlertPrefs();
   const { blocked: soundBlocked } = useAudioState();
@@ -373,6 +376,7 @@ const AdminPage = () => {
         // Ağ hatasında mevcut liste korunur; bir sonraki bağlantıda yeniden denenir
       }
     };
+    loadFeedRef.current = loadFeed;
     const joinAdminRoom = () => {
       socketService.joinAdminRoom(user?.accessToken);
       loadFeed();
@@ -498,6 +502,7 @@ const AdminPage = () => {
       socket.off("adminFeedCleared", handleFeedCleared);
       document.removeEventListener("visibilitychange", onVisible);
       cancelled = true;
+      loadFeedRef.current = null;
       window.__adminGlobalOrderNotifications = false;
     };
   }, [user?.role, user?.accessToken, user?._id, alertActions, pushNotification]);

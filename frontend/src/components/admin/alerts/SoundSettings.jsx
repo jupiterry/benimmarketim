@@ -1,10 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { Play, Square, Volume2, VolumeX } from "lucide-react";
 import { alertPrefs, useAlertPrefs } from "./alertPrefs";
-import { previewSound, stopPreview, unlockWithSound, useAudioState } from "./alertAudio";
+import { previewSound, setPreviewVolume, stopPreview, unlockWithSound, useAudioState } from "./alertAudio";
 import { REPEAT_INTERVALS, SOUND_OPTIONS, intervalLabel } from "./alertRules";
 
-const permissionOf = () => (typeof window !== "undefined" && "Notification" in window ? window.Notification.permission : "unsupported");
+const userAgent = () => (typeof navigator !== "undefined" ? navigator.userAgent || "" : "");
+// Android tarayıcıları sayfadan bildirim oluşturmaz (yalnızca service worker ile; panelde yok): izin satırı gösterilmez,
+// yoksa izin verilince "Açık" yazar ama bildirim hiç gelmezdi
+const permissionOf = () =>
+  typeof window !== "undefined" && "Notification" in window && !/Android/i.test(userAgent())
+    ? window.Notification.permission
+    : "unsupported";
+// iPhone/iPad'de <audio> ses düzeyi koddan değiştirilemez (her zaman telefonun ses düzeyiyle çalar); kaydırıcının
+// yalnızca %0'ı (sesi kapatır) etkilidir, bu yüzden altında kısa bir not gösterilir
+const isAppleTouch = () =>
+  /iPhone|iPad|iPod/i.test(userAgent()) || (/Macintosh/i.test(userAgent()) && typeof navigator !== "undefined" && navigator.maxTouchPoints > 1);
 
 /**
  * Bildirim sesi ayarları (başlıktaki zil panelinde). Tercihler bu cihaza özeldir.
@@ -14,6 +24,7 @@ export default function SoundSettings({ autoFocus = false }) {
   const prefs = useAlertPrefs();
   const { blocked, previewing } = useAudioState();
   const [permission, setPermission] = useState(permissionOf);
+  const [appleTouch] = useState(isAppleTouch);
   const selectRef = useRef(null);
   const silent = prefs.muted || prefs.volume <= 0;
 
@@ -29,7 +40,9 @@ export default function SoundSettings({ autoFocus = false }) {
       stopPreview();
       return;
     }
-    // Sessizdeyken de denenebilir (seçilen düzeyde); düzey %0 ise duyulmaz
+    // Sessizdeyken de denenebilir (seçilen düzeyde). Düzey %0'da düğme kapalıdır: iPhone düzeyi yok sayıp tam sesle
+    // çalardı
+    if (prefs.volume <= 0) return;
     previewSound({ sound: prefs.sound, volume: prefs.volume });
   };
   const toggleMuted = () => {
@@ -45,8 +58,12 @@ export default function SoundSettings({ autoFocus = false }) {
   };
   const askPermission = async () => {
     try {
-      const result = await window.Notification.requestPermission();
-      setPermission(result);
+      // Eski Safari sonucu yalnızca geri çağırmayla bildirir (söz döndürmez); ikisi de desteklenir
+      const result = await new Promise((resolve) => {
+        const pending = window.Notification.requestPermission(resolve);
+        if (pending && typeof pending.then === "function") pending.then(resolve, () => resolve(""));
+      });
+      setPermission(result || permissionOf());
     } catch {
       setPermission(permissionOf());
     }
@@ -81,7 +98,14 @@ export default function SoundSettings({ autoFocus = false }) {
               <option key={option.id} value={option.id}>{option.label}</option>
             ))}
           </select>
-          <button type="button" className="app-sound-test" onClick={test} aria-pressed={previewing}>
+          <button
+            type="button"
+            className="app-sound-test"
+            onClick={test}
+            aria-pressed={previewing}
+            disabled={!previewing && prefs.volume <= 0}
+            title={!previewing && prefs.volume <= 0 ? "Ses düzeyi %0; denemek için düzeyi artırın" : undefined}
+          >
             {previewing ? <Square aria-hidden="true" /> : <Play aria-hidden="true" />}
             {previewing ? "Durdur" : "Dene"}
           </button>
@@ -98,10 +122,17 @@ export default function SoundSettings({ autoFocus = false }) {
           max="100"
           step="5"
           value={Math.round(prefs.volume * 100)}
-          onChange={(event) => update({ volume: Number(event.target.value) / 100 })}
+          onChange={(event) => {
+            const volume = Number(event.target.value) / 100;
+            update({ volume });
+            setPreviewVolume(volume);
+          }}
           aria-valuetext={`%${Math.round(prefs.volume * 100)}`}
         />
       </label>
+      {appleTouch && (
+        <p className="app-sound-note">iPhone ve iPad’de sipariş sesinin yüksekliğini telefonun ses tuşları belirler; %0 sesi kapatır.</p>
+      )}
 
       <div className="app-sound-row app-sound-row--switch">
         <span className="app-sound-label">Sipariş bekledikçe tekrar çal</span>
