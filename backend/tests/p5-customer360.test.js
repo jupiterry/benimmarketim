@@ -474,7 +474,8 @@ test("GET profile: timeline, open issues, staff note and flags; every extra sour
     chats: [{ _id: CHAT(1), type: "general", status: "active", createdAt: at(2 * HOUR), updatedAt: at(2 * HOUR) }],
     supportRequests: [{ _id: REQ(1), conversation: CHAT(1), status: "waiting", reason: "Siparişim nerede?", createdAt: at(90 * MIN) }],
     feedbacks: [{ _id: FB(1), kind: "quick", thumb: "down", message: "Geç geldi", status: "Yeni", createdAt: at(20 * HOUR) }],
-    coupons: [{ _id: CPN(1), code: "TELAFI1A2B3C", discountType: "fixed", discountAmount: 50, isActive: true, expirationDate: new Date(NOW + DAY), usedBy: [], createdAt: at(10 * HOUR) }],
+    // Uç gerçek saati kullanır: kuponun bitişi de gerçek saate göre (sabit tarih birkaç gün sonra "süresi doldu" olur)
+    coupons: [{ _id: CPN(1), code: "TELAFI1A2B3C", discountType: "fixed", discountAmount: 50, isActive: true, expirationDate: new Date(Date.now() + DAY), usedBy: [], createdAt: at(10 * HOUR) }],
     messages: { [CHAT(1)]: { content: "  Merhaba,   siparişim   nerede? ", type: "text" } },
   });
   const res = response();
