@@ -673,3 +673,61 @@
 .admin-layout .so-l-act > .so-cb-step > .so-next-alt {
   flex: 1 1 auto;
 }
+
+/* ── Gün ayrımı: renkli gün etiketi, günün özeti, satırda gün etiketi ─────────── */
+.admin-layout .so-l-day {
+  align-items: center;
+  gap: var(--ui-s1) var(--ui-s3);
+  padding-top: 14px;
+  padding-bottom: 10px;
+  border-top: 2px solid var(--ui-line-strong);
+  background: var(--ui-surface-2);
+}
+.admin-layout .so-l-day:first-child { border-top: 0; }
+.admin-layout .so-l-day-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--ui-surface-3);
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+  font-weight: 700;
+}
+.admin-layout .so-l-day[data-day="today"] .so-l-day-label { background: var(--ui-brand-soft); color: var(--ui-brand-ink); }
+.admin-layout .so-l-day[data-day="yesterday"] .so-l-day-label { background: var(--ui-info-bg); color: var(--ui-info-ink); }
+.admin-layout .so-l-day-date { font-size: var(--ui-fs-sm); }
+.admin-layout .so-l-day-sum {
+  margin-left: auto;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+.admin-layout .so-l-day-sum b { color: var(--ui-warn-ink); font-weight: 600; }
+
+.admin-layout .so-l-time {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.admin-layout .so-l-when {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--ui-surface-3);
+  color: var(--ui-text-2);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.admin-layout .so-l-when[data-day="today"] { background: var(--ui-brand-soft); color: var(--ui-brand-ink); }
+.admin-layout .so-l-when[data-day="yesterday"] { background: var(--ui-info-bg); color: var(--ui-info-ink); }
+/* Bugün olmayan satırlar hafif soluk zeminde: günler arasındaki geçiş satırlarda da seçilsin */
+/* :where → ağırlığı düşük: üzerine gelme, imleç, seçim ve durum renkleri bunu ezer */
+.admin-layout .so-l-row:where([data-day="older"], [data-day="yesterday"]) {
+  background: color-mix(in srgb, var(--ui-surface-2) 45%, var(--ui-surface));
+}
+@media (max-width: 760px) {
+  .admin-layout .so-l-day-sum { margin-left: 0; flex-basis: 100%; }
+}

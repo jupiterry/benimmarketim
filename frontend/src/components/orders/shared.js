@@ -89,6 +89,20 @@ export const dayLabel = (value, now = Date.now()) => {
   });
 };
 /** Kısa zaman: "21:14" / "Dün 23:10" / "8 Eki 21:14" */
+/** Gün tonu (liste renkleri): today | yesterday | older */
+export const dayTone = (value, now = Date.now()) => {
+  const label = dayLabel(value, now);
+  return label === "Bugün" ? "today" : label === "Dün" ? "yesterday" : "older";
+};
+/** Satırdaki kısa gün etiketi: "Bugün", "Dün", "4 Kas" (başka yılsa "4 Kas 2025") */
+export const dayShort = (value, now = Date.now()) => {
+  const ms = toMs(value);
+  if (!Number.isFinite(ms)) return "";
+  const label = dayLabel(ms, now);
+  if (label === "Bugün" || label === "Dün") return label;
+  const sameYear = dayKey(ms).slice(0, 4) === dayKey(now).slice(0, 4);
+  return formatDate(ms, sameYear ? {} : { year: "numeric" });
+};
 export const shortWhen = (value, now = Date.now()) => {
   const ms = toMs(value);
   if (!Number.isFinite(ms)) return "";
