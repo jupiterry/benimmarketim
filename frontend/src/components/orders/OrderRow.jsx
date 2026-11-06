@@ -10,7 +10,7 @@ import {
   AdvanceStep, CallbackBadge, CourierChip, CustomerFace, FlashChip, NoteChip, OrderCode, OutcomeChip, PaymentChip, PickProgress, PointChip,
   PrintedMark, SelectCheck, SiblingChip, SlaChip, StaffFlagChips, StatusBadge, TrustBadges, UnseenBadge,
 } from "./atoms";
-import { customerName, getSla, nextAction, orderAriaLabel, orderCode, shortWhen, statusUi } from "./shared";
+import { customerName, dayShort, dayTone, getSla, nextAction, orderAriaLabel, orderCode, statusUi } from "./shared";
 import "../../styles/orders-list.css";
 
 const flag = (value) => (value ? "true" : undefined);
@@ -26,19 +26,21 @@ const Delivery = ({ order, className }) => (
 
 /**
  * Props (CONTRACTS §7.7): order, now, active, cursor, selected, fresh, unseen, printedAt?, picked?, selecting, archived, actions.
- * ListView'in kendi verdiği ek props: dated (tarih ayırıcısı yokken saatin yanında günü de göster),
+ * ListView'in kendi verdiği ek props: dated (artık kullanılmıyor: gün etiketi her satırda saatin önünde),
  * mobile (≤760 px: sonraki adım düğmesi tam genişlik, 44 px).
  */
 function OrderRow({
   order, now, active = false, cursor = false, selected = false, fresh = false, unseen = false, printedAt, picked,
-  selecting = false, archived = false, actions, dated = false, mobile = false, siblings, courier,
+  selecting = false, archived = false, actions, mobile = false, siblings, courier,
 }) {
   if (!order) return null;
   const id = order.orderId;
   const sla = getSla(order, now);
   const itemCount = Number(order.itemCount ?? order.products?.length) || 0;
   const created = order.createdMs ?? order.createdAt;
-  const when = dated ? shortWhen(created, now) : formatTime(created);
+  // Saatin önünde her zaman gün etiketi ("Bugün", "Dün", "4 Kas"): hangi güne ait olduğu tek bakışta belli
+  const tone = dayTone(created, now);
+  const day = dayShort(created, now);
   const showNext = !selecting && Boolean(nextAction(order.status) || order.pending);
   const label = `${orderAriaLabel(order, now)}${archived ? " (arşiv kaydı)" : ""}`;
 
@@ -54,6 +56,7 @@ function OrderRow({
       data-active={flag(active)}
       data-fresh={flag(fresh)}
       data-pending={flag(order.pending)}
+      data-day={tone}
     >
       <SelectCheck
         className="so-l-check"
@@ -108,7 +111,10 @@ function OrderRow({
 
       <div className="so-l-amount">
         <strong className="so-l-total">{money(order.totalAmount)}</strong>
-        <span className="so-l-time">{when}</span>
+        <span className="so-l-time">
+          {day && <span className="so-l-when" data-day={tone}>{day}</span>}
+          {formatTime(created)}
+        </span>
       </div>
 
       {showNext && (

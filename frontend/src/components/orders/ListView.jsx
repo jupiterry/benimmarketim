@@ -6,9 +6,9 @@ import {
   AlertTriangle, ArrowDown, ArrowUp, CheckCircle2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Inbox, Loader2,
   RefreshCw, Search, X,
 } from "lucide-react";
-import { EmptyState, useIsMobile } from "../admin/ui";
+import { EmptyState, money, useIsMobile } from "../admin/ui";
 import { LoadOlderButton, SelectCheck, useStepGuard } from "./atoms";
-import { PAGE_SIZES, SEARCH_LIMIT, dayKey, dayLabel } from "./shared";
+import { PAGE_SIZES, SEARCH_LIMIT, dayKey, dayLabel, dayTone } from "./shared";
 import OrderRow from "./OrderRow";
 import "../../styles/orders-list.css";
 
@@ -39,17 +39,27 @@ const SortButton = ({ label, active, dir = "desc", state, onClick, title, classN
   </button>
 );
 
-/** Gün ayırıcı: "Bugün · 21 Ekim Çarşamba", "Dün · …", "4 Ekim Cumartesi" */
-const DaySeparator = ({ value, now }) => {
+/**
+ * Gün ayırıcı: renkli gün etiketi ("Bugün" / "Dün" / "4 Kasım Çarşamba"), tam tarih ve o günün özeti
+ * ("6 sipariş · ₺2.266,00 · 1 aktif"; iptaller sayıya ve ciroya girmez). Özet yalnızca yüklü siparişlerden.
+ */
+const DaySeparator = ({ value, now, summary }) => {
   const label = dayLabel(value, now);
-  const relative = label === "Bugün" || label === "Dün";
+  const tone = dayTone(value, now);
+  const relative = tone !== "older";
   const full = relative
     ? new Date(value).toLocaleDateString("tr-TR", { timeZone: "Europe/Istanbul", day: "numeric", month: "long", weekday: "long" })
     : null;
   return (
-    <div className="so-l-day" role="heading" aria-level={3}>
+    <div className="so-l-day" role="heading" aria-level={3} data-day={tone}>
       <span className="so-l-day-label">{label}</span>
       {full && <span className="so-l-day-date">{full}</span>}
+      {summary && (
+        <span className="so-l-day-sum">
+          {summary.count} sipariş · {money(summary.revenue)}
+          {summary.active > 0 && <> · <b>{summary.active} aktif</b></>}
+        </span>
+      )}
     </div>
   );
 };
@@ -266,6 +276,19 @@ export default function ListView({
   }
 
   // ── Satırlar (tarih sıralamasında gün değişince ayırıcı) ──
+  const daySummaries = new Map();
+  if (dayGroups) {
+    for (const order of orders) {
+      const key = dayKey(order.createdMs ?? order.createdAt);
+      const sum = daySummaries.get(key) || { count: 0, revenue: 0, active: 0 };
+      if (order.status !== "İptal Edildi") {
+        sum.count += 1;
+        sum.revenue = Math.round((sum.revenue + (Number(order.totalAmount) || 0)) * 100) / 100;
+      }
+      if (order.status === "Hazırlanıyor" || order.status === "Yolda") sum.active += 1;
+      daySummaries.set(key, sum);
+    }
+  }
   let lastDay = null;
   const rows = orders.map((order) => {
     const id = order.orderId;
@@ -275,7 +298,7 @@ export default function ListView({
     lastDay = day;
     return (
       <Fragment key={id}>
-        {separator && <DaySeparator value={created} now={now} />}
+        {separator && <DaySeparator value={created} now={now} summary={daySummaries.get(day)} />}
         <OrderRow
           order={order}
           now={now}
