@@ -825,3 +825,14 @@
     justify-content: flex-start;
   }
 }
+
+/* Fiyat kutusunun altındaki kısa notlar: boş/0 fiyat, kalkacak indirim */
+.admin-layout .pw-price-note {
+  margin: 0;
+  font-size: var(--ui-fs-xs);
+  line-height: 1.35;
+  color: var(--ui-warn-ink);
+}
+.admin-layout .pw-price-note--error {
+  color: var(--ui-danger-ink);
+}

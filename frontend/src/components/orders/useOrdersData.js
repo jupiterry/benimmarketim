@@ -1675,41 +1675,24 @@ function createOrdersController({ confirm }) {
         : state.products,
     }));
   };
-  /** Önce taze GET; yalnızca stoktaysa işaretler (uç nokta yalnızca tersine çevirir) */
+  /** Ürünü "tükendi" olarak ayarlar (PATCH /products/:id/state; tersine çevirmez, iki kez basılsa da tükendi kalır) */
   const markOutOfStock = async (productId) => {
     const pid = String(productId ?? "").trim();
     if (!OBJECT_ID.test(pid)) {
       toast.error(PRODUCT_MISSING);
       return false;
     }
-    let product;
     try {
-      const res = await axios.get(`/products/${pid}`);
-      product = res?.data;
-    } catch (error) {
-      const code = error?.response?.status;
-      toast.error(code === 404 || code === 400 ? PRODUCT_MISSING : errorMessage(error, "Stok durumu kontrol edilemedi"));
-      return false;
-    }
-    if (!product?._id) {
-      toast.error(PRODUCT_MISSING);
-      return false;
-    }
-    if (product.isOutOfStock === true) {
-      patchProductStore(pid, true);
-      toast("Ürün zaten tükendi olarak işaretli");
-      return true;
-    }
-    try {
-      const res = await axios.patch(`/products/toggle-out-of-stock/${pid}`);
-      const flag = res?.data?.product?.isOutOfStock;
-      const marked = flag === undefined ? true : Boolean(flag);
+      const res = await axios.patch(`/products/${pid}/state`, { isOutOfStock: true });
+      const marked = res?.data?.product?.isOutOfStock !== false;
       patchProductStore(pid, marked);
-      if (marked) toast.success("Ürün tükendi olarak işaretlendi");
-      else toast.error("Ürün bu arada stoka alınmış; tekrar deneyin");
+      if (!marked) toast.error("Stok durumu değiştirilemedi");
+      else if (res?.data?.changed === false) toast("Ürün zaten tükendi olarak işaretli");
+      else toast.success("Ürün tükendi olarak işaretlendi");
       return marked;
     } catch (error) {
-      toast.error(errorMessage(error, "Stok durumu değiştirilemedi"));
+      const code = error?.response?.status;
+      toast.error(code === 404 || code === 400 ? PRODUCT_MISSING : errorMessage(error, "Stok durumu değiştirilemedi"));
       return false;
     }
   };

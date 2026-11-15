@@ -3,7 +3,8 @@ import {
   X, Upload, Check, RefreshCw, Trash2, Star, Eye, EyeOff, PackageX, Package, Percent, Zap, ImageOff, ToggleLeft, ToggleRight
 } from "lucide-react";
 import {
-  CATEGORIES, categoryName, discountPct, flashStatus, money, normalizeCategory, parsePrice, roundMoney
+  CATEGORIES, categoryName, discountPct, flashStatus, money, normalizeCategory, outOfStockLabel, parsePrice,
+  priceChangeOf, roundMoney, salesTrend, willRemoveDiscount
 } from "./productUtils";
 import { FlashSaleForm, FlashSaleRow } from "./FlashSale";
 import axios from "../../lib/axios";
@@ -49,7 +50,7 @@ const Switch = ({ on, onClick, label, disabled }) => (
  * değişikliği ile ad değişikliği birbirini beklemez.
  */
 const ProductDrawer = ({
-  product, sales, now, busy, onClose, onSaveInfo, onSavePrice, onSaveDiscount, onRemoveDiscount,
+  product, sales, now, stat, busy, onClose, onSaveInfo, onSavePrice, onSaveDiscount, onRemoveDiscount,
   onToggle, onImage, onDelete, onCreateFlash, onEndFlash, onDeleteFlash
 }) => {
   const [name, setName] = useState(product.name || "");
@@ -80,7 +81,11 @@ const ProductDrawer = ({
   const infoDirty = name.trim() !== (product.name || "") || category !== normalizeCategory(product.category);
   const priceNum = parsePrice(price);
   const priceDirty = Number.isFinite(priceNum) && roundMoney(priceNum) !== roundMoney(product.price);
-  const priceValid = Number.isFinite(priceNum) && priceNum > 0;
+  const priceValid = Number.isFinite(priceNum) && roundMoney(priceNum) > 0;
+  // Kaydetmeden önce uyarılar: indirim kalkacak mı, fiyat %50'den fazla mı değişiyor (kayıtta ayrıca sorulur)
+  const priceRemovesDiscount = priceDirty && priceValid && willRemoveDiscount(product, roundMoney(priceNum));
+  const priceChange = priceDirty && priceValid ? priceChangeOf(product.price, roundMoney(priceNum)) : { pct: 0, big: false };
+  const trend = salesTrend(stat);
   const discNum = parsePrice(discount);
   const discValid = Number.isFinite(discNum) && discNum > 0 && discNum < Number(product.price);
   const pct = discValid ? Math.round((1 - discNum / Number(product.price)) * 100) : 0;
@@ -131,12 +136,23 @@ const ProductDrawer = ({
               </div>
               <div className="prd-hero-badges">
                 <span className={`ui-badge ${product.isOutOfStock ? "ui-badge--danger" : "ui-badge--ok"}`}>
-                  {product.isOutOfStock ? "Stokta yok" : "Stokta"}
+                  {product.isOutOfStock ? outOfStockLabel(product, now) : "Stokta"}
                 </span>
                 <span className={`ui-badge ${product.isHidden ? "ui-badge--warn" : ""}`}>{product.isHidden ? "Gizli" : "Görünür"}</span>
                 {product.isFeatured && <span className="ui-badge ui-badge--brand">Öne çıkan</span>}
                 {activeFlash && <span className="ui-badge ui-badge--ok">Flash %{activeFlash.discountPercentage}</span>}
               </div>
+              {stat && (
+                <p className="prd-hero-sales">
+                  {stat.units30 > 0 ? (
+                    <>
+                      Son 30 gün: <strong>{stat.units30} adet</strong> · {stat.orders30} sipariş<br />
+                      Son 7 gün: <strong>{stat.units7} adet</strong>
+                      {trend === "up" && " (hızlandı)"}{trend === "down" && " (yavaşladı)"}
+                    </>
+                  ) : "Son 30 günde satış yok."}
+                </p>
+              )}
               {activeFlash && (
                 <button type="button" className="ui-btn ui-btn--sm prd-flash-end" onClick={() => onEndFlash(activeFlash)} disabled={busy.flash}>
                   Flaş indirimi şimdi bitir
@@ -212,6 +228,15 @@ const ProductDrawer = ({
                 {busy.price ? <RefreshCw className="ui-spin" /> : <Check />}Fiyatı kaydet
               </button>
             </form>
+            {!priceValid && price.trim() !== "" && <p className="prd-form-error">Fiyat 0&apos;dan büyük bir sayı olmalı.</p>}
+            {priceChange.big && (
+              <p className="prd-form-warn">
+                {money(product.price)} → {money(roundMoney(priceNum))}: %{Math.abs(priceChange.pct)} {priceChange.pct > 0 ? "artış" : "düşüş"}. Virgülü kontrol edin.
+              </p>
+            )}
+            {priceRemovesDiscount && (
+              <p className="prd-form-warn">Bu fiyatla {money(product.discountedPrice)} indirimli fiyat kalkar; müşteri {money(roundMoney(priceNum))} öder.</p>
+            )}
             {product.isDiscounted && Number(product.discountedPrice) >= Number(product.price) && (
               <p className="prd-form-error">İndirimli fiyat satış fiyatından yüksek; indirimi güncelleyin ya da kaldırın.</p>
             )}
