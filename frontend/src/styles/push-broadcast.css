@@ -1,0 +1,201 @@
+/* Tek seferlik bildirim: bölge seçimi, planlama, Planlı listesi ve gönderim sonuçları.
+   Renkler --ui-* değişkenlerinden gelir (koyu ve açık tema); 760px altında dokunma hedefleri en az 40px. */
+
+/* Saat uyarıları (sipariş saatleri / gönderim aralığı dışında) */
+.admin-layout .pbx-warnings {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-layout .pbx-warnings li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+  font-size: var(--ui-fs-xs);
+  line-height: 1.45;
+}
+.admin-layout .pbx-warnings svg {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  margin-top: 1px;
+}
+.admin-layout .pbx-problem {
+  margin: 0;
+  color: var(--ui-danger);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  line-height: 1.45;
+}
+.admin-layout .pbx-problem + .pbx-problem,
+.admin-layout .ui-stack + .pbx-problem {
+  margin-top: 8px;
+}
+.admin-layout .pbx-datetime {
+  max-width: 260px;
+}
+.admin-layout .push-target:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Aynı kitleye son gönderim */
+.admin-layout .pbx-lastsend {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+  line-height: 1.45;
+}
+.admin-layout .pbx-lastsend svg {
+  flex-shrink: 0;
+  width: 13px;
+  height: 13px;
+  margin-top: 2px;
+}
+.admin-layout .pbx-lastsend[data-recent="true"] {
+  padding: 8px 10px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-warn-bg);
+  color: var(--ui-warn-ink);
+}
+
+/* Planlı liste */
+.admin-layout .pbx-scheduled {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-layout .pbx-scheduled-item {
+  padding: 12px 14px;
+}
+.admin-layout .pbx-scheduled-item + .pbx-scheduled-item {
+  border-top: 1px solid var(--ui-line);
+}
+.admin-layout .pbx-scheduled-when {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  color: var(--ui-info-ink);
+  font-size: var(--ui-fs-sm);
+}
+.admin-layout .pbx-scheduled-when svg {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+}
+.admin-layout .pbx-warn-dot {
+  display: inline-flex;
+  color: var(--ui-warn);
+}
+.admin-layout .pbx-scheduled-item h3 {
+  color: var(--ui-text);
+  font-size: var(--ui-fs-sm);
+  font-weight: 600;
+}
+.admin-layout .pbx-scheduled-item p {
+  margin-top: 2px;
+  color: var(--ui-text-2);
+  font-size: var(--ui-fs-sm);
+  line-height: 1.45;
+}
+.admin-layout .pbx-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.admin-layout .pbx-empty {
+  padding: 20px 16px;
+  font-size: var(--ui-fs-sm);
+}
+
+/* Düzenleme çekmecesi */
+.admin-layout .pbx-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.admin-layout .pbx-count {
+  color: var(--ui-text-3);
+  font-size: var(--ui-fs-xs);
+}
+
+/* Geçmiş: sonuç satırı ve yeniden kullan */
+.admin-layout .push-history-item[data-state="wait"]::before {
+  background: var(--ui-info);
+  box-shadow: 0 0 0 3px var(--ui-info-bg);
+}
+.admin-layout .push-history-item .pbx-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 6px;
+  color: var(--ui-text);
+  font-size: var(--ui-fs-xs);
+  font-weight: 600;
+  line-height: 1.5;
+}
+.admin-layout .push-history-item .pbx-result[data-pending="true"] {
+  color: var(--ui-text-2);
+  font-weight: 500;
+}
+.admin-layout .pbx-result svg {
+  flex-shrink: 0;
+  width: 13px;
+  height: 13px;
+  margin-top: 2px;
+  color: var(--ui-ok);
+}
+.admin-layout .pbx-planned {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.admin-layout .pbx-planned svg {
+  width: 12px;
+  height: 12px;
+}
+.admin-layout .pbx-reuse {
+  margin-top: 6px;
+  margin-left: -8px;
+  padding: 0 8px;
+  color: var(--ui-text-2);
+}
+.admin-layout .pbx-result-note {
+  margin: 0;
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--ui-line);
+}
+
+@media (max-width: 760px) {
+  .admin-layout .pbx-actions .ui-btn,
+  .admin-layout .pbx-reuse,
+  .admin-layout .push-layout .ui-banner .ui-btn--sm {
+    min-height: 40px;
+  }
+  .admin-layout .pbx-actions .ui-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+  .admin-layout .push-layout .push-target {
+    min-height: 40px;
+  }
+  .admin-layout .pbx-datetime {
+    max-width: none;
+    min-height: 40px;
+  }
+  .admin-layout .pbx-edit-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

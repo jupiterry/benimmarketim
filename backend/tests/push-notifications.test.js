@@ -19,6 +19,8 @@ const withKeys = (t) => {
   });
 };
 const mockFetch = (t) => { const calls = []; t.mock.method(globalThis, "fetch", async (_url, options) => { calls.push(JSON.parse(options.body)); return { ok: true, status: 200 }; }); return calls; };
+// Kayda yazılan sonucun eski çekirdek alanları (durum, gönderim anı ve alıcılar ayrıca sınanır)
+const core = ({ targetedCount, sent, failureReason, unreachableCount }) => ({ targetedCount, sent, failureReason, unreachableCount });
 const response = () => { const res = { statusCode: 200, body: null, status(code) { res.statusCode = code; return res; }, json(body) { res.body = body; return res; } }; return res; };
 
 test("preferences default to enabled and only explicit false disables a category", () => {
@@ -148,7 +150,12 @@ test("broadcast validates input, blocks duplicates and records the send", async 
   assert.equal(userFilter.role.$ne, "admin");
   assert.equal(created[0].title, "Haftanın fırsatı");
   assert.equal(calls[0].data.route, "/cart");
-  assert.deepEqual(updates[0], { $set: { targetedCount: 2, sent: true, failureReason: null, unreachableCount: 0 } });
+  // Sonuç kayda durum, gönderim anı ve (sonuç ölçümü için) alıcılarla yazılır
+  const { sentAt, ...outcome } = updates[0].$set;
+  assert.ok(sentAt instanceof Date);
+  assert.deepEqual(outcome, { targetedCount: 2, sent: true, failureReason: null, unreachableCount: 0, status: "sent", recipients: [id(1), id(2)], resultsAvailable: true });
+  assert.equal(created[0].status, "sending");
+  assert.equal(created[0].zone, "");
 });
 
 test("broadcast refuses to run when the push service is not configured", async () => {
@@ -216,7 +223,11 @@ test("a failed broadcast tells the admin the real reason instead of a generic me
   assert.equal(res.statusCode, 422);
   assert.equal(res.body.reason, "no_devices");
   assert.match(res.body.message, /oturum açmamış/);
-  assert.deepEqual(updates.at(-1), { targetedCount: 2, sent: false, failureReason: "no_devices", unreachableCount: 2 });
+  assert.deepEqual(core(updates.at(-1)), { targetedCount: 2, sent: false, failureReason: "no_devices", unreachableCount: 2 });
+  // Başarısız gönderimde alıcı saklanmaz, sonuç ölçülmez
+  assert.equal(updates.at(-1).status, "failed");
+  assert.deepEqual(updates.at(-1).recipients, []);
+  assert.equal(updates.at(-1).resultsAvailable, false);
 
   // Anahtar reddedildi: diğer kimlik şemasıyla bir kez daha denenir, sonra neden bildirilir
   const schemes = [];
@@ -310,7 +321,9 @@ test("a broadcast test goes to the chosen or saved test recipient and names that
   assert.equal(res.body.recipient.hasPushTarget, true);
   assert.deepEqual(pushes.at(-1).include_aliases.external_id, [id(70)]);
   assert.equal(filters.at(-1)["notificationPreferences.campaigns"], undefined);
-  assert.deepEqual(created.at(-1), { title: "Deneme", body: "Merhaba", audience: "self", route: "/home", audienceSize: 1, sentBy: id(99), testRecipient: id(70) });
+  const { claimedAt, ...record } = created.at(-1);
+  assert.ok(claimedAt instanceof Date);
+  assert.deepEqual(record, { title: "Deneme", body: "Merhaba", audience: "self", zone: "", route: "/home", audienceSize: 1, sentBy: id(99), status: "sending", testRecipient: id(70) });
   assert.equal(duplicate.mock.callCount(), 0);
 
   // İstekte seçilen hesap kayıtlı alıcının önüne geçer
@@ -332,7 +345,10 @@ test("a broadcast test goes to the chosen or saved test recipient and names that
   assert.equal(res.body.reason, "push_disabled");
   assert.match(res.body.message, /Ali \(ali@example\.com\) hesabında bildirimler kapalı/);
   assert.equal(pushes.length, before.pushes);
-  assert.deepEqual(updates.at(-1), { targetedCount: 0, sent: false, failureReason: "push_disabled", unreachableCount: 0 });
+  assert.deepEqual(core(updates.at(-1)), { targetedCount: 0, sent: false, failureReason: "push_disabled", unreachableCount: 0 });
+  // Deneme kaydında alıcı listesi tutulmaz (sonuç ölçümüne girmez)
+  assert.equal(updates.at(-1).status, "failed");
+  assert.equal("recipients" in updates.at(-1), false);
   assert.equal(created.at(-1).audience, "self");
 
   // Kayıtlı alıcı yok (ya da silinmiş): gönderen yöneticiye gider; cihazı yoksa mesaj hesabı adıyla söyler
