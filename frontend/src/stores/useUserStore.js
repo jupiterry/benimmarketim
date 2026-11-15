@@ -58,7 +58,7 @@ export const useUserStore = create(
           toast.error(
             error.response?.data?.message ||
             (error.request
-              ? "Sunucuya bağlanılamadı. Backend'in çalıştığından emin olun."
+              ? "Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin."
               : "Bir hata oluştu")
           );
         }
