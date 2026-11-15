@@ -22,6 +22,7 @@ import {
   USER_APP_FILTERS, USER_LIST_SEGMENTS, buildSearchClause, buildUserListFilter, duplicatePhoneGroups, orderStatsByUser, parseUserListQuery,
 } from "../controllers/userController.js";
 import { isPushConfigured, sendPushToUsers } from "./push.service.js";
+import { sendOutcomeFields } from "./pushBroadcast.service.js";
 import {
   getAutomationSettings, isReachableUser, isWithinSendWindow, istanbulParts, istanbulTime, normalizeAutomationSettings,
 } from "./notificationAutomation.service.js";
@@ -377,12 +378,12 @@ const deliverPush = async ({ recipients, message, total, actorId, now }) => {
   const record = await PushBroadcast.create({
     title: message.title, body: message.body, audience: CUSTOM_AUDIENCE, route: message.route, audienceSize: total, sentBy: actorId,
   });
+  const sentAt = new Date(now);
   const result = await sendPushToUsers(ids, { title: message.title, body: message.body },
     { type: "broadcast", broadcastId: idOf(record), route: message.route }, { category: "campaigns" });
   try {
-    await PushBroadcast.updateOne({ _id: record._id }, { $set: {
-      targetedCount: result.targeted, sent: result.sent, failureReason: result.sent ? null : result.reason || "unknown", unreachableCount: result.unreachable || 0,
-    } });
+    // Alıcılar da kayda yazılır: Bildirimler ekranı "bildirimden sonra sipariş verenler"i bunlardan ölçer
+    await PushBroadcast.updateOne({ _id: record._id }, { $set: sendOutcomeFields(result, ids, sentAt) });
   } catch (error) {
     // Bildirim gitti ya da gitmedi; kayıt güncellenemese de sonuç yöneticiye doğru bildirilir
     console.error("Müşteri bildirimi kaydı güncellenemedi:", error.message);

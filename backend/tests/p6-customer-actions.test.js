@@ -375,7 +375,11 @@ test("push goes only to reachable customers, is recorded as a custom broadcast a
   assert.equal(record.route, "/cart");
   assert.equal(String(record.sentBy), ADMIN);
   assert.equal(fx.oneSignal[0].data.broadcastId, String(record._id));
-  assert.deepEqual(fx.broadcastUpdates[0][1].$set, { targetedCount: 2, sent: true, failureReason: null, unreachableCount: 0 });
+  // Alıcılar ve gönderim anı da kayda yazılır (Bildirimler ekranındaki "bildirimden sonra sipariş verenler" ölçümü)
+  const { sentAt: recordedAt, recipients: recorded, ...outcomeFields } = fx.broadcastUpdates[0][1].$set;
+  assert.deepEqual(outcomeFields, { targetedCount: 2, sent: true, failureReason: null, unreachableCount: 0, status: "sent", resultsAvailable: true });
+  assert.ok(recordedAt instanceof Date);
+  assert.equal(recorded.length, 2);
 
   assert.equal(fx.audits.length, 1);
   const [audit] = fx.audits;

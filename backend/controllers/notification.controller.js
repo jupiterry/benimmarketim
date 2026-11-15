@@ -1,6 +1,5 @@
 import mongoose from "mongoose";
 import User from "../models/user.model.js";
-import Order from "../models/order.model.js";
 import PushBroadcast from "../models/pushBroadcast.model.js";
 import Settings, { resolveAiConfig } from "../models/settings.model.js";
 import { createAiProvider, isDataPolicyError, isModelUnavailableError } from "../services/ai/providers.js";
@@ -13,24 +12,20 @@ import { getStatsSnapshot } from "../services/recommendation.service.js";
 import { activeWeeklyFilter, isWeeklyDealLive } from "../services/productPricing.js";
 import { weeklyDiscountPercent } from "../services/weeklyPrice.service.js";
 import { PUSH_CATEGORIES, inspectPushUser, isPushConfigured, normalizePreferences, sendPushToUsers } from "../services/push.service.js";
-import { describeTestSend, resolveTestRecipient, toTestRecipient } from "../services/notificationAutomation.service.js";
+import { describeTestSend, getAutomationSettings, normalizeAutomationSettings, resolveTestRecipient, toTestRecipient } from "../services/notificationAutomation.service.js";
+import {
+  BROADCAST_AUDIENCES, BROADCAST_ZONES, BroadcastError, RESULT_BATCH_LIMIT, TEST_AUDIENCE, ZONE_OPTIONS, buildAudienceFilter, buildBroadcastFilter,
+  campaignOptIn, deliverBroadcast, describeDuplicate, describeSendSuccess, findDuplicateBroadcast, getBroadcastResults, istanbulLabel,
+  listAudienceCounts, normalizeZone, parseBroadcastInput, sendOutcomeFields, toBroadcastView,
+} from "../services/pushBroadcast.service.js";
+import {
+  MAX_PENDING_SCHEDULES, MAX_SCHEDULE_DAYS, cancelScheduledBroadcast, createScheduledBroadcast, listScheduledBroadcasts, sendScheduledBroadcastNow,
+  updateScheduledBroadcast,
+} from "../services/pushSchedule.service.js";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-const DUPLICATE_WINDOW_MS = 10 * 60 * 1000;
-// rate: uygulamanın mağaza sayfasını açar (puan ve yorum için)
-const BROADCAST_ROUTES = { home: "/home", cart: "/cart", orders: "/orders", referral: "/referral", rate: "/rate-app" };
-
-export const BROADCAST_AUDIENCES = {
-  all: "Tüm müşteriler",
-  cart: "Sepetinde ürün olanlar",
-  active30: "Son 30 günde sipariş verenler",
-  inactive30: "30 gündür sipariş vermeyenler",
-  noOrder: "Hiç sipariş vermeyenler",
-};
-
-// Bildirimi herkese göndermeden önce tek bir telefonda denemek için. Adı geriye uyumluluk için "self" kalır;
-// deneme, paneldeki test alıcısına gider (bkz. resolveTestRecipient: seçilen hesap > kayıtlı alıcı > gönderen yönetici).
-export const TEST_AUDIENCE = "self";
+// Kitle tanımları ve sorgusu services/pushBroadcast.service.js içindedir (planlı gönderim de kullanır);
+// eski içe aktarmalar bozulmasın diye buradan da dışa verilir.
+export { BROADCAST_AUDIENCES, TEST_AUDIENCE, buildAudienceFilter };
 
 // Yapay zekâ sağlayıcısı hatasını yöneticinin anlayacağı bir açıklamaya çevirir.
 // Uç nokta yalnızca yöneticiye açık olduğu için sağlayıcı ve HTTP kodu mesajda gösterilir.
@@ -174,26 +169,6 @@ export const describePushFailure = (result) => {
   }
 };
 
-// Hedef kitle sorgusu; yalnızca müşteri hesapları dahil edilir.
-export const buildAudienceFilter = async (audience, now = new Date()) => {
-  const base = { role: { $ne: "admin" } };
-  if (audience === "all") return base;
-  if (audience === "cart") return { ...base, "cartItems.0": { $exists: true } };
-  const since = new Date(now.getTime() - 30 * DAY_MS);
-  const notCancelled = { status: { $ne: "İptal Edildi" } };
-  if (audience === "active30") return { ...base, _id: { $in: await Order.distinct("user", { ...notCancelled, createdAt: { $gte: since } }) } };
-  if (audience === "inactive30") {
-    const [ever, recent] = await Promise.all([Order.distinct("user", notCancelled), Order.distinct("user", { ...notCancelled, createdAt: { $gte: since } })]);
-    const recentSet = new Set(recent.map(String));
-    return { ...base, _id: { $in: ever.filter((id) => !recentSet.has(String(id))) } };
-  }
-  if (audience === "noOrder") return { ...base, _id: { $nin: await Order.distinct("user", {}) } };
-  return null;
-};
-
-// Kampanya bildirimi almayı kabul edenler
-const campaignOptIn = { pushNotificationsEnabled: { $ne: false }, "notificationPreferences.campaigns": { $ne: false } };
-
 // ── Müşteri: bildirim tercihleri ─────────────────────────────────────────────
 export const getNotificationPreferences = async (req, res) => {
   res.json({ success: true, preferences: normalizePreferences(req.user) });
@@ -212,14 +187,124 @@ export const updateNotificationPreferences = async (req, res) => {
 };
 
 // ── Yönetici: toplu bildirim ─────────────────────────────────────────────────
+const OBJECT_ID = /^[a-f\d]{24}$/i;
+const HISTORY_LIMIT = 20;
+const HISTORY_QUERY_MAX_MS = 8000;
+
+// BroadcastError → yanıt; diğer hatalar rota sarmalayıcısına (500) gider
+const failWith = (res, error) => {
+  if (!(error instanceof BroadcastError)) throw error;
+  return res.status(error.status).json({ success: false, reason: error.code, message: error.message });
+};
+
+/**
+ * Son gönderimler: planlı ve iptal edilmiş kayıtlar hariç. Sıra, bildirimin gerçekten işlendiği ana göredir
+ * (günler önce planlanıp bugün giden bildirim en üstte görünsün). Eski kayıtlarda yalnızca createdAt vardır.
+ */
+const loadHistory = async () => {
+  const rows = await PushBroadcast.aggregate([
+    { $match: { status: { $nin: ["scheduled", "cancelled"] } } },
+    // Alıcı listesi (select: false) toplama sorgusunda kendiliğinden gizlenmez
+    { $project: { recipients: 0 } },
+    { $addFields: { at: { $ifNull: ["$sentAt", { $ifNull: ["$claimedAt", { $ifNull: ["$scheduledFor", "$createdAt"] }] }] } } },
+    { $sort: { at: -1, _id: -1 } },
+    { $limit: HISTORY_LIMIT },
+  ], { maxTimeMS: HISTORY_QUERY_MAX_MS });
+  await PushBroadcast.populate(rows, [{ path: "sentBy", select: "name" }, { path: "testRecipient", select: "name email" }]);
+  return rows.map(toBroadcastView);
+};
+
+// Planlama uyarıları için: sipariş saatleri (Ayarlar) ve otomatik bildirimlerin gönderim aralığı. Okunamazsa
+// uyarı gösterilmez; gönderim ekranı yine çalışır.
+const loadSendHours = async () => {
+  const [settings, automation] = await Promise.all([
+    Settings.getSettings().catch((error) => { console.error("Sipariş saatleri okunamadı:", error.message); return null; }),
+    getAutomationSettings().catch((error) => { console.error("Bildirim gönderim saatleri okunamadı:", error.message); return normalizeAutomationSettings(null); }),
+  ]);
+  const orderHours = settings ? {
+    startHour: Number(settings.orderStartHour) || 0, startMinute: Number(settings.orderStartMinute) || 0,
+    endHour: Number(settings.orderEndHour) || 0, endMinute: Number(settings.orderEndMinute) || 0,
+  } : null;
+  return { orderHours, sendWindow: automation?.window ? { start: automation.window.start, end: automation.window.end } : null };
+};
+
 export const getBroadcastOverview = async (_req, res) => {
-  const audiences = await Promise.all(Object.entries(BROADCAST_AUDIENCES).map(async ([id, label]) => {
-    const filter = await buildAudienceFilter(id);
-    const [total, reachable] = await Promise.all([User.countDocuments(filter), User.countDocuments({ ...filter, ...campaignOptIn })]);
-    return { id, label, total, reachable };
-  }));
-  const history = await PushBroadcast.find().sort({ createdAt: -1 }).limit(20).populate("sentBy", "name").populate("testRecipient", "name email").lean();
-  res.json({ success: true, configured: isPushConfigured(), audiences, history });
+  const [audiences, history, scheduled, hours] = await Promise.all([listAudienceCounts(""), loadHistory(), listScheduledBroadcasts(), loadSendHours()]);
+  res.json({
+    success: true,
+    configured: isPushConfigured(),
+    audiences,
+    zones: ZONE_OPTIONS,
+    history,
+    scheduled: (scheduled || []).map(toBroadcastView),
+    limits: { maxScheduled: MAX_PENDING_SCHEDULES, maxScheduleDays: MAX_SCHEDULE_DAYS },
+    ...hours,
+  });
+};
+
+// GET /api/notifications/broadcasts/audience-count?zone=devrek[&audience=inactive30]
+// Seçili bölgede her kitlenin (ya da yalnızca verilen kitlenin) büyüklüğü ve o kitle + bölgeye son gönderim.
+export const getAudienceCounts = async (req, res) => {
+  const zone = normalizeZone(typeof req.query?.zone === "string" ? req.query.zone : undefined);
+  if (zone === null) return res.status(400).json({ success: false, message: "Geçersiz bölge" });
+  const audience = typeof req.query?.audience === "string" && req.query.audience ? req.query.audience : null;
+  if (audience && !Object.hasOwn(BROADCAST_AUDIENCES, audience)) return res.status(400).json({ success: false, message: "Geçersiz hedef kitle" });
+  res.json({ success: true, zone, zoneLabel: zone ? BROADCAST_ZONES[zone] : "Tümü", audiences: await listAudienceCounts(zone, new Date(), audience) });
+};
+
+// GET /api/notifications/broadcasts/results?ids=a,b,c (en fazla 20)
+// Görünen geçmiş satırları için "bildirimden sonra sipariş verenler" sayıları.
+export const getBroadcastResultsBatch = async (req, res) => {
+  const ids = [...new Set(String(typeof req.query?.ids === "string" ? req.query.ids : "").split(",").map((id) => id.trim()).filter(Boolean))];
+  if (!ids.length) return res.json({ success: true, results: {} });
+  if (ids.length > RESULT_BATCH_LIMIT || ids.some((id) => !OBJECT_ID.test(id))) {
+    return res.status(400).json({ success: false, message: `Geçersiz istek: en fazla ${RESULT_BATCH_LIMIT} gönderim sorulabilir.` });
+  }
+  res.json({ success: true, results: await getBroadcastResults(ids) });
+};
+
+// ── Yönetici: planlı bildirim ────────────────────────────────────────────────
+export const scheduleBroadcast = async (req, res) => {
+  try {
+    const record = await createScheduledBroadcast(req.body, req.user);
+    const broadcast = toBroadcastView(typeof record.toObject === "function" ? record.toObject() : record);
+    res.status(201).json({ success: true, broadcast, message: `Bildirim ${istanbulLabel(broadcast.scheduledFor)} için planlandı` });
+  } catch (error) {
+    failWith(res, error);
+  }
+};
+
+export const updateScheduled = async (req, res) => {
+  try {
+    const broadcast = toBroadcastView(await updateScheduledBroadcast(req.params?.id, req.body, req.user));
+    res.json({ success: true, broadcast, message: `Planlı bildirim güncellendi (${istanbulLabel(broadcast.scheduledFor)})` });
+  } catch (error) {
+    failWith(res, error);
+  }
+};
+
+export const cancelScheduled = async (req, res) => {
+  try {
+    await cancelScheduledBroadcast(req.params?.id, req.user);
+    res.json({ success: true, message: "Planlı bildirim iptal edildi" });
+  } catch (error) {
+    failWith(res, error);
+  }
+};
+
+export const sendScheduledNow = async (req, res) => {
+  try {
+    const outcome = await sendScheduledBroadcastNow(req.params?.id);
+    if (!outcome.sent) {
+      const failure = outcome.reason === "no_audience"
+        ? { status: 400, message: "Bu hedef kitlede bildirim alabilecek müşteri yok" }
+        : describePushFailure(outcome.result || { reason: outcome.reason });
+      return res.status(failure.status).json({ success: false, reason: outcome.reason || "opted_out", message: failure.message });
+    }
+    res.json({ success: true, targeted: outcome.result.targeted, unreachable: outcome.result.unreachable || 0, message: describeSendSuccess(outcome.result) });
+  } catch (error) {
+    failWith(res, error);
+  }
 };
 
 // Tanılama sonucunun yöneticiye gösterilen açıklaması ve yapılacaklar
@@ -277,15 +362,13 @@ export const diagnosePush = async (req, res) => {
 };
 
 export const sendBroadcast = async (req, res) => {
-  const title = String(req.body?.title || "").trim();
-  const body = String(req.body?.body || "").trim();
-  const audience = String(req.body?.audience || "");
-  const isTest = audience === TEST_AUDIENCE;
-  const route = BROADCAST_ROUTES[req.body?.target || "home"];
-  if (!title || title.length > 60) return res.status(400).json({ success: false, message: "Başlık 1-60 karakter olmalıdır" });
-  if (!body || body.length > 180) return res.status(400).json({ success: false, message: "Mesaj 1-180 karakter olmalıdır" });
-  if (!isTest && !BROADCAST_AUDIENCES[audience]) return res.status(400).json({ success: false, message: "Geçersiz hedef kitle" });
-  if (!route) return res.status(400).json({ success: false, message: "Geçersiz açılış ekranı" });
+  let input;
+  try {
+    input = parseBroadcastInput(req.body, { allowTest: true });
+  } catch (error) {
+    return failWith(res, error);
+  }
+  const { title, body, audience, zone, route, isTest } = input;
   if (!isPushConfigured()) return res.status(503).json({ success: false, message: "Bildirim servisi yapılandırılmamış (OneSignal anahtarları eksik)" });
 
   let userIds;
@@ -300,41 +383,40 @@ export const sendBroadcast = async (req, res) => {
     }
     userIds = [recipient._id];
   } else {
-    // Yanlışlıkla çift gönderimi engelle (başarısız denemeler yeniden gönderilebilir)
-    const duplicate = await PushBroadcast.findOne({ title, body, sent: true, audience: { $ne: TEST_AUDIENCE }, createdAt: { $gte: new Date(Date.now() - DUPLICATE_WINDOW_MS) } }).select("_id").lean();
-    if (duplicate) return res.status(409).json({ success: false, message: "Aynı bildirim son 10 dakika içinde zaten gönderildi" });
-    const filter = await buildAudienceFilter(audience);
+    // Yanlışlıkla çift gönderimi engelle (başarısız denemeler yeniden gönderilebilir). Aynı metin şu sıralarda
+    // gönderilmek üzere planlıysa ya da başka bir pencerede gönderiliyorsa da engellenir.
+    const duplicate = await findDuplicateBroadcast({ title, body });
+    if (duplicate) return res.status(409).json({ success: false, reason: "duplicate", message: describeDuplicate(duplicate) });
+    const filter = await buildBroadcastFilter(audience, zone);
     const users = await User.find({ ...filter, ...campaignOptIn }).select("_id").lean();
     if (!users.length) return res.status(400).json({ success: false, message: "Bu hedef kitlede bildirim alabilecek müşteri yok" });
     userIds = users.map((user) => user._id);
   }
 
-  // Deneme de kayda "self" kitlesiyle yazılır (gerçek gönderim sayılmaz) ve alıcısı saklanır
+  // Deneme de kayda "self" kitlesiyle yazılır (gerçek gönderim sayılmaz) ve alıcısı saklanır.
+  // Kayıt "sending" olarak açılır; sunucu gönderim sırasında kapanırsa zamanlayıcı "yarıda kaldı" olarak işaretler.
+  const startedAt = new Date();
   const record = await PushBroadcast.create({
-    title, body, audience, route, audienceSize: userIds.length, sentBy: req.user._id,
+    title, body, audience, zone, route, audienceSize: userIds.length, sentBy: req.user._id, status: "sending", claimedAt: startedAt,
     ...(isTest ? { testRecipient: recipient._id } : {}),
   });
-  const data = { type: "broadcast", broadcastId: String(record._id), route };
-  // Denemede kampanya tercihi atlanır (kapalı tercih denemeyi sessizce engellemesin); bildirimler tamamen kapalıysa gönderilmez
-  const result = isTest && recipient.pushNotificationsEnabled === false
-    ? { targeted: 0, sent: false, reason: "push_disabled", detail: "", unreachable: 0 }
-    : await sendPushToUsers(userIds, { title, body }, data, isTest ? { category: "campaigns", respectCategory: false } : { category: "campaigns" });
-  await PushBroadcast.updateOne({ _id: record._id }, { $set: { targetedCount: result.targeted, sent: result.sent, failureReason: result.sent ? null : result.reason || "unknown", unreachableCount: result.unreachable || 0 } });
   if (isTest) {
+    const data = { type: "broadcast", broadcastId: String(record._id), route };
+    // Denemede kampanya tercihi atlanır (kapalı tercih denemeyi sessizce engellemesin); bildirimler tamamen kapalıysa gönderilmez
+    const result = recipient.pushNotificationsEnabled === false
+      ? { targeted: 0, sent: false, reason: "push_disabled", detail: "", unreachable: 0 }
+      : await sendPushToUsers(userIds, { title, body }, data, { category: "campaigns", respectCategory: false });
+    await PushBroadcast.updateOne({ _id: record._id }, { $set: sendOutcomeFields(result, [], startedAt, { test: true }) });
     const outcome = describeTestSend(result, recipient, { systemMessage: result.sent ? "" : describePushFailure(result).message });
     const summary = toTestRecipient(recipient);
     if (!outcome.success) return res.status(outcome.status).json({ success: false, reason: outcome.reason, message: outcome.message, recipient: summary });
     return res.json({ success: true, targeted: result.targeted, unreachable: result.unreachable || 0, message: outcome.message, recipient: summary });
   }
+  // Gerçek gönderim: planlı bildirimlerle aynı yoldan (alıcılar sonuç ölçümü için kayda yazılır)
+  const result = await deliverBroadcast({ broadcastId: record._id, title, body, route, userIds, sentAt: startedAt });
   if (!result.sent) {
     const failure = describePushFailure(result);
     return res.status(failure.status).json({ success: false, reason: result.reason || "opted_out", message: failure.message });
   }
-  const reached = Math.max(0, result.targeted - (result.unreachable || 0));
-  res.json({
-    success: true,
-    targeted: result.targeted,
-    unreachable: result.unreachable || 0,
-    message: result.unreachable ? `${reached} müşteriye gönderildi (${result.unreachable} müşterinin kayıtlı cihazı yok)` : `${result.targeted} müşteriye gönderildi`,
-  });
+  res.json({ success: true, targeted: result.targeted, unreachable: result.unreachable || 0, message: describeSendSuccess(result) });
 };

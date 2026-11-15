@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, ChevronDown, Clock, FlaskConical, Gift, Home, Package, RefreshCw, Repeat, RotateCcw, Send, ShoppingCart, Smartphone, Sparkles, Star, Stethoscope, UserPlus, Users, Zap, } from "lucide-react";
+import { AlertTriangle, CalendarClock, CheckCircle2, ChevronDown, Clock, FlaskConical, Gift, Home, MapPin, Package, RefreshCw, Repeat, Send, ShoppingCart, Smartphone, Sparkles, Star, Stethoscope, UserPlus, Users, Zap, } from "lucide-react";
 import toast from "react-hot-toast";
 import axios from "../lib/axios";
 import { useConfirm } from "./ConfirmModal";
@@ -7,10 +7,15 @@ import PushLibrary from "./push/PushLibrary";
 import AutomationPanel from "./push/AutomationPanel";
 import TestRecipientPicker, { RecipientTag } from "./push/TestRecipientPicker";
 import useTestRecipient, { testRecipientName } from "./push/useTestRecipient";
-import { Tabs, usePref } from "./admin/ui";
+import ScheduleField from "./push/ScheduleField";
+import ScheduledList from "./push/ScheduledList";
+import BroadcastHistory from "./push/BroadcastHistory";
+import {
+  BODY_LIMIT, DEFAULT_LIMITS, DEFAULT_ZONES, TEST_AUDIENCE, TITLE_LIMIT, formatWhen, historyState, lastSendHint, resolveWhen, scheduleProblem, sendTimeWarnings, toTrInput,
+} from "./push/broadcastShared";
+import { Tabs, useDebounced, useNow, usePref } from "./admin/ui";
+import "../styles/push-broadcast.css";
 
-const TITLE_LIMIT = 60;
-const BODY_LIMIT = 180;
 const TARGETS = [
   { id: "home", label: "Ana sayfa", icon: Home },
   { id: "cart", label: "Sepet", icon: ShoppingCart },
@@ -39,23 +44,13 @@ const REWRITES = [
   { id: "emoji", label: "✨ Emoji düzenle" },
   { id: "calmer", label: "🧘 Sadeleştir" },
 ];
-// Deneme gönderimi: kitle adı geriye uyumluluk için "self"; bildirim ekranın test alıcısına gider
-const TEST_AUDIENCE = "self";
 // Ekranın iki bölümü: elle gönderilen toplu bildirim ve kurallara göre kendiliğinden giden bildirimler
 const SCREEN_TABS = [
   { value: "broadcast", label: "Tek seferlik bildirim", icon: Send },
   { value: "auto", label: "Otomatik bildirimler", icon: Zap },
 ];
-const FAILURE_LABELS = {
-  no_devices: "Kayıtlı cihaz yok",
-  auth: "Anahtar reddedildi",
-  rejected: "OneSignal reddetti",
-  network: "Bağlantı hatası",
-  not_configured: "Yapılandırılmamış",
-  error: "Sunucu hatası",
-  push_disabled: "Bildirimler kapalı",
-};
-const formatDate = (value) => new Date(value).toLocaleString("tr-TR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const formatDate = (value) => new Date(value).toLocaleString("tr-TR", { timeZone: "Europe/Istanbul", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const EMPTY_OVERVIEW = { configured: true, audiences: [], history: [], scheduled: [], zones: DEFAULT_ZONES, limits: DEFAULT_LIMITS, hours: {} };
 
 const Counter = ({ value, limit }) => {
   const ratio = value / limit;
@@ -71,17 +66,30 @@ export default function PushBroadcastTab() {
   const { confirm } = useConfirm();
   const [screenTab, setScreenTab] = usePref("admin-push-tab", "broadcast");
   const tab = screenTab === "auto" ? "auto" : "broadcast";
-  const [overview, setOverview] = useState({ configured: true, audiences: [], history: [] });
+  const [overview, setOverview] = useState(EMPTY_OVERVIEW);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [testing, setTesting] = useState(false);
   // Son gönderim denemesinin hatası; bildirim balonu kaybolsa da ekranda kalır
   const [failure, setFailure] = useState("");
+  const [failureTitle, setFailureTitle] = useState("Bildirim gönderilemedi");
+  const reportFailure = useCallback((message, heading = "Bildirim gönderilemedi") => {
+    setFailureTitle(heading);
+    setFailure(message);
+  }, []);
   // Kurulum denetimi: bir hesabın bildirim alıp alamadığı ve alamıyorsa nedeni
   const [checking, setChecking] = useState(false);
   const [checkEmail, setCheckEmail] = useState("");
   const [diagnosis, setDiagnosis] = useState(null);
-  const [form, setForm] = useState({ title: "", body: "", audience: "all", target: "home" });
+  const [form, setForm] = useState({ title: "", body: "", audience: "all", zone: "", target: "home" });
+  // Ne zaman: "now" hemen gönderir; diğerleri bildirimi planlar (saatler Türkiye saati)
+  const [when, setWhen] = useState("now");
+  const [customWhen, setCustomWhen] = useState("");
+  const now = useNow(30000);
+  // Seçili bölgedeki kitle büyüklükleri (bölge "Tümü" iken genel sayılar kullanılır)
+  const [zoneCounts, setZoneCounts] = useState({ zone: "", audiences: null, error: false });
+  const [countsVersion, setCountsVersion] = useState(0);
+  const submitting = useRef(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
   const [aiError, setAiError] = useState("");
@@ -108,7 +116,17 @@ export default function PushBroadcastTab() {
     try {
       setLoading(true);
       const { data } = await axios.get("/notifications/broadcasts");
-      setOverview({ configured: data.configured !== false, audiences: data.audiences || [], history: data.history || [] });
+      setOverview({
+        configured: data.configured !== false,
+        audiences: data.audiences || [],
+        history: data.history || [],
+        scheduled: data.scheduled || [],
+        zones: Array.isArray(data.zones) && data.zones.length ? data.zones : DEFAULT_ZONES,
+        limits: { ...DEFAULT_LIMITS, ...(data.limits || {}) },
+        hours: { orderHours: data.orderHours || null, sendWindow: data.sendWindow || null },
+      });
+      // Gönderimden sonra seçili bölgenin sayıları da yenilensin
+      setCountsVersion((version) => version + 1);
     } catch {
       toast.error("Bildirim bilgileri alınamadı");
     } finally {
@@ -116,17 +134,37 @@ export default function PushBroadcastTab() {
     }
   }, []);
   useEffect(() => { load(); }, [load]);
+  // Saati gelen plan sunucuda gönderilir; liste eskimesin diye zamanı bir dakikadan fazla geçmiş plan varken
+  // (en sık dakikada bir) sessizce yenilenir.
+  const lastAutoRefresh = useRef(0);
+  useEffect(() => {
+    if (tab !== "broadcast" || !overview.scheduled.some((item) => new Date(item.scheduledFor).getTime() < now - 60000)) return;
+    if (now - lastAutoRefresh.current < 60000) return;
+    lastAutoRefresh.current = now;
+    load();
+  }, [now, tab, overview.scheduled, load]);
 
-  const audience = useMemo(() => overview.audiences.find((item) => item.id === form.audience), [overview.audiences, form.audience]);
-  const audienceLabel = (item) => {
-    // "custom": Müşteriler ekranından seçili kişilere ya da bir süzgece uyanlara gönderilen bildirim
-    if (item.audience === "custom") return "Seçili müşteriler";
-    if (item.audience !== TEST_AUDIENCE) return overview.audiences.find((entry) => entry.id === item.audience)?.label || item.audience;
-    const to = item.testRecipient?.name || item.testRecipient?.email;
-    return to ? `Alıcı: ${to}` : "Alıcı: gönderen yönetici"; // "Deneme" rozeti ayrıca gösterilir
-  };
+  // Bölge seçilince sayılar sunucudan alınır (kısa gecikmeyle: art arda tıklamada tek istek)
+  const debouncedZone = useDebounced(form.zone, 250);
+  useEffect(() => {
+    if (!debouncedZone) return undefined;
+    let cancelled = false;
+    axios.get("/notifications/broadcasts/audience-count", { params: { zone: debouncedZone } })
+      .then(({ data }) => { if (!cancelled) setZoneCounts({ zone: debouncedZone, audiences: data.audiences || [], error: false }); })
+      .catch(() => { if (!cancelled) setZoneCounts((current) => ({ zone: debouncedZone, audiences: current.zone === debouncedZone ? current.audiences : null, error: true })); });
+    return () => { cancelled = true; };
+  }, [debouncedZone, countsVersion]);
+  const zoneMatches = Boolean(form.zone) && zoneCounts.zone === form.zone;
+  // Gösterilen sayılar: bölge yoksa genel; bölge varsa o bölgenin sayıları (gelene kadar null)
+  const counts = form.zone ? (zoneMatches ? zoneCounts.audiences : null) : overview.audiences;
+  const countError = zoneMatches && zoneCounts.error;
+  const counting = Boolean(form.zone) && !counts && !countError;
+  const audienceInfo = useMemo(() => overview.audiences.find((item) => item.id === form.audience), [overview.audiences, form.audience]);
+  const audience = useMemo(() => (counts || []).find((item) => item.id === form.audience), [counts, form.audience]);
+  const zoneLabel = form.zone ? overview.zones.find((zone) => zone.id === form.zone)?.label || form.zone : "";
   const everyone = overview.audiences.find((item) => item.id === "all");
   const lastSend = overview.history.find((item) => item.audience !== TEST_AUDIENCE);
+  const lastSendState = lastSend ? historyState(lastSend) : null;
   // Kütüphanede "gönderildi" sayılanlar: yalnızca müşterilere başarıyla giden gerçek gönderimler (denemeler ve başarısızlar değil)
   const sentTitles = useMemo(
     () => overview.history.filter((item) => item.audience !== TEST_AUDIENCE && item.sent).map((item) => item.title).filter(Boolean),
@@ -135,7 +173,16 @@ export default function PushBroadcastTab() {
   const title = form.title.trim();
   const body = form.body.trim();
   const busy = sending || testing;
-  const canSend = overview.configured && !busy && title && body && (audience?.reachable || 0) > 0;
+  const reachable = audience?.reachable || 0;
+  // Planlama: seçilen an (ms), geçerli mi ve saat uyarıları. "Şimdi"de whenMs null'dır.
+  const scheduling = when !== "now";
+  const whenMs = resolveWhen(when, customWhen, now);
+  const whenProblem = scheduling ? scheduleProblem(whenMs, now, overview.limits) : "";
+  const timeWarnings = scheduling && whenProblem ? [] : sendTimeWarnings(whenMs, overview.hours, now);
+  const scheduleFull = overview.scheduled.length >= overview.limits.maxScheduled;
+  const canSend = overview.configured && !busy && title && body && Boolean(audience)
+    && (scheduling ? !whenProblem && !scheduleFull : reachable > 0);
+  const recentSend = audience ? lastSendHint(audience.lastSentAt, now) : null;
   const canTest = overview.configured && !busy && !testRecipient.saving && title && body;
   const testTo = testRecipient.loaded ? testRecipientName(testRecipient) : "";
 
@@ -242,8 +289,7 @@ export default function PushBroadcastTab() {
       toast.success(data.message || "Test bildirimi gönderildi");
       await load();
     } catch (error) {
-      const message = error.response?.data?.message || "Test bildirimi gönderilemedi";
-      setFailure(message);
+      reportFailure(error.response?.data?.message || "Test bildirimi gönderilemedi", "Test bildirimi gönderilemedi");
       toast.error("Test bildirimi gönderilemedi");
       await load();
     } finally {
@@ -251,18 +297,75 @@ export default function PushBroadcastTab() {
     }
   };
 
-  const send = async (event) => {
-    event.preventDefault();
-    if (!canSend) return;
+  // "Tarih ve saat seç" ilk açıldığında alan boş kalmasın: bir sonraki tam saatin bir saat sonrası önerilir
+  const pickWhen = (next) => {
+    if (next === "custom" && !customWhen) setCustomWhen(toTrInput((Math.floor(Date.now() / 3600000) + 2) * 3600000));
+    setWhen(next);
+  };
+
+  const audienceText = `${audienceInfo?.label || ""}${zoneLabel ? ` · ${zoneLabel}` : ""}`;
+
+  // İleri bir zamana planlar; bildirim o an gelince sunucudaki dakikalık iş gönderir
+  const schedule = async () => {
+    const at = resolveWhen(when, customWhen, Date.now());
+    const problem = scheduleProblem(at, Date.now(), overview.limits);
+    if (problem) {
+      toast.error(problem);
+      return;
+    }
+    const warnings = sendTimeWarnings(at, overview.hours);
     const confirmed = await confirm({
-      title: "Bildirimi gönder",
-      message: `"${title}" bildirimi ${audience.reachable} müşterinin telefonuna gönderilecek. Gönderilen bildirim geri alınamaz.`,
-      confirmText: `${audience.reachable} kişiye gönder`,
+      title: "Bildirimi planla",
+      message: [
+        `"${title}" bildirimi ${formatWhen(at)} (Türkiye saati) gönderilmek üzere planlanacak: ${audienceText}.`,
+        reachable > 0 ? `Kitle gönderim anında yeniden hesaplanır (şu an ${reachable} kişi).` : "Şu an bu kitlede bildirim alabilecek müşteri yok; gönderim anında da yoksa bildirim gönderilmez.",
+        ...warnings.map((warning) => `Dikkat: ${warning}`),
+      ].join(" "),
+      confirmText: `${formatWhen(at)} için planla`,
       cancelText: "Vazgeç",
       type: "warning",
     });
-    if (!confirmed) return;
+    if (!confirmed || submitting.current) return;
     try {
+      submitting.current = true;
+      setSending(true);
+      setFailure("");
+      const { data } = await axios.post("/notifications/broadcasts/scheduled", { ...form, title, body, scheduledFor: new Date(at).toISOString() });
+      toast.success(data.message || "Bildirim planlandı");
+      setForm((current) => ({ ...current, title: "", body: "" }));
+      setWhen("now");
+      await load();
+    } catch (error) {
+      reportFailure(error.response?.data?.message || "Bildirim planlanamadı. Tekrar deneyin.", "Bildirim planlanamadı");
+      toast.error("Bildirim planlanamadı");
+      await load();
+    } finally {
+      submitting.current = false;
+      setSending(false);
+    }
+  };
+
+  const send = async (event) => {
+    event.preventDefault();
+    if (!canSend || submitting.current) return;
+    if (scheduling) {
+      await schedule();
+      return;
+    }
+    const confirmed = await confirm({
+      title: "Bildirimi gönder",
+      message: [
+        `"${title}" bildirimi ${reachable} müşterinin telefonuna gönderilecek (${audienceText}). Gönderilen bildirim geri alınamaz.`,
+        ...(recentSend?.recent ? [recentSend.text] : []),
+        ...timeWarnings.map((warning) => `Dikkat: ${warning}`),
+      ].join(" "),
+      confirmText: `${reachable} kişiye gönder`,
+      cancelText: "Vazgeç",
+      type: "warning",
+    });
+    if (!confirmed || submitting.current) return;
+    try {
+      submitting.current = true;
       setSending(true);
       setFailure("");
       const { data } = await axios.post("/notifications/broadcasts", { ...form, title, body });
@@ -270,13 +373,21 @@ export default function PushBroadcastTab() {
       setForm((current) => ({ ...current, title: "", body: "" }));
       await load();
     } catch (error) {
-      const message = error.response?.data?.message || "Bildirim gönderilemedi";
-      setFailure(message);
+      reportFailure(error.response?.data?.message || "Bildirim gönderilemedi");
       toast.error("Bildirim gönderilemedi");
       await load();
     } finally {
+      submitting.current = false;
       setSending(false);
     }
+  };
+
+  // Geçmişteki bir bildirimin metnini forma geri yükler (kitle ve zaman değişmez)
+  const reuse = (item) => {
+    setForm((current) => ({ ...current, title: item.title, body: item.body }));
+    setFailure("");
+    toast.success("Metin forma dolduruldu; göndermeden önce düzenleyebilirsiniz");
+    requestAnimationFrame(() => titleRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
   };
 
   const targetLabel = TARGETS.find((target) => target.id === form.target)?.label;
@@ -310,7 +421,7 @@ export default function PushBroadcastTab() {
         <div className="ui-banner ui-banner--danger push-failure" role="alert">
           <AlertTriangle />
           <div className="ui-grow">
-            <strong>Bildirim gönderilemedi</strong>
+            <strong>{failureTitle}</strong>
             <p>{failure}</p>
           </div>
           <button type="button" className="ui-btn ui-btn--sm" onClick={() => setFailure("")}>Kapat</button>
@@ -328,11 +439,11 @@ export default function PushBroadcastTab() {
         </div>
         <div className="ui-stat">
           <span className="ui-stat-label">Son gönderim</span>
-          <span className="ui-stat-value push-stat-text">{lastSend ? formatDate(lastSend.createdAt) : "Henüz yok"}</span>
+          <span className="ui-stat-value push-stat-text">{lastSend ? formatDate(lastSend.at || lastSend.createdAt) : "Henüz yok"}</span>
         </div>
         <div className="ui-stat">
           <span className="ui-stat-label">Son gönderimin durumu</span>
-          <span className="ui-stat-value push-stat-text">{lastSend ? (lastSend.sent ? `${lastSend.targetedCount || 0} kişiye gitti` : FAILURE_LABELS[lastSend.failureReason] || "Başarısız") : "–"}</span>
+          <span className="ui-stat-value push-stat-text">{lastSend ? (lastSendState.tone === "ok" ? `${lastSend.targetedCount || 0} kişiye gitti` : lastSendState.label) : "–"}</span>
         </div>
       </div>
 
@@ -451,17 +562,40 @@ export default function PushBroadcastTab() {
               <h2 id="push-audience-title">Kime gönderilsin?</h2>
             </div>
             <div className="ui-panel-body ui-stack">
-              <div className="push-audiences">
+              <div>
+                <span className="ui-label" id="push-zone-label">Bölge</span>
+                <div className="push-targets" role="group" aria-labelledby="push-zone-label">
+                  {overview.zones.map((zone) => (
+                    <button type="button" key={zone.id || "all"} className="push-target" aria-pressed={form.zone === zone.id}
+                      onClick={() => setForm((current) => ({ ...current, zone: zone.id }))}>
+                      <MapPin />{zone.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="ui-hint">
+                  Bölge, müşterinin iptal edilmemiş son siparişine göre belirlenir (adrese teslim siparişler Devrek sayılır). Hiç sipariş vermemiş müşteriler hiçbir bölgede sayılmaz; bölge seçiliyken onlara gönderilmez.
+                </p>
+              </div>
+              {countError && (
+                <div className="ui-banner ui-banner--warn" role="alert">
+                  <span className="ui-grow">{zoneLabel} için kişi sayıları alınamadı.</span>
+                  <button type="button" className="ui-btn ui-btn--sm" onClick={() => setCountsVersion((version) => version + 1)}>Tekrar dene</button>
+                </div>
+              )}
+              <div className="push-audiences" aria-busy={counting}>
                 {overview.audiences.map((item) => {
                   const Icon = AUDIENCE_ICONS[item.id] || Users;
-                  const share = item.total ? Math.round((item.reachable / item.total) * 100) : 0;
+                  const count = (counts || []).find((entry) => entry.id === item.id);
+                  const share = count?.total ? Math.round((count.reachable / count.total) * 100) : 0;
                   return (
                     <button type="button" key={item.id} className="push-audience" aria-pressed={form.audience === item.id}
                       onClick={() => setForm((current) => ({ ...current, audience: item.id }))}>
                       <span className="push-audience-icon"><Icon /></span>
                       <span className="push-audience-text">
                         <span className="push-audience-label">{item.label}</span>
-                        <span className="push-audience-meta"><strong className="ui-num">{item.reachable}</strong> kişiye ulaşır · {item.total} müşteri</span>
+                        {count
+                          ? <span className="push-audience-meta"><strong className="ui-num">{count.reachable}</strong> kişiye ulaşır · {count.total} müşteri</span>
+                          : <span className="push-audience-meta">{countError ? "Sayı alınamadı" : "Hesaplanıyor…"}</span>}
                         <span className="push-audience-bar" aria-hidden="true"><span style={{ width: `${share}%` }} /></span>
                       </span>
                     </button>
@@ -471,8 +605,13 @@ export default function PushBroadcastTab() {
               </div>
               {audience && (
                 <p className="ui-hint" style={{ marginTop: 0 }}>
-                  Bu gruptaki {audience.total} müşteriden {audience.reachable} tanesi kampanya bildirimlerine izin veriyor.
+                  {zoneLabel ? `${zoneLabel} bölgesinde bu gruptaki` : "Bu gruptaki"} {audience.total} müşteriden {audience.reachable} tanesi kampanya bildirimlerine izin veriyor.
                   Uygulamayı yüklememiş veya bildirim izni vermemiş müşterilere ulaşmaz.
+                </p>
+              )}
+              {recentSend && (
+                <p className="pbx-lastsend" data-recent={recentSend.recent ? "true" : undefined} role="status">
+                  <Clock aria-hidden="true" /><span>{recentSend.text}</span>
                 </p>
               )}
             </div>
@@ -493,6 +632,17 @@ export default function PushBroadcastTab() {
                 })}
               </div>
             </div>
+            <div className="ui-panel-head push-step-head push-step-head--inner">
+              <span className="push-step">4</span>
+              <h2>Ne zaman gönderilsin?</h2>
+            </div>
+            <div className="ui-panel-body">
+              <ScheduleField when={when} onWhen={pickWhen} custom={customWhen} onCustom={setCustomWhen} now={now} limits={overview.limits}
+                problem={whenProblem} warnings={timeWarnings} />
+              {scheduling && scheduleFull && (
+                <p className="pbx-problem" role="alert">En fazla {overview.limits.maxScheduled} planlı bildirim bekleyebilir. Yenisini planlamak için Planlı listesinden birini iptal edin ya da gönderilmesini bekleyin.</p>
+              )}
+            </div>
           </section>
         </form>
 
@@ -509,7 +659,7 @@ export default function PushBroadcastTab() {
                 <div className="ui-grow">
                   <div className="ui-between">
                     <span className="push-preview-app">Benim Marketim</span>
-                    <span className="push-preview-time">şimdi</span>
+                    <span className="push-preview-time">{scheduling && !whenProblem ? formatWhen(whenMs, now) : "şimdi"}</span>
                   </div>
                   <strong className="ui-wrap-anywhere">{title || "Bildirim başlığı"}</strong>
                   <p className="ui-wrap-anywhere">{body || "Mesajınız burada görünecek."}</p>
@@ -517,14 +667,18 @@ export default function PushBroadcastTab() {
               </div>
             </div>
             <dl className="push-summary">
-              <div><dt>Kime</dt><dd>{audience ? audience.label : "–"}</dd></div>
-              <div><dt>Ulaşacak</dt><dd className="ui-num">{audience ? `${audience.reachable} kişi` : "–"}</dd></div>
+              <div><dt>Kime</dt><dd>{audienceInfo ? audienceInfo.label : "–"}</dd></div>
+              <div><dt>Bölge</dt><dd>{zoneLabel || "Tümü"}</dd></div>
+              <div><dt>{scheduling ? "Ulaşacak (şu an)" : "Ulaşacak"}</dt><dd className="ui-num">{audience ? `${reachable} kişi` : counting ? "Hesaplanıyor…" : "–"}</dd></div>
               <div><dt>Açılacak ekran</dt><dd>{targetLabel}</dd></div>
+              <div><dt>Ne zaman</dt><dd>{scheduling ? (whenProblem ? "Saat seçin" : formatWhen(whenMs, now)) : "Şimdi"}</dd></div>
             </dl>
             <div className="push-send-actions">
               <button type="submit" form="push-form" className="ui-btn ui-btn--primary push-send" disabled={!canSend}>
-                <Send />
-                {sending ? "Gönderiliyor…" : audience?.reachable ? `${audience.reachable} kişiye gönder` : "Gönder"}
+                {scheduling ? <CalendarClock /> : <Send />}
+                {scheduling
+                  ? (sending ? "Planlanıyor…" : whenProblem ? "Planla" : `${formatWhen(whenMs, now)} için planla`)
+                  : (sending ? "Gönderiliyor…" : reachable ? `${reachable} kişiye gönder` : "Gönder")}
               </button>
               <TestRecipientPicker state={testRecipient} compact />
               <button type="button" className="ui-btn push-test" disabled={!canTest} onClick={sendTest}
@@ -532,39 +686,16 @@ export default function PushBroadcastTab() {
                 <FlaskConical />
                 {testing ? "Gönderiliyor…" : <>Önce test gönder<RecipientTag name={testTo} /></>}
               </button>
-              <p className="push-send-note">Aynı bildirim 10 dakika içinde ikinci kez gönderilemez.</p>
+              <p className="push-send-note">
+                {scheduling ? "Planlanan bildirim, saati gelince kendiliğinden gönderilir; o ana kadar Planlı listesinden düzenlenebilir ya da iptal edilebilir." : "Aynı bildirim 10 dakika içinde ikinci kez gönderilemez."}
+              </p>
             </div>
           </section>
 
-          <section className="ui-panel" aria-label="Gönderim geçmişi">
-            <div className="ui-panel-head">
-              <h2>Son gönderimler</h2>
-            </div>
-            {overview.history.length ? (
-              <ol className="push-history">
-                {overview.history.map((item) => (
-                  <li key={item._id} className="push-history-item" data-state={item.sent ? "ok" : "bad"}>
-                    <div className="ui-grow">
-                      <div className="push-history-top">
-                        <h3 className="ui-wrap-anywhere">{item.title}</h3>
-                        <button type="button" className="ui-btn ui-btn--sm ui-btn--ghost push-reuse" title="Bu metni forma geri yükle" aria-label={`“${item.title}” metnini tekrar kullan`}
-                          onClick={() => { setForm((current) => ({ ...current, title: item.title, body: item.body })); setFailure(""); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
-                          <RotateCcw />
-                        </button>
-                      </div>
-                      <p className="ui-wrap-anywhere">{item.body}</p>
-                      <div className="push-history-meta">
-                        <span className={`ui-badge ${item.sent ? "ui-badge--ok" : "ui-badge--danger"}`}>{item.sent ? "Gönderildi" : FAILURE_LABELS[item.failureReason] || "Başarısız"}</span>
-                        {item.audience === TEST_AUDIENCE && <span className="ui-badge ui-badge--info">Deneme</span>}
-                        <span>{audienceLabel(item)} · {item.targetedCount || 0} kişi{item.unreachableCount ? ` (${item.unreachableCount} kişinin kayıtlı cihazı yok)` : ""}</span>
-                        <span>{formatDate(item.createdAt)}{item.sentBy?.name ? ` · ${item.sentBy.name}` : ""}</span>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            ) : <div className="ui-empty">{loading ? "Yükleniyor…" : "Henüz toplu bildirim gönderilmedi."}</div>}
-          </section>
+          <ScheduledList items={overview.scheduled} audiences={overview.audiences} zones={overview.zones} targets={TARGETS} hours={overview.hours}
+            limits={overview.limits} now={now} configured={overview.configured} onChanged={load} onFailure={reportFailure} />
+
+          <BroadcastHistory items={overview.history} loading={loading} audiences={overview.audiences} zones={overview.zones} onReuse={reuse} />
 
           <details className="ui-panel push-check-panel">
             <summary className="ui-panel-head">
