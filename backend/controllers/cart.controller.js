@@ -568,11 +568,17 @@ export const placeOrder = (req, res) => {
   });
 };
 
+export const STORE_CLOSED_MESSAGE = "Mağazamız şu an sipariş almıyor. Lütfen daha sonra tekrar deneyin.";
+
 const placeOrderUnguarded = async (req, res) => {
   try {
     // Sipariş saati kontrolü (sadece sipariş verirken)
     if (!(await isWithinOrderHours())) {
       return fail(res, 400, await getOrderHoursMessage());
+    }
+    // Mağaza kapalı: yurt ve adres (Devrek) siparişlerinin ikisi de durur
+    if ((await Settings.getSettings())?.storeClosed === true) {
+      return fail(res, 400, STORE_CLOSED_MESSAGE, { code: "STORE_CLOSED" });
     }
 
     const body = req.body || {};

@@ -564,6 +564,7 @@ test("GET /api/delivery/zones: yalnızca açık sabit bölgeler, sıralı; yurt 
       { id: "girlsDorm", name: "Kız KYK Yurdu", type: "yurt", deliveryFee: 0, isFree: true, freeDeliveryThreshold: null, minimumOrderAmount: 150, etaText: "", requiresFirstOrderCallback: false, requiresLocation: false, hasArea: false },
       { id: "devrek", name: "Devrek", type: "ilce", deliveryFee: 40, isFree: false, freeDeliveryThreshold: 500, minimumOrderAmount: 150, etaText: "30-60 dk", requiresFirstOrderCallback: false, requiresLocation: true, hasArea: false },
     ],
+    storeClosed: false,
     freeDeliveryEverywhere: false,
   });
   // Tohumlama: iki yurt + devrek, $setOnInsert + upsert; ikinci çağrı tekrar yazmaz
@@ -988,4 +989,66 @@ test("mükerrer sipariş: başarısız deneme sonraki denemeyi engellemez; imza 
     orderSignature({ products: [{ product: "a", quantity: 1 }], deliveryPoint: "girlsDorm", phone: "05551112234" }),
     "telefonu düzeltilmiş sipariş mükerrer sayılmaz",
   );
+});
+
+// ── Mağaza kapalı ────────────────────────────────────────────────────────────
+
+test("mağaza kapalı: yurt ve adres siparişi 400 STORE_CLOSED; bölge listesi boş; müşteri ayarlarında yurtlar kapalı görünür", async (t) => {
+  const store = mockSettings(t, { storeClosed: true, delivery: { addressOrdering: "public" } });
+  mockCatalog(t);
+  mockZones(t);
+  const created = mockOrderCreate(t);
+
+  const dorm = response();
+  await placeOrder(orderRequest(legacyBody()), dorm);
+  assert.equal(dorm.statusCode, 400);
+  assert.equal(dorm.body.code, "STORE_CLOSED");
+
+  const address = response();
+  await placeOrder(orderRequest(addressBody(), customer(2)), address);
+  assert.equal(address.statusCode, 400, JSON.stringify(address.body));
+  assert.equal(address.body.code, "STORE_CLOSED");
+  assert.equal(created.length, 0, "hiç sipariş oluşmaz");
+
+  const zones = response();
+  await getPublicZones({}, zones);
+  assert.deepEqual(zones.body.zones, []);
+  assert.equal(zones.body.storeClosed, true);
+
+  // Müşteriye dönen ayarlar: yurt noktaları kapalı görünür; panel (?raw=1) kayıtlı değerleri okur
+  invalidateSettingsCache();
+  const pub = response();
+  await getSettings({ query: {} }, pub);
+  assert.equal(pub.body.storeClosed, true);
+  assert.equal(pub.body.deliveryPoints.girlsDorm.enabled, false);
+  assert.equal(pub.body.deliveryPoints.boysDorm.enabled, false);
+  const raw = response();
+  await getSettings({ query: { raw: "1" } }, raw);
+  assert.equal(raw.body.deliveryPoints.girlsDorm.enabled, true, "kayıtlı değer değişmez");
+  assert.equal(store.doc.deliveryPoints.girlsDorm.enabled, true);
+  invalidateSettingsCache();
+
+  // Mağaza açılınca sipariş yine alınır
+  store.doc.storeClosed = false;
+  resetDuplicateOrderGuard();
+  const open = response();
+  await placeOrder(orderRequest(legacyBody()), open);
+  assert.equal(open.statusCode, 201, JSON.stringify(open.body));
+});
+
+test("mağaza durumu: PUT /settings storeClosed kaydeder, işlem kaydına yazar; geçersiz değer 400", async (t) => {
+  const store = mockSettings(t);
+  const audits = [];
+  t.mock.method(AdminAudit, "create", async (entry) => { audits.push(entry); return entry; });
+  const bad = response();
+  await updateSettings({ body: { storeClosed: "evet" }, user: { _id: USER(9) } }, bad);
+  assert.equal(bad.statusCode, 400);
+  const res = response();
+  await updateSettings({ body: { storeClosed: true }, user: { _id: USER(9) }, method: "PUT", originalUrl: "/api/settings" }, res);
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  assert.equal(store.doc.storeClosed, true);
+  await new Promise((resolve) => setImmediate(resolve));
+  const change = audits.flatMap((entry) => entry.changes || []).find((item) => item.label === "Mağaza (sipariş alımı)");
+  assert.ok(change, "işlem kaydında mağaza durumu");
+  invalidateSettingsCache();
 });

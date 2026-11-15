@@ -36,10 +36,26 @@ const saveProduct = (product) => product.save({ validateModifiedOnly: true });
 
 const sameSale = (info, sale) => Boolean(info?.sale) && String(info.sale) === String(sale._id);
 
+/**
+ * Ürünün kendi (flaş olmayan) indirimi, bu oranla hesaplanan flaş fiyatından düşük ya da ona eşitse o indirimli
+ * fiyatı döndürür; değilse null. Böyle bir üründe flaş indirim uygulanmaz: uygulanırsa indirimli fiyatın
+ * yerine geçer ve müşterinin ödediği fiyat yükselir.
+ */
+export const deeperOwnDiscount = (product, discountPercentage) => {
+  if (!product?.isDiscounted || product?.flashSale?.sale) return null;
+  const own = Number(product.discountedPrice);
+  const list = Number(product.price);
+  if (!Number.isFinite(own) || own < 0 || !(list > 0) || own >= list) return null;
+  return own <= flashPrice(list, discountPercentage) + 0.004 ? own : null;
+};
+
 /** Kampanyayı ürüne uygular; ürünün önceki indirim durumunu kampanyada saklar. */
 export const applySale = async (sale) => {
   const product = await Product.findById(sale.product?._id || sale.product);
   if (!product) return false;
+  // Üründe daha derin bir indirim varsa kampanya uygulanmaz (fiyat yükselmesin); indirim kalkarsa
+  // zamanlayıcı bir sonraki dakikada uygular
+  if (deeperOwnDiscount(product, sale.discountPercentage) !== null) return false;
   const price = flashPrice(product.price, sale.discountPercentage);
   // Eski kayıtlar oluşturulurken indirim doğrudan uygulanıyordu; ürün zaten kampanya
   // fiyatındaysa bunu "önceki indirim" sanmayalım.

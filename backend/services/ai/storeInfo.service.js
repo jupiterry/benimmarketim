@@ -63,7 +63,9 @@ export const getStoreInfo = async () => {
   const configuredPoints = settings.deliveryPoints?.toObject?.() || settings.deliveryPoints || {};
   const minimumOrderAmount = Number(settings.minimumOrderAmount ?? 250);
   return {
-    orderingOpen: isWithinOrderSchedule(hours),
+    // Mağaza kapalıysa (Ayarlar › Sipariş) saat içinde olsa da sipariş alınmaz
+    orderingOpen: settings.storeClosed !== true && isWithinOrderSchedule(hours),
+    storeClosed: settings.storeClosed === true,
     timezone: "Europe/Istanbul",
     orderStartTime: formatTime(hours.startHour, hours.startMinute),
     orderEndTime: formatTime(hours.endHour, hours.endMinute),

@@ -14,7 +14,7 @@ export const AI_PROVIDERS = [
 ];
 
 export const SECTIONS = [
-  { id: "orders", label: "Sipariş", short: "Saatler, minimum tutar", prefixes: ["orderStartHour", "orderStartMinute", "orderEndHour", "orderEndMinute", "minimumOrderAmount"] },
+  { id: "orders", label: "Sipariş", short: "Saatler, minimum tutar", prefixes: ["storeClosed", "orderStartHour", "orderStartMinute", "orderEndHour", "orderEndMinute", "minimumOrderAmount"] },
   { id: "delivery", label: "Teslimat", short: "Yurtlar ve noktalar", prefixes: ["deliveryPoints"] },
   { id: "payment", label: "Ödeme", short: "Havale/EFT hesap bilgisi", prefixes: ["bankTransfer"] },
   { id: "ai", label: "Yapay zekâ", short: "Sağlayıcı ve model", prefixes: ["ai"] },
@@ -37,6 +37,7 @@ export const DEFAULT_SETTINGS = {
   orderEndHour: 1,
   orderEndMinute: 0,
   minimumOrderAmount: 250,
+  storeClosed: false,
   deliveryPoints: { girlsDorm: pointDefaults("girlsDorm"), boysDorm: pointDefaults("boysDorm") },
   appVersion: {
     latestVersion: "4.0.3",
@@ -81,6 +82,7 @@ export const normalizeSettings = (raw = {}) => {
     orderEndHour: num(raw.orderEndHour, d.orderEndHour),
     orderEndMinute: num(raw.orderEndMinute, d.orderEndMinute),
     minimumOrderAmount: num(raw.minimumOrderAmount, d.minimumOrderAmount),
+    storeClosed: raw.storeClosed === true,
     deliveryPoints: points,
     appVersion: {
       latestVersion: v.latestVersion ?? d.appVersion.latestVersion,

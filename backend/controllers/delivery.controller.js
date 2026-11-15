@@ -133,8 +133,11 @@ export const getPublicZones = async (req, res) => {
   try {
     const settings = await Settings.getSettings();
     const zones = await listZones({ settings });
+    // Mağaza kapalıyken hiçbir bölge sipariş almaz (bölgelerin kendi durumu değişmez)
+    const storeClosed = settings?.storeClosed === true;
     res.json({
-      zones: zones.filter((zone) => zone.enabled).map((zone) => serializePublicZone(zone, settings)),
+      zones: storeClosed ? [] : zones.filter((zone) => zone.enabled).map((zone) => serializePublicZone(zone, settings)),
+      storeClosed,
       freeDeliveryEverywhere: settings?.delivery?.freeDeliveryEverywhere === true,
     });
   } catch (error) {

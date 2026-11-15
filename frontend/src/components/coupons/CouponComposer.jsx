@@ -39,7 +39,10 @@ const EMPTY_FORM = {
   channels: []
 };
 
-const dateIn = (days) => new Date(Date.now() + days * DAY_MS).toISOString().split("T")[0];
+// Tarihler İstanbul takvim gününe göre (UTC+3): kupon seçilen günün sonuna (23:59) kadar geçerlidir
+const ISTANBUL_OFFSET_MS = 3 * 60 * 60 * 1000;
+const istanbulDay = (value) => new Date(new Date(value).getTime() + ISTANBUL_OFFSET_MS).toISOString().split("T")[0];
+const dateIn = (days) => istanbulDay(Date.now() + days * DAY_MS);
 
 const randomSuffix = (length = 3) => {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -144,7 +147,7 @@ const fromCoupon = (coupon) => ({
   maximumDiscount: coupon.maximumDiscount || null,
   usageLimit: coupon.usageLimit || null,
   userUsageLimit: coupon.userUsageLimit || 1,
-  expirationDate: coupon.expirationDate ? new Date(coupon.expirationDate).toISOString().split("T")[0] : "",
+  expirationDate: coupon.expirationDate ? istanbulDay(coupon.expirationDate) : "",
   newUsersOnly: coupon.newUsersOnly || false,
   firstOrderOnly: coupon.firstOrderOnly || false,
   newUserDays: coupon.newUserDays || 30,
@@ -273,7 +276,7 @@ const CouponComposer = ({ mode, coupon, existingCodes, onClose, onSaved }) => {
   if (isPercent && Number(formData.discountPercentage) > 100) errors.value = "Yüzde 100'den büyük olamaz.";
   if (Number.isNaN(isPercent ? formData.discountPercentage : formData.discountAmount)) errors.value = "Bir değer girin.";
   const warnings = [];
-  if (formData.expirationDate && new Date(`${formData.expirationDate}T23:59:59`).getTime() < Date.now()) {
+  if (formData.expirationDate && new Date(`${formData.expirationDate}T23:59:59+03:00`).getTime() < Date.now()) {
     warnings.push("Son kullanma tarihi geçmiş; kupon kaydedilse de kullanılamaz.");
   }
   if (Boolean(formData.startTime) !== Boolean(formData.endTime)) {
@@ -478,6 +481,7 @@ const CouponComposer = ({ mode, coupon, existingCodes, onClose, onSaved }) => {
                           aria-pressed={formData.expirationDate === dateIn(d)}>{d} gün</button>
                       ))}
                     </div>
+                    <p className="ui-hint">Kupon, seçtiğiniz günün sonuna (23:59) kadar geçerlidir.</p>
                   </div>
                   <div>
                     <label className="ui-label" htmlFor="cpn-limit">Toplam kullanım limiti</label>

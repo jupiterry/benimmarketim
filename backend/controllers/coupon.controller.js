@@ -7,6 +7,8 @@ import {
   couponPublicData,
   evaluateCoupon,
   isAddressOnlyCoupon,
+  istanbulDay,
+  parseCouponExpiry,
   splitZoneTargets,
 } from "../services/coupon.service.js";
 
@@ -342,7 +344,12 @@ export const createCoupon = async (req, res) => {
         message: "Kupon kodu ve son kullanma tarihi gerekli" 
       });
     }
-    if (new Date(expirationDate) <= new Date()) {
+    // Yalnızca gün seçildiyse kupon o günün sonuna kadar (İstanbul 23:59) geçerlidir
+    const expiresAt = parseCouponExpiry(expirationDate);
+    if (!expiresAt) {
+      return res.status(400).json({ success: false, message: "Son kullanma tarihi geçersiz" });
+    }
+    if (expiresAt <= new Date()) {
       return res.status(400).json({ success: false, message: "Son kullanma tarihi gelecekte olmalı" });
     }
     if (
@@ -374,7 +381,7 @@ export const createCoupon = async (req, res) => {
       maximumDiscount: maximumDiscount || null,
       usageLimit: usageLimit || null,
       userUsageLimit: firstOrderOnly ? 1 : userUsageLimit || 1,
-      expirationDate: new Date(expirationDate),
+      expirationDate: expiresAt,
       applicableCategories: applicableCategories || [],
       newUsersOnly: newUsersOnly || false,
       firstOrderOnly: firstOrderOnly || false,
@@ -426,11 +433,32 @@ export const updateCoupon = async (req, res) => {
       'newUsersOnly', 'newUserDays', 'firstOrderOnly'
     ];
     
+    // Son kullanma tarihi: yalnızca gün gelirse o günün sonu (İstanbul 23:59). Gün değişmediyse kayıtlı an korunur;
+    // gün değiştiyse yeni tarih geçmişte olamaz.
+    let nextExpiry;
+    if (updateData.expirationDate !== undefined) {
+      nextExpiry = parseCouponExpiry(updateData.expirationDate);
+      if (!nextExpiry) return res.status(400).json({ success: false, message: "Son kullanma tarihi geçersiz" });
+      const dayChanged = !coupon.expirationDate || istanbulDay(nextExpiry) !== istanbulDay(coupon.expirationDate);
+      if (dayChanged && nextExpiry <= new Date()) {
+        return res.status(400).json({ success: false, message: "Son kullanma tarihi gelecekte olmalı" });
+      }
+    }
+
     allowedFields.forEach(field => {
+      if (field === "expirationDate") return;
       if (updateData[field] !== undefined) {
         coupon[field] = updateData[field];
       }
     });
+    if (nextExpiry) {
+      const stored = coupon.expirationDate ? new Date(coupon.expirationDate) : null;
+      const sameDay = stored && istanbulDay(nextExpiry) === istanbulDay(stored);
+      // Eski kayıtlar gece yarısı UTC'de (İstanbul 03:00) bitiyordu: onlar da günün sonuna çekilir
+      const storedAtMidnightUtc = stored && !(stored.getUTCHours() || stored.getUTCMinutes() || stored.getUTCSeconds() || stored.getUTCMilliseconds());
+      const dateOnly = typeof updateData.expirationDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(updateData.expirationDate.trim());
+      if (!(dateOnly && sameDay && !storedAtMidnightUtc)) coupon.expirationDate = nextExpiry;
+    }
     // Bölge hedeflemesi: deliveryZones gelirse yurtlar deliveryPoints'e, diğerleri deliveryZones'a yazılır.
     if (Array.isArray(updateData.deliveryZones)) {
       const targets = splitZoneTargets(updateData.deliveryZones);

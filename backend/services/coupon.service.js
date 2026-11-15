@@ -53,6 +53,44 @@ const scopedSubtotal = (coupon, orderProducts, totalAmount) => {
 // ── Teslimat bölgesi hedeflemesi ──
 // Eski kuponlar deliveryPoints ile yurt hedefler (girlsDorm/boysDorm); bu kimlikler yurt
 // teslimat bölgelerinin _id'leriyle aynıdır, bu yüzden ikisi tek bir hedef listesinde birleşir.
+// ── Son kullanma tarihi ──────────────────────────────────────────
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+const ISTANBUL_OFFSET_MS = 3 * 60 * 60 * 1000;
+const END_OF_DAY_MS = 24 * 60 * 60 * 1000 - 1;
+/** İstanbul takvim günü: "2026-11-05" */
+export const istanbulDay = (date) => new Date(new Date(date).getTime() + ISTANBUL_OFFSET_MS).toISOString().slice(0, 10);
+/**
+ * Panelden gelen son kullanma tarihi. Yalnızca gün ("2026-11-05") gelirse kupon o günün SONUNA kadar geçerlidir
+ * (İstanbul 23:59:59.999). new Date("2026-11-05") gece yarısı UTC, yani İstanbul 03:00 olurdu: kupon son gününün
+ * sabahında biterdi. Saatli değerler olduğu gibi alınır. Geçersizse null.
+ */
+export const parseCouponExpiry = (value) => {
+  if (value === null || value === undefined || value === "") return null;
+  const date = typeof value === "string" && DATE_ONLY.test(value.trim())
+    ? new Date(`${value.trim()}T23:59:59.999+03:00`)
+    : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+/**
+ * Tek seferlik düzeltme: panelden gün olarak girilmiş (tam gece yarısı UTC'ye kaydedilmiş), kişiye özel olmayan
+ * ve henüz bitmemiş ya da bugün bitmiş kuponların bitişini o günün sonuna (İstanbul 23:59:59.999) çeker.
+ * Düzeltilen kayıt artık gece yarısında olmadığı için yeniden çalışınca hiçbir şey değişmez.
+ */
+export const fixMidnightCouponExpiries = async (now = new Date()) => {
+  const since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const candidates = await Coupon.find({ userId: null, expirationDate: { $gte: since } }).select("_id expirationDate").lean();
+  let fixed = 0;
+  for (const coupon of candidates || []) {
+    const at = new Date(coupon.expirationDate);
+    if (at.getUTCHours() || at.getUTCMinutes() || at.getUTCSeconds() || at.getUTCMilliseconds()) continue;
+    // Gece yarısı UTC = İstanbul 03:00: aynı İstanbul gününün sonu
+    const end = new Date(at.getTime() - ISTANBUL_OFFSET_MS + END_OF_DAY_MS);
+    const result = await Coupon.updateOne({ _id: coupon._id, expirationDate: at }, { $set: { expirationDate: end } });
+    fixed += Number(result?.modifiedCount ?? 0);
+  }
+  return fixed;
+};
+
 export const LEGACY_DELIVERY_POINTS = ["girlsDorm", "boysDorm"];
 const LEGACY_POINT_SET = new Set(LEGACY_DELIVERY_POINTS);
 
