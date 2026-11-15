@@ -22,6 +22,7 @@ import {
   USER_APP_FILTERS, USER_LIST_SEGMENTS, buildSearchClause, buildUserListFilter, duplicatePhoneGroups, orderStatsByUser, parseUserListQuery,
 } from "../controllers/userController.js";
 import { isPushConfigured, sendPushToUsers } from "./push.service.js";
+import { sendOutcomeFields } from "./pushBroadcast.service.js";
 import {
   getAutomationSettings, isReachableUser, isWithinSendWindow, istanbulParts, istanbulTime, normalizeAutomationSettings,
 } from "./notificationAutomation.service.js";
@@ -338,16 +339,18 @@ const acquire = (key) => {
 export const findDuplicatePush = async ({ title, body, recipientIds, now = Date.now() }) => {
   pruneRecent(now);
   const records = await PushBroadcast.find({
-    title, body, sent: true, audience: { $ne: TEST_AUDIENCE }, createdAt: { $gte: new Date(now - DUPLICATE_WINDOW_MS) },
-  }).sort({ createdAt: -1 }).limit(20).select("_id createdAt").lean();
+    title, body, sent: true, audience: { $ne: TEST_AUDIENCE },
+    // Planlı gönderim daha önce oluşturulup az önce gitmiş olabilir: gönderim anı (sentAt) da sayılır
+    $or: [{ createdAt: { $gte: new Date(now - DUPLICATE_WINDOW_MS) } }, { sentAt: { $gte: new Date(now - DUPLICATE_WINDOW_MS) } }],
+  }).sort({ createdAt: -1 }).limit(20).select("_id createdAt sentAt").lean();
   if (!records?.length) return null;
   const wanted = new Set(recipientIds.map((id) => idOf(id).toLowerCase()));
   for (const record of records) {
     const known = recentRecipients.get(idOf(record));
-    if (!known) return { overlap: null, sentAt: record.createdAt };
+    if (!known) return { overlap: null, sentAt: record.sentAt || record.createdAt };
     let overlap = 0;
     for (const id of known.recipients) if (wanted.has(id)) overlap += 1;
-    if (overlap > 0) return { overlap, sentAt: record.createdAt };
+    if (overlap > 0) return { overlap, sentAt: record.sentAt || record.createdAt };
   }
   return null;
 };
@@ -377,12 +380,12 @@ const deliverPush = async ({ recipients, message, total, actorId, now }) => {
   const record = await PushBroadcast.create({
     title: message.title, body: message.body, audience: CUSTOM_AUDIENCE, route: message.route, audienceSize: total, sentBy: actorId,
   });
+  const sentAt = new Date(now);
   const result = await sendPushToUsers(ids, { title: message.title, body: message.body },
     { type: "broadcast", broadcastId: idOf(record), route: message.route }, { category: "campaigns" });
   try {
-    await PushBroadcast.updateOne({ _id: record._id }, { $set: {
-      targetedCount: result.targeted, sent: result.sent, failureReason: result.sent ? null : result.reason || "unknown", unreachableCount: result.unreachable || 0,
-    } });
+    // Alıcılar da kayda yazılır: Bildirimler ekranı "bildirimden sonra sipariş verenler"i bunlardan ölçer
+    await PushBroadcast.updateOne({ _id: record._id }, { $set: sendOutcomeFields(result, ids, sentAt) });
   } catch (error) {
     // Bildirim gitti ya da gitmedi; kayıt güncellenemese de sonuç yöneticiye doğru bildirilir
     console.error("Müşteri bildirimi kaydı güncellenemedi:", error.message);

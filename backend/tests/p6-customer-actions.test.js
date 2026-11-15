@@ -375,7 +375,11 @@ test("push goes only to reachable customers, is recorded as a custom broadcast a
   assert.equal(record.route, "/cart");
   assert.equal(String(record.sentBy), ADMIN);
   assert.equal(fx.oneSignal[0].data.broadcastId, String(record._id));
-  assert.deepEqual(fx.broadcastUpdates[0][1].$set, { targetedCount: 2, sent: true, failureReason: null, unreachableCount: 0 });
+  // Alıcılar ve gönderim anı da kayda yazılır (Bildirimler ekranındaki "bildirimden sonra sipariş verenler" ölçümü)
+  const { sentAt: recordedAt, recipients: recorded, ...outcomeFields } = fx.broadcastUpdates[0][1].$set;
+  assert.deepEqual(outcomeFields, { targetedCount: 2, sent: true, failureReason: null, unreachableCount: 0, status: "sent", resultsAvailable: true });
+  assert.ok(recordedAt instanceof Date);
+  assert.equal(recorded.length, 2);
 
   assert.equal(fx.audits.length, 1);
   const [audit] = fx.audits;
@@ -404,7 +408,9 @@ test("the same push to the same people within 10 minutes needs explicit confirma
   const query = fx.broadcastQueries[0];
   assert.equal(query.sent, true, "yalnızca başarılı gönderimler sayılır");
   assert.deepEqual(query.audience, { $ne: "self" }, "Bildirimler ekranındaki denemeler sayılmaz");
-  assert.equal(query.createdAt.$gte.getTime(), EVENING - 10 * MIN);
+  // Oluşturulma ya da gönderim anı son 10 dakikadaysa mükerrer sayılır (planlı gönderim daha önce oluşturulmuş olabilir)
+  assert.equal(query.$or[0].createdAt.$gte.getTime(), EVENING - 10 * MIN);
+  assert.equal(query.$or[1].sentAt.$gte.getTime(), EVENING - 10 * MIN);
 
   recent = [{ _id: fx.broadcasts[0]._id, createdAt: new Date(EVENING) }];
   const later = EVENING + 4 * MIN;

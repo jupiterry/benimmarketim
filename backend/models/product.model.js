@@ -38,6 +38,12 @@ const productSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Ürünün tükendi olarak işaretlendiği an; stoka alınınca null. Bu alan eklenmeden önce
+    // tükenmiş ürünlerde yoktur (panel yalnızca "Tükendi" gösterir).
+    outOfStockSince: {
+      type: Date,
+      default: null,
+    },
     isFeatured: {
       type: Boolean,
       default: false,

@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import FlashSale from "../models/flashSale.model.js";
 import Product from "../models/product.model.js";
-import { ensureFlashSalesSynced, rangesOverlap, releaseSale, saleStatus, syncFlashSales, syncSale } from "../services/flashSale.service.js";
+import { deeperOwnDiscount, ensureFlashSalesSynced, flashPrice, rangesOverlap, releaseSale, saleStatus, syncFlashSales, syncSale } from "../services/flashSale.service.js";
 import { money, recordAdminAction } from "../services/adminAudit.service.js";
 import { applyWeeklyPricesToProducts } from "../services/weeklyPrice.service.js";
 import { resolveUnitPrice } from "../services/productPricing.js";
@@ -139,6 +139,11 @@ export const createFlashSale = async (req, res) => {
       return res.status(404).json({ message: "Ürün bulunamadı" });
     }
 
+    const deeper = deeperOwnDiscount(product, data.discountPercentage);
+    if (deeper !== null) {
+      return res.status(400).json({ code: "DEEPER_DISCOUNT", message: deeperDiscountMessage(product, deeper, data.discountPercentage) });
+    }
+
     const overlap = await findOverlap(productId, data.startDate, data.endDate);
     if (overlap) {
       return res.status(400).json({
@@ -192,6 +197,9 @@ const cancelSaleRecord = async (flashSale, cancelledBy, now = new Date()) => {
   return status;
 };
 
+const deeperDiscountMessage = (product, deeper, pct) =>
+  `Bu üründe zaten ${money(deeper)} indirimli fiyat var. %${pct} flaş indirim fiyatı ${money(flashPrice(product.price, pct))} yapar, yani fiyat düşmez. Daha yüksek bir oran girin ya da önce ürün indirimini kaldırın.`;
+
 export const BULK_FLASH_MAX = 200;
 const CAMPAIGN_NAME_MAX = 80;
 const saleSummary = (sale) => ({
@@ -233,7 +241,7 @@ export const createBulkFlashSales = async (req, res) => {
     let syncFailures = 0;
 
     for (const productId of productIds) {
-      const product = byId.get(productId);
+      let product = byId.get(productId);
       if (!product) {
         skipped.push({ productId, name: "", reason: "Ürün bulunamadı" });
         continue;
@@ -251,6 +259,13 @@ export const createBulkFlashSales = async (req, res) => {
           overlap = await findOverlap(productId, data.startDate, data.endDate);
         }
         if (overlap) throw new Error("Çakışan kampanyalar kapatılamadı");
+        // Eski kampanya iptal edildiyse ürün önceki indirimine dönmüştür: güncel hâli okunur
+        if (replaced && product.flashSale?.sale) product = (await Product.findById(productId)) || product;
+        const deeper = deeperOwnDiscount(product, data.discountPercentage);
+        if (deeper !== null) {
+          skipped.push({ productId, name: product.name, reason: `Üründeki indirim daha derin (${money(deeper)}); flaş indirim fiyatı yükseltirdi`, code: "DEEPER_DISCOUNT" });
+          continue;
+        }
 
         const flashSale = new FlashSale({
           product: productId,

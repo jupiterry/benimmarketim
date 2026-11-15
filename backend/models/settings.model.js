@@ -45,6 +45,12 @@ const settingsSchema = new mongoose.Schema(
       type: Number,
       default: 250,
     },
+    // Mağaza kapalı: yurt ve adres (Devrek) dahil hiçbir sipariş alınmaz. Bölgelerin kendi açık/kapalı
+    // durumuna dokunmaz; mağaza açılınca her bölge eski durumuna döner.
+    storeClosed: {
+      type: Boolean,
+      default: false,
+    },
     name: {
       type: String,
       default: "default",

@@ -45,7 +45,7 @@ import PushBroadcastTab from "../components/PushBroadcastTab";
 import SiteMessagesTab from "../components/SiteMessagesTab";
 import CampaignCenterTab from "../components/CampaignCenterTab";
 
-import { Upload } from "lucide-react";
+import BulkUploadPanel from "../components/products/BulkUploadPanel";
 
 // Zil bildirimleri sunucuda saklanır (her cihazda aynı liste). Saat: bugünse "18:52", değilse "10 Eki 18:52".
 const notificationTime = (at) => {
@@ -57,37 +57,8 @@ const notificationTime = (at) => {
 };
 const withTime = (item) => ({ ...item, time: notificationTime(item.at) });
 
-// Bulk Upload Section Component
-const BulkUploadSection = ({ onUpload }) => (
-  <div className="ui-card" style={{ maxWidth: 640 }}>
-    <div className="ui-card-header">
-      <div>
-        <h2 className="ui-title">Toplu Ürün Yükleme</h2>
-        <p className="ui-subtitle">CSV dosyası ile ürünleri toplu olarak yükleyin</p>
-      </div>
-    </div>
-    <div className="ui-card-body ui-stack">
-      <div>
-        <p className="ui-label">CSV dosyası aşağıdaki başlıklara sahip olmalıdır:</p>
-        <code className="ui-code">
-          name,description,price,image,category,stock,isOutOfStock,isHidden,discountedPrice
-        </code>
-      </div>
-
-      <label className="ui-dropzone">
-        <Upload />
-        <span className="ui-strong">CSV dosyası seçin veya sürükleyin</span>
-        <span className="ui-text-xs ui-muted">Maksimum 10MB</span>
-        <input
-          type="file"
-          accept=".csv"
-          className="hidden"
-          onChange={onUpload}
-        />
-      </label>
-    </div>
-  </div>
-);
+// CSV ile toplu ürün yükleme: doğrulama sonucu, şablon ve sürükle-bırak BulkUploadPanel içindedir
+const BulkUploadSection = () => <BulkUploadPanel />;
 
 const AdminPage = () => {
   // State
@@ -541,29 +512,6 @@ const AdminPage = () => {
     }
   };
 
-  const handleBulkUpload = async (event) => {
-    const file = event.target.files[0];
-    if (!file) {
-      toast.error("Lütfen bir dosya seçin.");
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      const response = await axios.post("/products/bulk-upload", formData);
-      if (response.data.success) {
-        toast.success("Ürünler başarıyla yüklendi!");
-        fetchAllProducts();
-      }
-    } catch (error) {
-      toast.error(
-        error.response?.data?.message || "Yükleme sırasında hata oluştu",
-      );
-    }
-  };
-
   const handleTabChange = useCallback((tab, preset) => {
     if (tab === "orders" && preset) setHandoff(HANDOFF.orderPreset, preset);
     setActiveTab(tab);
@@ -681,7 +629,7 @@ const AdminPage = () => {
       case "weekly-products":
         return <WeeklyProductsTab />;
       case "bulk-upload":
-        return <BulkUploadSection onUpload={handleBulkUpload} />;
+        return <BulkUploadSection />;
       case "campaigns":
         return <CampaignCenterTab onNavigate={handleTabChange} />;
       case "coupons":

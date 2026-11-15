@@ -28,6 +28,7 @@ export const flattenSettings = (settings = {}) => {
     orderStart: clock(settings.orderStartHour, settings.orderStartMinute),
     orderEnd: clock(settings.orderEndHour, settings.orderEndMinute),
     minimumOrderAmount: settings.minimumOrderAmount,
+    storeOpen: settings.storeClosed !== true,
     latestVersion: settings.appVersion?.latestVersion,
     minimumVersion: settings.appVersion?.minimumVersion,
     forceUpdate: settings.appVersion?.forceUpdate,
@@ -52,6 +53,7 @@ export const flattenSettings = (settings = {}) => {
 
 /** İşlem kaydında görünen okunur alan etiketleri (sıra, kayıttaki sırayı belirler). */
 export const SETTINGS_AUDIT_FIELDS = [
+  { key: "storeOpen", label: "Mağaza (sipariş alımı)", format: onOff },
   { key: "orderStart", label: "Sipariş başlangıç saati" },
   { key: "orderEnd", label: "Sipariş bitiş saati" },
   { key: "minimumOrderAmount", label: "Minimum sipariş tutarı", format: money },
@@ -88,6 +90,7 @@ export const validateSettingsInput = (body = {}) => {
   ];
   for (const [value, min, max, message] of checks) if (value !== undefined && !isInt(value, min, max)) return message;
   if (minimumOrderAmount !== undefined && !(Number.isFinite(minimumOrderAmount) && minimumOrderAmount >= 0)) return "Minimum sipariş tutarı 0 ya da daha büyük bir sayı olmalı";
+  if (body.storeClosed !== undefined && typeof body.storeClosed !== "boolean") return "Mağaza durumu geçersiz";
   if (deliveryPoints !== undefined) {
     if (!deliveryPoints || typeof deliveryPoints !== "object" || Array.isArray(deliveryPoints)) return "Geçersiz teslimat noktası ayarları";
     for (const [key, label] of DELIVERY_POINTS) {
@@ -132,14 +135,29 @@ export const invalidateSettingsCache = () => {
   settingsCache = null;
 };
 
-// Tüm ayarları getir
+/**
+ * Mağaza kapalıyken müşteriye dönen ayarlarda yurt noktaları da kapalı görünür (uygulamanın eski sürümleri
+ * mağaza durumunu bu alanlardan okur). Kayıtlı değerler değişmez; panel ?raw=1 ile gerçek değerleri okur.
+ */
+export const publicSettingsView = (settings) => {
+  const view = plain(settings);
+  if (view.storeClosed !== true) return view;
+  for (const [key] of DELIVERY_POINTS) {
+    if (view.deliveryPoints?.[key]) view.deliveryPoints[key].enabled = false;
+  }
+  return view;
+};
+
+// Tüm ayarları getir (mağaza kapalıysa yurt noktaları kapalı görünür; ?raw=1 kayıtlı değerleri döndürür)
 export const getSettings = async (req, res) => {
   try {
     const now = Date.now();
-    if (settingsCache && settingsCache.expiresAt > now) return res.status(200).json(settingsCache.settings);
+    const raw = req?.query?.raw === "1";
+    const respond = (settings) => res.status(200).json(raw || settings?.storeClosed !== true ? settings : publicSettingsView(settings));
+    if (settingsCache && settingsCache.expiresAt > now) return respond(settingsCache.settings);
     const settings = await Settings.getSettings();
     settingsCache = { settings, expiresAt: now + SETTINGS_CACHE_MS };
-    res.status(200).json(settings);
+    respond(settings);
   } catch (error) {
     console.error("Ayarlar getirilirken hata oluştu:", error);
     res.status(500).json({ message: "Ayarlar getirilirken hata oluştu", error: error.message });
@@ -184,6 +202,7 @@ export const updateSettings = async (req, res) => {
     if (orderEndHour !== undefined) settings.orderEndHour = orderEndHour;
     if (orderEndMinute !== undefined) settings.orderEndMinute = orderEndMinute;
     if (minimumOrderAmount !== undefined) settings.minimumOrderAmount = minimumOrderAmount;
+    if (req.body?.storeClosed !== undefined) settings.storeClosed = req.body.storeClosed === true;
     if (deliveryPoints !== undefined) {
       // Nokta bazında birleştir: gönderilmeyen nokta ya da alan olduğu gibi kalır
       const merged = plain(settings.deliveryPoints || {});

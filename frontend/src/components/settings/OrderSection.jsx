@@ -18,22 +18,23 @@ export default function OrderSection() {
   const [refreshing, setRefreshing] = useState(false);
   const { draft } = form;
 
-  // "Mağaza kapalı": veri modelinde ayrı bir alan yok; iki teslimat noktası da kapalıysa
-  // müşteri hiçbir noktaya sipariş veremez. Anahtar bu iki alanı birlikte yönetir.
-  const storeOpen = DELIVERY_POINT_KEYS.some((key) => draft.deliveryPoints[key].enabled);
-  const storePaths = DELIVERY_POINT_KEYS.map((key) => `deliveryPoints.${key}.enabled`);
+  // "Mağaza kapalı" (storeClosed): yurtlar ve adrese teslimat (Devrek) dahil hiçbir sipariş alınmaz.
+  // Bölgelerin kendi açık/kapalı durumu değişmez; mağaza açılınca her bölge eski durumuna döner.
+  const storeOpen = !draft.storeClosed;
+  const storePaths = ["storeClosed"];
+  const anyDormOpen = DELIVERY_POINT_KEYS.some((key) => draft.deliveryPoints[key].enabled);
   const toggleStore = async (next) => {
     if (!next) {
       const ok = await confirm({
         title: "Mağazayı kapat",
-        message: "Sipariş alımı tamamen durur: müşteriler hiçbir teslimat noktasına sipariş veremez. Değişiklik, Kaydet'e basınca geçerli olur.",
+        message: "Sipariş alımı tamamen durur: yurtlara ve adrese teslimata (Devrek) sipariş verilemez. Bölgelerin kendi ayarları değişmez. Değişiklik, Kaydet'e basınca geçerli olur.",
         confirmText: "Mağazayı kapat",
         cancelText: "Vazgeç",
         type: "danger",
       });
       if (!ok) return;
     }
-    form.updateMany(Object.fromEntries(storePaths.map((p) => [p, next])));
+    form.update("storeClosed", !next);
   };
 
   const range = describeRange(draft.orderStartHour, draft.orderStartMinute, draft.orderEndHour, draft.orderEndMinute);
@@ -69,8 +70,10 @@ export default function OrderSection() {
               <strong>{storeOpen ? "Mağaza açık" : "Mağaza kapalı"}</strong>
               <span>
                 {storeOpen
-                  ? "Teslimat noktalarından en az biri sipariş alıyor. Kapatınca her iki nokta da durur."
-                  : "Her iki teslimat noktası kapalı; müşteriler sipariş veremez. Açınca iki nokta da aktif olur."}
+                  ? (anyDormOpen
+                    ? "Sipariş alınıyor. Kapatınca yurtlar ve adrese teslimat (Devrek) birlikte durur."
+                    : "Mağaza açık ama iki yurt noktası da kapalı. Yurtları Teslimat bölümünden açabilirsiniz.")
+                  : "Hiçbir bölgeye sipariş alınmıyor: yurtlar ve adrese teslimat (Devrek) durdu. Açınca her bölge kendi ayarına döner."}
               </span>
             </div>
             <Switch size="lg" tone={storeOpen ? "ok" : "danger"} checked={storeOpen} onChange={toggleStore} label="Sipariş alımını aç/kapat" />

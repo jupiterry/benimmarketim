@@ -2,25 +2,48 @@ import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useSta
 import {
   Search, Plus, Download, RefreshCw, X, Star, Zap, Pencil, Trash2, Eye, EyeOff, Package, PackageX, ImageOff,
   Percent, Tag, GripVertical, ArrowUpToLine, ArrowDownToLine, ChevronUp, ChevronDown, ListOrdered, Check,
-  ToggleLeft, ToggleRight, Layers, FolderInput, AlertTriangle, Boxes, ZapOff
+  ToggleLeft, ToggleRight, Layers, FolderInput, AlertTriangle, Boxes, ZapOff, TrendingUp, TrendingDown
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import axios from "../lib/axios";
 import { cloudinaryImage } from "../lib/image";
+import socketService from "../lib/socket";
 import { useProductStore } from "../stores/useProductStore";
 import { useConfirm } from "./ConfirmModal";
 import { HANDOFF, takeHandoff } from "./admin/ui";
 import ProductDrawer from "./products/ProductDrawer";
 import { FlashBadge, FlashSaleForm, FlashSaleManager } from "./products/FlashSale";
+import { confirmPriceChange, savePriceRequest, showPriceUndo } from "./products/priceSafety";
 import {
-  CATEGORIES, FILTERS, SORTS, buildCsv, categoryName, discountPct, downloadText, errorMessage, flashIndex,
-  flashStatus, fold, hasImage, isPublished, matchesFilter, mergeOrder, money, normalizeCategory, parsePrice, readPrefs,
-  roundMoney, runPool, sortProducts, writePrefs
+  CATEGORIES, DISCOUNT_MODES, FILTERS, SORTS, STATS_FILTERS, buildCsv, categoryName, discountPct, downloadText,
+  errorMessage, flashIndex, flashStatus, fold, hasImage, isPublished, matchesFilter, mergeOrder, money, normalizeCategory,
+  outOfStockLabel, parsePrice, previewBulkPrice, readPrefs, roundMoney, runPool, salesTrend, sortProducts, statsOf,
+  willRemoveDiscount, writePrefs
 } from "./products/productUtils";
 import "../styles/products.css";
 
 const BULK_FLASH_MAX = 200; // sunucudaki sınırla aynı (flashSale.controller BULK_FLASH_MAX)
+const BULK_STATE_MAX = 500; // sunucudaki sınırla aynı (product.controller BULK_STATE_MAX)
+// Başka cihazdan gelen değişiklikte (productsChanged) satıra yazılabilen alanlar
+const LIVE_FIELDS = ["name", "category", "price", "isDiscounted", "discountedPrice", "isOutOfStock", "isHidden", "isFeatured", "outOfStockSince"];
+const pickLive = (source) => {
+  const out = {};
+  for (const key of LIVE_FIELDS) if (source && source[key] !== undefined) out[key] = source[key];
+  return out;
+};
+const sameValue = (a, b) => (typeof a === "boolean" || typeof b === "boolean"
+  ? Boolean(a) === Boolean(b)
+  : String(a ?? "") === String(b ?? ""));
+const priceFields = (p) => ({
+  price: p.price, isDiscounted: Boolean(p.isDiscounted), discountedPrice: p.discountedPrice ?? null,
+  ...(p.updatedAt ? { updatedAt: p.updatedAt } : {}),
+});
+const stateFields = (p) => ({
+  isOutOfStock: Boolean(p.isOutOfStock), isHidden: Boolean(p.isHidden), isFeatured: Boolean(p.isFeatured),
+  outOfStockSince: p.outOfStockSince ?? null, ...(p.updatedAt ? { updatedAt: p.updatedAt } : {}),
+});
+const chunk = (list, size) => Array.from({ length: Math.ceil(list.length / size) }, (_, i) => list.slice(i * size, (i + 1) * size));
 
 const PAGE = 60;
 const NON_TEXT_INPUTS = new Set(["checkbox", "radio", "button", "submit", "reset", "range", "color"]);
@@ -77,23 +100,32 @@ const PriceCell = ({ product, editing, busy, onStart, onCancel, onCommit }) => {
   const invalidDiscount = product.isDiscounted && Number(product.discountedPrice) >= Number(product.price);
 
   if (editing) {
+    const typed = parsePrice(value);
     const commit = () => {
-      const n = parsePrice(value);
-      if (!Number.isFinite(n) || n <= 0) return toast.error("Geçerli bir fiyat girin");
-      if (roundMoney(n) === roundMoney(product.price)) return onCancel();
-      onCommit(roundMoney(n));
+      if (busy) return;
+      if (!Number.isFinite(typed) || roundMoney(typed) <= 0) return toast.error("Geçerli bir fiyat girin (0'dan büyük)");
+      if (roundMoney(typed) === roundMoney(product.price)) return onCancel();
+      onCommit(roundMoney(typed));
     };
+    // İndirimdeki üründe kutu liste fiyatını değiştirir; müşterinin ödediği fiyat ayrıca söylenir
+    const hint = !product.isDiscounted || invalidDiscount ? null
+      : Number.isFinite(typed) && typed > 0 && willRemoveDiscount(product, roundMoney(typed))
+        ? `Bu fiyatla ${money(product.discountedPrice)} indirim kalkar.`
+        : `Liste fiyatı. Müşteri ${money(product.discountedPrice)} ödemeye devam eder.`;
     return (
-      <div className="prd-price-edit">
-        <input autoFocus className="ui-field ui-field--sm" inputMode="decimal" value={value} aria-label="Yeni fiyat"
-          onChange={(e) => setValue(e.target.value)} onFocus={(e) => e.target.select()}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") { e.preventDefault(); commit(); }
-            if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onCancel(); }
-          }} />
-        <button type="button" className="ui-icon-btn ui-icon-btn--sm" onClick={commit} disabled={busy} aria-label="Kaydet">
-          {busy ? <RefreshCw className="ui-spin" /> : <Check />}
-        </button>
+      <div className="prd-price-edit-wrap">
+        <div className="prd-price-edit">
+          <input autoFocus className="ui-field ui-field--sm" inputMode="decimal" value={value} aria-label="Yeni liste fiyatı"
+            onChange={(e) => setValue(e.target.value)} onFocus={(e) => e.target.select()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.preventDefault(); commit(); }
+              if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onCancel(); }
+            }} />
+          <button type="button" className="ui-icon-btn ui-icon-btn--sm" onClick={commit} disabled={busy} aria-label="Kaydet">
+            {busy ? <RefreshCw className="ui-spin" /> : <Check />}
+          </button>
+        </div>
+        {hint && <span className="prd-price-hint">{hint}</span>}
       </div>
     );
   }
@@ -111,8 +143,22 @@ const PriceCell = ({ product, editing, busy, onStart, onCancel, onCommit }) => {
   );
 };
 
+/** "30 gün: 42 adet ↑" (satış özeti yüklenmediyse hiçbir şey göstermez) */
+const SalesNote = ({ stat }) => {
+  if (!stat) return null;
+  if (!stat.units30) return <span className="prd-sales prd-sales--none">30 gün: satış yok</span>;
+  const trend = salesTrend(stat);
+  return (
+    <span className="prd-sales" title={`Son 30 günde ${stat.units30} adet, ${stat.orders30} sipariş · son 7 günde ${stat.units7} adet`}>
+      30 gün: {stat.units30} adet
+      {trend === "up" && <TrendingUp className="prd-sales-up" aria-label="Son 7 günde hızlandı" />}
+      {trend === "down" && <TrendingDown className="prd-sales-down" aria-label="Son 7 günde yavaşladı" />}
+    </span>
+  );
+};
+
 const ProductRow = memo(({
-  product, selected, flash, now, editingPrice, busy, onSelect, onOpen, onToggle, onPriceStart, onPriceCancel,
+  product, selected, flash, now, stat, editingPrice, busy, onSelect, onOpen, onToggle, onPriceStart, onPriceCancel,
   onPriceCommit, onFlash, onEndFlash, onDelete
 }) => {
   const pct = discountPct(product);
@@ -135,6 +181,8 @@ const ProductRow = memo(({
             {pct > 0 && !flash && <span className="prd-tag prd-tag--disc">-%{pct}</span>}
             <FlashBadge entry={flash} now={now} />
             {!hasImage(product) && <span className="prd-tag prd-tag--warn">Görsel yok</span>}
+            {product.isOutOfStock && <span className="prd-tag prd-tag--oos">{outOfStockLabel(product, now)}</span>}
+            <SalesNote stat={stat} />
           </div>
         </div>
       </div>
@@ -181,10 +229,39 @@ const ProductRow = memo(({
 ProductRow.displayName = "ProductRow";
 
 /** Toplu işlem penceresi: fiyat, indirim, kategori, flash sale */
+const isFlashPriced = (p) => Boolean(p.flashSale && p.isDiscounted) &&
+  Math.abs(Number(p.discountedPrice) - Number(p.flashSale.price)) < 0.01;
+
+/** Toplu fiyat önizlemesi: seçili her ürünün eski → yeni liste ve müşteri fiyatı, en büyük değişiklik başta */
+const BulkPricePreview = ({ rows }) => (
+  <div className="prd-bulk-preview" role="table" aria-label="Fiyat önizlemesi">
+    <div className="prd-bulk-preview-row prd-bulk-preview-head" role="row">
+      <span role="columnheader">Ürün</span>
+      <span role="columnheader">Liste fiyatı</span>
+      <span role="columnheader">Müşteri öder</span>
+    </div>
+    {rows.map(({ product, plan }) => (
+      <div key={product._id} className="prd-bulk-preview-row" role="row" data-invalid={plan.invalid || undefined}>
+        <span role="cell" className="prd-bulk-preview-name">
+          <span className="ui-truncate">{product.name}</span>
+          {plan.invalid && <small className="prd-warn-text">Fiyat 0 ₺ ya da altına iniyor</small>}
+          {!plan.invalid && plan.flash && <small>Flaş indirim: fiyat yeniden hesaplanır</small>}
+          {!plan.invalid && plan.discountRemoved && <small className="prd-warn-text">İndirim kalkar</small>}
+        </span>
+        <span role="cell" className="ui-num"><s>{money(plan.oldPrice)}</s> → <strong>{money(plan.price)}</strong></span>
+        <span role="cell" className="ui-num">
+          {plan.invalid ? "—" : <><s>{money(plan.customerBefore)}</s> → <strong>{money(plan.customerAfter)}</strong></>}
+        </span>
+      </div>
+    ))}
+  </div>
+);
+
 const BulkModal = ({ mode, products, sales = [], busy, onClose, onSubmit }) => {
   const [priceType, setPriceType] = useState("percentage");
   const [value, setValue] = useState("");
   const [discountMode, setDiscountMode] = useState("apply");
+  const [priceDiscountMode, setPriceDiscountMode] = useState("keepRatio");
   const [category, setCategory] = useState(CATEGORIES[0].slug);
 
   useEffect(() => {
@@ -200,29 +277,41 @@ const BulkModal = ({ mode, products, sales = [], busy, onClose, onSubmit }) => {
   };
   const example = products[0];
   let preview = null;
-  if (mode === "price" && Number.isFinite(n) && example) {
-    const p = Number(example.price);
-    const next = priceType === "set" ? n : priceType === "increase" ? p + n : priceType === "decrease" ? p - n : p * (1 + n / 100);
-    preview = <>Örnek: {example.name} <s>{money(p)}</s> → <strong>{money(Math.max(0, next))}</strong></>;
-  }
+  // Toplu fiyat: seçimdeki indirimli / flaş indirimli ürünler ve her ürünün önizlemesi
+  const deferredN = useDeferredValue(n);
+  const priceRuleValid = mode === "price" && Number.isFinite(deferredN) && (priceType === "percentage" ? deferredN !== 0 : deferredN > 0);
+  const flashCount = useMemo(() => (mode === "price" ? products.filter(isFlashPriced).length : 0), [mode, products]);
+  const discountedCount = useMemo(
+    () => (mode === "price" ? products.filter((p) => p.isDiscounted && !isFlashPriced(p)).length : 0), [mode, products]);
+  const priceRows = useMemo(() => {
+    if (!priceRuleValid) return [];
+    const rule = { priceType, priceValue: roundMoney(deferredN), discountMode: priceDiscountMode };
+    const size = (plan) => Math.max(Math.abs(plan.price - plan.oldPrice), Math.abs(plan.customerAfter - plan.customerBefore));
+    return products
+      .map((product) => ({ product, plan: previewBulkPrice(product, rule, isFlashPriced(product) ? product.flashSale : null) }))
+      .sort((a, b) => Number(b.plan.invalid) - Number(a.plan.invalid) || size(b.plan) - size(a.plan));
+  }, [priceRuleValid, products, priceType, deferredN, priceDiscountMode]);
+  const invalidCount = priceRows.filter((r) => r.plan.invalid).length;
+  const previewStale = mode === "price" && Number.isFinite(n) && roundMoney(n) !== roundMoney(deferredN);
   if (mode === "discount" && discountMode === "apply" && Number.isFinite(n) && example) {
     preview = <>Örnek: {example.name} <s>{money(example.price)}</s> → <strong>{money(example.price * (1 - n / 100))}</strong></>;
   }
   const valid = mode === "category" || (mode === "discount" && discountMode === "remove") ||
-    (mode === "price" && Number.isFinite(n) && (priceType === "percentage" ? n > -100 && n !== 0 : priceType === "set" ? n > 0 : n > 0)) ||
+    (mode === "price" && Number.isFinite(n) && (priceType === "percentage" ? n > -100 && n !== 0 : n > 0) &&
+      priceRows.length > 0 && invalidCount === 0 && !previewStale) ||
     (mode === "discount" && Number.isFinite(n) && n >= 1 && n <= 99);
 
   const submit = (e) => {
     e.preventDefault();
     if (!valid || busy) return;
-    if (mode === "price") onSubmit({ priceType, priceValue: roundMoney(n) });
+    if (mode === "price") onSubmit({ priceType, priceValue: roundMoney(n), discountMode: priceDiscountMode });
     if (mode === "discount") onSubmit({ discountMode, pct: n });
     if (mode === "category") onSubmit({ category });
   };
 
   return (
     <div className="ui-modal-backdrop prd-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
-      <div className="ui-modal prd-modal" role="dialog" aria-modal="true" aria-label={titles[mode]}>
+      <div className="ui-modal prd-modal" data-mode={mode} role="dialog" aria-modal="true" aria-label={titles[mode]}>
         <div className="ui-modal-header">
           <div>
             <h2 className="ui-title">{titles[mode]}</h2>
@@ -251,7 +340,41 @@ const BulkModal = ({ mode, products, sales = [], busy, onClose, onSubmit }) => {
                     <input autoFocus className="ui-field" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)}
                       placeholder={priceType === "percentage" ? "Örn. 10 (zam) ya da -5 (indirim)" : "Tutar"} aria-label="Değer" />
                   </div>
-                  <p className="ui-hint">Fiyatın altında kalmayan eski indirimler otomatik kaldırılır.</p>
+                  {(discountedCount > 0 || flashCount > 0) && (
+                    <p className="prd-bulk-note">
+                      {products.length} ürünün{" "}
+                      {[discountedCount > 0 && `${discountedCount} tanesi indirimde`, flashCount > 0 && `${flashCount} tanesi flaş indirimde`].filter(Boolean).join(", ")}.
+                    </p>
+                  )}
+                  {(discountedCount > 0 || flashCount > 0) && (
+                    <fieldset className="prd-bulk-modes">
+                      <legend className="ui-label">İndirimdeki ürünlerde</legend>
+                      {DISCOUNT_MODES.map((m) => (
+                        <label key={m.key} className="prd-bulk-mode" data-on={priceDiscountMode === m.key || undefined}>
+                          <input type="radio" name="prd-discount-mode" value={m.key} checked={priceDiscountMode === m.key}
+                            onChange={() => setPriceDiscountMode(m.key)} />
+                          <span><strong>{m.label}</strong><small>{m.hint}</small></span>
+                        </label>
+                      ))}
+                    </fieldset>
+                  )}
+                  {flashCount > 0 && (
+                    <p className="ui-hint">Flaş indirimdeki ürünlerde flaş fiyatı, yeni liste fiyatından aynı yüzdeyle yeniden hesaplanır. Seçiminiz, kampanya bitince dönülecek indirime uygulanır.</p>
+                  )}
+                  {invalidCount > 0 && (
+                    <p className="prd-form-error" role="alert">
+                      {invalidCount} ürünün fiyatı 0 ₺ ya da altına iniyor. Değeri küçültün ya da bu ürünleri seçimden çıkarın.
+                    </p>
+                  )}
+                  {priceRows.length > 0
+                    ? <BulkPricePreview rows={priceRows} />
+                    : (
+                      <p className="ui-hint">
+                        {Number.isFinite(n) && n <= 0 && priceType !== "percentage"
+                          ? "0'dan büyük bir tutar yazın. Fiyatı düşürmek için “− ₺” seçin."
+                          : "Bir değer yazın; her ürünün yeni fiyatını burada görürsünüz."}
+                      </p>
+                    )}
                 </>
               )}
               {mode === "discount" && (
@@ -326,6 +449,12 @@ const ProductsList = ({ onCreate }) => {
   const [managerOpen, setManagerOpen] = useState(false);
   const [reorder, setReorder] = useState(null); // sıralama modundaki liste
   const [reorderSaving, setReorderSaving] = useState(false);
+  const [stats, setStats] = useState(null); // { "<ürünId>": { units7, units30, orders30 } }; yüklenemediyse null
+  const [statsFailed, setStatsFailed] = useState(false);
+  const [bulkStateBusy, setBulkStateBusy] = useState(false);
+  const [remoteNote, setRemoteNote] = useState("");
+  const savingPriceRef = useRef(new Set());
+  const ownRef = useRef({ active: 0, until: 0 }); // bu ekranın kendi işlemi sürüyor mu (canlı bildirim notu için)
   const searchRef = useRef(null);
   const sentinelRef = useRef(null);
   const lastClickedRef = useRef(null);
@@ -352,7 +481,90 @@ const ProductsList = ({ onCreate }) => {
     }
   }, []);
 
-  useEffect(() => { loadProducts(); loadSales(); }, [loadProducts, loadSales]);
+  // Satış özeti: yüklenemezse liste rakamsız çalışır (hata bildirimi gösterilmez)
+  const loadStats = useCallback(async (refresh = false) => {
+    try {
+      const res = await axios.get("/products/sales-stats", refresh ? { params: { refresh: 1 } } : undefined);
+      const map = res.data?.stats;
+      if (!map || typeof map !== "object") throw new Error("stats");
+      setStats(map);
+      setStatsFailed(false);
+    } catch {
+      setStatsFailed(true);
+    }
+  }, []);
+
+  useEffect(() => { loadProducts(); loadSales(); loadStats(); }, [loadProducts, loadSales, loadStats]);
+
+  // Bu ekranın kendi işlemi: sürerken gelen canlı bildirim "başka cihazdan" sayılmaz
+  const asOwn = useCallback(async (fn) => {
+    ownRef.current.active += 1;
+    try {
+      return await fn();
+    } finally {
+      ownRef.current.active -= 1;
+      ownRef.current.until = Date.now() + 2000;
+    }
+  }, []);
+
+  // Başka cihazdan (ya da başka yöneticiden) gelen ürün değişiklikleri: satırlar yerinde güncellenir
+  useEffect(() => {
+    const socket = socketService.getSocket();
+    if (!socket) return undefined;
+    let reloadTimer = null;
+    let noteTimer = null;
+    const note = (text) => {
+      if (ownRef.current.active > 0 || Date.now() < ownRef.current.until) return;
+      setRemoteNote(text);
+      clearTimeout(noteTimer);
+      noteTimer = setTimeout(() => setRemoteNote(""), 8000);
+    };
+    const onChanged = (payload) => {
+      if (!payload || typeof payload !== "object") return;
+      if (payload.reload) {
+        clearTimeout(reloadTimer);
+        reloadTimer = setTimeout(() => { fetchAllProducts(); loadSales(); }, 800);
+        note("Ürünler başka bir cihazdan değiştirildi; liste yenilendi.");
+        return;
+      }
+      const ids = Array.isArray(payload.ids) ? payload.ids.map(String) : [];
+      if (!ids.length) return;
+      const current = new Map((useProductStore.getState().products || []).map((p) => [p._id, p]));
+      if (payload.changes?.deleted) {
+        const present = ids.filter((id) => current.has(id));
+        if (!present.length) return;
+        removeProducts(present);
+        setSelected((prev) => {
+          const next = new Set(prev);
+          present.forEach((id) => next.delete(id));
+          return next;
+        });
+        note(`${present.length} ürün başka bir cihazdan silindi.`);
+        return;
+      }
+      const common = pickLive(payload.changes);
+      const perProduct = new Map((Array.isArray(payload.products) ? payload.products : []).map((p) => [String(p._id), pickLive(p)]));
+      let changed = 0;
+      const patches = new Map();
+      for (const id of ids) {
+        const product = current.get(id);
+        if (!product) continue;
+        const fields = { ...common, ...(perProduct.get(id) || {}) };
+        if (!Object.keys(fields).length) continue;
+        if (Object.entries(fields).some(([key, value]) => !sameValue(product[key], value))) changed += 1;
+        patches.set(id, fields);
+      }
+      if (!changed) return;
+      patchProducts([...patches.keys()], (p) => patches.get(p._id));
+      note(changed === 1 ? "1 ürün başka bir cihazdan güncellendi." : `${changed} ürün başka bir cihazdan güncellendi.`);
+    };
+    socket.on("productsChanged", onChanged);
+    return () => {
+      clearTimeout(reloadTimer);
+      clearTimeout(noteTimer);
+      socket.off("productsChanged", onChanged);
+    };
+  }, [fetchAllProducts, loadSales]);
   // Komut paletinden "ürünü aç" ile gelindiyse çekmeceyi aç
   useEffect(() => {
     const id = takeHandoff(HANDOFF.product);
@@ -367,11 +579,18 @@ const ProductsList = ({ onCreate }) => {
     ? catalog.filter((p) => normalizeCategory(p.category) === category)
     : catalog), [catalog, category]);
 
+  // Satış özeti yoksa satışa dayalı filtre ve sıralama kullanılmaz (kayıtlı tercih öyle olsa bile)
+  const activeFilter = !stats && STATS_FILTERS.has(filter) ? "all" : filter;
+  const activeSort = !stats && sort === "sold30" ? "order" : sort;
+  const filterCtx = useMemo(() => ({ stats, now }), [stats, now]);
+  const filterOptions = useMemo(() => FILTERS.filter((f) => !f.needsStats || stats), [stats]);
+  const sortOptions = useMemo(() => SORTS.filter((s) => !s.needsStats || stats), [stats]);
+
   const counts = useMemo(() => {
     const c = Object.fromEntries(FILTERS.map((f) => [f.key, 0]));
-    for (const p of scoped) for (const f of FILTERS) if (matchesFilter(p, f.key, flashByProduct)) c[f.key]++;
+    for (const p of scoped) for (const f of FILTERS) if (matchesFilter(p, f.key, flashByProduct, filterCtx)) c[f.key]++;
     return c;
-  }, [scoped, flashByProduct]);
+  }, [scoped, flashByProduct, filterCtx]);
 
   const categoryCounts = useMemo(() => {
     const m = new Map();
@@ -386,13 +605,14 @@ const ProductsList = ({ onCreate }) => {
     const q = fold(deferredQuery.trim());
     const terms = q ? q.split(/\s+/) : [];
     const list = scoped.filter((p) => {
-      if (!matchesFilter(p, filter, flashByProduct)) return false;
+      if (!matchesFilter(p, activeFilter, flashByProduct, filterCtx)) return false;
       if (!terms.length) return true;
       const hay = fold(`${p.name} ${categoryName(p.category)} ${p.brand || ""}`);
       return terms.every((t) => hay.includes(t));
     });
-    return sortProducts(list, sort);
-  }, [scoped, filter, flashByProduct, deferredQuery, sort]);
+    // "Çok satan ama tükendi" vitrin sırasıyla değil, en çok satandan başlayarak listelenir
+    return sortProducts(list, activeFilter === "lostSales" && activeSort === "order" ? "sold30" : activeSort, filterCtx);
+  }, [scoped, activeFilter, flashByProduct, deferredQuery, activeSort, filterCtx]);
 
   // Filtre değişince listeyi başa sar ve görünmeyen seçimleri koru (toplu işlem yalnızca görünenlere uygulanır)
   useEffect(() => { setVisible(PAGE); }, [deferredQuery, filter, category, sort]);
@@ -452,51 +672,57 @@ const ProductsList = ({ onCreate }) => {
   const setBusyFlag = (id, key, on) => setBusy((b) => ({ ...b, [id]: { ...b[id], [key]: on } }));
 
   // ---- Tekil işlemler ----
-  const onToggle = useCallback(async (id, kind) => {
-    const urls = {
-      stock: `/products/toggle-out-of-stock/${id}`,
-      hidden: `/products/toggle-hidden/${id}`,
-      featured: `/products/${id}`,
-    };
+  // Durum "şuna ayarla" ucuyla yazılır (PATCH /products/:id/state): iki cihaz aynı anda bassa da ürün
+  // geri dönmez; ekrana sunucunun döndürdüğü durum yazılır.
+  const onToggle = useCallback((id, kind) => asOwn(async () => {
     const field = { stock: "isOutOfStock", hidden: "isHidden", featured: "isFeatured" }[kind];
     const before = useProductStore.getState().products.find((p) => p._id === id);
-    if (!before) return;
+    if (!before || !field) return;
+    const target = !before[field];
     setBusyFlag(id, kind, true);
-    patchProducts([id], { [field]: !before[field] }); // iyimser güncelleme
+    patchProducts([id], { [field]: target }); // iyimser güncelleme
     try {
-      const res = await axios.patch(urls[kind]);
-      const updated = res.data?.product || (kind === "featured" ? res.data : null);
-      if (updated && typeof updated[field] === "boolean") patchProducts([id], { [field]: updated[field] });
+      const res = await axios.patch(`/products/${id}/state`, { [field]: target });
+      const updated = res.data?.product;
+      if (updated) patchProducts([id], stateFields(updated));
+      const value = updated ? Boolean(updated[field]) : target;
       const msg = {
         stock: (v) => (v ? "Ürün tükendi olarak işaretlendi" : "Ürün stoka alındı"),
         hidden: (v) => (v ? "Ürün gizlendi" : "Ürün yayında"),
         featured: (v) => (v ? "Ürün öne çıkarıldı" : "Öne çıkanlardan kaldırıldı"),
       }[kind];
-      toast.success(msg(updated ? updated[field] : !before[field]));
+      toast.success(msg(value));
     } catch (error) {
       patchProducts([id], { [field]: before[field] });
       toast.error(errorMessage(error, "İşlem başarısız"));
     } finally {
       setBusyFlag(id, kind, false);
     }
-  }, []);
+  }), [asOwn]);
 
-  const savePrice = useCallback(async (id, price) => {
-    setBusyFlag(id, "price", true);
+  // Tekil fiyat kaydı (satır içi ve çekmece): büyük sapmada / indirim kalkacaksa önce sorar, sonra "Geri al" sunar
+  const savePrice = useCallback((id, price) => asOwn(async () => {
+    if (savingPriceRef.current.has(id)) return false;
+    const before = useProductStore.getState().products.find((p) => p._id === id);
+    if (!before) return false;
+    savingPriceRef.current.add(id);
     try {
-      const res = await axios.put(`/products/update-price/${id}`, { price });
-      const p = res.data?.product;
-      patchProducts([id], p ? { price: p.price, isDiscounted: p.isDiscounted, discountedPrice: p.discountedPrice } : { price });
+      if (!(await confirmPriceChange(confirm, before, price))) return false;
+      setBusyFlag(id, "price", true);
+      const data = await savePriceRequest(id, price);
+      const after = data.product || { price, isDiscounted: before.isDiscounted, discountedPrice: before.discountedPrice };
+      patchProducts([id], priceFields(after));
       setPriceEditId((cur) => (cur === id ? null : cur));
-      toast.success("Fiyat güncellendi");
+      showPriceUndo({ before, after, wrap: asOwn, onRestored: (restored) => patchProducts([id], priceFields(restored)) });
       return true;
     } catch (error) {
       toast.error(errorMessage(error, "Fiyat güncellenemedi"));
       return false;
     } finally {
       setBusyFlag(id, "price", false);
+      savingPriceRef.current.delete(id);
     }
-  }, []);
+  }), [asOwn, confirm]);
 
   const deleteOne = useCallback(async (product) => {
     const ok = await confirm({
@@ -508,7 +734,7 @@ const ProductsList = ({ onCreate }) => {
     });
     if (!ok) return;
     try {
-      await axios.delete(`/products/${product._id}`);
+      await asOwn(() => axios.delete(`/products/${product._id}`));
       removeProducts([product._id]);
       setSelected((prev) => { const n = new Set(prev); n.delete(product._id); return n; });
       setDetailId((cur) => (cur === product._id ? null : cur));
@@ -516,7 +742,7 @@ const ProductsList = ({ onCreate }) => {
     } catch (error) {
       toast.error(errorMessage(error, "Ürün silinemedi"));
     }
-  }, [confirm]);
+  }, [asOwn, confirm]);
 
   const openFlash = useCallback((product) => setBulk({ mode: "flash", ids: [product._id] }), []);
   const onPriceStart = useCallback((id) => setPriceEditId(id), []);
@@ -647,27 +873,47 @@ const ProductsList = ({ onCreate }) => {
   };
 
   // ---- Toplu işlemler ----
-  const bulkVisibility = async (isHidden) => {
+  // Toplu stok / görünürlük: tek istekte "şuna ayarla" (POST /products/bulk-state); ekrana sunucunun yanıtı yazılır
+  const bulkState = (changes, messages) => asOwn(async () => {
+    if (bulkStateBusy) return;
     const ids = selectedRows.map((p) => p._id);
-    try {
-      await axios.post("/products/bulk-visibility", { productIds: ids, isHidden });
-      patchProducts(ids, { isHidden });
-      toast.success(`${ids.length} ürün ${isHidden ? "gizlendi" : "yayınlandı"}`);
-    } catch (error) {
-      toast.error(errorMessage(error, "İşlem başarısız"));
+    if (!ids.length) return;
+    setBulkStateBusy(true);
+    let updated = 0;
+    let missing = 0;
+    let failed = 0;
+    let lastError = null;
+    for (const part of chunk(ids, BULK_STATE_MAX)) {
+      try {
+        const res = await axios.post("/products/bulk-state", { productIds: part, ...changes });
+        const byId = new Map((res.data?.products || []).map((p) => [String(p._id), stateFields(p)]));
+        if (byId.size) patchProducts([...byId.keys()], (p) => byId.get(p._id));
+        const gone = res.data?.missing || [];
+        if (gone.length) {
+          removeProducts(gone);
+          setSelected((prev) => { const next = new Set(prev); gone.forEach((id) => next.delete(id)); return next; });
+        }
+        updated += Number(res.data?.updatedCount) || 0;
+        missing += gone.length;
+      } catch (error) {
+        failed += part.length;
+        lastError = error;
+      }
     }
-  };
-
-  const bulkStock = async (outOfStock) => {
-    const targets = selectedRows.filter((p) => Boolean(p.isOutOfStock) !== outOfStock);
-    if (!targets.length) return toast(`Seçili ürünler zaten ${outOfStock ? "stokta yok" : "stokta"}`);
-    const { ok, fail } = await runPool(targets, async (p) => {
-      await axios.patch(`/products/toggle-out-of-stock/${p._id}`);
-      patchProducts([p._id], { isOutOfStock: outOfStock });
-    });
-    if (ok) toast.success(`${ok} ürün ${outOfStock ? "tükendi olarak işaretlendi" : "stoka alındı"}`);
-    if (fail) toast.error(`${fail} ürün güncellenemedi`);
-  };
+    setBulkStateBusy(false);
+    if (failed) toast.error(errorMessage(lastError, `${failed} ürün güncellenemedi`));
+    else if (updated) toast.success(messages.done(updated));
+    else toast(messages.none);
+    if (missing) toast(`${missing} ürün başka bir cihazdan silinmiş; listeden çıkarıldı.`);
+  });
+  const bulkVisibility = (isHidden) => bulkState({ isHidden }, {
+    done: (n) => `${n} ürün ${isHidden ? "gizlendi" : "yayınlandı"}`,
+    none: `Seçili ürünler zaten ${isHidden ? "gizli" : "yayında"}`,
+  });
+  const bulkStock = (outOfStock) => bulkState({ isOutOfStock: outOfStock }, {
+    done: (n) => `${n} ürün ${outOfStock ? "tükendi olarak işaretlendi" : "stoka alındı"}`,
+    none: `Seçili ürünler zaten ${outOfStock ? "stokta yok" : "stokta"}`,
+  });
 
   const bulkDelete = async () => {
     const ids = selectedRows.map((p) => p._id);
@@ -680,7 +926,7 @@ const ProductsList = ({ onCreate }) => {
     });
     if (!ok) return;
     try {
-      await axios.post("/products/bulk-delete", { productIds: ids });
+      await asOwn(() => axios.post("/products/bulk-delete", { productIds: ids }));
       removeProducts(ids);
       clearSelection();
       toast.success(`${ids.length} ürün silindi`);
@@ -691,11 +937,12 @@ const ProductsList = ({ onCreate }) => {
 
   const exportCsv = (list) => {
     const stamp = new Date().toISOString().slice(0, 10);
-    downloadText(buildCsv(list), `urunler-${stamp}.csv`);
+    downloadText(buildCsv(list, stats), `urunler-${stamp}.csv`);
     toast.success(`${list.length} ürün dışa aktarıldı`);
   };
 
-  const submitBulk = async (payload) => {
+  const submitBulk = (payload) => asOwn(async () => {
+    if (bulkBusy) return;
     const ids = bulk.ids;
     const targets = catalog.filter((p) => ids.includes(p._id));
     setBulkBusy(true);
@@ -710,8 +957,13 @@ const ProductsList = ({ onCreate }) => {
       }
       if (bulk.mode === "price") {
         const res = await axios.post("/products/bulk-price-update", { productIds: ids, ...payload });
-        await fetchAllProducts();
-        toast.success(res.data?.message || "Fiyatlar güncellendi");
+        // Flaş indirimdeki ürünlerde kampanya fiyatı da değişir: kampanya listesi de yenilenir
+        await Promise.all([fetchAllProducts(), loadSales()]);
+        const extra = [
+          res.data?.discountsRemoved ? `${res.data.discountsRemoved} indirim kalktı` : "",
+          res.data?.flashUpdated ? `${res.data.flashUpdated} flaş fiyatı yeniden hesaplandı` : "",
+        ].filter(Boolean).join(", ");
+        toast.success(`${res.data?.message || "Fiyatlar güncellendi"}${extra ? ` (${extra})` : ""}`, { duration: extra ? 6000 : undefined });
       }
       if (bulk.mode === "discount") {
         const { ok, fail } = await runPool(targets, async (p) => {
@@ -738,11 +990,11 @@ const ProductsList = ({ onCreate }) => {
       }
       setBulk(null);
     } catch (error) {
-      toast.error(errorMessage(error, "Toplu işlem başarısız"));
+      toast.error(errorMessage(error, "Toplu işlem başarısız"), { duration: 7000 });
     } finally {
       setBulkBusy(false);
     }
-  };
+  });
 
   // ---- Sıralama modu ----
   const canReorder = sort === "order" && filter === "all" && !query.trim();
@@ -781,11 +1033,11 @@ const ProductsList = ({ onCreate }) => {
   // ---- Çekmece ----
   const detail = detailId ? catalog.find((p) => p._id === detailId) : null;
   const detailBusy = detail ? (busy[detail._id] || {}) : {};
-  const withDetailBusy = async (key, fn) => {
+  const withDetailBusy = (key, fn) => asOwn(async () => {
     const id = detail._id;
     setBusyFlag(id, key, true);
     try { return await fn(id); } finally { setBusyFlag(id, key, false); }
-  };
+  });
 
   const kpis = [
     { key: "all", icon: Boxes, label: "Toplam ürün", value: counts.all, note: category ? categoryName(category) : `${categoryCounts.size} kategori` },
@@ -797,7 +1049,7 @@ const ProductsList = ({ onCreate }) => {
     { key: "noImage", icon: ImageOff, label: "Görselsiz", value: counts.noImage, tone: counts.noImage ? "warn" : undefined },
   ];
 
-  const hasFilters = Boolean(query.trim() || category || filter !== "all");
+  const hasFilters = Boolean(query.trim() || category || activeFilter !== "all");
   const shown = rows.slice(0, visible);
 
   return (
@@ -826,8 +1078,8 @@ const ProductsList = ({ onCreate }) => {
 
       <div className="prd-kpis">
         {kpis.map(({ key, manager, ...k }) => (
-          <Kpi key={key} {...k} active={filter === key}
-            onClick={() => { if (manager && filter === "flash") setManagerOpen(true); else setFilter(filter === key ? "all" : key); }} />
+          <Kpi key={key} {...k} active={activeFilter === key}
+            onClick={() => { if (manager && activeFilter === "flash") setManagerOpen(true); else setFilter(activeFilter === key ? "all" : key); }} />
         ))}
       </div>
 
@@ -899,17 +1151,17 @@ const ProductsList = ({ onCreate }) => {
               <option value="">Tüm kategoriler ({catalog.length})</option>
               {CATEGORIES.map((c) => <option key={c.slug} value={c.slug}>{c.name} ({categoryCounts.get(c.slug) || 0})</option>)}
             </select>
-            <select className="ui-field prd-sort-select" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sıralama">
-              {SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+            <select className="ui-field prd-sort-select" value={activeSort} onChange={(e) => setSort(e.target.value)} aria-label="Sıralama">
+              {sortOptions.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
             </select>
-            <button type="button" className="ui-icon-btn" onClick={() => { loadProducts(); loadSales(); }} aria-label="Yenile" title="Yenile">
+            <button type="button" className="ui-icon-btn" onClick={() => { loadProducts(); loadSales(); loadStats(true); }} aria-label="Yenile" title="Yenile">
               <RefreshCw className={loading ? "ui-spin" : ""} />
             </button>
           </div>
 
           <div className="ui-chips prd-chips" role="group" aria-label="Durum filtresi">
-            {FILTERS.map((f) => (
-              <button key={f.key} type="button" aria-pressed={filter === f.key} onClick={() => setFilter(f.key)}>
+            {filterOptions.map((f) => (
+              <button key={f.key} type="button" aria-pressed={activeFilter === f.key} onClick={() => setFilter(f.key)}>
                 {f.tone && <span className={`ui-dot ui-dot--${f.tone}`} />}
                 {f.key === "flash" && <Zap className="prd-chip-zap" />}
                 {f.label}
@@ -922,6 +1174,13 @@ const ProductsList = ({ onCreate }) => {
               </button>
             )}
           </div>
+
+          {remoteNote && (
+            <p className="prd-remote-note" role="status">
+              <RefreshCw aria-hidden="true" />{remoteNote}
+              <button type="button" className="ui-icon-btn ui-icon-btn--sm" onClick={() => setRemoteNote("")} aria-label="Notu kapat"><X /></button>
+            </p>
+          )}
 
           {hasFilters && selectedRows.length === 0 && rows.length > 0 && (
             <div className="prd-scope-bar">
@@ -939,10 +1198,10 @@ const ProductsList = ({ onCreate }) => {
             <div className="ui-bulkbar prd-bulkbar">
               <span className="ui-bulkbar-count">{selectedRows.length} seçili</span>
               <div className="prd-bulk-actions">
-                <button type="button" className="ui-btn ui-btn--sm" onClick={() => bulkVisibility(false)}><Eye />Yayınla</button>
-                <button type="button" className="ui-btn ui-btn--sm" onClick={() => bulkVisibility(true)}><EyeOff />Gizle</button>
-                <button type="button" className="ui-btn ui-btn--sm" onClick={() => bulkStock(false)}><Package />Stoka al</button>
-                <button type="button" className="ui-btn ui-btn--sm" onClick={() => bulkStock(true)}><PackageX />Tükendi</button>
+                <button type="button" className="ui-btn ui-btn--sm" disabled={bulkStateBusy} onClick={() => bulkVisibility(false)}><Eye />Yayınla</button>
+                <button type="button" className="ui-btn ui-btn--sm" disabled={bulkStateBusy} onClick={() => bulkVisibility(true)}><EyeOff />Gizle</button>
+                <button type="button" className="ui-btn ui-btn--sm" disabled={bulkStateBusy} onClick={() => bulkStock(false)}><Package />Stoka al</button>
+                <button type="button" className="ui-btn ui-btn--sm" disabled={bulkStateBusy} onClick={() => bulkStock(true)}><PackageX />Tükendi</button>
                 <button type="button" className="ui-btn ui-btn--sm" onClick={() => setBulk({ mode: "price", ids: selectedRows.map((p) => p._id) })}><Tag />Fiyat</button>
                 <button type="button" className="ui-btn ui-btn--sm" onClick={() => setBulk({ mode: "discount", ids: selectedRows.map((p) => p._id) })}><Percent />İndirim</button>
                 <button type="button" className="ui-btn ui-btn--sm" onClick={() => setBulk({ mode: "flash", ids: selectedRows.map((p) => p._id) })}><Zap />Flash sale</button>
@@ -993,6 +1252,7 @@ const ProductsList = ({ onCreate }) => {
             ) : (
               shown.map((p) => (
                 <ProductRow key={p._id} product={p} selected={selected.has(p._id)} flash={flashByProduct.get(p._id)} now={now}
+                  stat={statsOf(stats, p._id)}
                   editingPrice={priceEditId === p._id} busy={busy[p._id]} onSelect={onSelect} onOpen={setDetailId}
                   onToggle={onToggle} onPriceStart={onPriceStart} onPriceCancel={onPriceCancel} onPriceCommit={savePrice}
                   onFlash={openFlash} onEndFlash={endFlash} onDelete={deleteOne} />
@@ -1008,7 +1268,14 @@ const ProductsList = ({ onCreate }) => {
           </div>
           <p className="prd-foot-hint ui-muted ui-text-xs">
             İpucu: <kbd>/</kbd> arama · fiyata tıklayıp <kbd>Enter</kbd> ile kaydedin · <kbd>Shift</kbd> ile aralık seçin · <kbd>Esc</kbd> seçimi temizler
+            {stats && " · satış adetleri iptal edilmeyen siparişlerden, son 30 gün"}
           </p>
+          {statsFailed && !stats && (
+            <p className="prd-foot-hint ui-muted ui-text-xs">
+              Satış bilgileri alınamadı; liste rakamsız gösteriliyor.{" "}
+              <button type="button" className="prd-link" onClick={() => loadStats()}>Tekrar dene</button>
+            </p>
+          )}
         </section>
       )}
 
@@ -1017,6 +1284,7 @@ const ProductsList = ({ onCreate }) => {
           product={detail}
           sales={sales}
           now={now}
+          stat={statsOf(stats, detail._id)}
           busy={detailBusy}
           onClose={() => setDetailId(null)}
           onToggle={(kind) => onToggle(detail._id, kind)}

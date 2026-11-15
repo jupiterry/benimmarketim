@@ -16,6 +16,15 @@ const QUICK_PCTS = [10, 15, 20, 25, 30, 40];
  * (startNow + durationHours); bilgisayarın saati yanlış olsa da kampanya hemen başlar.
  * `products` önizleme içindir: tek ürünse eski → yeni fiyat gösterilir.
  */
+/** Ürünün kendi (flaş olmayan) indirimi verilen flaş fiyatından düşük ya da eşitse o fiyat; değilse null (sunucu: deeperOwnDiscount) */
+const deeperOwnDiscount = (product, flash) => {
+  if (!product?.isDiscounted || product?.flashSale) return null;
+  const own = Number(product.discountedPrice);
+  const list = Number(product.price);
+  if (!Number.isFinite(own) || own < 0 || !(list > 0) || own >= list) return null;
+  return own <= flash + 0.004 ? own : null;
+};
+
 /** Ürünün [start, end) aralığıyla çakışan açık kampanyaları (sunucudaki çakışma kuralıyla aynı) */
 const overlappingSales = (sales, productId, start, end, now) => sales.filter((sale) => {
   const id = sale.product?._id || sale.product;
@@ -52,15 +61,27 @@ export const FlashSaleForm = ({ products = [], busy, submitLabel = "Flash sale b
   const nowMs = Date.now();
   const preview = useMemo(() => (bulk ? products.map((product) => {
     const conflicts = datesValid ? overlappingSales(sales, product._id, startDate, endDate, nowMs) : [];
+    const next = pctValid ? roundMoney(Number(product.price) * (1 - pctNum / 100)) : null;
     return {
       product,
-      next: pctValid ? roundMoney(Number(product.price) * (1 - pctNum / 100)) : null,
+      next,
       conflict: conflicts[0] || null,
+      // Üründeki kendi indirimi flaş fiyatından düşük ya da eşit: flaş uygulanmaz (fiyat yükselmesin)
+      deeper: next !== null && !conflicts.length ? deeperOwnDiscount(product, next) : null,
     };
   }) : []), [bulk, products, sales, datesValid, pctValid, pctNum, startDate.getTime(), endDate.getTime()]); // eslint-disable-line react-hooks/exhaustive-deps
   const conflictCount = preview.filter((row) => row.conflict).length;
-  const willCreate = bulk ? (replaceExisting ? preview.length : preview.length - conflictCount) : products.length;
-  const bulkError = bulk && !error && willCreate === 0 ? "Seçili ürünlerin hepsinde bu tarihlerde flaş indirim var; değiştirmeyi seçin ya da tarihleri değiştirin." : "";
+  const deeperCount = preview.filter((row) => row.deeper !== null).length;
+  const willCreate = bulk ? (replaceExisting ? preview.length : preview.length - conflictCount) - deeperCount : products.length;
+  const singleNext = single && pctValid ? roundMoney(Number(single.price) * (1 - pctNum / 100)) : null;
+  const singleDeeper = single && singleNext !== null ? deeperOwnDiscount(single, singleNext) : null;
+  const bulkError = bulk && !error && willCreate <= 0
+    ? (deeperCount === preview.length
+      ? "Seçili ürünlerin hepsinde daha derin bir indirim var; daha yüksek bir oran girin."
+      : "Uygulanacak ürün kalmadı: ürünlerde bu tarihlerde flaş indirim ya da daha derin bir indirim var. Oranı, tarihleri ya da değiştirme seçimini değiştirin.")
+    : singleDeeper !== null
+      ? `Bu üründe zaten ${money(singleDeeper)} indirimli fiyat var; %${pctNum} flaş indirim fiyatı düşürmez. Daha yüksek bir oran girin ya da önce ürün indirimini kaldırın.`
+      : "";
 
   const submit = (e) => {
     e.preventDefault();
@@ -156,12 +177,17 @@ export const FlashSaleForm = ({ products = [], busy, submitLabel = "Flash sale b
             </div>
           )}
           <ul className="prd-bulk-preview">
-            {preview.map(({ product, next, conflict }) => (
-              <li key={product._id} data-skip={conflict && !replaceExisting ? "1" : undefined}>
+            {preview.map(({ product, next, conflict, deeper }) => (
+              <li key={product._id} data-skip={(conflict && !replaceExisting) || deeper !== null ? "1" : undefined}>
                 <span className="prd-bulk-name">
                   {product.name}
                   {product.isHidden && <span className="ui-badge">Gizli</span>}
                   {product.isOutOfStock && <span className="ui-badge ui-badge--danger">Stokta yok</span>}
+                  {deeper !== null && (
+                    <span className="ui-badge ui-badge--warn" title="Flaş indirim bu ürünün fiyatını yükseltirdi; ürün atlanır">
+                      Zaten {money(deeper)} · atlanır
+                    </span>
+                  )}
                   {conflict && (
                     <span className="ui-badge ui-badge--warn" title={`${formatDateTime(conflict.startDate)} – ${formatDateTime(conflict.endDate)}`}>
                       Mevcut %{conflict.discountPercentage} · {replaceExisting ? "iptal edilip yenisi uygulanır" : "atlanır"}

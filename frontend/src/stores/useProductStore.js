@@ -36,30 +36,26 @@ export const useProductStore = create((set) => ({
         }
     },
 
-    // Ürün fiyatını güncelle
+    // Ürün fiyatını güncelle (0 ya da boş fiyat kaydedilmez; sunucu indirimi kaldırdıysa o da yazılır)
     updateProductPrice: async (productId, newPrice) => {
+        const priceNumber = typeof newPrice === "number" ? newPrice : Number(String(newPrice ?? "").trim().replace(",", "."));
+        if (String(newPrice ?? "").trim() === "" || !Number.isFinite(priceNumber) || priceNumber <= 0) {
+            throw new Error("Geçerli bir fiyat girin (0'dan büyük)");
+        }
         set({ loading: true });
         try {
-            const priceNumber = parseFloat(newPrice);
-            if (isNaN(priceNumber) || priceNumber < 0) {
-                set({ loading: false });
-                throw new Error("Geçerli bir fiyat giriniz");
-            }
-
-            const response = await axios.put(`/products/update-price/${productId}`, { price: priceNumber }, {
-                headers: {
-                    Authorization: `Bearer ${localStorage.getItem("token")}`,
-                },
-            });
-            
+            const response = await axios.put(`/products/update-price/${productId}`, { price: priceNumber });
+            const updated = response.data.product;
             set((prevProducts) => ({
                 products: prevProducts.products.map((product) =>
-                    product._id === productId ? { ...product, price: response.data.product.price } : product
+                    product._id === productId
+                        ? { ...product, price: updated.price, isDiscounted: Boolean(updated.isDiscounted), discountedPrice: updated.discountedPrice ?? null }
+                        : product
                 ),
                 loading: false,
             }));
-            
-            return response.data.product; // Güncellenmiş ürünü döndür
+
+            return updated; // Güncellenmiş ürünü döndür
         } catch (error) {
             set({ loading: false });
             throw error; // Hata'yı yukarı fırlat, çağıran yerde handle edilsin

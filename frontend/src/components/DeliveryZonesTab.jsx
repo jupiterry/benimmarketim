@@ -108,7 +108,7 @@ const DeliveryZonesTab = () => {
   }, []);
   const loadGeneral = useCallback(async () => {
     try {
-      const { data } = await axios.get("/settings");
+      const { data } = await axios.get("/settings", { params: { raw: 1 } });
       const value = Number(data?.minimumOrderAmount);
       setGeneralMinimum(Number.isFinite(value) ? value : null);
     } catch {

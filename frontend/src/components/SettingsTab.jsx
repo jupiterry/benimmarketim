@@ -39,7 +39,7 @@ const SettingsTab = () => {
   const load = useCallback(async () => {
     setStatus("loading");
     try {
-      const { data } = await axios.get("/settings");
+      const { data } = await axios.get("/settings", { params: { raw: 1 } }); // kayıtlı değerler (mağaza kapalıyken de)
       const next = normalizeSettings(data);
       useSettingsStore.setState({ settings: next });
       setSaved(next);

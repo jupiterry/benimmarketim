@@ -1,8 +1,5 @@
 import express from "express";
 import { auditAdminAction } from "../middleware/adminAudit.js";
-import multer from "multer";
-import csv from "csv-parser";
-import fs from "fs";
 import Product from "../models/product.model.js";
 import { adminRoute, optionalAuth, protectRoute } from "../middleware/auth.middleware.js";
 import { recordAdminAction } from "../services/adminAudit.service.js";
@@ -28,7 +25,11 @@ import {
   bulkUpdatePrice,
   getSimilarProducts,
   getProductById,
+  setProductState,
+  bulkSetProductState,
+  getProductSalesStats,
 } from "../controllers/product.controller.js"; // Tüm kontrolörleri import et
+import { bulkUploadProducts, handleCsvUpload } from "../controllers/productImport.controller.js";
 
 const router = express.Router();
 
@@ -43,73 +44,8 @@ router.use((req, res, next) => {
   }
   next();
 });
-// CSV toplu yükleme: yalnızca .csv, en fazla 5 MB; dosyalar "uploads" klasörüne geçici yazılır
-const upload = multer({
-  dest: "uploads/",
-  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
-  fileFilter: (_req, file, cb) => {
-    const isCsv = /\.csv$/i.test(file.originalname || "") ||
-      ["text/csv", "application/csv", "application/vnd.ms-excel", "text/plain"].includes(file.mimetype);
-    if (!isCsv) return cb(new Error("Yalnızca CSV dosyası yüklenebilir"));
-    cb(null, true);
-  },
-});
-const handleCsvUpload = (req, res, next) => {
-  upload.single("file")(req, res, (error) => {
-    if (error) {
-      return res.status(400).json({
-        message: error.code === "LIMIT_FILE_SIZE" ? "CSV dosyası en fazla 5 MB olabilir" : error.message,
-      });
-    }
-    next();
-  });
-};
-
-// Toplu ürün yükleme endpoint'i
-router.post(
-  "/bulk-upload",
-  protectRoute,
-  adminRoute,
-  handleCsvUpload,
-  async (req, res) => {
-    if (!req.file) {
-      return res.status(400).json({ message: "Lütfen bir dosya yükleyin." });
-    }
-
-    console.log("Dosya yüklendi:", req.file); // Dosya bilgilerini logla
-
-    const results = [];
-
-    fs.createReadStream(req.file.path)
-      .pipe(csv())
-      .on("data", (data) => {
-        console.log("CSV Satırı:", data); // Her CSV satırını logla
-        results.push(data);
-      })
-      .on("end", async () => {
-        try {
-          console.log("CSV Verileri:", results); // Tüm CSV verilerini logla
-          const inserted = await Product.insertMany(results);
-          const names = inserted.map((p) => p.name).filter(Boolean);
-          recordAdminAction(req, {
-            action: "CSV ile toplu ürün yükleme",
-            category: "product",
-            target: `${inserted.length} ürün`,
-            targetName: `${names.slice(0, 5).join(", ")}${names.length > 5 ? ` ve ${names.length - 5} ürün daha` : ""}`,
-            meta: { file: req.file.originalname, count: inserted.length },
-          });
-          res.status(200).json({ message: "Ürünler başarıyla yüklendi!" });
-        } catch (error) {
-          console.error("Ürünler yüklenirken hata:", error);
-          res
-            .status(500)
-            .json({ message: "Ürünler yüklenirken hata oluştu.", error: error.message });
-        } finally {
-          fs.unlinkSync(req.file.path); // Dosyayı sunucudan sil
-        }
-      });
-  }
-);
+// CSV ile toplu ürün yükleme: yalnızca .csv, en fazla 5 MB; satır satır doğrulanır (productImport.controller)
+router.post("/bulk-upload", protectRoute, adminRoute, handleCsvUpload, bulkUploadProducts);
 
 // Ürün sıralamasını güncelleyen yeni rota
 router.post("/reorder", protectRoute, adminRoute, async (req, res) => {
@@ -153,12 +89,16 @@ router.get("/popular", getPopularProducts);
 router.get("/shelf-performance", protectRoute, adminRoute, getShelfPerformance);
 // Static routes must precede the dynamic /:id route.
 router.get("/search", searchProducts);
+// Ürün başına son 7/30 gün satış adedi (panel ürün listesi)
+router.get("/sales-stats", protectRoute, adminRoute, getProductSalesStats);
 router.get("/:id/similar", getSimilarProducts); // Similar products endpoint
 router.get("/:id", getProductById);
 router.post("/", protectRoute, adminRoute, createProduct);
 router.put("/update-price/:id", protectRoute, adminRoute, auditAdminAction("Fiyat değişikliği", req => req.params.id), updateProductPrice);
 router.patch("/toggle-hidden/:id", protectRoute, adminRoute, toggleHiddenProduct);
 router.patch("/toggle-out-of-stock/:id", protectRoute, adminRoute, toggleOutOfStock);
+// Durumu "şuna ayarla" (idempotent): { isOutOfStock?, isHidden?, isFeatured? }. Eski toggle uçları da çalışır.
+router.patch("/:id/state", protectRoute, adminRoute, setProductState);
 router.patch("/:id", protectRoute, adminRoute, toggleFeaturedProduct);
 router.delete("/:id", protectRoute, adminRoute, deleteProduct);
 router.put("/:id", protectRoute, adminRoute, auditAdminAction("Ürün değişikliği", req => req.params.id), updateProduct); // Ürün güncelleme endpoint'i
@@ -166,6 +106,7 @@ router.put("/:id", protectRoute, adminRoute, auditAdminAction("Ürün değişikl
 // Toplu İşlem Route'ları
 router.post("/bulk-delete", protectRoute, adminRoute, bulkDeleteProducts);
 router.post("/bulk-visibility", protectRoute, adminRoute, bulkUpdateVisibility);
+router.post("/bulk-state", protectRoute, adminRoute, bulkSetProductState);
 router.post("/bulk-price-update", protectRoute, adminRoute, auditAdminAction("Toplu fiyat değişikliği", "Ürünler"), bulkUpdatePrice);
 
 export default router;

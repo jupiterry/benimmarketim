@@ -25,6 +25,7 @@ import settingsRoutes from "./routes/settings.route.js";
 import flashSaleRoutes from "./routes/flashSale.route.js";
 import { startFlashSaleJob } from "./services/flashSale.service.js";
 import { startNotificationAutomationJobs } from "./services/notificationAutomation.service.js";
+import { startPushScheduleJob } from "./services/pushSchedule.service.js";
 import { startRecommendationJob } from "./services/recommendation.service.js";
 import { startOpenRouterModelRefresh } from "./services/ai/openrouterModels.service.js";
 import photocopyRoutes from "./routes/photocopy.route.js";
@@ -378,6 +379,8 @@ httpServer.listen(PORT, () => {
   startFlashSaleJob();
   // Otomatik bildirimler (ikinci sipariş, geri kazanma, kupon süresi, açılışta sepet): 10 dakikada bir
   startNotificationAutomationJobs();
+  // Planlı toplu bildirimler: zamanı geleni gönderir (dakikada bir)
+  startPushScheduleJob();
   startRecommendationJob();
   // OpenRouter'daki güncel model listesi (geçersiz/kaldırılmış ücretsiz modeller istekten önce elensin diye)
   startOpenRouterModelRefresh();
