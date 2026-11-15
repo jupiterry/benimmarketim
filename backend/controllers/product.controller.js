@@ -6,11 +6,29 @@ import { getProductCacheStamp, onProductCachesInvalidated, syncProductCacheVersi
 import { diffFields, money, recordAdminAction, yesNo } from "../services/adminAudit.service.js";
 import { RECO_WEIGHTS } from "../services/recommendation.config.js";
 import { CARD_SELECT, discountPercent, getStats, hourBucket, hourFitScore, normalizeDeliveryPoint, popularityScore } from "../services/recommendation.service.js";
+import FlashSale from "../models/flashSale.model.js";
+import {
+  BULK_PRICE_TYPES, DEFAULT_DISCOUNT_MODE, DISCOUNT_MODES, applyStockState, emitProductsChanged, planBulkPrice,
+  priceFieldsOf, readDiscountedPrice, readPrice,
+} from "../services/productAdmin.service.js";
+import { getSalesStats } from "../services/productSalesStats.service.js";
+import { toKurus } from "../services/productPricing.js";
 import mongoose from "mongoose";
 
 // İşlem kaydı yardımcıları
 const auditProduct = (req, product, action, changes = [], meta) =>
   recordAdminAction(req, { action, category: "product", target: String(product?._id || ""), targetName: product?.name || "", changes, meta });
+// Eski ürün kayıtlarında zorunlu bir alan eksik olabilir; yalnızca değişen alanlar doğrulanır
+const saveProduct = (product) => product.save({ validateModifiedOnly: true });
+const BULK_STATE_MAX = 500;
+const STATE_FIELDS = ["isOutOfStock", "isHidden", "isFeatured"];
+const validIds = (ids) => Array.isArray(ids) && ids.length > 0 && ids.every((id) => mongoose.Types.ObjectId.isValid(id));
+const stateFieldsOf = (product) => ({
+  isOutOfStock: Boolean(product.isOutOfStock),
+  isHidden: Boolean(product.isHidden),
+  isFeatured: Boolean(product.isFeatured),
+  outOfStockSince: product.outOfStockSince ?? null,
+});
 const auditBulk = (req, action, products, changes = [], meta = {}) => {
   const names = products.map((p) => p.name).filter(Boolean);
   recordAdminAction(req, {
@@ -114,8 +132,12 @@ export const createProduct = async (req, res) => {
   try {
     const { name, description, price, image, category, subcategory, isHidden } = req.body;
 
-    if (!name || !price || !category) {
+    if (!name || price === undefined || price === null || price === "" || !category) {
       return res.status(400).json({ message: "Ürün adı, fiyat ve kategori zorunludur!" });
+    }
+    const priceInput = readPrice(price);
+    if (priceInput.error) {
+      return res.status(400).json({ message: priceInput.error });
     }
 
     let cloudinaryResponse = null;
@@ -134,7 +156,7 @@ export const createProduct = async (req, res) => {
     const product = await Product.create({
       name,
       description: description || "",
-      price,
+      price: priceInput.price,
       image: cloudinaryResponse?.secure_url || "",
       category,
       subcategory: subcategory || "",
@@ -147,6 +169,7 @@ export const createProduct = async (req, res) => {
       { label: "Kategori", from: "—", to: product.category },
       ...(product.isHidden ? [{ label: "Görünürlük", from: "—", to: "Gizli" }] : []),
     ]);
+    emitProductsChanged(req, [product._id], {}, { reload: true });
     res.status(201).json({
       message: "Ürün başarıyla oluşturuldu!",
       product,
@@ -177,6 +200,7 @@ export const deleteProduct = async (req, res) => {
 
     await Product.findByIdAndDelete(req.params.id);
     auditProduct(req, product, "Ürün silindi", [{ label: "Fiyat", from: money(product.price), to: "—" }]);
+    emitProductsChanged(req, [product._id], { deleted: true });
 
     res.json({ message: "Product deleted successfully" });
   } catch (error) {
@@ -217,6 +241,7 @@ export const toggleFeaturedProduct = async (req, res) => {
       await updateFeaturedProductsCache();
       auditProduct(req, product, product.isFeatured ? "Öne çıkarıldı" : "Öne çıkanlardan kaldırıldı",
         [{ label: "Öne çıkan", from: yesNo(!product.isFeatured), to: yesNo(product.isFeatured) }]);
+      emitProductsChanged(req, [product._id], { isFeatured: Boolean(product.isFeatured) });
       res.json(updatedProduct);
     } else {
       res.status(404).json({ message: "Product not found" });
@@ -239,6 +264,7 @@ export const toggleHiddenProduct = async (req, res) => {
     const updatedProduct = await product.save();
     auditProduct(req, product, product.isHidden ? "Ürün gizlendi" : "Ürün yayına alındı",
       [{ label: "Görünürlük", from: product.isHidden ? "Görünür" : "Gizli", to: product.isHidden ? "Gizli" : "Görünür" }]);
+    emitProductsChanged(req, [product._id], { isHidden: Boolean(product.isHidden) });
 
     // Cache'i invalidate et - güncellenmiş ürünü döndür
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -379,14 +405,21 @@ export const getProductById = async (req, res) => {
 
 export const updateProductPrice = async (req, res) => {
   try {
-    const { price } = req.body;
-    if (price === undefined || price === null || price === '') {
-      return res.status(400).json({ message: "Fiyat alanı zorunludur" });
+    const priceInput = readPrice(req.body?.price);
+    if (priceInput.error) {
+      return res.status(400).json({ message: priceInput.error });
     }
+    const priceNumber = priceInput.price;
 
-    const priceNumber = Number(price);
-    if (isNaN(priceNumber) || priceNumber < 0) {
-      return res.status(400).json({ message: "Geçerli bir fiyat giriniz" });
+    // "Geri al": fiyat değişikliği indirimi kaldırdıysa eski indirim aynı istekte geri yazılır
+    const restoreRaw = req.body?.restoreDiscountedPrice;
+    let restoreDiscount = null;
+    if (restoreRaw !== undefined && restoreRaw !== null && restoreRaw !== "") {
+      const discountInput = readDiscountedPrice(restoreRaw, priceNumber);
+      if (discountInput.error) {
+        return res.status(400).json({ message: discountInput.error });
+      }
+      restoreDiscount = discountInput.discountedPrice;
     }
 
     const product = await Product.findById(req.params.id);
@@ -397,22 +430,35 @@ export const updateProductPrice = async (req, res) => {
     const before = { price: product.price, isDiscounted: product.isDiscounted, discountedPrice: product.discountedPrice };
     product.price = priceNumber; // Yeni fiyatı kaydet
     // Yeni fiyatın altında kalmayan indirim geçersizdir; müşteriye daha pahalı "indirim" gösterilmesin
-    if (product.isDiscounted && Number(product.discountedPrice) >= priceNumber) {
+    if (product.isDiscounted && toKurus(product.discountedPrice) >= toKurus(priceNumber)) {
       product.isDiscounted = false;
       product.discountedPrice = null;
+    }
+    const discountRemoved = Boolean(before.isDiscounted && !product.isDiscounted);
+    const discountRestored = restoreDiscount !== null && !product.isDiscounted;
+    if (discountRestored) {
+      product.isDiscounted = true;
+      product.discountedPrice = restoreDiscount;
     }
     const updatedProduct = await product.save();
     auditProduct(req, product, "Fiyat değiştirildi", [
       { label: "Fiyat", from: money(before.price), to: money(product.price) },
-      ...(before.isDiscounted && !product.isDiscounted ? [{ label: "İndirim", from: money(before.discountedPrice), to: "Kaldırıldı (yeni fiyatın üstündeydi)" }] : []),
+      ...(discountRemoved && !discountRestored ? [{ label: "İndirim", from: money(before.discountedPrice), to: "Kaldırıldı (yeni fiyatın üstündeydi)" }] : []),
+      ...(discountRestored ? [{ label: "İndirimli fiyat", from: before.isDiscounted ? money(before.discountedPrice) : "İndirim yok", to: money(restoreDiscount) }] : []),
     ]);
+    emitProductsChanged(req, [product._id], priceFieldsOf(product));
 
     // Cache'i invalidate et
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
 
-    res.status(200).json({ message: "Ürün fiyatı güncellendi", product: updatedProduct });
+    res.status(200).json({
+      message: "Ürün fiyatı güncellendi",
+      product: updatedProduct,
+      previous: { price: before.price, isDiscounted: Boolean(before.isDiscounted), discountedPrice: before.discountedPrice ?? null },
+      discountRemoved: discountRemoved && !discountRestored,
+    });
   } catch (error) {
     console.error("Ürün fiyatı güncellenirken hata:", error.message);
     res.status(500).json({ message: "Sunucu hatası", error: error.message });
@@ -515,11 +561,18 @@ export const searchProducts = async (req, res) => {
 
 export const updateProduct = async (req, res) => {
   try {
-    const { name, category, subcategory, isHidden, discountedPrice, price } = req.body;
+    const { name, category, subcategory, isHidden, isOutOfStock, discountedPrice, price } = req.body;
     const productId = req.params.id;
 
     if (!name || !category) {
       return res.status(400).json({ message: "Ürün adı ve kategori zorunludur" });
+    }
+    let priceInput = null;
+    if (price !== undefined) {
+      priceInput = readPrice(price);
+      if (priceInput.error) {
+        return res.status(400).json({ message: priceInput.error });
+      }
     }
 
     const product = await Product.findById(productId);
@@ -532,8 +585,25 @@ export const updateProduct = async (req, res) => {
     product.category = category;
     product.subcategory = subcategory || "";
     if (isHidden !== undefined) product.isHidden = isHidden;
-    if (discountedPrice !== undefined) product.discountedPrice = discountedPrice;
-    if (price !== undefined) product.price = Number(price);
+    if (typeof isOutOfStock === "boolean") applyStockState(product, isOutOfStock);
+    if (priceInput) product.price = priceInput.price;
+    if (discountedPrice !== undefined) {
+      if (discountedPrice === null || discountedPrice === "") {
+        product.discountedPrice = null;
+        product.isDiscounted = false;
+      } else {
+        const discountInput = readDiscountedPrice(discountedPrice, product.price);
+        if (discountInput.error) {
+          return res.status(400).json({ message: discountInput.error });
+        }
+        product.discountedPrice = discountInput.discountedPrice;
+      }
+    }
+    // Yeni fiyatın altında kalmayan indirim geçersizdir (update-price ile aynı kural)
+    if (priceInput && product.isDiscounted && toKurus(product.discountedPrice) >= toKurus(product.price)) {
+      product.isDiscounted = false;
+      product.discountedPrice = null;
+    }
 
     const updatedProduct = await product.save();
     auditProduct(req, { _id: product._id, name: before.name !== product.name ? `${before.name} → ${product.name}` : product.name }, "Ürün düzenlendi", diffFields(before, product.toObject(), [
@@ -543,7 +613,14 @@ export const updateProduct = async (req, res) => {
       { key: "price", label: "Fiyat", format: money },
       { key: "discountedPrice", label: "İndirimli fiyat", format: money },
       { key: "isHidden", label: "Görünürlük", format: (v) => (v ? "Gizli" : "Görünür") },
+      { key: "isOutOfStock", label: "Stok", format: (v) => (v ? "Tükendi" : "Stokta") },
     ]));
+    emitProductsChanged(req, [product._id], {
+      name: product.name,
+      category: product.category,
+      ...priceFieldsOf(product),
+      ...stateFieldsOf(product),
+    });
 
     // Cache'i güncelle (featured_products varsa)
     if (product.isFeatured) {
@@ -563,11 +640,12 @@ export const toggleOutOfStock = async (req, res) => {
       return res.status(404).json({ message: "Ürün bulunamadı" });
     }
 
-    // Tükendi durumunu tersine çevir
-    product.isOutOfStock = !product.isOutOfStock;
+    // Tükendi durumunu tersine çevir (tükendi olunca outOfStockSince yazılır, stoka alınınca silinir)
+    applyStockState(product, !product.isOutOfStock);
     const updatedProduct = await product.save();
     auditProduct(req, product, product.isOutOfStock ? "Tükendi olarak işaretlendi" : "Stoka alındı",
       [{ label: "Stok", from: product.isOutOfStock ? "Stokta" : "Tükendi", to: product.isOutOfStock ? "Tükendi" : "Stokta" }]);
+    emitProductsChanged(req, [product._id], { isOutOfStock: Boolean(product.isOutOfStock), outOfStockSince: product.outOfStockSince ?? null });
 
     // Cache'i invalidate et - güncellenmiş ürünü döndür
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -630,16 +708,17 @@ export const updateProductImage = async (req, res) => {
 
 export const updateProductDiscount = async (req, res) => {
   try {
-    const { discountedPrice } = req.body;
     const product = await Product.findById(req.params.id);
     
     if (!product) {
       return res.status(404).json({ message: "Ürün bulunamadı" });
     }
 
-    if (discountedPrice >= product.price) {
-      return res.status(400).json({ message: "İndirimli fiyat normal fiyattan yüksek olamaz" });
+    const discountInput = readDiscountedPrice(req.body?.discountedPrice, product.price);
+    if (discountInput.error) {
+      return res.status(400).json({ message: discountInput.error });
     }
+    const discountedPrice = discountInput.discountedPrice;
 
     const previous = product.isDiscounted ? product.discountedPrice : null;
     product.isDiscounted = true;
@@ -649,6 +728,7 @@ export const updateProductDiscount = async (req, res) => {
     auditProduct(req, product, "İndirim uygulandı", [
       { label: "İndirimli fiyat", from: previous === null ? "İndirim yok" : money(previous), to: `${money(discountedPrice)} (%${pct})` },
     ]);
+    emitProductsChanged(req, [product._id], priceFieldsOf(product));
 
     res.json({ message: "İndirim başarıyla uygulandı", product });
   } catch (error) {
@@ -670,6 +750,7 @@ export const removeProductDiscount = async (req, res) => {
     product.discountedPrice = null;
     await product.save();
     auditProduct(req, product, "İndirim kaldırıldı", [{ label: "İndirimli fiyat", from: money(previous), to: "İndirim yok" }]);
+    emitProductsChanged(req, [product._id], priceFieldsOf(product));
 
     res.json({ message: "İndirim başarıyla kaldırıldı", product });
   } catch (error) {
@@ -690,6 +771,7 @@ export const bulkDeleteProducts = async (req, res) => {
     const deleted = await Product.find({ _id: { $in: productIds } }).select("name").lean();
     await Product.deleteMany({ _id: { $in: productIds } });
     auditBulk(req, "Toplu ürün silme", deleted);
+    emitProductsChanged(req, productIds, { deleted: true });
     
     res.json({ message: `${productIds.length} ürün silindi`, deletedCount: productIds.length });
   } catch (error) {
@@ -705,11 +787,15 @@ export const bulkUpdateVisibility = async (req, res) => {
     if (!productIds || productIds.length === 0) {
       return res.status(400).json({ message: "Ürün ID'leri gerekli" });
     }
+    if (typeof isHidden !== "boolean") {
+      return res.status(400).json({ message: "isHidden true ya da false olmalı" });
+    }
 
     await Product.updateMany(
       { _id: { $in: productIds } },
       { $set: { isHidden } }
     );
+    emitProductsChanged(req, productIds, { isHidden });
     auditBulk(req, isHidden ? "Toplu gizleme" : "Toplu yayına alma",
       await Product.find({ _id: { $in: productIds } }).select("name").lean(),
       [{ label: "Görünürlük", from: "—", to: isHidden ? "Gizli" : "Görünür" }]);
@@ -728,52 +814,248 @@ export const bulkUpdatePrice = async (req, res) => {
   try {
     const { productIds, priceType } = req.body;
     const priceValue = Number(req.body.priceValue);
+    const discountMode = req.body.discountMode === undefined || req.body.discountMode === null || req.body.discountMode === ""
+      ? DEFAULT_DISCOUNT_MODE
+      : req.body.discountMode;
 
-    if (!productIds || productIds.length === 0) {
+    if (!Array.isArray(productIds) || productIds.length === 0) {
       return res.status(400).json({ message: "Ürün ID'leri gerekli" });
     }
-    if (!Number.isFinite(priceValue) || !["set", "increase", "decrease", "percentage"].includes(priceType)) {
+    if (!validIds(productIds)) {
+      return res.status(400).json({ message: "Geçersiz ürün ID'si" });
+    }
+    if (!Number.isFinite(priceValue) || !BULK_PRICE_TYPES.includes(priceType)) {
       return res.status(400).json({ message: "Geçerli bir fiyat değeri ve işlem türü girin" });
     }
-    if (priceType === "set" && priceValue < 0) {
-      return res.status(400).json({ message: "Fiyat negatif olamaz" });
+    if (!DISCOUNT_MODES.includes(discountMode)) {
+      return res.status(400).json({ message: "Geçersiz indirim seçeneği (keepRatio, keepPrice ya da remove olmalı)" });
+    }
+    if (priceType === "set" && toKurus(priceValue) <= 0) {
+      return res.status(400).json({ message: "Sabit fiyat 0 ₺ ya da daha düşük olamaz" });
+    }
+    if (priceType !== "set" && toKurus(priceValue) === 0) {
+      return res.status(400).json({ message: "Değişiklik miktarı 0 olamaz" });
     }
 
     const products = await Product.find({ _id: { $in: productIds } });
-    const priceChanges = [];
+    if (!products.length) {
+      return res.status(404).json({ message: "Seçili ürünler bulunamadı" });
+    }
 
-    for (const product of products) {
-      const oldPrice = product.price;
-      switch (priceType) {
-        case 'set':
-          product.price = priceValue;
-          break;
-        case 'increase':
-          product.price += priceValue;
-          break;
-        case 'decrease':
-          product.price = Math.max(0, product.price - priceValue);
-          break;
-        case 'percentage':
-          product.price = product.price * (1 + priceValue / 100);
-          break;
+    // Flaş indirimdeki ürünlerin kampanya kayıtları (flaş fiyatı ve kampanya sonrası fiyat birlikte güncellenir)
+    const saleIds = products.filter((p) => p.flashSale?.sale).map((p) => p.flashSale.sale);
+    const sales = saleIds.length ? await FlashSale.find({ _id: { $in: saleIds } }) : [];
+    const saleById = new Map(sales.map((sale) => [String(sale._id), sale]));
+
+    // Önce tüm ürünler hesaplanır: biri bile 0 ₺ ya da altına inecekse hiçbir fiyat değiştirilmez
+    const rule = { priceType, priceValue, discountMode };
+    const plans = products.map((product) => {
+      const sale = product.flashSale?.sale ? saleById.get(String(product.flashSale.sale)) || null : null;
+      return { product, sale, plan: planBulkPrice(product, rule, sale) };
+    });
+    const invalid = plans.filter(({ plan }) => !(toKurus(plan.price) > 0));
+    if (invalid.length) {
+      const first = invalid[0];
+      return res.status(400).json({
+        message: `Bu değişiklikle “${first.product.name}” fiyatı ${money(first.plan.price)} olur${invalid.length > 1 ? ` (${invalid.length - 1} ürün daha 0 ₺ ya da altına iniyor)` : ""}. Fiyat 0 ₺ ya da daha düşük olamaz; hiçbir fiyat değiştirilmedi.`,
+        invalidProducts: invalid.slice(0, 50).map(({ product, plan }) => ({ _id: String(product._id), name: product.name, price: plan.oldPrice, newPrice: plan.price })),
+      });
+    }
+
+    const priceChanges = [];
+    const updated = [];
+    let discountsRemoved = 0;
+    let flashUpdated = 0;
+    for (const { product, sale, plan } of plans) {
+      product.price = plan.price;
+      product.isDiscounted = plan.isDiscounted;
+      product.discountedPrice = plan.discountedPrice;
+      if (plan.flash) {
+        product.flashSale.price = plan.flash.price;
+        flashUpdated++;
       }
-      product.price = Math.max(0, Math.round(Number(product.price) * 100) / 100);
-      // Yeni fiyat indirimli fiyatın altına inerse geçersiz kalan indirimi kaldır
-      if (product.isDiscounted && Number(product.discountedPrice) >= product.price) {
-        product.isDiscounted = false;
-        product.discountedPrice = null;
+      if (plan.discountRemoved) discountsRemoved++;
+      await saveProduct(product);
+      if (plan.flash && sale) {
+        // Kampanya bitince releaseSale ürünü appliedPrice ile tanır ve önceki indirimi geri yükler
+        sale.appliedPrice = plan.flash.price;
+        sale.previousIsDiscounted = plan.flash.previousIsDiscounted;
+        sale.previousDiscountedPrice = plan.flash.previousDiscountedPrice;
+        await sale.save();
       }
-      await product.save();
-      if (priceChanges.length < 15) priceChanges.push({ label: product.name, from: money(oldPrice), to: money(product.price) });
+      updated.push({ _id: String(product._id), ...priceFieldsOf(product) });
+      if (priceChanges.length < 15) {
+        const customerChanged = plan.customerBefore !== plan.oldPrice || plan.customerAfter !== plan.price;
+        priceChanges.push({
+          label: product.name,
+          from: customerChanged ? `${money(plan.oldPrice)} (müşteri ${money(plan.customerBefore)})` : money(plan.oldPrice),
+          to: customerChanged
+            ? `${money(plan.price)} (müşteri ${money(plan.customerAfter)}${plan.flash ? ", flaş" : plan.discountRemoved ? ", indirim kalktı" : ""})`
+            : money(plan.price),
+        });
+      }
     }
     const ruleLabel = { set: `Sabit ${money(priceValue)}`, increase: `+${money(priceValue)}`, decrease: `−${money(priceValue)}`, percentage: `%${priceValue}` }[priceType];
-    auditBulk(req, `Toplu fiyat güncelleme (${ruleLabel})`, products, priceChanges, { priceType, priceValue });
-    
-    res.json({ message: `${productIds.length} ürünün fiyatı güncellendi` });
+    const modeLabel = { keepRatio: "indirim oranı korundu", keepPrice: "indirimli fiyat sabit", remove: "indirimler kaldırıldı" }[discountMode];
+    auditBulk(req, `Toplu fiyat güncelleme (${ruleLabel}, ${modeLabel})`, products, priceChanges,
+      { priceType, priceValue, discountMode, discountsRemoved, flashUpdated });
+    emitProductsChanged(req, updated.map((p) => p._id), {}, { products: updated });
+
+    res.json({
+      success: true,
+      message: `${products.length} ürünün fiyatı güncellendi`,
+      updatedCount: products.length,
+      discountMode,
+      discountsRemoved,
+      flashUpdated,
+      products: updated,
+    });
   } catch (error) {
     console.error("Toplu fiyat güncelleme hatası:", error);
-    res.status(500).json({ message: "İşlem başarısız" });
+    res.status(500).json({ message: "İşlem başarısız. Ürün listesini yenileyip fiyatları kontrol edin." });
+  }
+};
+
+// ─────────────────────────────────────────────
+// Durumu "şuna ayarla" uçları (tersine çevirmez; iki cihaz aynı anda bassa da sonuç aynıdır)
+// ─────────────────────────────────────────────
+const readStateBody = (body, allowed) => {
+  const changes = {};
+  for (const field of allowed) {
+    const value = body?.[field];
+    if (value === undefined) continue;
+    if (typeof value !== "boolean") return { error: `${field} true ya da false olmalı` };
+    changes[field] = value;
+  }
+  if (!Object.keys(changes).length) return { error: `En az bir alan gerekli: ${allowed.join(", ")}` };
+  return { changes };
+};
+
+const stateChangeRows = (before, after) => [
+  ...(before.isOutOfStock !== after.isOutOfStock ? [{ label: "Stok", from: before.isOutOfStock ? "Tükendi" : "Stokta", to: after.isOutOfStock ? "Tükendi" : "Stokta" }] : []),
+  ...(before.isHidden !== after.isHidden ? [{ label: "Görünürlük", from: before.isHidden ? "Gizli" : "Görünür", to: after.isHidden ? "Gizli" : "Görünür" }] : []),
+  ...(before.isFeatured !== after.isFeatured ? [{ label: "Öne çıkan", from: yesNo(before.isFeatured), to: yesNo(after.isFeatured) }] : []),
+];
+
+/** PATCH /api/products/:id/state { isOutOfStock?, isHidden?, isFeatured? } */
+export const setProductState = async (req, res) => {
+  try {
+    const { changes, error } = readStateBody(req.body, STATE_FIELDS);
+    if (error) {
+      return res.status(400).json({ success: false, message: error });
+    }
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: "Geçersiz ürün ID'si" });
+    }
+    const product = await Product.findById(req.params.id);
+    if (!product) {
+      return res.status(404).json({ success: false, message: "Ürün bulunamadı" });
+    }
+
+    const before = stateFieldsOf(product);
+    if (changes.isOutOfStock !== undefined) applyStockState(product, changes.isOutOfStock);
+    if (changes.isHidden !== undefined) product.isHidden = changes.isHidden;
+    if (changes.isFeatured !== undefined) product.isFeatured = changes.isFeatured;
+    const after = stateFieldsOf(product);
+    const rows = stateChangeRows(before, after);
+
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    if (!rows.length) {
+      // Zaten istenen durumda: hiçbir şey yazılmaz
+      return res.status(200).json({ success: true, changed: false, product });
+    }
+
+    const updatedProduct = await saveProduct(product);
+    if (before.isFeatured !== after.isFeatured || (before.isHidden !== after.isHidden && after.isFeatured)) {
+      await updateFeaturedProductsCache();
+    }
+    const action = rows.length > 1 ? "Ürün durumu değiştirildi"
+      : before.isOutOfStock !== after.isOutOfStock ? (after.isOutOfStock ? "Tükendi olarak işaretlendi" : "Stoka alındı")
+        : before.isHidden !== after.isHidden ? (after.isHidden ? "Ürün gizlendi" : "Ürün yayına alındı")
+          : (after.isFeatured ? "Öne çıkarıldı" : "Öne çıkanlardan kaldırıldı");
+    auditProduct(req, product, action, rows);
+    emitProductsChanged(req, [product._id], after);
+
+    res.status(200).json({ success: true, changed: true, product: updatedProduct || product });
+  } catch (error) {
+    console.error("Ürün durumu güncellenirken hata:", error.message);
+    res.status(500).json({ success: false, message: "Ürün durumu güncellenemedi" });
+  }
+};
+
+const BULK_STATE_SELECT = "name isOutOfStock isHidden isFeatured outOfStockSince updatedAt";
+
+/** POST /api/products/bulk-state { productIds (≤500), isOutOfStock?, isHidden? } */
+export const bulkSetProductState = async (req, res) => {
+  try {
+    const { productIds } = req.body || {};
+    if (!Array.isArray(productIds) || productIds.length === 0) {
+      return res.status(400).json({ success: false, message: "Ürün ID'leri gerekli" });
+    }
+    if (productIds.length > BULK_STATE_MAX) {
+      return res.status(400).json({ success: false, message: `Tek seferde en fazla ${BULK_STATE_MAX} ürün güncellenebilir` });
+    }
+    if (!validIds(productIds)) {
+      return res.status(400).json({ success: false, message: "Geçersiz ürün ID'si" });
+    }
+    const { changes, error } = readStateBody(req.body, ["isOutOfStock", "isHidden"]);
+    if (error) {
+      return res.status(400).json({ success: false, message: error });
+    }
+
+    const ids = [...new Set(productIds.map(String))];
+    const before = await Product.find({ _id: { $in: ids } }).select(BULK_STATE_SELECT).lean();
+    const changed = before.filter((p) =>
+      (changes.isOutOfStock !== undefined && Boolean(p.isOutOfStock) !== changes.isOutOfStock) ||
+      (changes.isHidden !== undefined && Boolean(p.isHidden) !== changes.isHidden));
+
+    const now = new Date();
+    if (changes.isHidden !== undefined) {
+      await Product.updateMany({ _id: { $in: ids } }, { $set: { isHidden: changes.isHidden } });
+    }
+    if (changes.isOutOfStock === true) {
+      // Zaten tükenmiş ürünlerin ilk tükenme tarihi korunur
+      await Product.updateMany({ _id: { $in: ids }, isOutOfStock: { $ne: true } }, { $set: { isOutOfStock: true, outOfStockSince: now } });
+    } else if (changes.isOutOfStock === false) {
+      await Product.updateMany({ _id: { $in: ids } }, { $set: { isOutOfStock: false, outOfStockSince: null } });
+    }
+
+    const products = await Product.find({ _id: { $in: ids } }).select(BULK_STATE_SELECT).lean();
+    const found = new Set(products.map((p) => String(p._id)));
+    const missing = ids.filter((id) => !found.has(id));
+
+    if (changed.length) {
+      if (changes.isHidden !== undefined) await updateFeaturedProductsCache();
+      const labels = [
+        ...(changes.isOutOfStock !== undefined ? [changes.isOutOfStock ? "Toplu tükendi işaretleme" : "Toplu stoka alma"] : []),
+        ...(changes.isHidden !== undefined ? [changes.isHidden ? "Toplu gizleme" : "Toplu yayına alma"] : []),
+      ];
+      auditBulk(req, labels.join(" + "), changed, [
+        ...(changes.isOutOfStock !== undefined ? [{ label: "Stok", from: "—", to: changes.isOutOfStock ? "Tükendi" : "Stokta" }] : []),
+        ...(changes.isHidden !== undefined ? [{ label: "Görünürlük", from: "—", to: changes.isHidden ? "Gizli" : "Görünür" }] : []),
+      ], { requested: ids.length });
+      emitProductsChanged(req, products.map((p) => p._id), {}, {
+        products: products.map((p) => ({ _id: String(p._id), ...stateFieldsOf(p) })),
+      });
+    }
+
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.status(200).json({ success: true, updatedCount: changed.length, products, missing });
+  } catch (error) {
+    console.error("Toplu durum güncelleme hatası:", error);
+    res.status(500).json({ success: false, message: "İşlem başarısız. Ürün listesini yenileyip tekrar deneyin." });
+  }
+};
+
+/** GET /api/products/sales-stats: ürün başına son 7/30 gün satış adedi (yönetici) */
+export const getProductSalesStats = async (req, res) => {
+  try {
+    const data = await getSalesStats({ force: req.query?.refresh === "1" });
+    res.setHeader("Cache-Control", "private, no-store");
+    res.status(200).json({ success: true, generatedAt: data.generatedAt, stats: data.stats });
+  } catch (error) {
+    console.error("Satış özeti hesaplanamadı:", error.message);
+    res.status(500).json({ success: false, message: "Satış bilgileri alınamadı" });
   }
 };
 

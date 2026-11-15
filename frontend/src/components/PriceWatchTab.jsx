@@ -26,7 +26,9 @@ import {
   TrendingUp,
 } from "lucide-react";
 import axios from "../lib/axios";
-import { errorMessage, formatPrice, parsePrice } from "../lib/productAssist";
+import { errorMessage, formatPrice } from "../lib/productAssist";
+import { confirmPriceChange, savePriceRequest, showPriceUndo } from "./products/priceSafety";
+import { parsePrice, roundMoney, willRemoveDiscount } from "./products/productUtils";
 import { useProductStore } from "../stores/useProductStore";
 import { useConfirm } from "./ConfirmModal";
 import { Drawer, EmptyState, PageHeader, ShortcutHelp, SkeletonRows, useListShortcuts } from "./admin/ui";
@@ -380,10 +382,14 @@ const PriceRow = ({ row, busy, onApply, onCheck, onIgnore, onQuery }) => {
   const [editingQuery, setEditingQuery] = useState(false);
   useEffect(() => setPrice(priceText(row.price)), [row.price]);
 
+  // Boş kutu ya da 0 kaydedilemez (boş değer 0 sayılmaz); fiyat kuruşa yuvarlanır
   const value = parsePrice(price);
-  const changed = Number.isFinite(value) && value >= 0 && value !== row.price;
+  const valid = Number.isFinite(value) && roundMoney(value) > 0;
+  const changed = valid && roundMoney(value) !== roundMoney(row.price);
+  const invalid = !valid && price.trim() !== "";
+  const removesDiscount = changed && willRemoveDiscount(row, roundMoney(value));
   const suggestion = row.median ? Math.round(row.median * 100) / 100 : null;
-  const apply = () => changed && onApply(row, value);
+  const apply = () => changed && !busy && onApply(row, roundMoney(value));
   const levelClass = { above: "pw-diff--above", below: "pw-diff--below", unsure: "pw-diff--unsure" }[row.filter] || "pw-diff--ok";
 
   return (
@@ -478,6 +484,7 @@ const PriceRow = ({ row, busy, onApply, onCheck, onIgnore, onQuery }) => {
               className="ui-field"
               inputMode="decimal"
               aria-label={`${row.name} yeni fiyat`}
+              aria-invalid={invalid || price.trim() === "" || undefined}
               value={price}
               onChange={(event) => setPrice(event.target.value)}
               onKeyDown={(event) => event.key === "Enter" && apply()}
@@ -487,6 +494,9 @@ const PriceRow = ({ row, busy, onApply, onCheck, onIgnore, onQuery }) => {
             Kaydet
           </button>
         </div>
+        {price.trim() === "" && <p className="pw-price-note pw-price-note--error">Fiyat boş bırakılamaz.</p>}
+        {invalid && <p className="pw-price-note pw-price-note--error">0&apos;dan büyük bir fiyat yazın.</p>}
+        {removesDiscount && <p className="pw-price-note">Bu fiyatla {formatPrice(row.discountedPrice)} indirim kalkar.</p>}
         {suggestion && suggestion !== row.price && (
           <button type="button" className="pw-suggest" onClick={() => setPrice(priceText(suggestion))}>
             Piyasa fiyatını yaz: {formatPrice(suggestion)}
@@ -763,8 +773,16 @@ const MarketfiyatiDrawer = ({ onClose, onSaved }) => {
   );
 };
 
+// Ürünler ekranı açıkken aynı liste bellekte durur: fiyat orada da güncellensin
+const patchStoreProduct = (id, product) =>
+  useProductStore.setState((state) => ({
+    products: (state.products || []).map((item) => (item._id === id
+      ? { ...item, price: product.price, isDiscounted: Boolean(product.isDiscounted), discountedPrice: product.discountedPrice ?? null }
+      : item)),
+  }));
+
 const PriceWatchTab = () => {
-  const updateProductPrice = useProductStore((state) => state.updateProductPrice);
+  const { confirm } = useConfirm();
   const [filter, setFilter] = useState("above");
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
@@ -825,16 +843,30 @@ const PriceWatchTab = () => {
   const replaceRow = (row) =>
     setData((current) => current && { ...current, items: current.items.map((item) => (item.id === row.id ? row : item)) });
 
-  const handleApply = (row, price) =>
-    withBusy(row.id, async () => {
+  // Fiyat kaydı: büyük sapmada / indirim kalkacaksa önce sorulur, kayıttan sonra "Geri al" sunulur
+  const handleApply = async (row, price) => {
+    if (busy[row.id]) return;
+    const before = { _id: row.id, name: row.name, price: row.price, isDiscounted: Boolean(row.isDiscounted), discountedPrice: row.discountedPrice ?? null };
+    if (!(await confirmPriceChange(confirm, before, price))) return;
+    await withBusy(row.id, async () => {
       try {
-        await updateProductPrice(row.id, price);
-        toast.success(`${row.name}: ${formatPrice(price)}`);
+        const saved = await savePriceRequest(row.id, price);
+        const after = saved.product || { price, isDiscounted: before.isDiscounted, discountedPrice: before.discountedPrice };
+        patchStoreProduct(row.id, after);
+        showPriceUndo({
+          before,
+          after,
+          onRestored: (restored) => {
+            patchStoreProduct(row.id, restored);
+            load({ quiet: true });
+          },
+        });
         await load({ quiet: true });
       } catch (err) {
         toast.error(errorMessage(err, err?.message || "Fiyat güncellenemedi."));
       }
     });
+  };
 
   const handleCheck = (row) =>
     withBusy(row.id, async () => {
