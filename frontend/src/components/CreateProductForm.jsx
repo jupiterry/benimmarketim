@@ -97,7 +97,7 @@ const validateProduct = (form) => {
   if (!(price > 0)) errors.price = "Fiyat 0'dan büyük olmalı.";
   if (form.discountedPrice !== "") {
     const discounted = parsePrice(form.discountedPrice);
-    if (!(discounted >= 0)) errors.discountedPrice = "Geçerli bir indirimli fiyat girin.";
+    if (!(discounted > 0)) errors.discountedPrice = "İndirimli fiyat 0'dan büyük olmalı.";
     else if (price > 0 && discounted >= price) errors.discountedPrice = "İndirimli fiyat normal fiyattan düşük olmalı.";
   }
   return errors;

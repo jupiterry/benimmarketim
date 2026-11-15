@@ -408,7 +408,9 @@ test("the same push to the same people within 10 minutes needs explicit confirma
   const query = fx.broadcastQueries[0];
   assert.equal(query.sent, true, "yalnızca başarılı gönderimler sayılır");
   assert.deepEqual(query.audience, { $ne: "self" }, "Bildirimler ekranındaki denemeler sayılmaz");
-  assert.equal(query.createdAt.$gte.getTime(), EVENING - 10 * MIN);
+  // Oluşturulma ya da gönderim anı son 10 dakikadaysa mükerrer sayılır (planlı gönderim daha önce oluşturulmuş olabilir)
+  assert.equal(query.$or[0].createdAt.$gte.getTime(), EVENING - 10 * MIN);
+  assert.equal(query.$or[1].sentAt.$gte.getTime(), EVENING - 10 * MIN);
 
   recent = [{ _id: fx.broadcasts[0]._id, createdAt: new Date(EVENING) }];
   const later = EVENING + 4 * MIN;

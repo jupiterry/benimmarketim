@@ -339,16 +339,18 @@ const acquire = (key) => {
 export const findDuplicatePush = async ({ title, body, recipientIds, now = Date.now() }) => {
   pruneRecent(now);
   const records = await PushBroadcast.find({
-    title, body, sent: true, audience: { $ne: TEST_AUDIENCE }, createdAt: { $gte: new Date(now - DUPLICATE_WINDOW_MS) },
-  }).sort({ createdAt: -1 }).limit(20).select("_id createdAt").lean();
+    title, body, sent: true, audience: { $ne: TEST_AUDIENCE },
+    // Planlı gönderim daha önce oluşturulup az önce gitmiş olabilir: gönderim anı (sentAt) da sayılır
+    $or: [{ createdAt: { $gte: new Date(now - DUPLICATE_WINDOW_MS) } }, { sentAt: { $gte: new Date(now - DUPLICATE_WINDOW_MS) } }],
+  }).sort({ createdAt: -1 }).limit(20).select("_id createdAt sentAt").lean();
   if (!records?.length) return null;
   const wanted = new Set(recipientIds.map((id) => idOf(id).toLowerCase()));
   for (const record of records) {
     const known = recentRecipients.get(idOf(record));
-    if (!known) return { overlap: null, sentAt: record.createdAt };
+    if (!known) return { overlap: null, sentAt: record.sentAt || record.createdAt };
     let overlap = 0;
     for (const id of known.recipients) if (wanted.has(id)) overlap += 1;
-    if (overlap > 0) return { overlap, sentAt: record.createdAt };
+    if (overlap > 0) return { overlap, sentAt: record.sentAt || record.createdAt };
   }
   return null;
 };
